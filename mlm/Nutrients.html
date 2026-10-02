@@ -123,6 +123,30 @@
       return 'ราคาปกติ';
     }
 
+    // 🏷️ ฟังก์ชันช่วยวิเคราะห์และตัดสินว่าออเดอร์นี้เป็น "หมอสั่งจ่าย (Center)" หรือ "สั่งจ่ายยาเอง (Marketing)"
+    function resolveOrderCloserInfo(ord) {
+      if (!ord) return { orderByType: 'หมอสั่งจ่าย', closerTeam: 'Center', closerName: 'หมอผู้เชี่ยวชาญ (Center)' };
+      
+      const typeStr = String(ord.order_by_type || ord.prescribe_type || ord.closer_type || ord.closer_team || '').trim().toLowerCase();
+      const closerDrStr = String(ord.closer_dr || '').trim();
+      const recordedByStr = String(ord.recorded_by || '').trim();
+
+      const isSelf = typeStr.includes('เอง') || typeStr.includes('ตลาด') || typeStr.includes('self') || typeStr.includes('marketing') || typeStr.includes('staff');
+      const isDoc = typeStr.includes('หมอ') || typeStr.includes('แพทย์') || typeStr.includes('doctor') || typeStr.includes('dr') || typeStr.includes('center');
+
+      let orderByType = 'หมอสั่งจ่าย';
+      let closerTeam = 'Center';
+      let closerName = closerDrStr && closerDrStr !== '-' ? closerDrStr : 'หมอผู้เชี่ยวชาญ (Center)';
+
+      if (isSelf || (!isDoc && recordedByStr && closerDrStr && recordedByStr.toLowerCase() === closerDrStr.toLowerCase())) {
+        orderByType = 'สั่งจ่ายยาเอง';
+        closerTeam = 'Marketing';
+        closerName = recordedByStr && recordedByStr !== '-' ? recordedByStr : 'พนักงานการตลาด';
+      }
+
+      return { orderByType, closerTeam, closerName };
+    }
+
     // ฟังก์ชันช่วยสกัด ID / Visit ID ทุกรูปแบบที่เป็นไปได้เพื่อใช้เทียบและลบข้อมูลถาวร
     function getNormalizedIds(val) {
       if (!val) return [];
@@ -235,10 +259,13 @@
             return {
               id: item.order_id || String(item.id),
               visit_id: item.visit_id || '-',
-              hn: item.hn || '-',
-              customer_name: item.customer_name || '-',
-              phone: item.phone || item.customer_phone || item.tel || '-',
-              disease: item.disease || item.disease_name || item.symptom || item.symptoms || '-',
+              hn: item.hn || item.customer_id || item.customerId || item.patient_hn || item.patientHn || '-',
+              customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || item.customer || '-',
+              phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
+              disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
+              customer_type: item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || 'ลูกค้าใหม่มาตรวจ',
+              order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
+              closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
               recorded_by: item.recorded_by || '-',
               closer_dr: item.closer_dr || '-',
               date: item.created_at || item.date || new Date().toISOString(),
@@ -277,10 +304,6 @@
             const vId = item.visit_id || (item.payment_note && item.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? item.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : null) || item.rxVisitId || `VIS-${item.id}`;
             const orderId = item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`;
 
-            // ข้ามหากอยู่ในรายการที่ถูกลบไปแล้ว
-            // ข้ามหากอยู่ในรายการที่ถูกลบไปแล้ว
-            
-
             // เปลี่ยนจาก continue ทิ้ง เป็นการอัปเดตสถานะให้อยู่ในแท็บยกเลิกแทน
             let finalLocalStatus = item.status || 'รอดำเนินการ';
             if (finalLocalStatus === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet) || isOrderDeleted({ id: orderId, visit_id: vId }, deletedIdsSet)) {
@@ -302,10 +325,13 @@
             const localEntry = {
               id: orderId,
               visit_id: vId,
-              hn: item.hn || item.customer_id || '-',
-              customer_name: item.customer_name || item.patientName || item.patient_name || '-',
-              phone: item.phone || item.customer_phone || item.tel || item.patientPhone || '-',
-              disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || '-',
+              hn: item.hn || item.customer_id || item.customerId || item.patient_hn || item.patientHn || '-',
+              customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || item.customer || '-',
+              phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
+              disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
+              customer_type: item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || 'ลูกค้าใหม่มาตรวจ',
+              order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
+              closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
               recorded_by: item.recorded_by || item.seller_id || '-',
               closer_dr: item.closer_dr || '-',
               date: item.created_at || item.date || new Date().toISOString(),
@@ -313,8 +339,6 @@
               sale_order_id: item.sale_order_id || null,
               items: normalizedItems
             };
-
-            
 
             // ─── Sync ขึ้น Supabase ถ้ายังไม่มี ───────────────────────────
             if (!dbIdSet.has(orderId) && orderId && vId && vId !== '-') {
@@ -324,9 +348,12 @@
                   visit_id: vId,
                   hn: localEntry.hn,
                   customer_name: localEntry.customer_name,
+                  customer_type: localEntry.customer_type,
+                  order_by_type: localEntry.order_by_type,
+                  closer_team: localEntry.closer_team,
                   recorded_by: localEntry.recorded_by,
+                  closer_dr: localEntry.closer_dr,
                   date: localEntry.date ? localEntry.date.split('T')[0] : new Date().toISOString().split('T')[0],
-                  status: localEntry.status,
                   items_json: JSON.stringify(normalizedItems)
                 };
                 if (typeof window.supabaseInsert === 'function') {
@@ -497,18 +524,32 @@ const canceledOrders = useMemo(() => {
         
         Swal.hideLoading();
 
+        const closerInfo = resolveOrderCloserInfo(order);
+        const custTypeDisplay = order.customer_type || 'ลูกค้าใหม่มาตรวจ';
+        const isOldCustomer = custTypeDisplay.includes('เก่า');
+
         Swal.fire({
           title: 'ยืนยันสร้างร่างใบสั่งซื้อ',
           html: `
             <div class="text-left text-sm space-y-2 p-2">
-              <p><strong>รหัส VISIT:</strong> <span class="text-blue-600 font-bold">${order.visit_id}</span></p>
+              <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                <span class="text-xs text-slate-500 font-bold">รหัส VISIT: <strong class="text-blue-600">${order.visit_id}</strong></span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black ${isOldCustomer ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-blue-100 text-blue-800 border border-blue-300'}">
+                  🏷️ ${custTypeDisplay}
+                </span>
+              </div>
               <p><strong>HN:</strong> ${order.hn}</p>
-              <p><strong>ชื่อคนไข้:</strong> ${order.customer_name}</p>
+              <p><strong>ชื่อคนไข้:</strong> <span class="font-bold text-slate-800">${order.customer_name}</span></p>
               <p><strong>เบอร์โทร:</strong> ${order.phone || '-'}</p>
               <p><strong>โรค/อาการ:</strong> ${order.disease || '-'}</p>
-              <p><strong>ผู้แนะนำ:</strong> ${order.recorded_by}</p>
-              <p><strong>หมอผู้สั่งจ่ายยา:</strong> ${order.closer_dr || '-'}</p>
-              <hr/>
+              
+              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs space-y-1 mt-2">
+                <p><strong>ผู้แนะนำ (ผู้ขาย):</strong> <span class="text-slate-800 font-bold">${order.recorded_by}</span></p>
+                <p><strong>รูปแบบสั่งจ่าย:</strong> <span class="font-bold ${closerInfo.closerTeam === 'Center' ? 'text-indigo-600' : 'text-emerald-600'}">${closerInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิดการขาย / สั่งจ่าย' : '👤 สั่งจ่ายยาเอง'} (ทีม: ${closerInfo.closerTeam})</span></p>
+                <p><strong>ผู้ปิดการขายในบิล:</strong> <span class="font-black text-slate-900">${closerInfo.closerName}</span></p>
+              </div>
+
+              <hr class="my-2 border-slate-200"/>
               <p class="font-bold text-slate-700">รายการยา:</p>
               <ul class="list-disc pl-5 text-[11px] text-slate-600 space-y-1">
   ${order.items.map(i => {
@@ -542,9 +583,13 @@ const canceledOrders = useMemo(() => {
                 phone: (order.phone && order.phone !== '-' && order.phone !== '--') ? order.phone : '',
                 disease: (order.disease && order.disease !== '-') ? order.disease : '',
                 recorded_by: order.recorded_by,
-                closer_dr: order.closer_dr || order.closer || '',
-                closer_team: order.closer_team || order.closerTeam || '',
-                customer_type: order.customer_type || order.customerType || order.type || '',
+                closer_dr: closerInfo.closerName,
+                closer: closerInfo.closerName,
+                closer_team: closerInfo.closerTeam,
+                closerTeam: closerInfo.closerTeam,
+                order_by_type: closerInfo.orderByType,
+                customer_type: custTypeDisplay,
+                type: custTypeDisplay,
                 items: (order.items || []).map(i => {
                   const typeLabel = typeof getItemTypeLabel === 'function' ? getItemTypeLabel(i) : (i.type || i.priceType || '');
                   return {
@@ -815,7 +860,7 @@ const canceledOrders = useMemo(() => {
                       <th className="py-3 px-3 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
                       <th className="py-3 px-3 border-r border-slate-200/60">โรค/อาการ</th>
                       <th className="py-3 px-3 border-r border-slate-200/60">ผู้แนะนำ</th>
-                      <th className="py-3 px-3 border-r border-slate-200/60">หมอผู้สั่งจ่ายยา</th>
+                      <th className="py-3 px-3 border-r border-slate-200/60">ผู้สั่งจ่าย / ผู้ปิดบิล</th>
                       <th className="py-3 px-3 border-r border-slate-200/60 w-[35%]">รายการจัดสั่งจ่ายยา / จำนวน</th>
                       <th className="py-3 px-3 text-center">{activeTab === 'pending' ? 'ดำเนินการ' : 'สถานะการขาย'}</th>
                     </tr>
@@ -862,10 +907,27 @@ const canceledOrders = useMemo(() => {
                                 <span>{ord.phone}</span>
                               </div>
                             )}
+                            <div className="flex items-center gap-1 mt-1 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-black ${String(ord.customer_type || '').includes('เก่า') ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                🏷️ {ord.customer_type || 'ลูกค้าใหม่มาตรวจ'}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-2 px-3 text-slate-600 align-middle border-r border-slate-100 ">{ord.disease || '-'}</td>
                           <td className="py-2 px-3 font-bold text-slate-700 align-middle border-r border-slate-100 ">{ord.recorded_by || '-'}</td>
-                          <td className="py-2 px-3 font-bold text-emerald-700 align-middle border-r border-slate-100 ">{ord.closer_dr || '-'}</td>
+                          <td className="py-2 px-3 align-middle border-r border-slate-100 ">
+                            {(() => {
+                              const cInfo = resolveOrderCloserInfo(ord);
+                              return (
+                                <div className="space-y-1">
+                                  <div className="font-bold text-slate-800 text-[11px]">{cInfo.closerName}</div>
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black ${cInfo.closerTeam === 'Center' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                                    {cInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิด (Center)' : '👤 สั่งเอง (Marketing)'}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="p-3 align-middle border-r border-slate-100">
                             <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
                               <table className="w-full text-left border-collapse">

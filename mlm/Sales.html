@@ -953,6 +953,10 @@
                 }
 
                 if (foundExistingCust) {
+                    const resolvedCloser = pending.closer || pending.closer_dr || foundExistingCust.closer || foundExistingCust.closer_id || '';
+                    const resolvedCloserTeam = pending.closerTeam || pending.closer_team || foundExistingCust.closerTeam || foundExistingCust.closer_team || '';
+                    const resolvedCustType = pending.customer_type || pending.type || foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่ากลับมาต่อยา';
+
                     setCustData(prev => ({
                         ...prev,
                         id: foundExistingCust.id || foundExistingCust.customer_id || prev.id || pendingHn,
@@ -960,12 +964,12 @@
                         phone: foundExistingCust.phone || prev.phone || pendingPhone,
                         lineId: foundExistingCust.lineId || foundExistingCust.line_id || prev.lineId || '',
                         symptom: foundExistingCust.symptom || foundExistingCust.symptom_disease || prev.symptom || pending.disease || '',
-                        closer: foundExistingCust.closer || foundExistingCust.closer_id || prev.closer || '',
-                        closerTeam: foundExistingCust.closerTeam || foundExistingCust.closer_team || prev.closerTeam || '',
-                        type: foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่าตรวจซ้ำ'
+                        closer: resolvedCloser || prev.closer || '',
+                        closerTeam: resolvedCloserTeam || prev.closerTeam || '',
+                        type: resolvedCustType
                     }));
-                    if (foundExistingCust.type || foundExistingCust.customer_type) {
-                        setCustMode(foundExistingCust.type || foundExistingCust.customer_type);
+                    if (resolvedCustType) {
+                        setCustMode(resolvedCustType);
                     }
                 }
             };
@@ -1014,36 +1018,100 @@
                         setPaymentNote(`VISIT: ${pending.visit_id}`);
                     }
 
-                    if (pending && (pending.hn || pending.customer_name || pending.phone)) {
-                        const cleanP = String(pending.phone || '').trim();
-                        const validPhoneStr = (cleanP && cleanP !== '-' && cleanP !== '--') ? cleanP : '';
-                        const validHnStr = (pending.hn && pending.hn !== '-' && pending.hn !== '--') ? pending.hn : '';
-                        const pendingCloser = pending.closer_dr || pending.closer || '';
-                        let pendingCloserTeam = pending.closer_team || pending.closerTeam || '';
+                    // 1. กำหนดผู้ปิดการขายและทีมผู้ปิด (อย่างปลอดภัย 100%)
+                    let pendingCloser = String(pending.closer || pending.closer_dr || '').trim();
+                    let pendingCloserTeam = String(pending.closer_team || pending.closerTeam || '').trim();
+                    const orderByTypeStr = String(pending.order_by_type || '').toLowerCase();
 
-                        if (pendingCloser && !pendingCloserTeam) {
-                            const foundCloserObj = (closers || []).find(c => c && (c.name === pendingCloser || c.closer_name === pendingCloser));
+                    if (orderByTypeStr.includes('เอง') || pendingCloserTeam.toLowerCase() === 'marketing' || pendingCloserTeam.includes('การตลาด')) {
+                        pendingCloserTeam = 'Marketing';
+                        if (!pendingCloser || pendingCloser === 'หมอผู้เชี่ยวชาญ (Center)') {
+                            pendingCloser = String(pending.recorded_by || '').trim();
+                        }
+                    } else if (orderByTypeStr.includes('หมอ') || pendingCloserTeam.toLowerCase() === 'center' || !pendingCloserTeam) {
+                        pendingCloserTeam = 'Center';
+                    }
+
+                    if (pendingCloser) {
+                        try {
+                            const searchLower = pendingCloser.toLowerCase();
+                            const poolList = (typeof allClosersPool !== 'undefined' && Array.isArray(allClosersPool) && allClosersPool.length > 0)
+                                ? allClosersPool
+                                : (Array.isArray(closers) ? closers : []);
+                            const foundCloserObj = poolList.find(c => {
+                                if (!c) return false;
+                                const cName = String(c.name || '').toLowerCase();
+                                const cId = String(c.id || '').toLowerCase();
+                                return (cName && (cName === searchLower || searchLower.includes(cName))) ||
+                                       (cId && (cId === searchLower || searchLower.includes(cId)));
+                            });
                             if (foundCloserObj) {
-                                pendingCloserTeam = foundCloserObj.team || foundCloserObj.team_name || '';
-                                if (pendingCloserTeam === 'Team A') pendingCloserTeam = 'Marketing';
-                                if (pendingCloserTeam === 'Team B') pendingCloserTeam = 'Center';
+                                pendingCloser = `${foundCloserObj.id} - ${foundCloserObj.name}`;
+                                if (!pendingCloserTeam && foundCloserObj.team) pendingCloserTeam = foundCloserObj.team;
                             }
+                        } catch (closerErr) {
+                            console.warn('Closer match error:', closerErr);
                         }
+                    }
 
-                        setCustData(prev => ({
-                            ...prev,
-                            id: validHnStr || prev.id,
-                            name: pending.customer_name || prev.name || '',
-                            phone: validPhoneStr || prev.phone || '',
-                            lineId: prev.lineId || '',
-                            symptom: pending.disease || prev.symptom || '',
-                            closer: pendingCloser || prev.closer || '',
-                            closerTeam: pendingCloserTeam || prev.closerTeam || ''
-                        }));
-                        if (pending.customer_type || pending.type) {
-                            setCustMode(pending.customer_type || pending.type);
+                    // 2. แมปประเภทลูกค้า (Customer Type)
+                    const rawCustType = String(pending.customer_type || pending.type || '').trim();
+                    let mappedCustMode = 'ลูกค้าใหม่มาตรวจ';
+                    if (rawCustType) {
+                        try {
+                            const typesList = (Array.isArray(customerTypes) && customerTypes.length > 0)
+                                ? customerTypes
+                                : (typeof activeCustomerTypes !== 'undefined' && Array.isArray(activeCustomerTypes) ? activeCustomerTypes : []);
+                            const foundType = typesList.find(t => {
+                                if (!t || !t.name) return false;
+                                const tName = String(t.name).trim().toLowerCase();
+                                const rawLower = rawCustType.toLowerCase();
+                                return tName === rawLower ||
+                                       (rawLower.includes('เก่า') && tName.includes('เก่า')) ||
+                                       (rawLower.includes('ใหม่') && tName.includes('ใหม่'));
+                            });
+                            mappedCustMode = foundType ? foundType.name : rawCustType;
+                        } catch (typeErr) {
+                            mappedCustMode = rawCustType;
                         }
-                        loadCustomerFromPending(pending);
+                    }
+                    setCustMode(mappedCustMode);
+
+                    // 3. จัดการข้อมูลลูกค้า (HN, ชื่อ, เบอร์โทร, อาการ)
+                    const cleanP = String(pending.phone || '').trim();
+                    const validPhoneStr = (cleanP && cleanP !== '-' && cleanP !== '--') ? cleanP : '';
+                    const validHnStr = (pending.hn && pending.hn !== '-' && pending.hn !== '--') ? String(pending.hn).trim() : '';
+                    const validCustName = (pending.customer_name && pending.customer_name !== '-' && pending.customer_name !== '--') ? String(pending.customer_name).trim() : '';
+                    const validDisease = (pending.disease && pending.disease !== '-' && pending.disease !== '--') ? String(pending.disease).trim() : '';
+
+                    setCustData(prev => ({
+                        ...prev,
+                        id: validHnStr || prev.id,
+                        name: validCustName || prev.name || '',
+                        phone: validPhoneStr || prev.phone || '',
+                        lineId: prev.lineId || '',
+                        symptom: validDisease || prev.symptom || '',
+                        closer: pendingCloser || prev.closer || '',
+                        closerTeam: pendingCloserTeam || prev.closerTeam || 'Center'
+                    }));
+
+                    try {
+                        loadCustomerFromPending({
+                            ...pending,
+                            customer_name: validCustName,
+                            hn: validHnStr,
+                            phone: validPhoneStr,
+                            closer: pendingCloser,
+                            closerTeam: pendingCloserTeam,
+                            customer_type: mappedCustMode
+                        });
+                    } catch (loadCustErr) {
+                        console.warn('loadCustomerFromPending error:', loadCustErr);
+                    }
+
+                    // หากเป็นลูกค้าใหม่ และไม่มีรหัส HN ระบุมา ให้ดึงรหัสลูกค้าระบบ C... ถัดไป
+                    if (!mappedCustMode.includes('เก่า') && (!validHnStr || validHnStr === '-')) {
+                        fetchNextAvailableCustId();
                     }
 
                     if (pending && Array.isArray(pending.items) && pending.items.length > 0) {
@@ -3704,10 +3772,10 @@
                     Promise.all([
                         supabaseSelect('stk_products').catch(e => { console.warn('stk_products fetch:', e); return []; }),
                         supabaseSelect('stk_customer_types').catch(e => { console.warn('stk_customer_types fetch:', e); return []; }),
-                        supabaseSelect('stk_closers', 'nocache=true').catch(e => { console.warn('stk_closers fetch:', e); return []; }),
+                        supabaseSelect('stk_closers').catch(e => { console.warn('stk_closers fetch:', e); return []; }),
                         supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name,id_card_url').catch(e => { console.warn('stk_members fetch:', e); return []; }),
-                        supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2500').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
-                        supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
+                        supabaseSelect('stk_customers', 'order=customer_id.desc&limit=800').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
+                        supabaseSelect('stk_sales', 'order=order_id.desc&limit=400').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
                         supabaseSelect('stk_business_teams').catch(e => { console.warn('stk_business_teams fetch:', e); return []; })
                     ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
                         const resObj = {

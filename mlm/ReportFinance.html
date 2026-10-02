@@ -220,6 +220,10 @@
         });
         const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 });
         const [yearlySummaryFromDb, setYearlySummaryFromDb] = useState([]); // รับข้อมูล Summary จาก Database
+        const [loadedYears, setLoadedYears] = useState(() => new Set());
+        const [isYearLoading, setIsYearLoading] = useState(false);
+        const [loadingYearText, setLoadingYearText] = useState('');
+        const loadingYearsRef = React.useRef(new Set());
 
         // Filter States & SubTab Persistence Across Browser Refresh
         const todayStr = getLocalISODate();
@@ -335,66 +339,101 @@
             return downlines;
         }, [currentUser, isAdmin, members]);
 
-       const fetchFinanceData = useCallback(async () => {
-            try {
-                const currentYear = new Date().getFullYear();
-                const startRange = `${currentYear - 1}-01-01`; 
-                const endRange = `${currentYear + 1}-12-31`;
+        // 🌟 ดึงบิลดิบของปีเป้าหมาย (ดึงครบ 100% ทุกบิลที่มีจริงในปีนั้นๆ โดยไม่มีการจำกัดจำนวนบิล)
+        const fetchSalesForYear = useCallback(async (targetYear) => {
+            const y = Number(targetYear);
+            if (!y || isNaN(y) || y < 2020 || y > 2035) return [];
+            if (loadingYearsRef.current.has(y)) return [];
+            loadingYearsRef.current.add(y);
+            setIsYearLoading(true);
+            setLoadingYearText(`กำลังดึงข้อมูลบิลทั้งหมดของปี ${y}...`);
 
-                // 1. ดึงสรุปรายปีจาก Database ตรงๆ
-                let dbSummary = [];
+            const startRange = `${y}-01-01`;
+            const endRange = `${y}-12-31`;
+            let yearSales = [];
+
+            try {
+                // 1. ดึงสรุปรายปีของปีเป้าหมายจาก RPC ด้วย
                 try {
                     if (typeof window.supabaseRpc === 'function') {
-                        const summaryData = await window.supabaseRpc('get_monthly_finance_summary', { p_year: currentYear });
+                        const summaryData = await window.supabaseRpc('get_monthly_finance_summary', { p_year: y });
                         if (Array.isArray(summaryData)) {
-                            dbSummary = summaryData.map(d => ({
+                            const formatted = summaryData.map(d => ({
                                 period: d.period,
                                 monthNum: parseInt(d.period.split('-')[1], 10),
                                 billsCount: Number(d.bills_count || 0),
                                 sumLak: Number(d.sum_lak || 0),
                                 sumThb: Number(d.sum_thb || 0)
                             }));
+                            setYearlySummaryFromDb(formatted);
                         }
                     }
-                } catch(e) { console.warn('RPC Summary Error:', e); }
+                } catch(e) { console.warn('RPC Summary Error for year ' + y, e); }
 
-                // 2. Loop ดึงบิลดิบโดยใช้คำสั่งเฉพาะของระบบ (window.supabaseSelect) เพื่อหลีกเลี่ยง Error
-                let allSales = [];
+                // 2. Loop ดึงบิลดิบทั้งหมดของปีนั้นๆ จนหมดสต๊อกจริง 100% ไม่มีการจำกัดจำนวนบิล
                 if (typeof window.supabaseSelect === 'function') {
                     let hasMore = true;
                     let offset = 0;
                     const limit = 1000;
-                    
+
                     while (hasMore) {
-                        // ใช้ offset ในการเลื่อนดึงข้อมูลทีละ 1,000 บิล
                         const queryStr = `date=gte.${startRange}&date=lte.${endRange}&order=order_id.desc&limit=${limit}&offset=${offset}`;
                         const data = await window.supabaseSelect('stk_sales', queryStr).catch(() => null);
-                        
+
                         if (data && Array.isArray(data) && data.length > 0) {
-                            allSales = allSales.concat(data);
+                            yearSales = yearSales.concat(data);
                             offset += limit;
-                            // ถ้าข้อมูลที่ดึงมาได้น้อยกว่า 1,000 แปลว่าบิลหมดสต๊อกแล้ว ให้หยุดลูป
                             if (data.length < limit) {
-                                hasMore = false; 
+                                hasMore = false;
                             }
                         } else {
-                            hasMore = false; 
+                            hasMore = false;
                         }
                     }
                 }
 
-                // Fallback เผื่อกรณีเชื่อมต่อ Loop ไม่สำเร็จ
-                if (allSales.length === 0) {
-                    allSales = await window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=15000').catch(() => []);
+                // รวมข้อมูลเข้าสู่ state โดยขจัดบิลที่ซ้ำกัน (deduplicate by order_id)
+                if (yearSales.length > 0) {
+                    setSales(prev => {
+                        const existing = Array.isArray(prev) ? prev : [];
+                        const map = new Map();
+                        existing.forEach(s => {
+                            const id = s.order_id || s.id;
+                            if (id) map.set(String(id), s);
+                        });
+                        yearSales.forEach(s => {
+                            const id = s.order_id || s.id;
+                            if (id) map.set(String(id), s);
+                        });
+                        const merged = Array.from(map.values());
+                        return processFinanceSales ? processFinanceSales(merged) : merged;
+                    });
                 }
 
+                setLoadedYears(prev => new Set(prev).add(y));
+            } catch (err) {
+                console.error(`Error fetching sales for year ${y}:`, err);
+            } finally {
+                loadingYearsRef.current.delete(y);
+                setIsYearLoading(false);
+                setLoadingYearText('');
+            }
+            return yearSales;
+        }, []);
+
+        const fetchFinanceData = useCallback(async () => {
+            try {
+                const currentYear = new Date().getFullYear();
+
+                // 1. โหลดข้อมูลบิลเฉพาะปีปัจจุบันก่อน (ดึงครบ 100% ทุกบิลในปีนี้ ไม่จำกัดบิล)
+                await fetchSalesForYear(currentYear);
+
+                // 2. โหลด Master Data (สมาชิก, ตั้งค่า, สินค้า) ซึ่งมี Cache ข้ามหน้าใน sessionStorage ไม่เสีย Egress ซ้ำซ้อน
                 const [memRes, settingsRes, prodRes] = await Promise.all([
                     window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status').catch(() => []),
                     window.supabaseSelect('stk_system_settings').catch(() => []),
                     window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,is_bundle,base_product,bundle_qty').catch(() => window.supabaseSelect('products')).catch(() => [])
                 ]);
-
-                setYearlySummaryFromDb(dbSummary);
 
                 if (Array.isArray(prodRes) && prodRes.length > 0) {
                     setProducts(prodRes);
@@ -424,16 +463,12 @@
                         team: String(m.business_team || m.team || 'Marketing').trim()
                     })));
                 }
-
-                if (Array.isArray(allSales)) {
-                    setSales(processFinanceSales ? processFinanceSales(allSales) : allSales);
-                }
             } catch (err) {
                 console.error("Finance fetch error:", err);
             } finally {
                 setIsAppLoading(false);
             }
-        }, []);
+        }, [fetchSalesForYear]);
 
         useEffect(() => {
             const savedUserStr = localStorage.getItem('stk_current_user');
@@ -456,6 +491,20 @@
                 setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); 
             }
         }, [fetchFinanceData]);
+
+        // 🌟 ตรวจสอบและดึงข้อมูลบิลอัตโนมัติเมื่อผู้ใช้เลือกปีอื่น (เช่น ปีก่อนหน้า 2025, 2024) ดึงครบจริงไม่มีจำกัด
+        useEffect(() => {
+            const checkAndLoadYear = (dateStr) => {
+                if (!dateStr) return;
+                const y = new Date(dateStr).getFullYear();
+                if (y && !isNaN(y) && y >= 2020 && y <= 2035 && !loadedYears.has(y) && !loadingYearsRef.current.has(y)) {
+                    fetchSalesForYear(y);
+                }
+            };
+            checkAndLoadYear(startDate);
+            checkAndLoadYear(endDate);
+            checkAndLoadYear(closingDate);
+        }, [startDate, endDate, closingDate, loadedYears, fetchSalesForYear]);
 
         // Filtered Bills for Detail Tab
         const financeBills = useMemo(() => {
@@ -1442,6 +1491,13 @@
                                                 onChange={e => setClosingDate(e.target.value)} 
                                             />
                                         </div>
+                                        {isYearLoading && (
+                                            <div className="pb-1">
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold animate-pulse">
+                                                    <Activity size={14} className="animate-spin" /> {loadingYearText}
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="flex items-center gap-1.5 pb-0.5">
                                             <button 
                                                 type="button" 
@@ -1501,6 +1557,13 @@
                                 <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
                                     <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
                                     <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                                    {isYearLoading && (
+                                        <div className="pb-1">
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold animate-pulse">
+                                                <Activity size={14} className="animate-spin" /> {loadingYearText}
+                                            </span>
+                                        </div>
+                                    )}
                                     {subTab === 'sale_product_report' && (
                                         <>
                                             <div className="w-full sm:w-auto">
@@ -1608,9 +1671,43 @@
                                                         <Activity size={22} className="stroke-[2.5]" />
                                                     </div>
                                                     <div>
-                                                        <h3 className="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">
-                                                            สถิติยอดขายรวมรายเดือน 12 เดือน (THB) ประจำปี {activeYear}
-                                                        </h3>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h3 className="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">
+                                                                สถิติยอดขายรวมรายเดือน 12 เดือน (THB) ประจำปี {activeYear}
+                                                            </h3>
+                                                            {/* 🌟 ปุ่มเลือกปีสำหรับดูยอดปีก่อนหน้า/ปีปัจจุบัน ดึงบิลจริงครบ 100% ไม่จำกัดจำนวน */}
+                                                            <div className="inline-flex p-0.5 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+                                                                {[2024, 2025, 2026, 2027].map(yr => (
+                                                                    <button
+                                                                        key={yr}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setStartDate(`${yr}-01-01`);
+                                                                            setEndDate(`${yr}-12-31`);
+                                                                            if (!loadedYears.has(yr)) {
+                                                                                fetchSalesForYear(yr);
+                                                                            }
+                                                                        }}
+                                                                        className={`px-2.5 py-1 rounded-lg transition-all ${
+                                                                            activeYear === yr
+                                                                                ? 'bg-blue-600 text-white shadow-xs'
+                                                                                : 'text-slate-600 hover:text-blue-600'
+                                                                        }`}
+                                                                    >
+                                                                        {yr}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                            {isYearLoading ? (
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold animate-pulse">
+                                                                    <Activity size={13} className="animate-spin" /> {loadingYearText}
+                                                                </span>
+                                                            ) : loadedYears.has(activeYear) ? (
+                                                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                                                                    ✓ ดึงบิลปี {activeYear} ครบแล้ว ({sales.filter(s => String(s.date || '').startsWith(String(activeYear))).length.toLocaleString()} บิล)
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
                                                         <p className="text-xs text-slate-500">เปรียบเทียบแนวโน้มยอดขายและแท่งรายรับ 12 เดือน (ม.ค. - ธ.ค.)</p>
                                                     </div>
                                                 </div>

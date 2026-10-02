@@ -93,12 +93,67 @@
   const DEFAULT_TABLE_SELECT = {
     'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,accumulated_pv,created_at',
     'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty,image_url',
-    'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at'
+    'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at',
+    'stk_sales': 'order_id,date,created_at,customer_id,customer_name,seller_id,seller_name,closer_id,closer_team,total_amount,pay_mode,sale_type,items_json,payment_note,status'
   };
+
+  const SESSION_CACHE_PREFIX = 'stk_qc_';
+
+  function getFromCache(key, ttl) {
+    if (ttl <= 0) return null;
+    const now = Date.now();
+    // 1. In-memory Map
+    if (queryCache.has(key)) {
+      const entry = queryCache.get(key);
+      if (now - entry.timestamp < ttl) {
+        return entry.data;
+      }
+      queryCache.delete(key);
+    }
+    // 2. sessionStorage (แชร์ข้ามหน้าต่างในแท็บเดียวกัน ลด Egress 100% เมื่อเปลี่ยนหน้า)
+    try {
+      const raw = sessionStorage.getItem(SESSION_CACHE_PREFIX + key);
+      if (raw) {
+        const entry = JSON.parse(raw);
+        if (now - entry.timestamp < ttl) {
+          queryCache.set(key, entry);
+          return entry.data;
+        }
+        sessionStorage.removeItem(SESSION_CACHE_PREFIX + key);
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function setToCache(key, data, ttl) {
+    if (ttl <= 0) return;
+    const entry = { timestamp: Date.now(), data: data };
+    queryCache.set(key, entry);
+    try {
+      const str = JSON.stringify(entry);
+      // จำกัดขนาดไม่เกิน 1.5MB ต่อรายการเพื่อความปลอดภัยของโควต้าพื้นที่
+      if (str.length < 1500000) {
+        sessionStorage.setItem(SESSION_CACHE_PREFIX + key, str);
+      }
+    } catch (e) {
+      try {
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(SESSION_CACHE_PREFIX)) sessionStorage.removeItem(k);
+        }
+      } catch (ex) {}
+    }
+  }
 
   function invalidateTableCache(table) {
     if (!table) {
       queryCache.clear();
+      try {
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(SESSION_CACHE_PREFIX)) sessionStorage.removeItem(k);
+        }
+      } catch (e) {}
       return;
     }
     for (const key of queryCache.keys()) {
@@ -106,6 +161,17 @@
         queryCache.delete(key);
       }
     }
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(SESSION_CACHE_PREFIX)) {
+          const rawKey = k.replace(SESSION_CACHE_PREFIX, '');
+          if (rawKey === table || rawKey.startsWith(table + ':') || rawKey.startsWith(table + '?')) {
+            sessionStorage.removeItem(k);
+          }
+        }
+      }
+    } catch (e) {}
   }
 
   window.invalidateTableCache = invalidateTableCache;
@@ -124,11 +190,11 @@
       const cacheKey = table + (cleanQuery ? '?' + cleanQuery : '');
       const ttl = CACHE_TTL_CONFIG[table] || 0;
 
-      // ถ้าตารางอยู่ในรายการที่มีแคช และไม่ได้สั่ง nocache และแคชยังไม่หมดอายุ
-      if (!isNoCache && ttl > 0 && queryCache.has(cacheKey)) {
-        const cached = queryCache.get(cacheKey);
-        if (Date.now() - cached.timestamp < ttl) {
-          return JSON.parse(JSON.stringify(cached.data)); // คืนข้อมูลจากแคชทันที ไม่เสีย Egress
+      // ถ้าตารางอยู่ในรายการที่มีแคช และไม่ได้สั่ง nocache และแคชยังไม่หมดอายุ (ตรวจทั้ง Memory และ sessionStorage)
+      if (!isNoCache && ttl > 0) {
+        const cachedData = getFromCache(cacheKey, ttl);
+        if (cachedData !== null) {
+          return JSON.parse(JSON.stringify(cachedData)); // คืนข้อมูลจากแคชทันที ไม่เสีย Egress แม้เปลี่ยนหน้า
         }
       }
 
@@ -146,7 +212,7 @@
             const selectCols = cleanQuery.includes('select=') ? cleanQuery.replace(/.*select=([^&]+).*/, '$1') : '*';
             const { data, error } = await window.supabaseClient.from(table).select(selectCols);
             if (!error && Array.isArray(data)) {
-              if (ttl > 0) queryCache.set(cacheKey, { timestamp: Date.now(), data });
+              if (ttl > 0) setToCache(cacheKey, data, ttl);
               return data;
             }
           } catch (sdkErr) {}
@@ -160,7 +226,7 @@
       const data = await res.json();
 
       if (ttl > 0) {
-        queryCache.set(cacheKey, { timestamp: Date.now(), data: data });
+        setToCache(cacheKey, data, ttl);
       }
       return data;
     };
@@ -174,10 +240,10 @@
       const cacheKey = 'clinic_' + table + (cleanQuery ? '?' + cleanQuery : '');
       const ttl = 60 * 1000; // 1 นาที
 
-      if (!isNoCache && ttl > 0 && queryCache.has(cacheKey)) {
-        const cached = queryCache.get(cacheKey);
-        if (Date.now() - cached.timestamp < ttl) {
-          return JSON.parse(JSON.stringify(cached.data));
+      if (!isNoCache && ttl > 0) {
+        const cachedData = getFromCache(cacheKey, ttl);
+        if (cachedData !== null) {
+          return JSON.parse(JSON.stringify(cachedData));
         }
       }
 
@@ -192,7 +258,7 @@
       }
       const data = await res.json();
       if (ttl > 0) {
-        queryCache.set(cacheKey, { timestamp: Date.now(), data: data });
+        setToCache(cacheKey, data, ttl);
       }
       return data;
     };
