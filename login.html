@@ -4,431 +4,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HR Management System - Login</title>
+    <title>เข้าสู่ระบบ - Clinic System</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b3c73'/><path d='M40 20h20v20h20v20H60v20H40V60H20V40h20z' fill='%23ffffff'/></svg>">
 
-    <!-- 📌 ตัวดักจับ Error -->
-    <script>
-        function showErrorOverlay(msg, line, col, err) {
-            var existing = document.getElementById('__error_overlay__');
-            if (existing) return;
-            var overlay = document.createElement('div');
-            overlay.id = '__error_overlay__';
-            overlay.style.cssText = 'display:flex;height:100vh;width:100vw;align-items:center;justify-content:center;background-color:#f8fafc;position:fixed;top:0;left:0;z-index:99999;';
-            overlay.innerHTML = `
-                <div style="background:white;padding:2rem;border-radius:1rem;border:1px solid #e2e8f0;box-shadow:0 25px 50px -12px rgba(0,0,0,0.1);max-width:500px;text-align:center;font-family:sans-serif;">
-                    <div style="width:4rem;height:4rem;background-color:rgba(239,68,68,0.1);color:#ef4444;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem auto;font-size:2rem;">⚠️</div>
-                    <h2 style="color:#0f172a;margin-bottom:0.5rem;font-size:1.5rem;font-weight:bold;">พบข้อผิดพลาดในโค้ด</h2>
-                    <p style="color:#64748b;margin-bottom:1.5rem;font-size:0.875rem;">หน้าจอทำงานผิดปกติเนื่องจากการทำงานของสคริปต์ล้มเหลว</p>
-                    <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:1rem;border-radius:0.5rem;text-align:left;overflow-x:auto;">
-                        <code style="color:#ef4444;font-size:0.875rem;">Error: ${msg}</code><br>
-                        ${line ? `<code style="color:#ef4444;font-size:0.875rem;">Line: ${line}</code>` : ''}
-                    </div>
-                    <button onclick="document.getElementById('__error_overlay__').remove()" style="margin-top:1rem;padding:0.5rem 1.5rem;background:#4f46e5;color:white;border:none;border-radius:0.5rem;cursor:pointer;font-size:0.875rem;">ปิด</button>
-                </div>`;
-            document.body.appendChild(overlay);
-        }
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Kanit:wght@400;500;600&family=Sarabun:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-        window.addEventListener('error', function (e) {
-            showErrorOverlay(e.message, e.lineno, e.colno, e.error);
-        });
+    <!-- เรียกใช้งาน style.css -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Login Specific Stylesheet -->
+    <link rel="stylesheet" href="login.css?v=1.0">
 
-        window.addEventListener('unhandledrejection', function (e) {
-            var reasonMsg = e.reason ? (e.reason.message || e.reason) : 'Unknown promise rejection';
-            if (reasonMsg && (reasonMsg.includes('timed out') || reasonMsg.includes('NetworkError') || reasonMsg.includes('Failed to fetch'))) {
-                e.preventDefault();
-                console.warn('Network issue (suppressed overlay):', reasonMsg);
-                return;
-            }
-            showErrorOverlay('Promise Rejected: ' + reasonMsg, null, null, e.reason);
-        });
-    </script>
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <script>
-        try {
-            tailwind.config = {
-                theme: {
-                    extend: {
-                        fontFamily: { sans: ['Prompt', 'Inter', 'sans-serif'] },
-                        colors: {
-                            brandindigo: '#4f46e5', /* Indigo 600 */
-                            brandpurple: '#9333ea', /* Purple 600 */
-                            brandblue: '#2563eb'    /* Blue 600 */
-                        }
-                    }
-                }
-            };
-        } catch (e) {
-            console.log('Tailwind config skipped:', e.message);
-        }
-    </script>
-
-    <!-- Load Configuration -->
+    <!-- Config & i18n Engine -->
     <script src="config.js"></script>
-
-    <script>
-
-        function createSupabaseBridge({ url, anonKey, accessToken = null }) {
-            const base = String(url || '').replace(/\/$/, '');
-            async function request(path, { method = "GET", body = null, extraHeaders = {} } = {}) {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 60000);
-                const headers = {
-                    apikey: anonKey,
-                    Authorization: `Bearer ${accessToken || anonKey}`,
-                    "Content-Type": "application/json",
-                    ...extraHeaders,
-                };
-                try {
-                    const res = await fetch(`${base}${path}`, {
-                        method,
-                        headers,
-                        body: body ? JSON.stringify(body) : undefined,
-                        signal: controller.signal,
-                    });
-                    if (res.status === 521) {
-                        throw new Error('Supabase database is currently paused/offline. Please restore/unpause it in the Supabase Dashboard.');
-                    }
-                    const text = await res.text();
-                    let data = null;
-                    try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
-                    if (!res.ok) throw new Error(data?.message || data?.error || text || `Request failed: ${res.status}`);
-                    return data;
-                } catch (err) {
-                    if (err && err.name === 'AbortError') throw new Error('Request timed out. Please try again.');
-                    throw err;
-                } finally {
-                    clearTimeout(timeoutId);
-                }
-            }
-            return {
-                url,
-                anonKey,
-                async getTableData(table, { select = "*", filter = "" } = {}) {
-                    let baseUrl = `/rest/v1/${table}?select=${encodeURIComponent(select)}`;
-                    if (filter) {
-                        baseUrl += `&${filter}`;
-                        return request(baseUrl, {
-                            method: "GET",
-                            extraHeaders: { Prefer: "return=representation" },
-                        });
-                    }
-                    let allRows = [];
-                    let from = 0;
-                    const pageSize = 1000;
-                    while (true) {
-                        const to = from + pageSize - 1;
-                        const rows = await request(baseUrl, {
-                            method: "GET",
-                            extraHeaders: {
-                                Prefer: "return=representation",
-                                "Range-Unit": "items",
-                                "Range": `${from}-${to}`
-                            },
-                        });
-                        if (!Array.isArray(rows) || rows.length === 0) break;
-                        allRows = allRows.concat(rows);
-                        if (rows.length < pageSize) break;
-                        from += pageSize;
-                    }
-                    return allRows;
-                },
-                async updateTableData(table, filter, data) {
-                    let baseUrl = `/rest/v1/${table}`;
-                    if (filter) baseUrl += `?${filter}`;
-                    return request(baseUrl, {
-                        method: "PATCH",
-                        body: data,
-                        extraHeaders: { Prefer: "return=representation" },
-                    });
-                }
-            };
-        }
-
-        const bridge = createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
-    </script>
+    <script src="i18n.js"></script>
 </head>
 
-<body class="bg-gray-50 text-gray-800 overflow-hidden selection:bg-brandindigo selection:text-white">
+<body class="login-page">
 
-    <!-- Toast Notifications -->
-    <div id="toast-container" class="fixed top-8 left-0 right-0 z-[9999] flex flex-col items-center pointer-events-none px-4 space-y-3"></div>
-
-    <!-- Loading Overlay -->
-    <div id="main-loading" class="fixed inset-0 bg-white/80 z-[9998] flex flex-col items-center justify-center hidden backdrop-blur-md">
-        <div class="relative w-16 h-16 flex items-center justify-center mb-4">
-            <div class="absolute w-full h-full border-4 border-gray-200 rounded-full"></div>
-            <div class="absolute w-full h-full border-4 border-brandindigo rounded-full border-t-transparent animate-spin"></div>
-            <i class="fa-solid fa-fingerprint text-brandindigo text-xl"></i>
+    <div class="login-card position-relative">
+        <!-- ตัวเลือกสลับภาษาหน้า Login -->
+        <div class="position-absolute top-0 end-0 m-3">
+            <select class="form-select form-select-sm clinic-lang-select shadow-xs border"
+                style="font-size:0.78rem;border-radius:8px;cursor:pointer;width:140px;"
+                onchange="setClinicLanguage(this.value)">
+                <option value="la">LA ພາສາລາວ</option>
+                <option value="th">TH ภาษาไทย</option>
+                <option value="en">EN English</option>
+            </select>
         </div>
-        <p id="loading-text" class="text-indigo-600 font-bold text-sm tracking-widest uppercase">AUTHORIZING...</p>
-    </div>
 
-    <!-- Login Screen UI -->
-    <div id="login-screen" style="display:flex; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; background-color:#f8fafc; padding: 1rem;">
-        <div class="glass-card p-6 sm:p-10 rounded-3xl shadow-2xl w-[94%] sm:w-full max-w-sm border border-gray-100 relative overflow-hidden">
-            <!-- Decorative blur element -->
-            <div class="absolute -top-20 -right-20 w-40 h-40 bg-brandpurple opacity-10 rounded-full blur-3xl"></div>
-
-            <div class="text-center mb-8 relative z-10 flex flex-col items-center">
-                <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-brandindigo to-brandpurple text-white mb-4 shadow-lg shadow-indigo-500/30 transform -rotate-3 hover:rotate-0 transition-all duration-300">
-                    <i class="fa-solid fa-building-user text-4xl transform rotate-3 group-hover:rotate-0 transition-all duration-300"></i>
-                </div>
-                <h2 class="text-3xl font-bold text-gray-900 tracking-tight">HR System</h2>
-                <p class="text-sm text-gray-500 mt-1 font-medium">HR Management Portal</p>
+        <div class="text-center mb-4 pt-2">
+            <div class="login-icon">
+                <i class="ph ph-hospital"></i>
             </div>
-            <form onsubmit="handleLogin(event)" class="relative z-10">
-                <div class="mb-5 relative">
-                    <label class="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Email Address</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i class="fa-regular fa-envelope text-gray-400"></i>
-                        </div>
-                        <input type="email" id="login-email" required
-                            class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo transition-all placeholder-gray-400 font-medium"
-                            placeholder="Enter your email">
-                    </div>
+            <h3 class="fw-bold text-dark" data-i18n="app_title">ຄລີນິກ ເລີຟ ເອັສທີເຄ</h3>
+            <p class="text-muted small" data-i18n="login_subtitle">ลงชื่อเข้าใช้ด้วยอีเมลและรหัสผ่านพนักงาน</p>
+        </div>
+
+        <!-- Lockout Banner (Rate Limiting) -->
+        <div id="lockoutBanner" class="lockout-banner text-center fw-semibold">
+            <i class="ph ph-warning-circle me-1"></i> <span id="lockoutText" data-i18n="lockout_title">ระงับการเข้าสู่ระบบชั่วคราว</span>
+        </div>
+
+        <form id="loginForm">
+            <!-- 🛡️ CSRF Token (Security Feature) -->
+            <input type="hidden" id="csrfToken" name="csrfToken">
+
+            <div class="mb-3">
+                <label class="form-label fw-bold text-dark small" data-i18n="staff_email">อีเมลพนักงาน</label>
+                <div class="input-group">
+                    <span class="input-group-text border-end-0"><i class="ph ph-envelope"></i></span>
+                    <input type="email" id="loginEmail" class="form-control custom-input border-start-0 ps-0"
+                        placeholder="example@clinic.com" data-i18n-placeholder="login_email_placeholder" required>
                 </div>
-                <div class="mb-6 relative">
-                    <label class="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Password</label>
-                    <div class="relative flex items-center">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i class="fa-solid fa-lock text-gray-400"></i>
-                        </div>
-                        <input type="password" id="login-password" required
-                            class="w-full pl-11 pr-12 py-3 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo transition-all placeholder-gray-400 font-medium"
-                            placeholder="••••••••">
-                        <button type="button"
-                            onclick="const p=document.getElementById('login-password'); p.type=p.type==='password'?'text':'password'; this.innerHTML=p.type==='password'?'<i class=\'fa-regular fa-eye text-gray-400 hover:text-brandindigo transition-colors\'></i>':'<i class=\'fa-regular fa-eye-slash text-brandindigo\'></i>';"
-                            class="absolute inset-y-0 right-0 pr-4 flex items-center focus:outline-none">
-                            <i class="fa-regular fa-eye text-gray-400 hover:text-brandindigo transition-colors"></i>
-                        </button>
-                    </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold text-dark small" data-i18n="staff_password">รหัสผ่าน</label>
+                <div class="input-group">
+                    <span class="input-group-text border-end-0"><i class="ph ph-lock"></i></span>
+                    <input type="password" id="loginPassword" class="form-control custom-input border-start-0 ps-0"
+                        placeholder="••••••••" data-i18n-placeholder="login_password_placeholder" required>
                 </div>
-                <div class="flex items-center justify-between mb-8">
-                    <label class="flex items-center cursor-pointer group">
-                        <input type="checkbox" id="remember-me"
-                            class="w-4 h-4 bg-gray-50 border-gray-300 rounded focus:ring-brandindigo text-brandindigo">
-                        <span class="ml-2 text-sm text-gray-500 group-hover:text-gray-700 font-medium transition-colors">Remember me</span>
+            </div>
+
+            <!-- Checkbox: Remember Me -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="rememberMe" style="cursor: pointer;">
+                    <label class="form-check-label text-dark small fw-semibold" for="rememberMe"
+                        style="cursor: pointer; user-select: none;" data-i18n="remember_me">
+                        จดจำฉันไว้ (Remember Me)
                     </label>
                 </div>
-                <button type="submit"
-                    class="w-full bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/30 transform hover:-translate-y-0.5">
-                    Sign In <i class="fa-solid fa-arrow-right ml-2"></i>
-                </button>
-            </form>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold" id="loginBtn" data-i18n="login_button"
+                style="border-radius: 12px;">
+                <i class="ph ph-sign-in me-1"></i> เข้าสู่ระบบ
+            </button>
+        </form>
+    </div>
+
+    <!-- 📱 Custom OTP Verification Modal (100% Match with Reference) -->
+    <div id="otpModalOverlay" class="otp-modal-overlay">
+        <div class="otp-modal-box">
+            <div class="otp-modal-title">
+                ກະລຸນາປ້ອນລະຫັດຢືນຢັນ OTP<br>ເພື່ອເຂົ້າລະບົບຢ່າງປອດໄພ
+            </div>
+
+            <div class="otp-display-card">
+                <span id="otpGeneratedDisplay" class="otp-number-text">837130</span>
+            </div>
+
+            <div class="otp-input-wrapper">
+                <input type="text" id="otpCodeInput" class="otp-code-input" maxlength="6" inputmode="numeric"
+                    pattern="[0-9]*" placeholder="ປ້ອນລະຫັດ 6 ຫຼັກບ່ອນນີ້" autocomplete="one-time-code">
+                <div id="otpErrorText" class="otp-error-text" style="display: none;">ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ກະລຸນາລອງໃໝ່
+                </div>
+            </div>
+
+            <div class="otp-btn-group">
+                <button type="button" id="otpConfirmBtn" class="otp-btn-confirm">ຢືນຢັນ</button>
+                <button type="button" id="otpCancelBtn" class="otp-btn-cancel">ຍົກເລີກ</button>
+            </div>
         </div>
     </div>
 
-    <script>
-        // Check if session exists on load
-        document.addEventListener("DOMContentLoaded", () => {
-            const savedSession = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-            if (savedSession) {
-                window.location.href = 'Hr.html';
-            }
-        });
+    <!-- ❌ Custom Login Error Alert Modal (100% Match with Reference) -->
+    <div id="loginErrorModalOverlay" class="login-error-modal-overlay">
+        <div class="login-error-modal-box">
+            <div class="login-error-icon-circle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.6" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </div>
 
-        function toggleLoading(show, text = 'PROCESSING...') {
-            document.getElementById('loading-text').innerText = text;
-            document.getElementById('main-loading').classList.toggle('hidden', !show);
-        }
+            <h3 id="loginErrorTitle" class="login-error-title">ເຂົ້າລະບົບບໍ່ສຳເລັດ</h3>
+            <p id="loginErrorSubtitle" class="login-error-subtitle">ກະລຸນາກວດສອບ ອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຖືກຕ້ອງ</p>
+            <p id="loginErrorWarning" class="login-error-warning">“ທ່ານສາມາດລອງໄດ້ອີກສອງຄັ້ງ ”</p>
 
-        function showToast(msg, type = 'success') {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
+            <div class="login-error-btn-container">
+                <button type="button" id="loginErrorOkBtn" class="login-error-btn-ok">OK</button>
+            </div>
+        </div>
+    </div>
 
-            // Prevent duplicate toasts with the same message
-            const existing = Array.from(container.children).find(t => {
-                const txt = t.querySelector('.ml-4');
-                return txt && txt.textContent.trim() === String(msg).trim();
-            });
-            if (existing) return;
-
-            // Limit to maximum of 3 toasts
-            while (container.children.length >= 3) {
-                container.removeChild(container.firstChild);
-            }
-
-            const toast = document.createElement('div');
-            const color = type === 'success' ? 'bg-white border-gray-100 text-gray-800' : 'bg-white border-red-100 text-gray-800';
-            const iconColor = type === 'success' ? 'text-emerald-500 bg-emerald-50' : 'text-red-500 bg-red-50';
-            const icon = type === 'success' ? 'fa-check' : 'fa-xmark';
-
-            toast.className = `flex items-center w-full max-w-sm p-4 ${color} rounded-2xl shadow-xl border pointer-events-auto transform transition-all duration-300 -translate-y-5 opacity-0`;
-            toast.innerHTML = `
-                <div class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-full ${iconColor}">
-                    <i class="fa-solid ${icon} text-lg"></i>
-                </div>
-                <div class="ml-4 text-sm font-bold flex-1 tracking-wide">${msg}</div>
-                <button onclick="this.parentElement.remove()" class="ml-auto -mx-1.5 -my-1.5 bg-transparent hover:bg-gray-100 rounded-lg p-2 inline-flex items-center justify-center h-8 w-8 transition-colors">
-                    <i class="fa-solid fa-xmark text-gray-400"></i>
-                </button>
-            `;
-
-            container.appendChild(toast);
-
-            requestAnimationFrame(() => {
-                setTimeout(() => {
-                    toast.classList.remove('-translate-y-5', 'opacity-0');
-                    toast.classList.add('translate-y-0', 'opacity-100');
-                }, 10);
-            });
-
-            setTimeout(() => {
-                if (toast.parentElement) {
-                    toast.classList.remove('translate-y-0', 'opacity-100');
-                    toast.classList.add('-translate-y-5', 'opacity-0');
-                    setTimeout(() => { if (toast.parentElement) toast.remove(); }, 300);
-                }
-            }, 3000);
-        }
-
-        async function handleLogin(e) {
-            try {
-                e.preventDefault();
-                const rawInput = String(document.getElementById('login-email').value || '').trim();
-                const passInput = String(document.getElementById('login-password').value || '').trim();
-                const remember = document.getElementById('remember-me').checked;
-
-                if (!rawInput || !passInput) {
-                    showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
-                    return;
-                }
-
-                const cleanInput = rawInput.toLowerCase();
-                const cleanPass = passInput.toLowerCase();
-
-                let deviceId = localStorage.getItem('hr_device_id');
-                if (!deviceId) {
-                    deviceId = 'DEV-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
-                    localStorage.setItem('hr_device_id', deviceId);
-                }
-
-                toggleLoading(true, 'AUTHENTICATING...');
-
-                // Query users table from Supabase / Bridge
-                let rows = await bridge.getTableData('users');
-                toggleLoading(false);
-
-                if (!Array.isArray(rows) || rows.length === 0) {
-                    showToast('ไม่พบข้อมูลผู้ใช้งานในระบบ', 'error');
-                    return;
-                }
-
-                // Match user by username, email, or employee_id (case-insensitive)
-                const user = rows.find(r => {
-                    const uName = String(r.username || r.Username || '').trim().toLowerCase();
-                    const uEmail = String(r.email || r.Email || '').trim().toLowerCase();
-                    const uEmpId = String(r.employee_id || r.Employee_ID || r.emp_id || '').trim().toLowerCase();
-
-                    return (uName && uName === cleanInput) || 
-                           (uEmail && uEmail === cleanInput) || 
-                           (uEmpId && uEmpId === cleanInput) ||
-                           (uName && uName.split('@')[0] === cleanInput) ||
-                           (uEmail && uEmail.split('@')[0] === cleanInput);
-                });
-
-                if (!user) {
-                    showToast('ไม่พบบัญชีผู้ใช้หรืออีเมลนี้ในระบบ', 'error');
-                    return;
-                }
-
-                // Status check (Account Suspended check)
-                const statusStr = String(user.status || user.Status || '').toLowerCase();
-                if (['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(statusStr)) {
-                    showToast('⚠️ บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ (Account Suspended)', 'error');
-                    return;
-                }
-
-                // Password check (support case-insensitive & trimmed passwords)
-                const storedPassword = String(user.password_hash || user.password || user.Password || '').trim();
-                const isPasswordValid = storedPassword === passInput || storedPassword.toLowerCase() === cleanPass;
-
-                if (!isPasswordValid) {
-                    showToast('รหัสผ่านไม่ถูกต้อง', 'error');
-                    return;
-                }
-
-                // 📌 Device ID Lock: 1 Email ต่อ 1 เครื่อง (ทุก User ยกเว้น Super Admin)
-                const userRole = String(user.role || user.Role || 'Staff').trim().toLowerCase();
-                const isSuperAdmin = userRole === 'super admin' || userRole === 'superadmin';
-
-                if (!isSuperAdmin) {
-                    const registeredDeviceId = String(user.device_id || user.Device_ID || user.DeviceId || user.device || '').trim();
-                    if (!registeredDeviceId || registeredDeviceId === '-' || registeredDeviceId === 'null') {
-                        // First login: Automatically bind current device to this user account
-                        try {
-                            const userKey = user.id ? `id=eq.${user.id}` : (user.username ? `username=eq.${encodeURIComponent(user.username)}` : `employee_id=eq.${encodeURIComponent(user.employee_id)}`);
-                            await bridge.updateTableData('users', userKey, { device_id: deviceId, bound_ip: deviceId });
-                            console.log('Successfully registered device ID:', deviceId);
-                        } catch (devErr) {
-                            console.warn('Could not auto-register device ID in database:', devErr.message);
-                        }
-                    } else if (registeredDeviceId !== deviceId) {
-                        // Mismatched device - access denied for non-SuperAdmin
-                        showToast('❌ บัญชีนี้ถูกผูกไว้กับอุปกรณ์อื่นแล้ว (1 เครื่อง / 1 บัญชี)\nกรุณาใช้เครื่องเดิม หรือติดต่อ Super Admin เพื่อกด "รีเซ็ตอุปกรณ์"', 'error');
-                        return;
-                    }
-                }
-
-                showToast('เข้าสู่ระบบสำเร็จ', 'success');
-
-                const sessionObj = {
-                    username: user.username || user.Username || rawInput.split('@')[0],
-                    email: user.email || user.Email || rawInput,
-                    role: user.role || user.Role || 'Staff',
-                    empId: user.employee_id || user.Employee_ID || user.emp_id || '',
-                    permissions: user.permissions || user.Permissions || []
-                };
-
-                if (remember) {
-                    localStorage.setItem('hr_user_session', JSON.stringify(sessionObj));
-                } else {
-                    sessionStorage.setItem('hr_user_session', JSON.stringify(sessionObj));
-                }
-
-                setTimeout(() => {
-                    window.location.href = 'Hr.html';
-                }, 800);
-
-            } catch (error) {
-                toggleLoading(false);
-                console.error("Error in handleLogin submit:", error);
-                
-                const email = document.getElementById('login-email').value;
-                const pass = document.getElementById('login-password').value;
-                const remember = document.getElementById('remember-me').checked;
-                
-                if (email && pass) {
-                    console.warn("Using local session fallback due to network/database response:", error.message);
-                    showToast('เข้าสู่ระบบสำเร็จ', 'success');
-                    const sessionObj = {
-                        username: email.split('@')[0],
-                        email: email,
-                        role: email.toLowerCase().includes('staff') ? 'Staff' : 'Admin',
-                        empId: email.toLowerCase().includes('staff') ? 'E001' : 'A001',
-                        permissions: ['all']
-                    };
-                    if (remember) {
-                        localStorage.setItem('hr_user_session', JSON.stringify(sessionObj));
-                    } else {
-                        sessionStorage.setItem('hr_user_session', JSON.stringify(sessionObj));
-                    }
-                    setTimeout(() => {
-                        window.location.href = 'Hr.html';
-                    }, 800);
-                    return;
-                }
-                showToast('เข้าระบบไม่ได้: ' + (error?.message || error), 'error');
-            }
-        }
-    </script>
+    <!-- Login Specific Logic -->
+    <script src="login.js?v=1.0"></script>
 </body>
 
 </html>
