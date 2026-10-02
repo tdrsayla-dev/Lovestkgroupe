@@ -896,7 +896,7 @@
                 const memberId = payoutItem?.memberId || mId;
                 const dateLabel = payoutItem?.date || pDate || (startDate === endDate ? startDate : `${startDate} ถึง ${endDate}`);
                 const payoutType = subTab === 'monthly_self' ? 'monthly_self' : (subTab === 'monthly_team' ? 'monthly_team' : 'daily');
-                const payAmt = subTab === 'monthly_self' ? (payoutItem?.remainingSelf || payoutItem?.selfEarn || 0) : (subTab === 'monthly_team' ? (payoutItem?.remainingTeam || payoutItem?.teamEarn || 0) : (payoutItem?.totalEarn || 0));
+                const payAmt = subTab === 'monthly_self' ? (payoutItem?.remainingSelf || payoutItem?.selfEarn || 0) : (subTab === 'monthly_team' ? (payoutItem?.remainingTeam || payoutItem?.teamEarn || 0) : (payoutItem?.netEarn ?? payoutItem?.totalEarn ?? 0));
 
                 updated[key] = {
                     key: key,
@@ -3146,7 +3146,7 @@
                                                     ? (r?.remainingSelf || 0)
                                                     : subTab === 'monthly_team'
                                                     ? (r?.remainingTeam || 0)
-                                                    : (r?.totalEarn || 0);
+                                                    : (r?.netEarn ?? r?.totalEarn ?? 0);
                                                 return (
                                                     <li key={key} className="flex justify-between items-center bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-amber-100 dark:border-slate-700 text-sm">
                                                         <span className="font-bold text-slate-700 dark:text-slate-200">{r?.memberName || r?.name || key} <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-1">({r?.memberId || r?.id})</span></span>
@@ -3169,7 +3169,7 @@
                                                     ? (r?.remainingSelf || 0)
                                                     : subTab === 'monthly_team'
                                                     ? (r?.remainingTeam || 0)
-                                                    : (r?.totalEarn || 0);
+                                                    : (r?.netEarn ?? r?.totalEarn ?? 0);
                                                 return sum + amt;
                                             }, 0))} {getCurrencySuffix()}
                                         </span>
