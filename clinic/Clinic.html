@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <!-- เชื่อมโยงไฟล์ CSS -->
-    <link rel="stylesheet" href="style.css?v=2.7.6">
+    <link rel="stylesheet" href="style.css?v=2.7.7">
     <link rel="stylesheet" href="dashboard.css?v=1.2">
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -511,7 +511,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=3.9.69" title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=3.9.79" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -951,21 +951,21 @@
                 </div>
             </div>
 
-            <div class="table-responsive table-container">
+            <div class="table-responsive table-container" style="overflow-x: auto !important;">
                 <table class="table table-modern" id="labTable">
                     <thead>
                         <tr>
-                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
-                            <th data-i18n="triage_th_visit">รหัส VISIT</th>
-                            <th data-i18n="reg_hn">HN</th>
-                            <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
-                            <th data-i18n="payment_th_tests">รายการส่งตรวจ</th>
+                            <th class="ps-4 text-center" style="width: 55px;">ลำดับ</th>
+                            <th data-i18n="triage_th_visit" style="width: 105px;">รหัส VISIT</th>
+                            <th data-i18n="reg_hn" style="width: 95px;">HN</th>
+                            <th data-i18n="reg_name" style="min-width: 120px;">ชื่อ-นามสกุล</th>
+                            <th data-i18n="payment_th_tests" style="min-width: 110px;">รายการส่งตรวจ</th>
 
                             <!-- เพิ่มคอลัมน์ใหม่ตรงนี้ครับ -->
-                            <th>ผลตรวจทั้งหมด</th>
+                            <th class="text-center" style="min-width: 170px; max-width: 250px;">ผลตรวจทั้งหมด</th>
 
-                            <th data-i18n="status">สถานะ</th>
-                            <th class="text-center" data-i18n="actions">ดำเนินการ</th>
+                            <th data-i18n="status" style="width: 120px;">สถานะ</th>
+                            <th class="text-center" data-i18n="actions" style="min-width: 215px; width: 220px;">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1622,8 +1622,8 @@
                             <th width="110" data-i18n="reg_hn">HN</th>
                             <th width="180" data-i18n="reg_name">ชื่อ-นามสกุล</th>
                             <th width="150" data-i18n="history_th_date">วันที่ตรวจ</th>
-                            <th data-i18n="history_th_diagnosis">อาการสำคัญ / อาการแรกรับ</th>
-                            <th class="text-center" width="180" data-i18n="actions">ดำเนินการ</th>
+                            <th style="min-width: 220px;" data-i18n="history_th_diagnosis">อาการสำคัญ / อาการแรกรับ</th>
+                            <th class="text-center" style="width: 190px; min-width: 190px;" width="190" data-i18n="actions">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -3076,7 +3076,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" data-src="report.html?v=4.9" src="" loading="lazy"
+            <iframe id="doctorReportFrame" data-src="report.html?v=5.0" src="" loading="lazy"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -3598,8 +3598,11 @@
         <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 760px;">
             <div class="modal-content"
                 style="border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
-                <div class="modal-header bg-white border-0 pb-0 pt-4 px-4">
-                    <h5 class="modal-title fw-bold text-dark">ອັບໂຫຼດຜົນກວດ Lab (PDF / PNG / JPG)</h5>
+                <div class="modal-header bg-white border-0 pb-0 pt-4 px-4 d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0">ອັບໂຫຼດ & ຈັດການຜົນກວດ Lab</h5>
+                        <small class="text-muted" id="labUploadModalSubTitle">ອັບໂຫຼດໄຟລ໌ໃໝ່ ຫຼື ກວດເບິ່ງ/ລຶບຜົນກວດ</small>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-white">
@@ -3668,6 +3671,20 @@
                         </div>
 
                     </form>
+
+                    <!-- 4. ສ່ວນລາຍການຜົນກວດ ແລະ ໄຟລ໌ທີ່ມີຢູ່ແລ້ວ (ສາມາດກວດເບິ່ງ ແລະ ກົດລຶບໄດ້) -->
+                    <div class="mt-4 pt-3 border-top" id="existingLabFilesSection">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold mb-0 text-dark" style="font-size: 13.5px;">
+                                <i class="bi bi-folder2-open text-primary me-1.5"></i>ລາຍການຜົນກວດທີ່ມີຢູ່ແລ້ວ 
+                                <span class="badge bg-primary-subtle text-primary rounded-pill px-2 py-0.5 ms-1" id="existingLabFilesCount">0</span>
+                            </h6>
+                            <small class="text-muted fw-semibold" id="existingLabPatientInfo"></small>
+                        </div>
+                        <div id="existingLabFilesList" class="d-flex flex-column gap-2" style="max-height: 240px; overflow-y: auto; padding-right: 2px;">
+                            <!-- ລາຍການໄຟລ໌ຈະຖືກສ້າງຂຶ້ນອັດຕະໂນມັດທີ່ນີ້ -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -4275,7 +4292,13 @@
                                     <div id="histLabFilesButtons" class="d-inline-flex flex-wrap align-items-center">
                                     </div>
                                 </div>
-                                <div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button type="button"
+                                        class="btn btn-sm btn-success fw-bold shadow-sm px-3 text-white"
+                                        id="btnHistRecoverLab" onclick="runRecoverLabFromHistory()"
+                                        style="border-radius: 8px;">
+                                        <i class="bi bi-patch-check me-1"></i> ແປງຜົນໃສ່ Frame (Recover Lab)
+                                    </button>
                                     <button type="button"
                                         class="btn btn-sm btn-outline-primary fw-semibold shadow-sm px-3"
                                         id="btnHistAddLabResult" onclick="openLabUploadFromHistory()"
@@ -4767,6 +4790,31 @@
                                     <p class="text-muted mt-2 mb-0" style="font-size: 10px; line-height: 1.3;">
                                         * กราฟจำลองแสดงภาพประกอบเบื้องต้นตามผลตรวจที่กรอก
                                     </p>
+
+                                    <!-- แถวบันทึก Blood Group -->
+                                    <div class="mt-2.5 pt-2 border-top" id="cbcBloodGroupBox">
+                                        <div class="d-flex align-items-center justify-content-between p-1.5 rounded-2" style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
+                                            <div class="fw-bold text-dark d-flex align-items-center ps-1" style="font-size: 13px;">
+                                                <i class="bi bi-droplet-fill text-danger me-1.5 fs-6"></i>
+                                                <span>Blood Group</span>
+                                            </div>
+                                            <div style="width: 55%;">
+                                                <input type="text" id="cbcBloodGroupInput" class="form-control form-control-sm fw-bold text-center" placeholder="พิมพ์ หรือ เลือก เช่น A, B, AB, O..." list="cbcBloodGroupList" style="font-size: 13px; border-color: #cbd5e1; background-color: #ffffff;">
+                                                <datalist id="cbcBloodGroupList">
+                                                    <option value="A"></option>
+                                                    <option value="B"></option>
+                                                    <option value="AB"></option>
+                                                    <option value="O"></option>
+                                                    <option value="A Pos (+)"></option>
+                                                    <option value="B Pos (+)"></option>
+                                                    <option value="AB Pos (+)"></option>
+                                                    <option value="O Pos (+)"></option>
+                                                    <option value="Rh Positive (+)"></option>
+                                                    <option value="Rh Negative (-)"></option>
+                                                </datalist>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4786,10 +4834,11 @@
                         </div>
                         <div class="d-flex align-items-center gap-2 ms-auto">
                             <button type="button" class="btn btn-light border px-3" id="cbcClearBtn" onclick="clearCbcModalValues()">
-                                <i class="bi bi-eraser me-1"></i> ล้างผลตรวจ
+                                <i class="bi bi-eraser me-1"></i> Clear
                             </button>
-                            <button type="button" class="btn btn-success fw-bold px-3 shadow-sm text-white" id="cbcSaveBtn" onclick="saveCbcData(true)">
-                                <i class="bi bi-check2-circle me-1"></i> บันทึก
+                            <button type="button" class="btn btn-primary fw-bold px-3 shadow-sm text-white" id="cbcSaveBtn"
+                                style="background-color: #2563eb; border-color: #2563eb;" onclick="saveCbcData(true)">
+                                <i class="bi bi-check2-circle me-1"></i> Save
                             </button>
                             <button type="button" class="btn btn-primary fw-bold px-4 shadow-sm text-white" id="cbcPrintBtn"
                                 style="background-color: #0b3c73; border-color: #0b3c73;" onclick="printCbcReportOnly()">
@@ -4969,9 +5018,9 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.87"></script>
+    <script src="function.js?v=3.9.97"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
-    <script src="Recover Lab.js?v=6.1"></script>
+    <script src="Recover Lab.js?v=7.5"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {

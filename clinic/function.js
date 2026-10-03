@@ -532,7 +532,7 @@ function showPage(pageId, element) {
             try {
                 const frame = document.getElementById('doctorReportFrame');
                 if (frame) {
-                    const targetSrc = frame.getAttribute('data-src') || 'report.html?v=4.9';
+                    const targetSrc = frame.getAttribute('data-src') || 'report.html?v=5.0';
                     if (!frame.src || frame.src.endsWith('about:blank') || !frame.getAttribute('data-loaded')) {
                         frame.src = targetSrc;
                         frame.setAttribute('data-loaded', 'true');
@@ -836,7 +836,8 @@ function generateId(prefix) {
 // 🌟 Helper ดึง Logo ແລະ ຊື່ຄລີນິກຈາກ Clinic Settings
 async function getClinicBrandingInfo() {
     let logoUrl = '';
-    let clinicName = 'Clinic';
+    let clinicName = 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
+    let clinicNameEn = 'Love Stk Medical and Treatment Center';
     try {
         if (!window.clinicSettings && typeof _supabase !== 'undefined') {
             const { data: sData } = await _supabase.from('clinic_settings').select('key, value');
@@ -848,11 +849,12 @@ async function getClinicBrandingInfo() {
         logoUrl = cSettings['clinic_logo_url'] || localStorage.getItem('clinic_logo_url') || '';
         if (cSettings['clinic_name_la']) {
             clinicName = cSettings['clinic_name_la'];
+            if (cSettings['clinic_name_en']) clinicNameEn = cSettings['clinic_name_en'];
         }
     } catch (e) {
         console.warn('Load clinic settings branding error:', e);
     }
-    return { logoUrl, clinicName };
+    return { logoUrl, clinicName, clinicNameEn };
 }
 
 // Pre-load clinic settings for slips, invoices and bills
@@ -4026,6 +4028,10 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
     }
 
     let doctorNote = (labNote || '').trim();
+    doctorNote = doctorNote.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').trim();
+    doctorNote = doctorNote.replace(/\[ผลตรวจ CBC\]/gi, '').trim();
+    doctorNote = doctorNote.replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]/gi, '').trim();
+    doctorNote = doctorNote.replace(/\[ผลตรวจ Urine\]/gi, '').trim();
     if (doctorNote.includes('[ผลตรวจหลอดเลือด]')) {
         doctorNote = doctorNote.split('[ผลตรวจหลอดเลือด]')[0].trim();
     }
@@ -4373,7 +4379,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
     // ดึงข้อมูล lab_note จาก visitRecord ของหน้านี้
     let labNote = visitRecord ? (visitRecord.lab_note || '') : '';
-    labNote = labNote.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').replace(/\[เอกสารแนบ[^\]]*\]/gi, '').replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
+    labNote = labNote.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').replace(/\[ผลตรวจ CBC\]/gi, '').replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]/gi, '').replace(/\[ผลตรวจ Urine\]/gi, '').replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').replace(/\[เอกสารแนบ[^\]]*\]/gi, '').replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
 
     let noteHtml = '';
     if (labNote && labNote.trim() !== '') {
@@ -4670,34 +4676,62 @@ async function printPaymentInvoice(visitId, hn, patientName, testsString, discou
     // 🌟 ดึงข้อมูลโลโก้และชื่อคลินิกจากการตั้งค่าคลินิก (clinic_settings)
     const branding = await getClinicBrandingInfo();
     const clinicLogoUrl = branding.logoUrl;
-    const clinicName = branding.clinicName;
+    const clinicNameLa = branding.clinicName || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
+    const clinicNameEn = branding.clinicNameEn || 'Love Stk Medical and Treatment Center';
 
     const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
     let totalPrice = 0;
     const discount = parseFloat(discountVal) || 0;
 
-    // --- ส่วนที่ค้นหาข้อมูล อายุ ที่อยู่ เบอร์โทรศัพท์ และ อาการเบื้องต้น ของผู้ป่วย ---
+        // --- ส่วนที่ค้นหาข้อมูล อายุ ที่อยู่ เบอร์โทรศัพท์ และ อาการเบื้องต้น ของผู้ป่วย ---
     let patientAge = '-';
     let patientAddress = '-';
     let patientPhone = '-';
     let patientSymptom = '-';
 
-    if (window.allPatients) {
-        let pat = null;
+    let pat = null;
+    if (window.allPatients && Array.isArray(window.allPatients)) {
         if (hn && hn !== '-') pat = window.allPatients.find(p => p.hn === hn);
         if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = window.allPatients.find(p => p.patient_name === patientName);
-        if (pat) {
-            patientAge = pat.age ? pat.age + ' ປີ' : '-';
-            patientPhone = pat.phone || pat.emergency_tel || '-';
-
-            let addressParts = [];
-            if (pat.village && pat.village !== '-') addressParts.push('ບ້ານ: ' + pat.village);
-            if (pat.district && pat.district !== '-') addressParts.push('ເມືອງ: ' + pat.district);
-            if (pat.province && pat.province !== '-') addressParts.push('ແຂວງ: ' + pat.province);
-
-            if (addressParts.length > 0) {
-                patientAddress = addressParts.join(', ');
+    }
+    if (!pat && window.patients && Array.isArray(window.patients)) {
+        if (hn && hn !== '-') pat = window.patients.find(p => p.hn === hn);
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = window.patients.find(p => p.patient_name === patientName);
+    }
+    // 🌟 ดึงข้อมูลจาก Supabase โดยตรงหากในตัวแปรหน่วยความจำไม่มี
+    if (!pat && typeof _supabase !== 'undefined') {
+        try {
+            if (hn && hn !== '-') {
+                const { data: pDb } = await _supabase.from('patients').select('*').eq('hn', hn).maybeSingle();
+                if (pDb) pat = pDb;
             }
+            if (!pat && patientName && patientName !== 'ผู้ป่วย' && patientName !== '-') {
+                const { data: pDb } = await _supabase.from('patients').select('*').ilike('patient_name', patientName.trim()).maybeSingle();
+                if (pDb) pat = pDb;
+            }
+        } catch (e) {
+            console.warn('Fetch patient from DB error:', e);
+        }
+    }
+
+    if (pat) {
+        const rawAge = pat.age !== undefined && pat.age !== null && pat.age !== '' ? pat.age : (pat.dob ? calculateAge(pat.dob) : null);
+        if (rawAge !== null && rawAge !== undefined && rawAge !== '') {
+            patientAge = (String(rawAge).includes('ปี') || String(rawAge).includes('ປີ')) ? String(rawAge) : rawAge + ' ປີ';
+        }
+        if (pat.phone || pat.emergency_tel) {
+            patientPhone = pat.phone || pat.emergency_tel;
+        }
+
+        let addressParts = [];
+        if (pat.village && pat.village !== '-' && pat.village !== 'null') addressParts.push('ບ້ານ: ' + pat.village);
+        if (pat.district && pat.district !== '-' && pat.district !== 'null') addressParts.push('ເມືອງ: ' + pat.district);
+        if (pat.province && pat.province !== '-' && pat.province !== 'null') addressParts.push('ແຂວງ: ' + pat.province);
+
+        if (addressParts.length > 0) {
+            patientAddress = addressParts.join(', ');
+        } else if (pat.address && pat.address !== '-' && pat.address !== 'null') {
+            patientAddress = pat.address;
         }
     }
 
@@ -4711,6 +4745,13 @@ async function printPaymentInvoice(visitId, hn, patientName, testsString, discou
     if (!vMatch && window.allHistoryVisits) {
         vMatch = window.allHistoryVisits.find(v => v.visit_id === visitId);
     }
+    if (!vMatch && typeof _supabase !== 'undefined' && visitId && visitId !== '-') {
+        try {
+            const { data: vDb } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (vDb) vMatch = vDb;
+        } catch (e) { }
+    }
+
     if (vMatch) {
         if (vMatch.symptom && vMatch.symptom.trim() !== '') {
             patientSymptom = vMatch.symptom.trim();
@@ -4720,36 +4761,51 @@ async function printPaymentInvoice(visitId, hn, patientName, testsString, discou
         if (patientPhone === '-' && (vMatch.phone || vMatch.patient_phone || vMatch.tel)) {
             patientPhone = vMatch.phone || vMatch.patient_phone || vMatch.tel;
         }
+        if (patientAge === '-') {
+            const vAge = vMatch.age || vMatch.patient_age;
+            if (vAge) patientAge = String(vAge).includes('ປີ') ? String(vAge) : vAge + ' ປີ';
+        }
+        if (patientAddress === '-') {
+            let vAddrParts = [];
+            if (vMatch.village && vMatch.village !== '-') vAddrParts.push('ບ້ານ: ' + vMatch.village);
+            if (vMatch.district && vMatch.district !== '-') vAddrParts.push('ເມືອງ: ' + vMatch.district);
+            if (vMatch.province && vMatch.province !== '-') vAddrParts.push('ແຂວງ: ' + vMatch.province);
+            if (vAddrParts.length > 0) patientAddress = vAddrParts.join(', ');
+            else if (vMatch.address && vMatch.address !== '-') patientAddress = vMatch.address;
+        }
     }
     // -----------------------------------------------------
 
-    let rowsHtml = '';
+        let rowsHtml = '';
     testsList.forEach((test, idx) => {
         const itemDetails = getTestItemDetails(test);
         totalPrice += itemDetails.price;
         const priceDisplay = itemDetails.price > 0 ? itemDetails.price.toLocaleString() + ' LAK' : '0 LAK';
 
         if (itemDetails.isPackage && itemDetails.subItems.length > 0) {
-            let subItemsPrint = itemDetails.subItems.map(sub => `<span style="display: inline-block; margin-right: 14px; margin-top: 3px; font-size: 12.5px; color: #475569;">• ${sub.name || sub}</span>`).join('');
+            let subItemsPrint = itemDetails.subItems.map(sub => {
+                const sName = (sub && sub.name) ? sub.name : sub;
+                return `<span style="font-size: 11px; color: #475569; display: inline-flex; align-items: center; white-space: nowrap; line-height: 1.4;">• ${sName}</span>`;
+            }).join('');
             rowsHtml += `
                 <tr>
-                    <td style="text-align: center; vertical-align: top;">${idx + 1}</td>
-                    <td>
-                        <div style="font-weight: 700; color: #0b3c73; font-size: 14.5px;">📦 ${itemDetails.name} (ແພັກເກດ)</div>
-                        <div class="sub-items-box">
-                            <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 2px;">ລາຍການກວດຍ່ອຍໃນແພັກເກດ:</div>
-                            <div>${subItemsPrint}</div>
+                    <td style="text-align: center; vertical-align: top; font-weight: 600; color: #475569;">${idx + 1}</td>
+                    <td style="vertical-align: top;">
+                        <div style="font-weight: 700; color: #0b3c73; font-size: 13.5px;">📦 ${itemDetails.name} (ແພັກເກດ)</div>
+                        <div style="margin-top: 3px;">
+                            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 2px;">ລາຍການກວດຍ່ອຍໃນແພັກເກດ:</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 2px 14px; padding-left: 2px;">${subItemsPrint}</div>
                         </div>
                     </td>
-                    <td style="text-align: right; font-weight: 700; color: #0b3c73; font-size: 14.5px; vertical-align: top;">${priceDisplay}</td>
+                    <td style="text-align: right; font-weight: 700; color: #0b3c73; font-size: 13.5px; vertical-align: top;">${priceDisplay}</td>
                 </tr>
             `;
         } else {
             rowsHtml += `
                 <tr>
-                    <td style="text-align: center;">${idx + 1}</td>
-                    <td style="font-weight: 500;">${itemDetails.name}</td>
-                    <td style="text-align: right; font-weight: 700; color: #0f172a;">${priceDisplay}</td>
+                    <td style="text-align: center; vertical-align: top; font-weight: 600; color: #475569;">${idx + 1}</td>
+                    <td style="vertical-align: top; font-weight: 500; color: #1e293b; font-size: 13.5px;">${itemDetails.name}</td>
+                    <td style="text-align: right; font-weight: 700; color: #0b3c73; font-size: 13.5px; vertical-align: top;">${priceDisplay}</td>
                 </tr>
             `;
         }
@@ -4767,154 +4823,227 @@ async function printPaymentInvoice(visitId, hn, patientName, testsString, discou
             <meta charset="utf-8">
             <title>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ - ${visitId}</title>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700;800&display=swap');
+                * { box-sizing: border-box; }
                 body { 
-                    font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                    padding: 24px; 
+                    font-family: 'Noto Sans Lao', 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                    padding: 20px 35px; 
                     color: #1e293b; 
-                    max-width: 720px; 
+                    max-width: 780px; 
                     margin: 0 auto; 
                     background: #ffffff;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
                 }
-                .header { 
-                    text-align: center; 
-                    margin-bottom: 20px; 
-                    padding-bottom: 12px;
-                    border-bottom: 1px solid #cbd5e1;
+                .top-header { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center; 
+                    padding-bottom: 12px; 
+                    border-bottom: 1.5px solid #cbd5e1;
                 }
-                .clinic-logo {
-                    max-height: 65px;
-                    max-width: 180px;
-                    object-fit: contain;
-                    display: block;
-                    margin: 0 auto 8px auto;
+                .brand-left { 
+                    display: flex; 
+                    align-items: center; 
+                    gap: 12px; 
                 }
-                .header h1 { 
-                    margin: 0; 
-                    color: #0b3c73; 
-                    font-size: 30px; 
-                    font-weight: 700;
-                    letter-spacing: -0.5px;
+                .brand-logo-img { 
+                    height: 48px; 
+                    max-width: 75px; 
+                    object-fit: contain; 
                 }
-                .header p { 
-                    margin: 6px 0 0 0; 
+                .brand-logo-svg { 
+                    width: 44px; 
+                    height: 44px; 
+                    flex-shrink: 0; 
+                }
+                .brand-name-la { 
+                    font-size: 13.5px; 
+                    font-weight: 700; 
+                    color: #1e3a8a; 
+                    line-height: 1.3; 
+                }
+                .brand-name-en { 
+                    font-size: 11px; 
+                    font-weight: 500; 
                     color: #64748b; 
-                    font-size: 13px; 
+                    line-height: 1.25; 
+                }
+                .title-right { 
+                    text-align: right; 
+                }
+                .invoice-title-la { 
+                    font-size: 17.5px; 
+                    font-weight: 800; 
+                    color: #1e3a8a; 
+                    line-height: 1.25; 
+                    letter-spacing: -0.2px;
+                }
+                .invoice-title-en { 
+                    font-size: 12.5px; 
+                    font-weight: 500; 
+                    color: #64748b; 
+                    line-height: 1.25; 
                 }
                 .info-container { 
                     display: flex; 
                     justify-content: space-between; 
-                    margin-bottom: 24px; 
-                    font-size: 13.5px; 
+                    margin-top: 12px; 
+                    margin-bottom: 14px; 
+                    font-size: 12.5px; 
                     line-height: 1.6;
                 }
-                .info-left, .info-right {
-                    flex: 1;
+                .info-left { 
+                    flex: 1.1; 
+                    padding-right: 15px; 
                 }
-                .info-right {
-                    text-align: right;
+                .info-right { 
+                    flex: 0.9; 
+                    text-align: right; 
+                    padding-left: 15px; 
                 }
-                .info-row {
-                    margin-bottom: 2px;
+                .info-row { 
+                    margin-bottom: 2px; 
                 }
-                .info-label {
-                    font-weight: 700;
-                    color: #0f172a;
+                .info-label { 
+                    font-weight: 800; 
+                    color: #0f172a; 
+                }
+                .info-val { 
+                    color: #334155; 
                 }
                 .table-inv { 
                     width: 100%; 
                     border-collapse: collapse; 
-                    margin-bottom: 24px; 
-                    font-size: 13.5px; 
+                    margin-bottom: 16px; 
+                    font-size: 13px; 
                 }
                 .table-inv th { 
-                    background: #f8fafc; 
-                    padding: 10px; 
+                    background: transparent; 
+                    padding: 8px 6px; 
                     text-align: left; 
-                    border-top: 1px solid #cbd5e1;
-                    border-bottom: 2px solid #cbd5e1; 
-                    font-weight: 700;
+                    border-top: 1.5px solid #cbd5e1; 
+                    border-bottom: 2px solid #bfdbfe; 
+                    font-weight: 700; 
                     color: #334155;
                 }
                 .table-inv td { 
-                    padding: 10px; 
+                    padding: 9px 6px; 
                     border-bottom: 1px solid #e2e8f0; 
                     vertical-align: top;
                 }
-                .sub-items-box {
-                    margin-top: 4px;
-                    padding-left: 8px;
-                    font-size: 12.5px;
-                    color: #475569;
-                }
-                .sub-item-line {
-                    margin-top: 2px;
-                }
                 .summary-container { 
-                    width: 290px; 
+                    width: 310px; 
                     margin-left: auto; 
-                    font-size: 14px; 
-                    margin-bottom: 30px;
+                    font-size: 13px; 
+                    margin-top: 10px; 
+                    margin-bottom: 25px;
                 }
                 .summary-row { 
                     display: flex; 
                     justify-content: space-between; 
-                    padding: 5px 0; 
-                    color: #475569;
+                    padding: 3px 0; 
+                    color: #64748b; 
+                    font-weight: 600;
                 }
-                .summary-row.discount {
-                    color: #dc2626;
-                    font-weight: 500;
+                .summary-row .val { 
+                    color: #334155; 
+                    font-weight: 600; 
+                }
+                .summary-row.discount { 
+                    color: #dc2626; 
+                    font-weight: 700; 
+                }
+                .summary-row.discount .val { 
+                    color: #dc2626; 
+                    font-weight: 700; 
                 }
                 .summary-row.total { 
-                    font-size: 16px; 
-                    font-weight: 700; 
+                    font-size: 15px; 
+                    font-weight: 800; 
                     color: #0b3c73; 
-                    border-top: 2px solid #0b3c73; 
+                    border-top: 2.5px solid #0b3c73; 
                     padding-top: 8px; 
-                    margin-top: 4px; 
+                    margin-top: 5px; 
+                }
+                .summary-row.total .val { 
+                    color: #0b3c73; 
+                    font-weight: 800; 
                 }
                 .footer-sig { 
-                    margin-top: 60px; 
+                    margin-top: 40px; 
                     display: flex; 
                     justify-content: space-between; 
                     text-align: center; 
-                    font-size: 13px; 
+                    font-size: 12px; 
                     color: #475569; 
+                    padding: 0 10px;
                 }
                 .sig-box { 
-                    width: 220px; 
+                    width: 240px; 
                 }
-                .sig-line {
-                    border-top: 1px dashed #94a3b8; 
-                    padding-top: 8px; 
-                    margin-top: 55px; 
+                .sig-line { 
+                    border-top: 1.5px dotted #94a3b8; 
+                    margin-bottom: 6px; 
+                }
+                .sig-title { 
+                    font-weight: 600; 
+                    color: #475569; 
                 }
                 @media print {
-                    body { padding: 0; }
-                    .no-print { display: none; }
+                    @page {
+                        size: A4 portrait;
+                        margin: 8mm 10mm;
+                    }
+                    body { 
+                        padding: 0 !important; 
+                        max-width: none !important; 
+                    }
+                    .no-print { display: none !important; }
+                    .table-inv, .table-inv tr, .table-inv td, .table-inv th {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
+                    .summary-container, .footer-sig {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
                 }
             </style>
         </head>
         <body>
-            <div class="header">
-                ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="clinic-logo">` : ''}
-                <h1>${clinicName || 'Clinic'}</h1>
-                <p>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ (Invoice & Receipt)</p>
+            <div class="top-header">
+                <div class="brand-left">
+                    ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="brand-logo-img">` : `
+                        <svg class="brand-logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="50" cy="50" r="48" fill="#143c77"/>
+                            <path d="M50 18 C38 32, 28 46, 28 60 C28 73.25, 37.85 84, 50 84 C62.15 84, 72 73.25, 72 60 C72 46, 62 32, 50 18 Z" fill="#ffffff"/>
+                            <circle cx="50" cy="62" r="12" fill="#143c77"/>
+                        </svg>
+                    `}
+                    <div>
+                        <div class="brand-name-la">${clinicNameLa}</div>
+                        <div class="brand-name-en">${clinicNameEn}</div>
+                    </div>
+                </div>
+                <div class="title-right">
+                    <div class="invoice-title-la">ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ</div>
+                    <div class="invoice-title-en">Invoice & Receipt</div>
+                </div>
             </div>
 
             <div class="info-container">
                 <div class="info-left">
-                    <div class="info-row"><span class="info-label">ຊື່ ແລະ ນາມສະກຸນ:</span> ${patientName || '-'}</div>
-                    <div class="info-row"><span class="info-label">ລະຫັດ HN:</span> ${hn || '-'}</div>
-                    <div class="info-row"><span class="info-label">ອາຍຸ:</span> ${patientAge}</div>
-                    <div class="info-row"><span class="info-label">ທີ່ຢູ່:</span> ${patientAddress}</div>
+                    <div class="info-row"><span class="info-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="info-val">${patientName || '-'}</span></div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ HN:</span> <span class="info-val">${hn || '-'}</span></div>
+                    <div class="info-row"><span class="info-label">ອາຍຸ:</span> <span class="info-val">${patientAge}</span></div>
+                    <div class="info-row"><span class="info-label">ທີ່ຢູ່:</span> <span class="info-val">${patientAddress}</span></div>
                 </div>
                 <div class="info-right">
-                    <div class="info-row"><span class="info-label">ລະຫັດ VISIT:</span> ${visitId || '-'}</div>
-                    <div class="info-row"><span class="info-label">ເບີໂທ:</span> ${patientPhone}</div>
-                    <div class="info-row"><span class="info-label">ອາການເບື້ອງຕົ້ນ:</span> ${patientSymptom}</div>
-                    <div class="info-row"><span class="info-label">ວັນທີພິມ:</span> ${currentDateStr}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ VISIT:</span> <span class="info-val">${visitId || '-'}</span></div>
+                    <div class="info-row"><span class="info-label">ເບີໂທ:</span> <span class="info-val">${patientPhone}</span></div>
+                    <div class="info-row"><span class="info-label">ອາການເບື້ອງຕົ້ນ:</span> <span class="info-val">${patientSymptom}</span></div>
+                    <div class="info-row"><span class="info-label">ວັນທີພິມ:</span> <span class="info-val">${currentDateStr}</span></div>
                 </div>
             </div>
 
@@ -4922,7 +5051,7 @@ async function printPaymentInvoice(visitId, hn, patientName, testsString, discou
                 <thead>
                     <tr>
                         <th style="width: 50px; text-align: center;">ລຳດັບ</th>
-                        <th>ລາຍການກວດ / ບໍລິການ</th>
+                        <th style="text-align: left;">ລາຍການກວດ / ບໍລິການ</th>
                         <th style="text-align: right; width: 140px;">ລາຄາ</th>
                     </tr>
                 </thead>
@@ -4934,28 +5063,36 @@ async function printPaymentInvoice(visitId, hn, patientName, testsString, discou
             <div class="summary-container">
                 <div class="summary-row">
                     <span>ລວມຄ່າກວດທັງໝົດ:</span>
-                    <span>${totalPrice.toLocaleString()} LAK</span>
+                    <span class="val">${(typeof totalPrice !== 'undefined' ? totalPrice : subtotal).toLocaleString()} LAK</span>
                 </div>
                 <div class="summary-row discount">
                     <span>ສ່ວນຫຼຸດ:</span>
-                    <span>${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
+                    <span class="val">${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
                 </div>
                 <div class="summary-row total">
                     <span>ຍອດຊຳລະຕົວຈິງ:</span>
-                    <span>${netPrice.toLocaleString()} LAK</span>
+                    <span class="val">${netPrice.toLocaleString()} LAK</span>
                 </div>
+                ${(typeof receivedAmt !== 'undefined' && receivedAmt > netPrice) ? `
+                <div class="summary-row" style="color: #16a34a; font-weight: 600; font-size: 12.5px; margin-top: 5px; padding-top: 3px; border-top: 1px dashed #cbd5e1;">
+                    <span>ຮັບເງິນສົດມາ:</span>
+                    <span style="color: #16a34a;">${receivedAmt.toLocaleString()} LAK</span>
+                </div>
+                <div class="summary-row" style="color: #ea580c; font-weight: 600; font-size: 12.5px;">
+                    <span>ເງິນທອນ:</span>
+                    <span style="color: #ea580c;">${changeAmt.toLocaleString()} LAK</span>
+                </div>
+                ` : ''}
             </div>
 
             <div class="footer-sig">
                 <div class="sig-box">
-                    <div class="sig-line">
-                        ( ຄົນເຈັບ / ຜູ້ຊຳລະເງິນ )
-                    </div>
+                    <div class="sig-line"></div>
+                    <div class="sig-title">( ຄົນເຈັບ / ຜູ້ຊຳລະເງິນ )</div>
                 </div>
                 <div class="sig-box">
-                    <div class="sig-line">
-                        ( ເຈົ້າໜ້າທີ່ການເງິນ / ຄລີນິກ )
-                    </div>
+                    <div class="sig-line"></div>
+                    <div class="sig-title">( ເຈົ້າໜ້າທີ່ການເງິນ / ຄລີນິກ )</div>
                 </div>
             </div>
 
@@ -5639,7 +5776,8 @@ async function printBillDetail(billId) {
     // 🌟 ดึงข้อมูลโลโก้และชื่อคลินิกจากการตั้งค่าคลินิก (clinic_settings)
     const branding = await getClinicBrandingInfo();
     const clinicLogoUrl = branding.logoUrl;
-    const clinicName = branding.clinicName;
+    const clinicNameLa = branding.clinicName || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
+    const clinicNameEn = branding.clinicNameEn || 'Love Stk Medical and Treatment Center';
 
     // 1. ค้นหาข้อมูลบิลจากฐานข้อมูลที่โหลดมาแล้ว
     const bill = (window.clinicBills || []).find(b => b.bill_id === billId);
@@ -5654,19 +5792,40 @@ async function printBillDetail(billId) {
 
     // 2. วนลูปสร้างแถวตารางรายการตรวจ/บริการ (บังคับหน่วย LAK)
     items.forEach((item, idx) => {
-        const price = parseFloat(item.price || 0);
+        const itemName = item.name || item;
+        const itemDetails = (typeof getTestItemDetails === 'function') ? getTestItemDetails(itemName) : { name: itemName, price: parseFloat(item.price || 0), isPackage: false, subItems: [] };
+        const price = parseFloat(item.price || itemDetails.price || 0);
         const qty = item.qty || 1;
         const total = price * qty;
-
         const totalDisplay = total > 0 ? total.toLocaleString() + ' LAK' : '0 LAK';
 
-        rowsHtml += `
-            <tr>
-                <td style="text-align: center;">${idx + 1}</td>
-                <td style="font-weight: 500;">${item.name || item}</td>
-                <td style="text-align: right; font-weight: 700; color: #0f172a;">${totalDisplay}</td>
-            </tr>
-        `;
+        if (itemDetails.isPackage && itemDetails.subItems && itemDetails.subItems.length > 0) {
+            let subItemsPrint = itemDetails.subItems.map(sub => {
+                const sName = (sub && sub.name) ? sub.name : sub;
+                return `<span style="font-size: 11px; color: #475569; display: inline-flex; align-items: center; white-space: nowrap; line-height: 1.4;">• ${sName}</span>`;
+            }).join('');
+            rowsHtml += `
+                <tr>
+                    <td style="text-align: center; vertical-align: top; font-weight: 600; color: #475569;">${idx + 1}</td>
+                    <td style="vertical-align: top;">
+                        <div style="font-weight: 700; color: #0b3c73; font-size: 13.5px;">📦 ${itemDetails.name} (ແພັກເກດ)</div>
+                        <div style="margin-top: 3px;">
+                            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 2px;">ລາຍການກວດຍ່ອຍໃນແພັກເກດ:</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 2px 14px; padding-left: 2px;">${subItemsPrint}</div>
+                        </div>
+                    </td>
+                    <td style="text-align: right; font-weight: 700; color: #0b3c73; font-size: 13.5px; vertical-align: top;">${totalDisplay}</td>
+                </tr>
+            `;
+        } else {
+            rowsHtml += `
+                <tr>
+                    <td style="text-align: center; vertical-align: top; font-weight: 600; color: #475569;">${idx + 1}</td>
+                    <td style="vertical-align: top; font-weight: 500; color: #1e293b; font-size: 13.5px;">${itemDetails.name || itemName}</td>
+                    <td style="text-align: right; font-weight: 700; color: #0b3c73; font-size: 13.5px; vertical-align: top;">${totalDisplay}</td>
+                </tr>
+            `;
+        }
     });
 
     if (items.length === 0) {
@@ -5700,24 +5859,55 @@ async function printBillDetail(billId) {
     const hn = bill.hn || '-';
     const visitId = bill.visit_id || '-';
 
+        // --- ส่วนที่ค้นหาข้อมูล อายุ ที่อยู่ เบอร์โทรศัพท์ และ อาการเบื้องต้น ของผู้ป่วย ---
     let patientAge = '-';
     let patientAddress = '-';
     let patientPhone = '-';
     let patientSymptom = '-';
 
-    if (window.allPatients) {
-        let pat = null;
+    let pat = null;
+    if (window.allPatients && Array.isArray(window.allPatients)) {
         if (hn && hn !== '-') pat = window.allPatients.find(p => p.hn === hn);
         if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = window.allPatients.find(p => p.patient_name === patientName);
-        if (pat) {
-            patientAge = pat.age ? pat.age + ' ປີ' : '-';
-            patientPhone = pat.phone || pat.emergency_tel || '-';
+    }
+    if (!pat && window.patients && Array.isArray(window.patients)) {
+        if (hn && hn !== '-') pat = window.patients.find(p => p.hn === hn);
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = window.patients.find(p => p.patient_name === patientName);
+    }
+    // 🌟 ดึงข้อมูลจาก Supabase โดยตรงหากในตัวแปรหน่วยความจำไม่มี
+    if (!pat && typeof _supabase !== 'undefined') {
+        try {
+            if (hn && hn !== '-') {
+                const { data: pDb } = await _supabase.from('patients').select('*').eq('hn', hn).maybeSingle();
+                if (pDb) pat = pDb;
+            }
+            if (!pat && patientName && patientName !== 'ผู้ป่วย' && patientName !== '-') {
+                const { data: pDb } = await _supabase.from('patients').select('*').ilike('patient_name', patientName.trim()).maybeSingle();
+                if (pDb) pat = pDb;
+            }
+        } catch (e) {
+            console.warn('Fetch patient from DB error:', e);
+        }
+    }
 
-            let addressParts = [];
-            if (pat.village && pat.village !== '-') addressParts.push('ບ້ານ: ' + pat.village);
-            if (pat.district && pat.district !== '-') addressParts.push('ເມືອງ: ' + pat.district);
-            if (pat.province && pat.province !== '-') addressParts.push('ແຂວງ: ' + pat.province);
-            if (addressParts.length > 0) patientAddress = addressParts.join(', ');
+    if (pat) {
+        const rawAge = pat.age !== undefined && pat.age !== null && pat.age !== '' ? pat.age : (pat.dob ? calculateAge(pat.dob) : null);
+        if (rawAge !== null && rawAge !== undefined && rawAge !== '') {
+            patientAge = (String(rawAge).includes('ปี') || String(rawAge).includes('ປີ')) ? String(rawAge) : rawAge + ' ປີ';
+        }
+        if (pat.phone || pat.emergency_tel) {
+            patientPhone = pat.phone || pat.emergency_tel;
+        }
+
+        let addressParts = [];
+        if (pat.village && pat.village !== '-' && pat.village !== 'null') addressParts.push('ບ້ານ: ' + pat.village);
+        if (pat.district && pat.district !== '-' && pat.district !== 'null') addressParts.push('ເມືອງ: ' + pat.district);
+        if (pat.province && pat.province !== '-' && pat.province !== 'null') addressParts.push('ແຂວງ: ' + pat.province);
+
+        if (addressParts.length > 0) {
+            patientAddress = addressParts.join(', ');
+        } else if (pat.address && pat.address !== '-' && pat.address !== 'null') {
+            patientAddress = pat.address;
         }
     }
 
@@ -5725,15 +5915,42 @@ async function printBillDetail(billId) {
     if (Array.isArray(window.clinicVisits)) {
         vMatch = window.clinicVisits.find(v => v.visit_id === visitId || (hn && v.hn === hn));
     }
-    if (!vMatch && window.allQueueData) vMatch = window.allQueueData.find(v => v.visit_id === visitId);
-    if (!vMatch && window.allHistoryVisits) vMatch = window.allHistoryVisits.find(v => v.visit_id === visitId);
+    if (!vMatch && window.allQueueData) {
+        vMatch = window.allQueueData.find(v => v.visit_id === visitId);
+    }
+    if (!vMatch && window.allHistoryVisits) {
+        vMatch = window.allHistoryVisits.find(v => v.visit_id === visitId);
+    }
+    if (!vMatch && typeof _supabase !== 'undefined' && visitId && visitId !== '-') {
+        try {
+            const { data: vDb } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (vDb) vMatch = vDb;
+        } catch (e) { }
+    }
+
     if (vMatch) {
-        if (vMatch.symptom && vMatch.symptom.trim() !== '') patientSymptom = vMatch.symptom.trim();
-        else if (vMatch.initial_symptom && vMatch.initial_symptom.trim() !== '') patientSymptom = vMatch.initial_symptom.trim();
+        if (vMatch.symptom && vMatch.symptom.trim() !== '') {
+            patientSymptom = vMatch.symptom.trim();
+        } else if (vMatch.initial_symptom && vMatch.initial_symptom.trim() !== '') {
+            patientSymptom = vMatch.initial_symptom.trim();
+        }
         if (patientPhone === '-' && (vMatch.phone || vMatch.patient_phone || vMatch.tel)) {
             patientPhone = vMatch.phone || vMatch.patient_phone || vMatch.tel;
         }
+        if (patientAge === '-') {
+            const vAge = vMatch.age || vMatch.patient_age;
+            if (vAge) patientAge = String(vAge).includes('ປີ') ? String(vAge) : vAge + ' ປີ';
+        }
+        if (patientAddress === '-') {
+            let vAddrParts = [];
+            if (vMatch.village && vMatch.village !== '-') vAddrParts.push('ບ້ານ: ' + vMatch.village);
+            if (vMatch.district && vMatch.district !== '-') vAddrParts.push('ເມືອງ: ' + vMatch.district);
+            if (vMatch.province && vMatch.province !== '-') vAddrParts.push('ແຂວງ: ' + vMatch.province);
+            if (vAddrParts.length > 0) patientAddress = vAddrParts.join(', ');
+            else if (vMatch.address && vMatch.address !== '-') patientAddress = vMatch.address;
+        }
     }
+    // -----------------------------------------------------
 
     // 4. สร้างโครงสร้าง HTML สำหรับใบเสร็จขนาด A4
     const printContent = `
@@ -5743,50 +5960,227 @@ async function printBillDetail(billId) {
             <meta charset="utf-8">
             <title>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ - ${visitId}</title>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
-                body { font-family: 'Sarabun', sans-serif; padding: 24px; color: #1e293b; max-width: 720px; margin: 0 auto; background: #ffffff;}
-                .header { text-align: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #cbd5e1;}
-                .clinic-logo { max-height: 65px; max-width: 180px; object-fit: contain; display: block; margin: 0 auto 8px auto; }
-                .header h1 { margin: 0; color: #0b3c73; font-size: 30px; font-weight: 700;}
-                .header p { margin: 6px 0 0 0; color: #64748b; font-size: 14px; }
-                .info-container { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px; line-height: 1.6;}
-                .info-left, .info-right { flex: 1; }
-                .info-right { text-align: right; }
-                .info-label { font-weight: 700; color: #0f172a; }
-                .table-inv { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
-                .table-inv th { background: #f8fafc; padding: 10px; text-align: left; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; font-weight: 700; color: #334155;}
-                .table-inv td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;}
-                .summary-container { width: 300px; margin-left: auto; font-size: 14px; margin-bottom: 30px;}
-                .summary-row { display: flex; justify-content: space-between; padding: 5px 0; color: #475569;}
-                .summary-row.discount { color: #dc2626; font-weight: 500;}
-                .summary-row.total { font-size: 16px; font-weight: 700; color: #0b3c73; border-top: 2px solid #0b3c73; padding-top: 8px; margin-top: 4px; }
-                .footer-sig { margin-top: 60px; display: flex; justify-content: space-between; text-align: center; font-size: 14px; color: #475569; }
-                .sig-box { width: 220px; }
-                .sig-line { border-top: 1px dashed #94a3b8; padding-top: 8px; margin-bottom: 5px; }
-                @media print { body { padding: 0; } }
+                @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700;800&display=swap');
+                * { box-sizing: border-box; }
+                body { 
+                    font-family: 'Noto Sans Lao', 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                    padding: 20px 35px; 
+                    color: #1e293b; 
+                    max-width: 780px; 
+                    margin: 0 auto; 
+                    background: #ffffff;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                .top-header { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center; 
+                    padding-bottom: 12px; 
+                    border-bottom: 1.5px solid #cbd5e1;
+                }
+                .brand-left { 
+                    display: flex; 
+                    align-items: center; 
+                    gap: 12px; 
+                }
+                .brand-logo-img { 
+                    height: 48px; 
+                    max-width: 75px; 
+                    object-fit: contain; 
+                }
+                .brand-logo-svg { 
+                    width: 44px; 
+                    height: 44px; 
+                    flex-shrink: 0; 
+                }
+                .brand-name-la { 
+                    font-size: 13.5px; 
+                    font-weight: 700; 
+                    color: #1e3a8a; 
+                    line-height: 1.3; 
+                }
+                .brand-name-en { 
+                    font-size: 11px; 
+                    font-weight: 500; 
+                    color: #64748b; 
+                    line-height: 1.25; 
+                }
+                .title-right { 
+                    text-align: right; 
+                }
+                .invoice-title-la { 
+                    font-size: 17.5px; 
+                    font-weight: 800; 
+                    color: #1e3a8a; 
+                    line-height: 1.25; 
+                    letter-spacing: -0.2px;
+                }
+                .invoice-title-en { 
+                    font-size: 12.5px; 
+                    font-weight: 500; 
+                    color: #64748b; 
+                    line-height: 1.25; 
+                }
+                .info-container { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    margin-top: 12px; 
+                    margin-bottom: 14px; 
+                    font-size: 12.5px; 
+                    line-height: 1.6;
+                }
+                .info-left { 
+                    flex: 1.1; 
+                    padding-right: 15px; 
+                }
+                .info-right { 
+                    flex: 0.9; 
+                    text-align: right; 
+                    padding-left: 15px; 
+                }
+                .info-row { 
+                    margin-bottom: 2px; 
+                }
+                .info-label { 
+                    font-weight: 800; 
+                    color: #0f172a; 
+                }
+                .info-val { 
+                    color: #334155; 
+                }
+                .table-inv { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-bottom: 16px; 
+                    font-size: 13px; 
+                }
+                .table-inv th { 
+                    background: transparent; 
+                    padding: 8px 6px; 
+                    text-align: left; 
+                    border-top: 1.5px solid #cbd5e1; 
+                    border-bottom: 2px solid #bfdbfe; 
+                    font-weight: 700; 
+                    color: #334155;
+                }
+                .table-inv td { 
+                    padding: 9px 6px; 
+                    border-bottom: 1px solid #e2e8f0; 
+                    vertical-align: top;
+                }
+                .summary-container { 
+                    width: 310px; 
+                    margin-left: auto; 
+                    font-size: 13px; 
+                    margin-top: 10px; 
+                    margin-bottom: 25px;
+                }
+                .summary-row { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    padding: 3px 0; 
+                    color: #64748b; 
+                    font-weight: 600;
+                }
+                .summary-row .val { 
+                    color: #334155; 
+                    font-weight: 600; 
+                }
+                .summary-row.discount { 
+                    color: #dc2626; 
+                    font-weight: 700; 
+                }
+                .summary-row.discount .val { 
+                    color: #dc2626; 
+                    font-weight: 700; 
+                }
+                .summary-row.total { 
+                    font-size: 15px; 
+                    font-weight: 800; 
+                    color: #0b3c73; 
+                    border-top: 2.5px solid #0b3c73; 
+                    padding-top: 8px; 
+                    margin-top: 5px; 
+                }
+                .summary-row.total .val { 
+                    color: #0b3c73; 
+                    font-weight: 800; 
+                }
+                .footer-sig { 
+                    margin-top: 40px; 
+                    display: flex; 
+                    justify-content: space-between; 
+                    text-align: center; 
+                    font-size: 12px; 
+                    color: #475569; 
+                    padding: 0 10px;
+                }
+                .sig-box { 
+                    width: 240px; 
+                }
+                .sig-line { 
+                    border-top: 1.5px dotted #94a3b8; 
+                    margin-bottom: 6px; 
+                }
+                .sig-title { 
+                    font-weight: 600; 
+                    color: #475569; 
+                }
+                @media print {
+                    @page {
+                        size: A4 portrait;
+                        margin: 8mm 10mm;
+                    }
+                    body { 
+                        padding: 0 !important; 
+                        max-width: none !important; 
+                    }
+                    .no-print { display: none !important; }
+                    .table-inv, .table-inv tr, .table-inv td, .table-inv th {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
+                    .summary-container, .footer-sig {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
+                }
             </style>
         </head>
         <body>
-            <div class="header">
-                ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="clinic-logo">` : ''}
-                <h1>${clinicName || 'Clinic'}</h1>
-                <p>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ (Invoice & Receipt)</p>
+            <div class="top-header">
+                <div class="brand-left">
+                    ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="brand-logo-img">` : `
+                        <svg class="brand-logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="50" cy="50" r="48" fill="#143c77"/>
+                            <path d="M50 18 C38 32, 28 46, 28 60 C28 73.25, 37.85 84, 50 84 C62.15 84, 72 73.25, 72 60 C72 46, 62 32, 50 18 Z" fill="#ffffff"/>
+                            <circle cx="50" cy="62" r="12" fill="#143c77"/>
+                        </svg>
+                    `}
+                    <div>
+                        <div class="brand-name-la">${clinicNameLa}</div>
+                        <div class="brand-name-en">${clinicNameEn}</div>
+                    </div>
+                </div>
+                <div class="title-right">
+                    <div class="invoice-title-la">ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ</div>
+                    <div class="invoice-title-en">Invoice & Receipt</div>
+                </div>
             </div>
 
             <div class="info-container">
                 <div class="info-left">
-                    <div class="info-row"><span class="info-label">ຊື່ ແລະ ນາມສະກຸນ:</span> ${patientName}</div>
-                    <div class="info-row"><span class="info-label">ລະຫັດ HN:</span> ${hn}</div>
-                    <div class="info-row"><span class="info-label">ອາຍຸ:</span> ${patientAge}</div>
-                    <div class="info-row"><span class="info-label">ທີ່ຢູ່:</span> ${patientAddress}</div>
-                    <div class="info-row"><span class="info-label">ຊ່ອງທາງຊຳລະ:</span> ${bill.payment_method || 'ເງິນສົດ'}</div>
+                    <div class="info-row"><span class="info-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="info-val">${patientName || '-'}</span></div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ HN:</span> <span class="info-val">${hn || '-'}</span></div>
+                    <div class="info-row"><span class="info-label">ອາຍຸ:</span> <span class="info-val">${patientAge}</span></div>
+                    <div class="info-row"><span class="info-label">ທີ່ຢູ່:</span> <span class="info-val">${patientAddress}</span></div>
                 </div>
                 <div class="info-right">
-                    <div class="info-row"><span class="info-label">ລະຫັດ VISIT:</span> ${visitId}</div>
-                    <div class="info-row"><span class="info-label">ເລກທີບິນ:</span> ${bill.bill_id}</div>
-                    <div class="info-row"><span class="info-label">ເບີໂທ:</span> ${patientPhone}</div>
-                    <div class="info-row"><span class="info-label">ອາການເບື້ອງຕົ້ນ:</span> ${patientSymptom}</div>
-                    <div class="info-row"><span class="info-label">ວັນທີພິມ:</span> ${currentDateStr}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ VISIT:</span> <span class="info-val">${visitId || '-'}</span></div>
+                    <div class="info-row"><span class="info-label">ເບີໂທ:</span> <span class="info-val">${patientPhone}</span></div>
+                    <div class="info-row"><span class="info-label">ອາການເບື້ອງຕົ້ນ:</span> <span class="info-val">${patientSymptom}</span></div>
+                    <div class="info-row"><span class="info-label">ວັນທີພິມ:</span> <span class="info-val">${currentDateStr}</span></div>
                 </div>
             </div>
 
@@ -5794,8 +6188,8 @@ async function printBillDetail(billId) {
                 <thead>
                     <tr>
                         <th style="width: 50px; text-align: center;">ລຳດັບ</th>
-                        <th>ລາຍການກວດ / ບໍລິການ</th>
-                        <th style="text-align: right; width: 160px;">ລາຄາ</th>
+                        <th style="text-align: left;">ລາຍການກວດ / ບໍລິການ</th>
+                        <th style="text-align: right; width: 140px;">ລາຄາ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -5805,25 +6199,25 @@ async function printBillDetail(billId) {
 
             <div class="summary-container">
                 <div class="summary-row">
-                    <span>ລວມຄ່າບໍລິການທັງໝົດ:</span>
-                    <span>${subtotal.toLocaleString()} LAK</span>
+                    <span>ລວມຄ່າກວດທັງໝົດ:</span>
+                    <span class="val">${(typeof totalPrice !== 'undefined' ? totalPrice : subtotal).toLocaleString()} LAK</span>
                 </div>
                 <div class="summary-row discount">
                     <span>ສ່ວນຫຼຸດ:</span>
-                    <span>${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
+                    <span class="val">${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
                 </div>
                 <div class="summary-row total">
-                    <span>ຍອດຊຳລະສຸດທິ:</span>
-                    <span>${netPrice.toLocaleString()} LAK</span>
+                    <span>ຍອດຊຳລະຕົວຈິງ:</span>
+                    <span class="val">${netPrice.toLocaleString()} LAK</span>
                 </div>
-                ${receivedAmt > netPrice ? `
-                <div class="summary-row" style="color: #16a34a; font-weight: 600; font-size: 13.5px; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #cbd5e1;">
+                ${(typeof receivedAmt !== 'undefined' && receivedAmt > netPrice) ? `
+                <div class="summary-row" style="color: #16a34a; font-weight: 600; font-size: 12.5px; margin-top: 5px; padding-top: 3px; border-top: 1px dashed #cbd5e1;">
                     <span>ຮັບເງິນສົດມາ:</span>
-                    <span>${receivedAmt.toLocaleString()} LAK</span>
+                    <span style="color: #16a34a;">${receivedAmt.toLocaleString()} LAK</span>
                 </div>
-                <div class="summary-row" style="color: #ea580c; font-weight: 600; font-size: 13.5px;">
+                <div class="summary-row" style="color: #ea580c; font-weight: 600; font-size: 12.5px;">
                     <span>ເງິນທອນ:</span>
-                    <span>${changeAmt.toLocaleString()} LAK</span>
+                    <span style="color: #ea580c;">${changeAmt.toLocaleString()} LAK</span>
                 </div>
                 ` : ''}
             </div>
@@ -5831,16 +6225,15 @@ async function printBillDetail(billId) {
             <div class="footer-sig">
                 <div class="sig-box">
                     <div class="sig-line"></div>
-                    ( ຄົນເຈັບ / ຜູ້ຊຳລະເງິນ )
+                    <div class="sig-title">( ຄົນເຈັບ / ຜູ້ຊຳລະເງິນ )</div>
                 </div>
                 <div class="sig-box">
                     <div class="sig-line"></div>
-                    ( ເຈົ້າໜ້າທີ່ການເງິນ / ຄລີນິກ )
+                    <div class="sig-title">( ເຈົ້າໜ້າທີ່ການເງິນ / ຄລີນິກ )</div>
                 </div>
             </div>
 
             <script>
-                // 5. สั่งพิมพ์อัตโนมัติเมื่อหน้าต่างโหลดเสร็จ
                 window.onload = function() {
                     setTimeout(function() {
                         window.print();
@@ -5851,7 +6244,6 @@ async function printBillDetail(billId) {
         </html>
     `;
 
-    // 6. เปิดหน้าต่างใหม่เพื่อพิมพ์
     const printWin = window.open('', '_blank', 'width=800,height=900');
     if (printWin) {
         printWin.document.write(printContent);
@@ -7036,7 +7428,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
             const btnLabel = isCbcCat ? 'CBC (PDF)' : (isUrineCat ? 'Urine (PDF)' : (displayName || catName));
 
             allResultButtons.push(`
-                <button class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
+                <button class="btn btn-sm ${btnClass} fw-semibold text-truncate" style="font-size: 11px; padding: 2.5px 7px; max-width: 115px; line-height: 1.3;" title="${btnLabel}" onclick="${btnOnClick}">
                     <i class="bi ${btnIcon} me-1"></i> ${btnLabel}
                 </button>
             `);
@@ -7044,7 +7436,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
 
         if (vascText) {
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
+                <button type="button" class="btn btn-sm btn-outline-danger fw-semibold text-truncate" style="font-size: 11px; padding: 2.5px 7px; max-width: 115px; line-height: 1.3;" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
                     <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
                 </button>
             `);
@@ -7056,7 +7448,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
         const hasCbcNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ CBC]'));
         if (!hasCbcInFiles && (cachedCbc || hasCbcNote)) {
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')">
+                <button type="button" class="btn btn-sm btn-outline-danger fw-semibold text-truncate" style="font-size: 11px; padding: 2.5px 7px; max-width: 115px; line-height: 1.3;" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')">
                     <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
                 </button>
             `);
@@ -7067,13 +7459,16 @@ window.renderLabTable = function (page = window.labCurrentPage) {
         const hasUrineNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ Urine]'));
         if (!hasUrineInFiles && hasUrineNote) {
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm btn-outline-warning text-dark me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ Urine" onclick="openUrinePage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')">
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-semibold text-truncate" style="font-size: 11px; padding: 2.5px 7px; max-width: 115px; line-height: 1.3;" title="ເບິ່ງ / ພິມຜົນກວດ Urine" onclick="openUrinePage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')">
                     <i class="bi bi-eyedropper me-1"></i> Urine (PDF)
                 </button>
             `);
         }
 
-        let allResultDisplay = allResultButtons.length > 0 ? allResultButtons.join(' ') : `<span class="text-muted">-</span>`;
+        let allResultDisplay = `<span class="text-muted">-</span>`;
+        if (allResultButtons.length > 0) {
+            allResultDisplay = `<div class="d-flex flex-wrap justify-content-center align-items-center gap-1" style="max-width: 250px; margin: 0 auto;">${allResultButtons.join('')}</div>`;
+        }
 
         // 🌟 ตรวจสอบว่าเป็นเคสที่รอผลแล็บเพิ่มเติม (Partial Lab) หรือไม่
         const isPartialLab = row.status === 'รอผลแล็บเพิ่มเติม' ||
@@ -7094,8 +7489,8 @@ window.renderLabTable = function (page = window.labCurrentPage) {
         }
 
         let queueBtnHtml = isPartialLab
-            ? `<button class="btn btn-sm btn-warning text-dark fw-bold ms-1 shadow-sm" onclick="sendToReportQueue('${row.visit_id}')"><i class="bi bi-check2-all me-1"></i>ສົ່ງອ່ານຜົນຄົບຖ້ວນ</button>`
-            : `<button class="btn btn-sm btn-outline-primary ms-1" onclick="sendToReportQueue('${row.visit_id}')">ຈັດຄິວອ່ານຜົນກວດ</button>`;
+            ? `<button class="btn btn-sm btn-warning text-dark fw-bold ms-1 shadow-sm px-2.5 py-1" onclick="sendToReportQueue('${row.visit_id}')"><i class="bi bi-check2-all me-1"></i>ສົ່ງອ່ານຜົນຄົບຖ້ວນ</button>`
+            : `<button class="btn btn-sm btn-outline-primary ms-1 px-2.5 py-1" onclick="sendToReportQueue('${row.visit_id}')">ຈັດຄິວອ່ານຜົນກວດ</button>`;
 
         tbody.innerHTML += `
             <tr>
@@ -7104,10 +7499,10 @@ window.renderLabTable = function (page = window.labCurrentPage) {
                 <td>${hnDisplay}</td>
                 <td class="fw-bold">${row.patient_name}${addOnBadgeHtml}</td>
                 <td>${labDetailsHtml}</td>
-                <td class="text-center">${allResultDisplay}</td>
+                <td class="text-center" style="max-width: 250px;">${allResultDisplay}</td>
                 <td>${statusBadgeHtml}</td>
-                <td class="text-center text-nowrap">
-                    <button class="btn btn-sm btn-primary px-3" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button>
+                <td class="text-center text-nowrap" style="min-width: 215px; width: 220px;">
+                    <button class="btn btn-sm btn-primary px-2.5 py-1" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button>
                     ${queueBtnHtml}
                 </td>
             </tr>
@@ -8410,6 +8805,416 @@ async function handlePartialLabSend(visitId, currentLabNote, currentPendingNote)
     if (typeof loadLabQueue === 'function') loadLabQueue();
     if (typeof loadQueueList === 'function') loadQueueList();
 }
+
+// ==========================================
+// 🌟 ລະບົບຈັດການ ແລະ ລຶບຜົນກວດ LAB (Option 1)
+// ==========================================
+
+// 1. ສະແດງລາຍການຜົນກວດ ແລະ ໄຟລ໌ທີ່ມີຢູ່ແລ້ວໃນ Pop-up Upload
+window.renderExistingLabFilesList = async function (visitId) {
+    const listEl = document.getElementById('existingLabFilesList');
+    const countEl = document.getElementById('existingLabFilesCount');
+    const infoEl = document.getElementById('existingLabPatientInfo');
+    if (!listEl) return;
+
+    listEl.innerHTML = `
+        <div class="text-center py-3 text-muted">
+            <div class="spinner-border spinner-border-sm text-primary me-1" role="status"></div>
+            <span class="small">ກຳລັງໂຫຼດລາຍການຜົນກວດ...</span>
+        </div>
+    `;
+
+    // 1.1 ຄົ້ນຫາຂໍ້ມູນຄົນເຈັບ
+    let targetRow = null;
+    if (window.labQueueData && Array.isArray(window.labQueueData)) {
+        targetRow = window.labQueueData.find(r => r.visit_id === visitId);
+    }
+    if (!targetRow && window.labRowCache && window.labRowCache[visitId]) {
+        targetRow = window.labRowCache[visitId];
+    }
+
+    let patientName = targetRow ? (targetRow.patient_name || targetRow.patientName || '') : '';
+    let hn = targetRow ? (targetRow.hn || '') : '';
+    let labNote = targetRow ? (targetRow.lab_note || targetRow.labNote || '') : '';
+    let pdfUrl = targetRow ? (targetRow.pdf_url || targetRow.pdfUrl || '') : '';
+
+    // ດຶງຂໍ້ມູນລ່າສຸດຈາກ Supabase
+    if (typeof _supabase !== 'undefined' && visitId) {
+        try {
+            const { data: vRow } = await _supabase.from('visits').select('visit_id, hn, patient_name, pdf_url, lab_note').eq('visit_id', visitId).maybeSingle();
+            if (vRow) {
+                if (vRow.patient_name) patientName = vRow.patient_name;
+                if (vRow.hn) hn = vRow.hn;
+                if (vRow.pdf_url) pdfUrl = vRow.pdf_url;
+                if (vRow.lab_note) labNote = vRow.lab_note;
+            }
+        } catch (e) {
+            console.warn('Fetch visit for modal error:', e);
+        }
+    }
+
+    if (infoEl) {
+        infoEl.innerHTML = `Visit: <b class="text-primary">${visitId}</b>${hn ? ' | HN: <b>' + hn + '</b>' : ''}${patientName ? ' | <b>' + patientName + '</b>' : ''}`;
+    }
+
+    // 1.2 ລວບລວມໄຟລ໌ທັງໝົດ
+    const files = (typeof getLabFilesForVisit === 'function') ? getLabFilesForVisit(visitId, pdfUrl) : [];
+    const items = [];
+
+    files.forEach(f => {
+        const cat = f.category || 'ຜົນແລັບ';
+        const isCbc = (cat === 'CBC' || (f.fileName && f.fileName.includes('CBC')));
+        const isUrine = (cat === 'Urine' || (f.fileName && f.fileName.includes('Urine')));
+        let dispName = f.fileName || cat;
+        if (f.fileName && f.fileName !== 'ไฟล์ผลแล็บ' && f.fileName !== 'ไฟล์ผลแล็บเดิม' && !f.fileName.startsWith('CBC_Report_') && !f.fileName.startsWith('Urine_Report_')) {
+            dispName = f.fileName.replace(/\.[^/.]+$/, '').trim();
+        }
+        items.push({
+            id: f.id || '',
+            fileName: f.fileName || '',
+            displayName: isCbc ? 'CBC (PDF)' : (isUrine ? 'Urine (PDF)' : dispName),
+            category: cat,
+            type: isCbc ? 'cbc' : (isUrine ? 'urine' : 'file'),
+            url: f.url || f.publicUrl || '',
+            updatedAt: f.updatedAt || ''
+        });
+    });
+
+    // CBC fallback ຖ້າມີໃນ labNote ແຕ່ບໍ່ມີໃນ files
+    const hasCbcInFiles = items.some(it => it.type === 'cbc');
+    const hasCbcNote = (labNote && labNote.includes('[ผลตรวจ CBC]'));
+    if (!hasCbcInFiles && hasCbcNote) {
+        items.push({
+            id: 'CBC-' + visitId,
+            fileName: `CBC_Report_${visitId}.pdf`,
+            displayName: 'CBC (PDF)',
+            category: 'CBC',
+            type: 'cbc',
+            url: '',
+            updatedAt: ''
+        });
+    }
+
+    // Urine fallback ຖ້າມີໃນ labNote ແຕ່ບໍ່ມີໃນ files
+    const hasUrineInFiles = items.some(it => it.type === 'urine');
+    const hasUrineNote = (labNote && labNote.includes('[ผลตรวจ Urine]'));
+    if (!hasUrineInFiles && hasUrineNote) {
+        items.push({
+            id: 'URINE-' + visitId,
+            fileName: `Urine_Report_${visitId}.pdf`,
+            displayName: 'Urine (PDF)',
+            category: 'Urine',
+            type: 'urine',
+            url: '',
+            updatedAt: ''
+        });
+    }
+
+    // Vascular fallback
+    const hasVascNote = (labNote && labNote.includes('[ผลตรวจหลอดเลือด]'));
+    if (hasVascNote) {
+        items.push({
+            id: 'VASC-' + visitId,
+            fileName: 'ຜົນວິນິດໄສເສັ້ນເລືອດ',
+            displayName: 'ຜົນວິນິດໄສ (PDF)',
+            category: 'ກວດເສັ້ນເລືອດ',
+            type: 'vascular',
+            url: '',
+            updatedAt: ''
+        });
+    }
+
+    if (countEl) countEl.textContent = items.length;
+
+    if (items.length === 0) {
+        listEl.innerHTML = `
+            <div class="text-center py-3 text-muted" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px;">
+                <i class="bi bi-inbox text-secondary fs-4 d-block mb-1"></i>
+                <span class="small">ຍັງບໍ່ມີຜົນກວດ ຫຼື ໄຟລ໌ທີ່ອັບໂຫຼດສຳລັບ Visit ນີ້</span>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    items.forEach(item => {
+        let badgeClass = 'bg-secondary text-white';
+        let iconClass = 'bi-file-earmark-text';
+
+        if (item.category === 'CBC') {
+            badgeClass = 'bg-danger text-white';
+            iconClass = 'bi-file-earmark-pdf';
+        } else if (item.category === 'Urine' || item.category.toLowerCase().includes('urine')) {
+            badgeClass = 'bg-warning text-dark';
+            iconClass = 'bi-eyedropper';
+        } else if (item.category === 'ตรวจเลือด' || item.category === 'ກວດເລືອດ') {
+            badgeClass = 'bg-danger-subtle text-danger border border-danger-subtle';
+            iconClass = 'bi-droplet-fill';
+        } else if (item.category === 'ເອໂກ' || item.category === 'เอโก') {
+            badgeClass = 'bg-primary-subtle text-primary border border-primary-subtle';
+            iconClass = 'bi-activity';
+        } else if (item.category === 'ເອັກຊະເລ' || item.category === 'เอ็กซเรย์') {
+            badgeClass = 'bg-info-subtle text-info border border-info-subtle';
+            iconClass = 'bi-file-earmark-medical';
+        } else if (item.category === 'ตรวจหลอดเลือด' || item.category === 'ກວດເສັ້ນເລືອດ') {
+            badgeClass = 'bg-warning-subtle text-dark border border-warning-subtle';
+            iconClass = 'bi-heart-pulse-fill';
+        }
+
+        let dateStr = '';
+        if (item.updatedAt) {
+            try {
+                const d = new Date(item.updatedAt);
+                if (!isNaN(d.getTime())) {
+                    dateStr = d.toLocaleDateString('lo-LA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+            } catch (e) { }
+        }
+
+        const safeVisitId = (visitId || '').replace(/'/g, "\\'");
+        const safeItemId = (item.id || '').replace(/'/g, "\\'");
+        const safeType = item.type;
+        const safeFileName = encodeURIComponent(item.fileName || '');
+        const safeCategory = encodeURIComponent(item.category || '');
+        const safeUrl = encodeURIComponent(item.url || '');
+        const safePName = encodeURIComponent(patientName || '');
+        const safeHn = encodeURIComponent(hn || '');
+
+        html += `
+            <div class="d-flex justify-content-between align-items-center p-2.5 px-3 rounded border bg-white shadow-xs">
+                <div class="d-flex align-items-center gap-2.5 overflow-hidden me-2">
+                    <span class="badge ${badgeClass} text-nowrap" style="font-size: 11px; padding: 5px 8px;">
+                        <i class="bi ${iconClass} me-1"></i>${item.category}
+                    </span>
+                    <div class="text-truncate">
+                        <span class="fw-semibold text-dark text-truncate d-block" style="font-size: 13px;" title="${item.displayName}">
+                            ${item.displayName}
+                        </span>
+                        ${dateStr ? `<small class="text-muted" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>${dateStr}</small>` : ''}
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-1.5 flex-shrink-0">
+                    <button type="button" class="btn btn-sm btn-light border text-primary fw-semibold px-2.5 py-1"
+                        style="font-size: 12px; border-radius: 6px;"
+                        title="ເບິ່ງຜົນກວດ"
+                        onclick="viewLabResultFromModal('${safeVisitId}', '${safeType}', '${safeUrl}', '${safePName}', '${safeCategory}', '${safeHn}')">
+                        <i class="bi bi-eye me-1"></i>ເບິ່ງ
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger fw-semibold px-2.5 py-1"
+                        style="font-size: 12px; border-radius: 6px;"
+                        title="ລຶບຜົນກວດນີ້"
+                        onclick="deleteLabResultItem('${safeVisitId}', '${safeItemId}', '${safeType}', '${safeFileName}', '${safeCategory}')">
+                        <i class="bi bi-trash-fill me-1"></i>ລຶບ
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    listEl.innerHTML = html;
+};
+
+// 2. ເປີດເບິ່ງຜົນກວດຈາກ Pop-up
+window.viewLabResultFromModal = function (visitId, itemType, encodedUrl, encodedPName, encodedCategory, encodedHn) {
+    const url = decodeURIComponent(encodedUrl || '');
+    const pName = decodeURIComponent(encodedPName || '');
+    const cat = decodeURIComponent(encodedCategory || '');
+    const hn = decodeURIComponent(encodedHn || '');
+
+    if (itemType === 'cbc') {
+        if (typeof openCbcPage === 'function') {
+            openCbcPage(visitId, 'lab', hn, pName);
+        } else {
+            window.open(`cbc.html?visit_id=${visitId}&hn=${hn}&name=${encodeURIComponent(pName)}&mode=lab`, '_blank');
+        }
+    } else if (itemType === 'urine') {
+        if (typeof openUrinePage === 'function') {
+            openUrinePage(visitId, 'lab', hn, pName);
+        } else {
+            window.open(`urine.html?visit_id=${visitId}&hn=${hn}&name=${encodeURIComponent(pName)}&mode=lab`, '_blank');
+        }
+    } else if (itemType === 'vascular') {
+        if (typeof openVascularReportPopup === 'function') {
+            openVascularReportPopup(visitId);
+        }
+    } else {
+        if (typeof viewRealLabFile === 'function') {
+            viewRealLabFile(url, visitId, pName, cat);
+        } else if (url) {
+            window.open(url, '_blank');
+        }
+    }
+};
+
+// 3. ຟັງຊັນລຶບຜົນກວດ (Delete Lab Result / File)
+window.deleteLabResultItem = async function (visitId, itemId, itemType, encodedFileName, encodedCategory) {
+    const fileName = decodeURIComponent(encodedFileName || '');
+    const category = decodeURIComponent(encodedCategory || '');
+
+    let displayName = fileName || category || 'ຜົນກວດນີ້';
+    if (itemType === 'cbc') displayName = 'CBC (PDF)';
+    else if (itemType === 'urine') displayName = 'Urine (PDF)';
+    else if (itemType === 'vascular') displayName = 'ຜົນວິນິດໄສເສັ້ນເລືອດ (PDF)';
+
+    const result = await Swal.fire({
+        title: 'ຢືນຢັນການລຶບຜົນກວດ?',
+        html: `ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບ <b>${displayName}</b> ອອກຈາກລະບົບ?<br><span class="text-danger small" style="font-size: 12px;">* ເມື່ອລຶບແລ້ວ ປຸ່ມຜົນກວດນີ້ຈະຫາຍອອກຈາກຄໍລຳ "ຜົນກວດທັງໝົດ" ທັນທີ</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: '<i class="bi bi-trash-fill me-1"></i> ແມ່ນ, ລຶບເລີຍ',
+        cancelButtonText: 'ຍົກເລີກ',
+        reverseButtons: true
+    });
+    if (!result.isConfirmed) return;
+
+    Swal.fire({
+        title: 'ກຳລັງລຶບຜົນກວດ...',
+        text: 'ກະລຸນາລໍຖ້າสักครู่',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // 3.1 ດຶງຂໍ້ມູນລ່າສຸດຈາກ Supabase
+        let currentPdfFiles = [];
+        let currentLabNote = '';
+
+        if (typeof _supabase !== 'undefined' && visitId) {
+            try {
+                const { data: vRow } = await _supabase.from('visits').select('pdf_url, lab_note').eq('visit_id', visitId).maybeSingle();
+                if (vRow) {
+                    if (vRow.pdf_url) {
+                        try {
+                            const parsed = typeof vRow.pdf_url === 'string' ? JSON.parse(vRow.pdf_url) : vRow.pdf_url;
+                            if (Array.isArray(parsed)) currentPdfFiles = parsed;
+                        } catch (e) { }
+                    }
+                    if (vRow.lab_note) currentLabNote = vRow.lab_note;
+                }
+            } catch (err) {
+                console.warn('Fetch visit error:', err);
+            }
+        }
+
+        // Fallback ຈາກ memory
+        if (currentPdfFiles.length === 0 && window.labRowCache && window.labRowCache[visitId] && window.labRowCache[visitId].pdfUrl) {
+            try {
+                const parsed = JSON.parse(window.labRowCache[visitId].pdfUrl);
+                if (Array.isArray(parsed)) currentPdfFiles = parsed;
+            } catch (e) { }
+        }
+        if (!currentLabNote && window.labRowCache && window.labRowCache[visitId]) {
+            currentLabNote = window.labRowCache[visitId].labNote || '';
+        }
+
+        // 3.2 ຈັດການລຶບຕາມປະເພດ
+        let newLabNote = currentLabNote;
+
+        if (itemType === 'cbc') {
+            if (newLabNote.includes('[ผลตรวจ CBC]')) {
+                newLabNote = newLabNote.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]\s*/g, '').trim();
+            }
+            currentPdfFiles = currentPdfFiles.filter(f => f && f.category !== 'CBC' && (!f.fileName || !f.fileName.includes('CBC_Report_')));
+            try { localStorage.removeItem('stk-cbc-report:' + visitId); } catch (e) { }
+            if (typeof cachedCbcMap !== 'undefined' && cachedCbcMap) delete cachedCbcMap[visitId];
+        } else if (itemType === 'urine') {
+            if (newLabNote.includes('[ผลตรวจ Urine]')) {
+                newLabNote = newLabNote.replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]\s*/g, '').trim();
+            }
+            currentPdfFiles = currentPdfFiles.filter(f => f && f.category !== 'Urine' && (!f.fileName || !f.fileName.includes('Urine_Report_')));
+            try { localStorage.removeItem('stk-urine-report:' + visitId); } catch (e) { }
+        } else if (itemType === 'vascular') {
+            if (newLabNote.includes('[ผลตรวจหลอดเลือด]')) {
+                newLabNote = newLabNote.replace(/\[ผลตรวจหลอดเลือด\][\s\S]*?(?=\n\n|$)/g, '').trim();
+            }
+            if (typeof cachedVascularMap !== 'undefined' && cachedVascularMap) delete cachedVascularMap[visitId];
+        } else {
+            // ໄຟລ໌ອັບໂຫຼດປົກກະຕິ
+            currentPdfFiles = currentPdfFiles.filter(f => {
+                if (!f) return false;
+                if (itemId && f.id && f.id === itemId) return false;
+                if (fileName && f.fileName && f.fileName === fileName) return false;
+                return true;
+            });
+        }
+
+        // 3.3 ລຶບອອກຈາກ LocalStorage clinic_lab_files_meta
+        try {
+            const metaMap = JSON.parse(localStorage.getItem('clinic_lab_files_meta') || '{}');
+            if (Array.isArray(metaMap[visitId])) {
+                metaMap[visitId] = metaMap[visitId].filter(f => {
+                    if (!f) return false;
+                    if (itemType === 'cbc' && (f.category === 'CBC' || (f.fileName && f.fileName.includes('CBC')))) return false;
+                    if (itemType === 'urine' && (f.category === 'Urine' || (f.fileName && f.fileName.includes('Urine')))) return false;
+                    if (itemId && f.id && f.id === itemId) return false;
+                    if (fileName && f.fileName && f.fileName === fileName) return false;
+                    return true;
+                });
+                localStorage.setItem('clinic_lab_files_meta', JSON.stringify(metaMap));
+            }
+        } catch (e) { }
+
+        // 3.4 ລຶບອອກຈາກ LocalStorage clinic_real_lab_files
+        try {
+            const realMap = JSON.parse(localStorage.getItem('clinic_real_lab_files') || '{}');
+            if (Array.isArray(realMap[visitId])) {
+                realMap[visitId] = realMap[visitId].filter(f => {
+                    if (!f) return false;
+                    if (itemId && f.id && f.id === itemId) return false;
+                    if (fileName && f.fileName && f.fileName === fileName) return false;
+                    return true;
+                });
+                localStorage.setItem('clinic_real_lab_files', JSON.stringify(realMap));
+            }
+        } catch (e) { }
+
+        // 3.5 ອັບເດດລົງ Supabase visits
+        if (typeof _supabase !== 'undefined' && visitId) {
+            try {
+                await _supabase.from('visits').update({
+                    pdf_url: JSON.stringify(currentPdfFiles),
+                    lab_note: newLabNote
+                }).eq('visit_id', visitId);
+            } catch (dbErr) {
+                console.warn('Update visit in DB error:', dbErr);
+            }
+        }
+
+        // 3.6 ອັບເດດ In-memory cache
+        if (window.labQueueData && Array.isArray(window.labQueueData)) {
+            const qRow = window.labQueueData.find(r => r.visit_id === visitId);
+            if (qRow) {
+                qRow.pdf_url = JSON.stringify(currentPdfFiles);
+                qRow.lab_note = newLabNote;
+            }
+        }
+        if (window.labRowCache && window.labRowCache[visitId]) {
+            window.labRowCache[visitId].labNote = newLabNote;
+            window.labRowCache[visitId].pdfUrl = JSON.stringify(currentPdfFiles);
+        }
+
+        // 3.7 ຣີເຟຣຊ Modal & ຕາຕະລາງໃຫຍ່
+        if (typeof renderExistingLabFilesList === 'function') {
+            renderExistingLabFilesList(visitId);
+        }
+        if (typeof renderLabTable === 'function') renderLabTable();
+        if (typeof filterLabTable === 'function') filterLabTable();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ລຶບສຳເລັດ',
+            text: `ລຶບ ${displayName} ອອກຈາກລະບົບຮຽບຮ້ອຍແລ້ວ`,
+            timer: 1400,
+            showConfirmButton: false
+        });
+
+    } catch (error) {
+        console.error('deleteLabResultItem error:', error);
+        Swal.fire('ຂໍ້ຜິດພາດ', 'ບໍ່ສາມາດລຶບຜົນກວດໄດ້: ' + (error.message || error), 'error');
+    }
+};
 function openLabUploadModal(visitId) {
     try {
         // 1. เคลียร์ฉากหลัง (Backdrop) ที่อาจตกค้างออกทั้งหมด ป้องกันอาการจอมืดค้าง
@@ -8431,7 +9236,12 @@ function openLabUploadModal(visitId) {
             previewContainer.style.display = 'none';
         }
 
-        // 3. แสดง Modal อัปโหลดผลตรวจแล็บ
+        // 🌟 3. ສະແດງລາຍການຜົນກວດ ແລະ ໄຟລ໌ທີ່ມີຢູ່ແລ້ວ ເພື່ອກວດເບິ່ງ ແລະ ກົດລຶບ
+        if (typeof renderExistingLabFilesList === 'function') {
+            renderExistingLabFilesList(visitId);
+        }
+
+        // 4. ສະແດງ Modal ອັບໂຫຼດຜົນກວດແລັບ
         const modalEl = document.getElementById('labUploadModal');
         if (modalEl) {
             modalEl.style.zIndex = '1060';
@@ -8621,6 +9431,7 @@ async function submitLabUpload() {
         }
 
         // รีเฟรชตารางห้องแล็บเพื่อโชว์ปุ่มไฟล์แล็บตามหมวดหมู่ในช่อง "ผลตรวจทั้งหมด" ทันที!
+        if (typeof renderExistingLabFilesList === 'function') renderExistingLabFilesList(visitId);
         if (typeof loadLabQueue === 'function') loadLabQueue();
         if (typeof loadQueueList === 'function') loadQueueList();
         if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
@@ -8628,6 +9439,152 @@ async function submitLabUpload() {
 
     reader.readAsDataURL(file);
 }
+
+// 🌟 ຟັງຊັນລຶບໄຟລ໌ຜົນກວດໂດຍກົງຈາກໜ້າຕ່າງ Preview
+window.deleteLabFileFromPreview = async function (visitId, fileUrlOrId, categoryName, fileName, fileId) {
+    Swal.close();
+
+    let files = (typeof getLabFilesForVisit === 'function') ? getLabFilesForVisit(visitId) : [];
+    let matched = files.find(f => 
+        (fileId && f.id === fileId) ||
+        (fileUrlOrId && (f.id === fileUrlOrId || f.url === fileUrlOrId || f.publicUrl === fileUrlOrId)) ||
+        (fileName && f.fileName === fileName) ||
+        (categoryName && (f.category === categoryName || (f.fileName && f.fileName.includes(categoryName))))
+    );
+    const finalId = fileId || matched?.id || (fileUrlOrId && fileUrlOrId.startsWith('FILE-') ? fileUrlOrId : '');
+    const finalName = fileName || matched?.fileName || '';
+    const finalCat = categoryName || matched?.category || 'ຜົນແລັບ';
+    const finalUrl = matched?.url || matched?.publicUrl || (fileUrlOrId && (fileUrlOrId.startsWith('http') || fileUrlOrId.startsWith('data:')) ? fileUrlOrId : '');
+
+    const displayLabel = finalName || finalCat || 'ໄຟລ໌ຜົນກວດນີ້';
+
+    const result = await Swal.fire({
+        title: 'ຢືນຢັນການລຶບໄຟລ໌ຜົນກວດ?',
+        html: `ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບ <b>${displayLabel}</b> ອອກຈາກລະບົບ?<br><span class="text-danger small" style="font-size: 12px;">* ເມື່ອລຶບແລ້ວ ປຸ່ມໄຟລ໌ນີ້ຈະຫາຍອອກຈາກຄໍລຳ "ຜົນກວດທັງໝົດ" ທັນທີ</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: '<i class="bi bi-trash-fill me-1"></i> ແມ່ນ, ລຶບເລີຍ',
+        cancelButtonText: 'ຍົກເລີກ',
+        reverseButtons: true
+    });
+    if (!result.isConfirmed) return;
+
+    Swal.fire({
+        title: 'ກຳລັງລຶບຜົນກວດ...',
+        text: 'ກະລຸນາລໍຖ້າสักครู่',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // 1. ດຶງຂໍ້ມູນລ່າສຸດຈາກ Supabase
+        let currentPdfFiles = [];
+
+        if (typeof _supabase !== 'undefined' && visitId) {
+            try {
+                const { data: vRow } = await _supabase.from('visits').select('pdf_url').eq('visit_id', visitId).maybeSingle();
+                if (vRow && vRow.pdf_url) {
+                    try {
+                        const parsed = typeof vRow.pdf_url === 'string' ? JSON.parse(vRow.pdf_url) : vRow.pdf_url;
+                        if (Array.isArray(parsed)) currentPdfFiles = parsed;
+                    } catch (e) { }
+                }
+            } catch (err) {
+                console.warn('Fetch visit error:', err);
+            }
+        }
+
+        // Fallback ຈາກ memory
+        if (currentPdfFiles.length === 0 && window.labRowCache && window.labRowCache[visitId] && window.labRowCache[visitId].pdfUrl) {
+            try {
+                const parsed = JSON.parse(window.labRowCache[visitId].pdfUrl);
+                if (Array.isArray(parsed)) currentPdfFiles = parsed;
+            } catch (e) { }
+        }
+
+        // 2. ລຶບໄຟລ໌ອອກຈາກ currentPdfFiles
+        currentPdfFiles = currentPdfFiles.filter(f => {
+            if (!f) return false;
+            if (finalId && f.id && f.id === finalId) return false;
+            if (finalName && f.fileName && f.fileName === finalName) return false;
+            if (finalUrl && (f.url === finalUrl || f.publicUrl === finalUrl)) return false;
+            if (finalCat && f.category === finalCat && (!finalName || f.fileName === finalName)) return false;
+            return true;
+        });
+
+        // 3. ລຶບອອກຈາກ LocalStorage clinic_lab_files_meta
+        try {
+            const metaMap = JSON.parse(localStorage.getItem('clinic_lab_files_meta') || '{}');
+            if (Array.isArray(metaMap[visitId])) {
+                metaMap[visitId] = metaMap[visitId].filter(f => {
+                    if (!f) return false;
+                    if (finalId && f.id && f.id === finalId) return false;
+                    if (finalName && f.fileName && f.fileName === finalName) return false;
+                    if (finalUrl && (f.url === finalUrl || f.publicUrl === finalUrl)) return false;
+                    if (finalCat && f.category === finalCat && (!finalName || f.fileName === finalName)) return false;
+                    return true;
+                });
+                localStorage.setItem('clinic_lab_files_meta', JSON.stringify(metaMap));
+            }
+        } catch (e) { }
+
+        // 4. ລຶບອອກຈາກ LocalStorage clinic_real_lab_files
+        try {
+            const realMap = JSON.parse(localStorage.getItem('clinic_real_lab_files') || '{}');
+            if (Array.isArray(realMap[visitId])) {
+                realMap[visitId] = realMap[visitId].filter(f => {
+                    if (!f) return false;
+                    if (finalId && f.id && f.id === finalId) return false;
+                    if (finalName && f.fileName && f.fileName === finalName) return false;
+                    if (finalUrl && (f.url === finalUrl || f.publicUrl === finalUrl)) return false;
+                    if (finalCat && f.category === finalCat && (!finalName || f.fileName === finalName)) return false;
+                    return true;
+                });
+                localStorage.setItem('clinic_real_lab_files', JSON.stringify(realMap));
+            }
+        } catch (e) { }
+
+        // 5. ບັນທຶກລົງ Supabase visits
+        if (typeof _supabase !== 'undefined' && visitId) {
+            try {
+                await _supabase.from('visits').update({
+                    pdf_url: JSON.stringify(currentPdfFiles)
+                }).eq('visit_id', visitId);
+            } catch (dbErr) {
+                console.warn('Update visit in DB error:', dbErr);
+            }
+        }
+
+        // 6. ອັບເດດ in-memory cache
+        if (window.labQueueData && Array.isArray(window.labQueueData)) {
+            const qRow = window.labQueueData.find(r => r.visit_id === visitId);
+            if (qRow) {
+                qRow.pdf_url = JSON.stringify(currentPdfFiles);
+            }
+        }
+        if (window.labRowCache && window.labRowCache[visitId]) {
+            window.labRowCache[visitId].pdfUrl = JSON.stringify(currentPdfFiles);
+        }
+
+        // 7. ຣີເຟຣຊຕາຕະລາງຫ້ອງແລັບທັນທີ!
+        if (typeof renderLabTable === 'function') renderLabTable();
+        if (typeof filterLabTable === 'function') filterLabTable();
+        if (typeof renderExistingLabFilesList === 'function') renderExistingLabFilesList(visitId);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ລຶບສຳເລັດ',
+            text: `ລຶບ ${displayLabel} ອອກຈາກລະບົບຮຽບຮ້ອຍແລ້ວ`,
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('deleteLabFileFromPreview error:', err);
+        Swal.fire('ຂໍ້ຜິດພາດ', 'ບໍ່ສາມາດລຶບໄຟລ໌ໄດ້: ' + (err.message || err), 'error');
+    }
+};
 
 // ฟังก์ชั่นเปิดดูเอกสารผลแล็บจริง (PDF / รูปภาพ JPG, PNG, WEBP)
 async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) {
@@ -8714,6 +9671,9 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
                             <button type="button" onclick="openLabPdfDirect('${fileUrl}', 'lab_${visitId}.png')" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
                                 <i class="bi bi-box-arrow-up-right me-1"></i> เปิดดูรูปขนาดเต็ม / ดาวน์โหลด
                             </button>
+                            <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold shadow-xs text-white" onclick="deleteLabFileFromPreview('${visitId}', '${(fileUrlOrId || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
+                                <i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້
+                            </button>
                         </div>
                     </div>
                     <img src="${fileUrl}" class="img-fluid rounded border shadow-sm" style="max-height: 70vh; object-fit: contain;">
@@ -8721,11 +9681,18 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
             `,
             width: '850px',
             showCloseButton: true,
-            confirmButtonText: 'ปิดหน้าต่าง',
+            showDenyButton: true,
+            confirmButtonText: 'ປິດໜ້າຕ່າງ',
             confirmButtonColor: '#0b3c73',
+            denyButtonText: '<i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້ (Delete)',
+            denyButtonColor: '#dc2626',
             didClose: () => {
                 window._currentLabPdfBlobUrl = null;
                 window._currentLabPdfRawUrl = null;
+            }
+        }).then((res) => {
+            if (res && res.isDenied) {
+                deleteLabFileFromPreview(visitId, fileUrlOrId, categoryName);
             }
         });
     } else {
@@ -8756,6 +9723,9 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
                             <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs" onclick="openLabPdfDirect(window._currentLabPdfBlobUrl || window._currentLabPdfRawUrl, 'lab_${visitId}.pdf')">
                                 <i class="bi bi-box-arrow-up-right me-1"></i> เปิดในแท็บใหม่ / ดาวน์โหลด PDF
                             </button>
+                            <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold shadow-xs text-white" onclick="deleteLabFileFromPreview('${visitId}', '${(fileUrlOrId || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
+                                <i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້
+                            </button>
                         </div>
                     </div>
                     <div class="flex-grow-1 border rounded-3 overflow-hidden bg-light position-relative d-flex flex-column">
@@ -8770,11 +9740,18 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
             `,
             width: '950px',
             showCloseButton: true,
-            confirmButtonText: 'ปิดหน้าต่าง',
+            showDenyButton: true,
+            confirmButtonText: 'ປິດໜ້າຕ່າງ',
             confirmButtonColor: '#0b3c73',
+            denyButtonText: '<i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້ (Delete)',
+            denyButtonColor: '#dc2626',
             didClose: () => {
                 window._currentLabPdfBlobUrl = null;
                 window._currentLabPdfRawUrl = null;
+            }
+        }).then((res) => {
+            if (res && res.isDenied) {
+                deleteLabFileFromPreview(visitId, fileUrlOrId, categoryName);
             }
         });
     }
@@ -12261,8 +13238,8 @@ window.renderHistoryTable = function (page = window.historyCurrentPage) {
                 <td class="text-muted align-middle py-2" style="font-size: 0.88rem;">${row.hn || '-'}</td>
                 <td class="align-middle fw-bold text-dark py-2" style="font-size: 0.92rem;">${row.patient_name || '-'}${phoneHtml}</td>
                 <td class="align-middle text-muted py-2" style="font-size: 0.88rem;">${dateStr}</td>
-                <td class="align-middle text-dark py-2" style="font-size: 0.88rem;">${symptomHtml}</td>
-                <td class="text-center align-middle py-2">
+                <td class="align-middle text-dark py-2" style="font-size: 0.88rem; white-space: normal !important; word-break: break-word; overflow-wrap: anywhere; line-height: 1.45; min-width: 200px; max-width: 380px;">${symptomHtml}</td>
+                <td class="text-center align-middle py-2" style="white-space: nowrap !important; width: 190px; min-width: 190px;">
                     <button class="btn btn-sm btn-outline-primary px-3 py-1 fw-semibold shadow-sm" style="border-radius: 50rem; font-size: 0.75rem;" onclick="showHistoryDetails('${row.visit_id}')"><i class="bi bi-eye me-1"></i> ดูรายละเอียด</button>
                     <button class="btn btn-sm btn-outline-danger px-3 py-1 fw-semibold shadow-sm ms-1" style="border-radius: 50rem; font-size: 0.75rem;" onclick="deleteHistoryVisit('${row.visit_id}')"><i class="bi bi-trash"></i> ลบ</button>
                 </td>
@@ -13417,6 +14394,8 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         let noteContentText = (row.lab_note || vascText || '').trim();
         noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\]/gi, '').trim();
+        noteContentText = noteContentText.replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]/gi, '').trim();
+        noteContentText = noteContentText.replace(/\[ผลตรวจ Urine\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[เอกสารแนบ[^\]]*\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
@@ -13434,6 +14413,10 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             setSafeHtml('histLabFilesButtons', '<span class="text-muted small">ยังไม่มีเอกสารผลตรวจ</span>');
         }
         setSafeDisplay('histLabFilesContent', true);
+        const btnHistRecover = document.getElementById('btnHistRecoverLab');
+        if (btnHistRecover) {
+            btnHistRecover.setAttribute('onclick', `runRecoverLabFromHistory('${row.visit_id}', '${safeName}')`);
+        }
     }
 
     // 🌟 แสดงรายการสั่งจ่ายยา/อาหารเสริม (histMedsTable)
@@ -14062,6 +15045,246 @@ window.openLabUploadFromHistory = function (targetVisitId) {
             openLabUploadModal(visitId);
         }
     }, 250);
+};
+
+// 🌟 ฟังก์ชันเรียกใช้งาน Recover Lab จากหน้าประวัติการตรวจรักษา (ปุ่ม "ແປງຜົນໃສ່ Frame" - แบบที่ 1: เลือกไฟล์ก่อนแปลง)
+window.runRecoverLabFromHistory = async function (targetVisitId, targetPatientName) {
+    const visitId = targetVisitId || (window.currentHistoryDetailVisit ? window.currentHistoryDetailVisit.visit_id : document.getElementById('histVisitId')?.innerText?.trim());
+    const patientName = targetPatientName || (window.currentHistoryDetailVisit ? window.currentHistoryDetailVisit.patient_name : document.getElementById('histPatientName')?.innerText?.trim()) || '';
+
+    if (!visitId || visitId === '-') {
+        if (typeof Swal !== 'undefined') Swal.fire('ข้อผิดพลาด', 'ไม่พบรหัสการตรวจ (Visit ID)', 'error');
+        else alert('ไม่พบรหัสการตรวจ (Visit ID)');
+        return;
+    }
+
+    if (typeof convertLabResultWithFrame !== 'function') {
+        if (typeof Swal !== 'undefined') Swal.fire('ຂໍ້ຜິດພາດ', 'ບໍ່ພົບຟังก์ชัน Recover Lab ໃນລະບົບ (ກະລຸນາກວດສອບໄຟລ໌ Recover Lab.js)', 'error');
+        else alert('ไม่พบฟังก์ชัน Recover Lab ในระบบ');
+        return;
+    }
+
+    // 1. ดึงข้อมูล Visit และไฟล์ผลตรวจทั้งหมดของเคสนี้
+    const visitRow = (window.allHistoryVisits || []).find(v => v.visit_id === visitId) || window.currentHistoryDetailVisit || {};
+    
+    let filesList = [];
+    if (typeof getLabFilesForVisitAsync === 'function') {
+        try {
+            filesList = await getLabFilesForVisitAsync(visitId, visitRow.pdf_url);
+        } catch (e) { }
+    }
+
+    // 2. รวบรวมรายการตรวจและไฟล์ทั้งหมดที่มีให้เลือก
+    const selectableItems = [];
+    let hasCbcInFiles = false;
+    let hasUrineInFiles = false;
+
+    // 2.1 ไฟล์แนบภายนอก (PDF / รูปภาพผลตรวจจริง)
+    for (let idx = 0; idx < (filesList || []).length; idx++) {
+        const f = filesList[idx];
+        const name = f.fileName || `ໄຟລ໌ຜົນກວດ ${idx + 1}`;
+        const cat = f.category || 'ຜົນແລັບ';
+
+        // แยกแยะไฟล์จำลอง (Virtual report placeholder) สำหรับ CBC และ Urine
+        const isCbcStub = cat === 'CBC' || name.startsWith('CBC_Report_') || (f.id && String(f.id).startsWith('FILE-CBC-'));
+        const isUrineStub = cat === 'Urine' || name.startsWith('Urine_Report_') || (f.id && String(f.id).startsWith('FILE-URINE-'));
+
+        if (isCbcStub) {
+            hasCbcInFiles = true;
+            continue; // ให้ไปรวมเป็นรายการ CBC ระบบด้านล่าง เพื่อดึงค่าที่ถูกต้อง
+        }
+        if (isUrineStub) {
+            hasUrineInFiles = true;
+            continue; // ให้ไปรวมเป็นรายการ Urine ระบบด้านล่าง
+        }
+
+        let u = f.url || f.publicUrl || '';
+        if ((!u || u === '' || String(u).startsWith('FILE-')) && f.id && typeof LabDB !== 'undefined') {
+            try {
+                const fObj = await LabDB.getFile(f.id);
+                if (fObj && (fObj.url || fObj.publicUrl)) {
+                    u = fObj.url || fObj.publicUrl;
+                }
+            } catch (e) { }
+        }
+        if (!u && f.id) u = f.id;
+        if (!u) continue;
+
+        const isPdf = name.toLowerCase().endsWith('.pdf') || String(u).includes('.pdf') || String(u).includes('application/pdf');
+        selectableItems.push({
+            id: 'file_' + idx,
+            type: 'file',
+            url: u,
+            fileName: name,
+            category: cat,
+            icon: isPdf ? 'bi-file-earmark-pdf-fill text-danger' : 'bi-file-earmark-image-fill text-primary',
+            badge: 'ໄຟລ໌ແນບ'
+        });
+    }
+
+    // 2.2 ผลตรวจ CBC
+    let cbcPayload = null;
+    const hasCbcNote = (visitRow.lab_note && /\[?ผลตรวจ\s*CBC\]?/i.test(visitRow.lab_note));
+    if (hasCbcNote) {
+        const m = visitRow.lab_note.match(/(?:\[ผลตรวจ CBC\]|ผลตรวจ CBC)\s*([\s\S]*?)(?:\[\/ผลตรวจ CBC\]|$)/i);
+        if (m && m[1]) {
+            try { cbcPayload = JSON.parse(m[1]); } catch (e) { }
+        }
+    }
+    if (!cbcPayload) {
+        try {
+            const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
+            cbcPayload = allCbc[visitId] || allCbc[String(visitId).replace('VIS-', '')];
+        } catch (e) { }
+    }
+    const hasCbcInTests = (visitRow.lab_tests && visitRow.lab_tests.toLowerCase().includes('cbc'));
+
+    if (hasCbcNote || cbcPayload || hasCbcInFiles || hasCbcInTests) {
+        selectableItems.push({
+            id: 'cbc_report',
+            type: 'cbc',
+            fileName: 'CBC (Complete Blood Count)',
+            category: 'ກວດເລືອດສົມບູນ (CBC)',
+            icon: 'bi-droplet-fill text-danger',
+            badge: 'ຜົນກວດລະບົບ'
+        });
+    }
+
+    // 2.3 ผลตรวจ Urine
+    const hasUrineNote = (visitRow.lab_note && /\[?ผลตรวจ\s*Urine\]?/i.test(visitRow.lab_note));
+    const hasUrineInTests = (visitRow.lab_tests && visitRow.lab_tests.toLowerCase().includes('urine'));
+    if (hasUrineNote || hasUrineInFiles || hasUrineInTests) {
+        selectableItems.push({
+            id: 'urine_report',
+            type: 'urine',
+            fileName: 'ຜົນກວດນ້ຳຍ່ຽວ (Urinalysis)',
+            category: 'Urine Analysis',
+            icon: 'bi-eyedropper text-warning',
+            badge: 'ຜົນກວດລະບົບ'
+        });
+    }
+
+    // 2.4 ผลตรวจหลอดเลือด
+    const hasVascNote = (visitRow.lab_note && /ผลตรวจหลอดเลือด/i.test(visitRow.lab_note));
+    const hasVascInTests = (visitRow.lab_tests && (visitRow.lab_tests.includes('หลอดเลือด') || visitRow.lab_tests.includes('vascular') || visitRow.lab_tests.includes('ເສັ້ນເລືອດ')));
+    if (hasVascNote || hasVascInTests) {
+        selectableItems.push({
+            id: 'vasc_report',
+            type: 'vascular',
+            fileName: 'ຜົນກວດເສັ້ນເລືອດ (Vascular)',
+            category: 'ກວດເສັ້ນເລືອດ',
+            icon: 'bi-heart-pulse-fill text-danger',
+            badge: 'ຜົນກວດລະບົບ'
+        });
+    }
+
+    // กรณีไม่มีไฟล์หรือรายการใดๆ ให้แปลง
+    if (selectableItems.length === 0) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'info',
+                title: 'ບໍ່ພົບລາຍການຜົນກວດ',
+                text: 'ບໍ່ພົບໄຟລ໌ ຫຼື ຂໍ້ມູນຜົນກວດສຳລັບ Visit ນີ້ ກະລຸນາເພີ່ມຜົນກວດກ່ອນ',
+                confirmButtonText: 'ຕົກລົງ'
+            });
+        } else {
+            alert('ບໍ່ພົບໄຟລ໌ ຫຼື ຂໍ້ມູນຜົນກວດສຳລັບ Visit ນີ້');
+        }
+        return;
+    }
+
+    // 🌟 แสดงหน้าต่างป๊อปอัปให้ติ๊กเลือกไฟล์ (Option 1)
+    let itemsHtml = '';
+    selectableItems.forEach(item => {
+        itemsHtml += `
+            <div class="rl-select-card d-flex align-items-center justify-content-between p-2 mb-2 rounded border bg-white shadow-xs" 
+                 style="cursor: pointer; transition: all 0.15s ease;" 
+                 onclick="toggleRlCardCheck('${item.id}', event)">
+                <div class="d-flex align-items-center gap-2 overflow-hidden pe-2">
+                    <input type="checkbox" class="form-check-input rl-item-cb my-0 flex-shrink-0" 
+                           id="rl_cb_${item.id}" value="${item.id}" checked 
+                           style="width: 20px; height: 20px; cursor: pointer;"
+                           onclick="event.stopPropagation(); updateRlCheckCount();">
+                    <i class="bi ${item.icon} fs-4 flex-shrink-0"></i>
+                    <div class="text-truncate text-start">
+                        <div class="fw-bold text-dark small text-truncate" title="${item.fileName}">${item.fileName}</div>
+                        <small class="text-muted" style="font-size: 0.75rem;">${item.category}</small>
+                    </div>
+                </div>
+                <span class="badge bg-light border text-secondary px-2 py-1 rounded-pill small flex-shrink-0" style="font-size: 0.72rem;">${item.badge}</span>
+            </div>
+        `;
+    });
+
+    const modalHtml = `
+        <div class="text-start px-1">
+            <div class="text-muted small mb-2">
+                ເລືອກໄຟລ໌ ຫຼື ລາຍການຜົນກວດທີ່ຕ້ອງການລວມໃສ່ <strong>Frame ລາຍງານຄລີນິກ</strong>:
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2 px-1 pb-2 border-bottom">
+                <label class="form-check-label fw-bold text-dark d-flex align-items-center gap-2 cursor-pointer mb-0">
+                    <input class="form-check-input my-0" type="checkbox" id="rlSelectAllFiles" checked 
+                           style="width: 19px; height: 19px; cursor: pointer;" 
+                           onchange="toggleRlSelectAll(this.checked)">
+                    <span>ເລືອກທັງໝົດ (<span id="rlSelectedCount">${selectableItems.length}</span>/${selectableItems.length} ລາຍການ)</span>
+                </label>
+                <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" 
+                        onclick="toggleRlSelectAll(true)">ເລືອກທັງໝົດ</button>
+            </div>
+            <div class="rl-items-scroll-box" style="max-height: 48vh; overflow-y: auto; padding-right: 2px;">
+                ${itemsHtml}
+            </div>
+        </div>
+    `;
+
+    Swal.fire({
+        title: `<h5 class="fw-bold text-primary mb-1"><i class="bi bi-patch-check-fill me-2"></i>ເລືອກໄຟລ໌ເພື່ອແປງໃສ່ Frame (Recover Lab)</h5>
+                <div class="small text-muted fw-normal">ຄົນໄຂ້: <strong class="text-dark">${patientName || '-'}</strong> | Visit: <strong class="text-dark">${visitId}</strong></div>`,
+        html: modalHtml,
+        width: '540px',
+        showCancelButton: true,
+        confirmButtonText: `<i class="bi bi-lightning-charge-fill me-1"></i> ແປງຜົນກວດທີ່ເລືອກ (<span id="rlConfirmBtnCount">${selectableItems.length}</span>)`,
+        confirmButtonColor: '#16a34a',
+        cancelButtonText: 'ຍົກເລີກ',
+        cancelButtonColor: '#64748b',
+        didOpen: () => {
+            window.toggleRlCardCheck = function (itemId, evt) {
+                const cb = document.getElementById('rl_cb_' + itemId);
+                if (cb) {
+                    cb.checked = !cb.checked;
+                    updateRlCheckCount();
+                }
+            };
+            window.updateRlCheckCount = function () {
+                const cbs = document.querySelectorAll('.rl-item-cb');
+                const checked = Array.from(cbs).filter(c => c.checked);
+                const countEl = document.getElementById('rlSelectedCount');
+                const btnCountEl = document.getElementById('rlConfirmBtnCount');
+                const allCb = document.getElementById('rlSelectAllFiles');
+                if (countEl) countEl.innerText = checked.length;
+                if (btnCountEl) btnCountEl.innerText = checked.length;
+                if (allCb) allCb.checked = (checked.length === cbs.length);
+            };
+            window.toggleRlSelectAll = function (isChecked) {
+                const cbs = document.querySelectorAll('.rl-item-cb');
+                cbs.forEach(c => c.checked = isChecked);
+                window.updateRlCheckCount();
+            };
+        },
+        preConfirm: () => {
+            const checkedCbs = Array.from(document.querySelectorAll('.rl-item-cb:checked'));
+            if (checkedCbs.length === 0) {
+                Swal.showValidationMessage('ກະລຸນາເລືອກຢ່າງໜ້ອຍ 1 ໄຟລ໌ເພື່ອດຳເນີນການ');
+                return false;
+            }
+            const checkedIds = new Set(checkedCbs.map(c => c.value));
+            return selectableItems.filter(it => checkedIds.has(it.id));
+        }
+    }).then(result => {
+        if (result.isConfirmed && result.value && result.value.length > 0) {
+            convertLabResultWithFrame(visitId, patientName, '', result.value);
+        }
+    });
 };
 
 // ฟังก์ชันสำหรับ "ต่อยา / สั่งยา" (สั่งยาเดิมซ้ำ หรือสั่งยาใหม่จากประวัติการตรวจรักษา - Instant Flow)
@@ -23647,7 +24870,7 @@ function clearCbcModalValues() {
         b.className = 'cbc-status-badge cbc-status-empty';
         b.innerText = '-';
     });
-    renderCbcModalHistograms();
+    const bgInput = document.getElementById('cbcBloodGroupInput'); if (bgInput) bgInput.value = ''; renderCbcModalHistograms();
 }
 
 async function openCbcPage(targetVisitId, mode, targetHn, targetPatientName) {
@@ -23860,7 +25083,7 @@ async function openCbcPage(targetVisitId, mode, targetHn, targetPatientName) {
 
     // โหลดข้อมูลเดิมที่เคยบันทึกไว้ จาก LocalStorage หรือ Supabase DB ข้ามเครื่อง
     let itemsToRender = defaultTemplate;
-    let localSaved = null;
+    let localSaved = null; let dbBloodGroup = '';
     if (visitId) {
         try {
             const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
@@ -23904,7 +25127,7 @@ async function openCbcPage(targetVisitId, mode, targetHn, targetPatientName) {
                                 dbSavedItems = parsed;
                             } else if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
                                 dbSavedItems = parsed.items;
-                                dbUpdatedAt = parsed.updated_at;
+                                dbUpdatedAt = parsed.updated_at; if (parsed.blood_group) dbBloodGroup = parsed.blood_group;
                             }
                         } catch (pe) { }
                     }
@@ -23925,7 +25148,7 @@ async function openCbcPage(targetVisitId, mode, targetHn, targetPatientName) {
                     hn: hn,
                     patient_name: patientName,
                     updated_at: dbUpdatedAt || new Date().toISOString(),
-                    items: finalItems
+                    blood_group: dbBloodGroup || (localSaved ? localSaved.blood_group : ''), items: finalItems
                 };
                 localStorage.setItem('clinic_cbc_results', JSON.stringify(allCbc));
             } catch (e) { }
@@ -23958,7 +25181,7 @@ async function openCbcPage(targetVisitId, mode, targetHn, targetPatientName) {
         }
     }
 
-    renderCbcModalTable(itemsToRender, isPrintOnly);
+    renderCbcModalTable(itemsToRender, isPrintOnly); const activeBloodGroup = dbBloodGroup || (localSaved && localSaved.blood_group) || (window._currentCbcBloodGroup || ''); const bgInput = document.getElementById('cbcBloodGroupInput'); if (bgInput) { bgInput.value = activeBloodGroup || ''; bgInput.disabled = !!isPrintOnly; bgInput.readOnly = !!isPrintOnly; bgInput.style.backgroundColor = isPrintOnly ? '#f8fafc' : '#ffffff'; }
 
     // เปิด Modal
     const cbcModalEl = document.getElementById('cbcLabModal');
@@ -23986,7 +25209,7 @@ async function saveCbcData(shouldAlert = true) {
             visit_id: visitId,
             hn: hn,
             patient_name: patientName,
-            updated_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(), blood_group: (document.getElementById('cbcBloodGroupInput')?.value?.trim() || ''),
             items: data
         };
         localStorage.setItem('clinic_cbc_results', JSON.stringify(allCbc));
@@ -24014,7 +25237,7 @@ async function saveCbcData(shouldAlert = true) {
     if (sup && visitId) {
         try {
             const { data: exVisit } = await sup.from('visits').select('pdf_url, lab_note').eq('visit_id', visitId).maybeSingle();
-            const cbcPayload = `[ผลตรวจ CBC]\n${JSON.stringify(data)}\n[/ผลตรวจ CBC]`;
+            const bloodGroupVal = (document.getElementById('cbcBloodGroupInput')?.value?.trim() || ''); const cbcPayload = `[ผลตรวจ CBC]\n${JSON.stringify({ items: data, blood_group: bloodGroupVal, updated_at: new Date().toISOString() })}\n[/ผลตรวจ CBC]`;
             let newLabNote = cbcPayload;
             if (exVisit && exVisit.lab_note) {
                 if (exVisit.lab_note.includes('[ผลตรวจ CBC]')) {
@@ -24365,7 +25588,7 @@ function printCbcSlipLandscape(visitId, hn, patientName, items) {
                 <div style="font-weight: bold; font-size: 9px; margin-bottom: 1px; word-break: break-all;">ID: ${hn || visitId || '000000014425'}</div>
                 <div>Gender: -</div>
                 <div>Age: -</div>
-                <div>Blood Type: -</div>
+                <div>Blood Type: ${(document.getElementById('cbcBloodGroupInput')?.value?.trim() || '-')}</div>
                 <div>Dept.:</div>
                 <div>Case ID: ${visitId || ''}</div>
                 <div>Sender:</div>
@@ -24717,7 +25940,7 @@ function printCbcSlipPortrait(visitId, hn, patientName, items) {
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #000;border-bottom:1px solid #000;padding:3px 0;margin-bottom:6px;font-size:8.5px;font-family:Arial,sans-serif;">
         <div><span style="color:#555;">ID:</span> <strong>${hn || '-'}</strong></div>
         <div><span style="color:#555;">Case ID:</span> <strong>${visitId || '-'}</strong></div>
-        <div><span style="color:#555;">Name:</span> <strong>${patientName || '-'}</strong></div>
+        <div><span style="color:#555;">Name:</span> <strong>${patientName || '-'}</strong></div><div><span style="color:#555;">Blood:</span> <strong>${(document.getElementById('cbcBloodGroupInput')?.value?.trim() || '-')}</strong></div>
         <div style="text-align:right;"><span style="color:#555;">Time:</span> ${formattedTime}</div>
     </div>
     <!-- 3-COLUMN RESULTS TABLE -->

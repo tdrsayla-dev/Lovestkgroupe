@@ -427,20 +427,22 @@ async function loadReportData() {
 // Product Price Catalog for Nutrients / Medicines
 const PRODUCT_PRICE_MAP = {
   'SESAMIN': 1800,
-  'SESAMEEN': 1800,
-  'SESAMEEN ACTIVE': 1800,
+  'SESAMEEN': 2500,
+  'SESAMEEN ACTIVE': 2500,
   'APPLE': 1800,
   'KING_GOLD': 1800,
   'PINE_NEEDLE': 1800,
   'PINE_NEEDLE_OIL': 1800,
   'COCO_BOOM': 1800,
   'CORDESTAR_PLUS': 1800,
+  'CORDESTA': 1800,
   'ORYZA': 1800,
   'COLLAGEN': 1800,
   'Coffee_Arabica': 390,
   'STK COFFEE': 590,
   'LOVE DA': 1800,
   'BALANCE': 890,
+  'BALANCE PLUS': 1500,
   'KUT-SO': 890,
   'ZINC': 890,
   'LUTEIN': 890,
@@ -452,6 +454,29 @@ const PRODUCT_PRICE_MAP = {
   'TONER': 250
 };
 
+function getProductMasterPrices(rawName) {
+  const nameStr = (rawName || '').trim();
+  if (!nameStr) return null;
+  const clean = nameStr.toUpperCase();
+  try {
+    const cached = JSON.parse(localStorage.getItem('mlm_stk_products_cache') || '[]');
+    if (Array.isArray(cached) && cached.length > 0) {
+      const match = cached.find(p => {
+        const pName = (p.name || '').toUpperCase().trim();
+        return pName && (clean.includes(pName) || pName.includes(clean));
+      });
+      if (match) {
+        return {
+          normal: Number(match.price_normal || match.price_full || match.price || 0),
+          member: Number(match.price_member || 0),
+          promo: Number(match.price_promo || 0)
+        };
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
 function getProductPrice(rawName, existingPrice) {
   const nameStr = (rawName || '');
   if (/(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i.test(nameStr)) {
@@ -459,9 +484,13 @@ function getProductPrice(rawName, existingPrice) {
   }
   if (existingPrice !== undefined && existingPrice !== null && existingPrice !== '') {
     const num = Number(existingPrice);
-    if (!isNaN(num) && num >= 0) {
+    if (!isNaN(num) && num > 0) {
       return num;
     }
+  }
+  const master = getProductMasterPrices(nameStr);
+  if (master && master.normal > 0) {
+    return master.normal;
   }
   const clean = nameStr.toUpperCase();
   for (const [k, p] of Object.entries(PRODUCT_PRICE_MAP)) {
@@ -478,7 +507,7 @@ function parseProductTierAndName(rawName, explicitTier, unitPrice) {
 
   const freePattern = /(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i;
   const proPattern = /(โปรโมชั่น|โปรโมชัน|โปร|โม่|โปรา|ໂປຣ|ໂປຣໂມຊັ່ນ|pro|promo)/i;
-  const memberPattern = /(ส่ง\/สมาชิก|ສົ່ງ\/ສະມາຊິກ|ส่ง\s*\/\s*สมาชิก|ສົ່ງ\s*\/\s*ສະມາຊິກ|ซื้อส่ง|ຊື້ສົ່ງ|ขายส่ง|ຂາຍສົ່ງ|ส่ง|ສົ່ງ|สมาชิก|ສະມາຊິກ|member|wholesale)/i;
+  const memberPattern = /(ส่ง\/สมาชิก|ສົ່ງ\/ສະມາຊິກ|ส่ง\s*\/\s*สมาชิก|ສົ່ງ\s*\/\s*ສະມາຊິກ|ซื้อส่ง|ຊື້ສົ່ງ|ขายส่ง|ຂາຍສົ່ງ|ส่ง|ສົ່ງ|สมาชิก|ສະມາຊິກ|member|wholesale|high)/i;
   const normalPattern = /(ปกติ|ปรกติ|ປົກກະຕິ|ราคาปกติ|ราคาซื้อ|normal|regular)/i;
 
   // Rule 1: Price 0 or explicit free keyword -> always Free Gift
@@ -488,7 +517,7 @@ function parseProductTierAndName(rawName, explicitTier, unitPrice) {
     const exp = String(explicitTier).toLowerCase();
     if (freePattern.test(exp) || exp === 'free') tier = 'free';
     else if (proPattern.test(exp) || exp === 'pro') tier = 'pro';
-    else if (memberPattern.test(exp) || exp === 'member') tier = 'member';
+    else if (memberPattern.test(exp) || exp === 'member' || exp === 'high') tier = 'member';
     else if (normalPattern.test(exp) || exp === 'normal') tier = 'normal';
   }
 
@@ -500,9 +529,21 @@ function parseProductTierAndName(rawName, explicitTier, unitPrice) {
       tier = 'member';
     } else if (normalPattern.test(name)) {
       tier = 'normal';
-    } else {
-      tier = 'normal';
     }
+  }
+
+  // Rule 3: Infer tier by matching unit price to master prices (member, promo, normal)
+  if (!tier && price > 0) {
+    const master = getProductMasterPrices(name);
+    if (master) {
+      if (master.member > 0 && price === master.member) tier = 'member';
+      else if (master.promo > 0 && price === master.promo) tier = 'pro';
+      else if (master.normal > 0 && price === master.normal) tier = 'normal';
+    }
+  }
+
+  if (!tier) {
+    tier = 'normal';
   }
 
   // Strip tier tags in parentheses or brackets (e.g. "(ສົ່ງ/ສະມາຊິກ)", "(ສົ່ງ)", "(โปร)", "[ແຖມຟຣີ]")
@@ -718,7 +759,8 @@ function processNutrientOrders(rawOrders, visitsList) {
         const rawName = it.name || it.item_name || it.title || 'ອາຫານເສີມ';
         const qty = Number(it.quantity || it.qty || 1);
         const unitPrice = getProductPrice(rawName, it.price || it.unit_price || it.sale_price);
-        const parsed = parseProductTierAndName(rawName, it.tier || it.price_type, unitPrice);
+        const explicitTier = it.tier || it.type || it.priceType || it.price_type || it.tierName;
+        const parsed = parseProductTierAndName(rawName, explicitTier, unitPrice);
         cleanItems.push({
           name: rawName,
           clean_name: parsed.cleanName,
@@ -795,7 +837,8 @@ function processNutrientOrders(rawOrders, visitsList) {
             const rawName = m.name || m.medicine_name || m.item_name || 'ຢາປິ່ນປົວ';
             const qty = Number(m.qty || m.quantity || 1);
             const unitPrice = getProductPrice(rawName, m.price);
-            const parsedInfo = parseProductTierAndName(rawName, m.tier || m.price_type, unitPrice);
+            const explicitTier = m.tier || m.type || m.priceType || m.price_type || m.tierName;
+            const parsedInfo = parseProductTierAndName(rawName, explicitTier, unitPrice);
             return {
               name: rawName,
               clean_name: parsedInfo.cleanName,
@@ -1200,7 +1243,8 @@ function renderNutrientsTab() {
       doctorStats[dr].totalUnits += q;
       doctorStats[dr].totalAmount += totP;
 
-      const parsed = it.clean_name && it.tier ? { cleanName: it.clean_name, tier: it.tier } : parseProductTierAndName(it.name, it.tier, unitP);
+      const rawTier = it.tier || it.type || it.priceType || it.price_type || it.tierName || '';
+      const parsed = parseProductTierAndName(it.name || it.clean_name, rawTier, unitP);
       const cleanName = parsed.cleanName;
       const tier = parsed.tier;
 
@@ -1479,12 +1523,19 @@ function renderDoctorStatsCards(doctorList) {
 
     const medRows = medEntries.map((m, mIdx) => {
       const nQty = m.normal?.qty || 0;
-      const nPrice = m.normal?.unitPrice || 0;
+      let nPrice = m.normal?.unitPrice || 0;
       const pQty = m.pro?.qty || 0;
-      const pPrice = m.pro?.unitPrice || 0;
+      let pPrice = m.pro?.unitPrice || 0;
       const memQty = m.member?.qty || 0;
-      const memPrice = m.member?.unitPrice || 0;
+      let memPrice = m.member?.unitPrice || 0;
       const fQty = m.free?.qty || 0;
+
+      const master = getProductMasterPrices(m.name);
+      if (master) {
+        if (!nPrice && master.normal > 0) nPrice = master.normal;
+        if (!pPrice && master.promo > 0) pPrice = master.promo;
+        if (!memPrice && master.member > 0) memPrice = master.member;
+      }
 
       sumNormalQty += nQty;
       sumProQty += pQty;

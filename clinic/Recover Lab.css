@@ -476,6 +476,13 @@ body {
 
     @page {
         size: A4 portrait;
-        margin: 20mm 0 20mm 0;
+        margin-top: 2.5cm;
+        margin-bottom: 1.2cm;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    @page :first {
+        margin-top: 0;
+        margin-bottom: 0;
     }
 }
