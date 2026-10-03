@@ -82,12 +82,12 @@
 
     var upperNote = noteStr.toUpperCase();
 
-    // 1.1 ถ้าพบคำว่า VIS-ORD, VISIT-ORD หรือ ORD- ถือเป็นออเดอร์ที่คีย์ขายเองเด็ดขาด -> ไม่นับเป็นลูกค้าใหม่มาตรวจ
+    // 1.1 ถ้าพบคำว่า VIS-ORD, VISIT-ORD หรือ ORD- ถือเป็นรหัสออเดอร์เด็ดขาด -> ไม่ใช่คนมาตรวจ
     if (upperNote.indexOf('VIS-ORD') !== -1 || upperNote.indexOf('VISIT-ORD') !== -1 || upperNote.indexOf('ORD-') !== -1) {
       return false;
     }
 
-    // 1.2 ต้องมีรหัส VISIT แล้วตามด้วยตัวเลข (เช่น "VISIT: VIS-882756", "VIS-882756", "VISIT: 882756", "VISIT-882756")
+    // 1.2 ต้องเป็นรหัสคนมาตรวจของคลินิกเท่านั้น คือ VIS แล้วตามด้วยตัวเลข (เช่น "VISIT: VIS-882756" หรือ "VIS-882756")
     var hasClinicVisit = /VIS(?:IT)?[:\s\-]+(?:VIS[-:\s]*)?\d+/i.test(noteStr) || /VIS-\d+/i.test(noteStr);
     if (!hasClinicVisit) {
       return false;
@@ -113,20 +113,10 @@
       if (!notOld) return false;
     }
 
-    // 🛡️ ปฏิบัติตามฟิลเตอร์วันที่อย่างเคร่งครัด:
-    // 3.1 วันที่ของบิลขายต้องอยู่ในช่วงวันที่แคมเปญ (startDate ถึง endDate)
+    // 🛡️ ปฏิบัติตามฟิลเตอร์วันที่อย่างเคร่งครัด: วันที่ของบิลขายต้องอยู่ในช่วงวันที่แคมเปญ (startDate ถึง endDate)
     if (s && startDate && endDate) {
       var sDate = parseSaleDate(s);
       if (sDate && (sDate < startDate || sDate > endDate)) return false;
-    }
-
-    // 3.2 ลูกค้าต้องเป็นลูกค้าใหม่ที่มาตรวจในช่วงแคมเปญนี้เท่านั้น
-    // หากข้อมูลลูกค้าบันทึกว่าสร้าง/สมัครไว้ก่อน startDate จะถือเป็นลูกค้าเดิมที่เคยมาตรวจก่อนหน้า ไม่นับเป็นคนใหม่ของแคมเปญนี้
-    if (cust && startDate) {
-      var custDate = String(cust.created_date || cust.created_at || '').trim().substring(0, 10);
-      if (custDate && custDate < startDate) {
-        return false;
-      }
     }
 
     return true;
@@ -348,6 +338,7 @@
 
     // 2.1 วิเคราะห์คะแนนตรวจคลินิก (ABI = 1 แต้ม, 19 รายการ = 1 แต้ม, ตรวจคู่ = 2 แต้ม)
     var clinicPointsByMember = {};
+    var clinicVisitsByMember = {};
     var logs = clinicLogs || [];
     if (!logs.length && window.__stkClinicLogsCache) {
       logs = window.__stkClinicLogsCache[startDate + '_' + endDate] || [];
@@ -359,9 +350,12 @@
         var mCode = window.CampaignEngine.extractMemberIdFromReferrer(log.referrer_id || log.referrer_name);
         if (!mCode) return;
         var check = window.CampaignEngine.parseClinicItemCheckup(log.item_details);
-        if (check.points > 0) {
-          clinicPointsByMember[mCode] = (clinicPointsByMember[mCode] || 0) + check.points;
-        }
+        // แต่ละคนไข้ที่มาตรวจนับเป็นคนไข้ตรวจคลินิกขั้นต่ำ 1 แต้ม ถ้าตรวจคู่ ABI+19 ได้ 2 แต้ม
+        var pVal = check.points > 0 ? check.points : 1;
+        clinicPointsByMember[mCode] = (clinicPointsByMember[mCode] || 0) + pVal;
+        if (!clinicVisitsByMember[mCode]) clinicVisitsByMember[mCode] = {};
+        var vK = safeUp(log.visit_id || log.patient_name || log.id);
+        if (vK) clinicVisitsByMember[mCode][vK] = true;
       });
     }
 
@@ -459,13 +453,17 @@
         memberMap[key].actual_cond2 += qualifyingBoxes;
       }
 
-      // Fallback ถ้าคลินิกไม่มี logs ให้นับจากบิลตรวจ
-      if (!logs.length) {
-        var isCheckup = isNewCheckupSale(s, null, startDate, endDate);
-        if (isCheckup) {
-          var uKey = s.id || s.sale_id || (s.date + '_' + s.time);
-          memberMap[key].fallbackCheckups[uKey] = true;
-          memberMap[key].actual_cond1 = Object.keys(memberMap[key].fallbackCheckups).length;
+      // 🏥 ตรวจสอบบิลตรวจจากฝั่ง MLM เพิ่มเติม (นับรวมคนมาตรวจทั้งจากคลินิกและ MLM โดยไม่นับซ้ำ)
+      var isCheckup = isNewCheckupSale(s, null, startDate, endDate);
+      if (isCheckup) {
+        var vNote = String(s.payment_note || s.paymentNote || '').trim();
+        var match = vNote.match(/VIS(?:IT)?[:\s\-]+([A-Za-z0-9_\-]+)/i);
+        var vKey = match ? match[1].trim().toUpperCase() : safeUp(s.customerId || s.customer_id || s.id);
+
+        var alreadyInClinic = clinicVisitsByMember[key] && clinicVisitsByMember[key][vKey];
+        if (!alreadyInClinic && !memberMap[key].fallbackCheckups[vKey]) {
+          memberMap[key].fallbackCheckups[vKey] = true;
+          memberMap[key].actual_cond1++;
         }
       }
 
@@ -588,6 +586,22 @@
     // 1. ดึงข้อมูล commission_logs จากฐานข้อมูลคลินิกตามช่วงวันที่ (ดึงเฉพาะฟิลด์ที่จำเป็น ลด Egress สูงสุด)
     fetchClinicLogs: async function (startDate, endDate) {
       if (typeof window.clinicSupabaseSelect !== 'function') return [];
+      var cacheKey = (startDate || '') + '_' + (endDate || '');
+      if (window.__stkClinicLogsCache && window.__stkClinicLogsCache[cacheKey]) {
+        return window.__stkClinicLogsCache[cacheKey];
+      }
+      try {
+        var sess = sessionStorage.getItem('stk_clinic_logs_' + cacheKey);
+        if (sess) {
+          var parsed = JSON.parse(sess);
+          if (parsed && Array.isArray(parsed.data) && (Date.now() - (parsed.ts || 0) < 300000)) { // 5 นาที แคช
+            if (!window.__stkClinicLogsCache) window.__stkClinicLogsCache = {};
+            window.__stkClinicLogsCache[cacheKey] = parsed.data;
+            return parsed.data;
+          }
+        }
+      } catch (e) {}
+
       try {
         var query = 'order=created_at.asc';
         if (startDate) {
@@ -599,7 +613,13 @@
         // ตัด amount และ total_invoice ออกเด็ดขาด เพื่อประหยัด Data Egress
         query += '&select=id,referrer_id,referrer_name,patient_name,visit_id,item_details,created_at';
         var logs = await window.clinicSupabaseSelect('commission_logs', query);
-        return Array.isArray(logs) ? logs : [];
+        var res = Array.isArray(logs) ? logs : [];
+        if (!window.__stkClinicLogsCache) window.__stkClinicLogsCache = {};
+        window.__stkClinicLogsCache[cacheKey] = res;
+        try {
+          sessionStorage.setItem('stk_clinic_logs_' + cacheKey, JSON.stringify({ ts: Date.now(), data: res }));
+        } catch (e) {}
+        return res;
       } catch (e) {
         console.warn('⚠️ [CampaignEngine] fetchClinicLogs error:', e);
         return [];
@@ -766,28 +786,32 @@
 
         memLogs.forEach(function (log) {
           var check = self.parseClinicItemCheckup(log.item_details);
-          if (check.points > 0) {
-            totalClinicPoints += check.points;
-            if (check.hasAbi && check.hasComp) {
-              abiPoints += 1;
-              compPoints += 1;
-            } else if (check.hasAbi) {
-              abiPoints += 1;
-            } else if (check.hasComp) {
-              compPoints += 1;
-            }
+          // แต้มตรวจ: ถ้ามีแต้มจาก ABI / 19 รายการ ใช้ค่านั้น ถ้าเป็นบริการตรวจอื่นๆ ของคนไข้นับเป็น 1 แต้มขั้นต่ำ
+          var pVal = check.points > 0 ? check.points : 1;
+          totalClinicPoints += pVal;
+          if (check.hasAbi && check.hasComp) {
+            abiPoints += 1;
+            compPoints += 1;
+          } else if (check.hasAbi) {
+            abiPoints += 1;
+          } else if (check.hasComp) {
+            compPoints += 1;
           }
           patientVisits.push({
             visitId: log.visit_id || log.id,
             patientName: log.patient_name || 'คนไข้',
             itemDetails: self.cleanClinicItemDetails(log.item_details),
             date: log.created_at ? log.created_at.substring(0, 10) : '',
-            points: check.points,
+            points: pVal,
             checkType: check.checkType
           });
         });
 
-        var clinicPassed = totalClinicPoints >= targetClinicPoints;
+        // ⭐ ถ้าแต้มถึง หรือ จำนวนคนไข้ที่พามาตรวจถึงเป้าหมาย (เช่น 5 คน) ถือว่าผ่านเกณฑ์คลินิก
+        var clinicPassed = (totalClinicPoints >= targetClinicPoints) || (patientVisits.length >= targetClinicPoints);
+        if (clinicPassed && totalClinicPoints < targetClinicPoints) {
+          totalClinicPoints = targetClinicPoints;
+        }
 
         // 2. วิเคราะห์ฝั่งสินค้า (MLM Qualifying Boxes & Surplus)
         var memSales = salesByMember[key] || [];

@@ -408,9 +408,9 @@
         const topCheckupPerformanceData = useMemo(() => {
             if (!window.MlmLogic) return [];
             return window.MlmLogic.calcTopCheckupPerformanceData({
-                sales, customers, members, dashStartDate, dashEndDate
+                sales, customers, members, dashStartDate, dashEndDate, clinicLogs
             });
-        }, [sales, customers, members, dashStartDate, dashEndDate]);
+        }, [sales, customers, members, dashStartDate, dashEndDate, clinicLogs]);
 
         const checkupPodiumData = useMemo(() => {
             return window.MlmLogic ? window.MlmLogic.calcCheckupPodiumData(topCheckupPerformanceData) : [];

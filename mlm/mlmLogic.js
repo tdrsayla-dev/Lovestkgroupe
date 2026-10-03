@@ -559,18 +559,46 @@
     return podium;
   };
 
-  const calcTopCheckupPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate }) => {
+  const extractPureVisitKey = (str) => {
+    if (!str) return null;
+    const s = String(str).trim().toUpperCase();
+    if (s.includes('VIS-ORD') || s.includes('VISIT-ORD') || s.includes('ORD-')) return null;
+    const m = s.match(/VIS(?:IT)?[:\s\-]+(?:VIS[-:\s]*)?(\d+)/i) || s.match(/VIS-?(\d+)/i);
+    return m ? ('VIS_' + m[1]) : null;
+  };
+
+  const calcTopCheckupPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate, clinicLogs }) => {
     let mStats = {};
     (members || []).forEach(m => {
       if (m && (m.id || m.user_id)) {
-        const role = String(m.role || '').trim();
+        const role = String(m.role || m.permission_role || '').trim();
         // นับเฉพาะพนักงานการตลาดเท่านั้น ไม่นับพนักงานทั่วไปหรือรหัสบริษัท
-        if (role && role !== 'พนักงานการตลาด') return;
+        if (role && role !== 'พนักงานการตลาด' && role.indexOf('การตลาด') === -1) return;
         const key = safeUpper(m.id || m.user_id);
         mStats[key] = { id: m.id || m.user_id, name: m.name || m.id, profileUrl: m.profileUrl, newCustSet: new Set() };
       }
     });
 
+    // 1. เพิ่มคนมาตรวจจาก Clinic Logs (ข้อมูลคนมาตรวจจริงที่คลินิก)
+    if (Array.isArray(clinicLogs) && clinicLogs.length > 0) {
+      clinicLogs.forEach(log => {
+        if (!log) return;
+        const logDate = String(log.created_at || '').substring(0, 10);
+        if (dashStartDate && logDate < dashStartDate) return;
+        if (dashEndDate && logDate > dashEndDate) return;
+
+        const refStr = String(log.referrer_id || log.referrer_name || '').trim();
+        const match = refStr.match(/^([A-Za-z0-9_-]+)/);
+        const mId = match ? match[1].trim().toUpperCase() : refStr.toUpperCase();
+        if (mStats[mId]) {
+          // ใช้ฟังก์ชันดึงรหัส VISIT เพื่อให้ตรงกับฝั่งบิลขาย ป้องกันการนับซ้ำ 100%
+          const vKey = extractPureVisitKey(log.visit_id) || (log.visit_id ? ('VIS_' + String(log.visit_id).trim().toUpperCase()) : ('LOG_' + String(log.patient_name || log.id).trim().toUpperCase()));
+          if (vKey) mStats[mId].newCustSet.add(vKey);
+        }
+      });
+    }
+
+    // 2. เพิ่มคนมาตรวจจาก MLM Sales (เฉพาะบิลที่มีรหัส VISIT คลินิกจริง ไม่ใช่ VIS-ORD)
     const filteredSales = (sales || []).filter(s => {
       if (!s) return false;
       const dStr = parseSaleDate(s);
@@ -582,18 +610,35 @@
       if (!memberId) return;
       const key = safeUpper(memberId);
       if (!mStats[key]) return; // ข้ามที่ไม่ใช่นักการตลาด
-      
+
+      const note = String(s.payment_note || s.paymentNote || '').trim();
+      const upperNote = note.toUpperCase();
+
+      // ❌ ถ้าเป็นรหัส VIS-ORD, VISIT-ORD หรือ ORD- ถือเป็นรหัสออเดอร์เด็ดขาด ไม่ใช่คนมาตรวจ
+      if (upperNote.includes('VIS-ORD') || upperNote.includes('VISIT-ORD') || upperNote.includes('ORD-')) {
+        return;
+      }
+
+      // ดึงรหัส VISIT ของคลินิก (เช่น "VISIT: VIS-882756" หรือ "VIS-882756")
+      const vKey = extractPureVisitKey(note);
+      if (!vKey) {
+        return;
+      }
+
       const cust = findSaleCustomer(s, customers);
       let cType = cust ? String(cust.type || cust.customer_type || cust.customerType || '').trim() : '';
       if (!cType && (s.customerType || s.customer_type)) {
         cType = String(s.customerType || s.customer_type).trim();
       }
-      const sCustId = s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name;
-      const isNew = (cType.includes('ตรวจ') || cType.includes('ปรึกษา') || (cType.includes('ใหม่') && !cType.includes('ไม่มาตรวจ'))) && !cType.includes('เก่า');
-      
-      if (isNew && sCustId) {
-        mStats[key].newCustSet.add(sCustId);
+
+      // ต้องไม่ใช่ลูกค้าเก่า, ต่อยา, ไม่มาตรวจ, โทร
+      if (cType) {
+        const notOld = !cType.includes('เก่า') && !cType.includes('ต่อยา') && !cType.includes('ไม่มาตรวจ') && !cType.includes('โทร');
+        if (!notOld) return;
       }
+
+      // เพิ่มลง set เดียวกัน โดยถ้าคนไข้คนนี้มีใน clinicLogs แล้ว จะตัดซ้ำทันที
+      mStats[key].newCustSet.add(vKey);
     });
 
     return Object.values(mStats)

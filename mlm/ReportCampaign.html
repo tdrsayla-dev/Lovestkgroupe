@@ -38,7 +38,7 @@
   <script src="config.js?v=2026.10.02.02"></script>
   <script src="dictionary.js?v=2026.10.02.02"></script>
   <script src="CommonComponents.js?v=2026.10.02.02"></script>
-  <script src="campaignLogic.js?v=2026.10.02.02"></script>
+  <script src="campaignLogic.js?v=2026.10.03.01"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
 
@@ -172,34 +172,38 @@
         return activeCampaign && (activeCampaign.deduct_policy === 'no_deduct' || activeCampaign.cond2_type === 'boxes_no_deduct');
       }, [activeCampaign]);
 
-      // 3. Evaluate Campaign Cross-DB with Tiered Progressive Loading
+      // 3. Evaluate Campaign Cross-DB with Tiered Progressive Loading & Intelligent Cache (Zero redundant Egress)
       const runEvaluation = useCallback(async (forceLive = false) => {
         if (!activeCampaign) return;
         const cId = activeCampaign.campaign_id;
         const startDate = String(activeCampaign.start_date || '').trim().substring(0, 10);
         const endDate = String(activeCampaign.end_date || '').trim().substring(0, 10);
+        const CACHE_KEY = 'stk_rep_campaign_eval_' + cId;
+        const CACHE_TTL_MS = 5 * 60 * 1000; // 5 นาที (แคชพักข้อมูล ไม่ต้องดึงซ้ำ ลดภาระ Egress)
+
+        // ─── TIER 0: ตรวจสอบ Session Storage Cache ทันที (0ms, 0 Network, 0 Egress) ───
+        if (!forceLive) {
+          try {
+            const cachedEval = sessionStorage.getItem(CACHE_KEY);
+            if (cachedEval) {
+              const parsed = JSON.parse(cachedEval);
+              if (parsed && Array.isArray(parsed.data) && parsed.data.length > 0 && (Date.now() - (parsed.timestamp || 0) < CACHE_TTL_MS)) {
+                setEvaluationResults(parsed.data);
+                setIsLoading(false);
+                setIsBgLoading(false);
+                return;
+              }
+            }
+          } catch (e) {}
+        }
 
         // ─── TIER 1: โหลดผลที่เคยซิงค์ไว้ใน stk_campaign_results ทันที (< 100ms) ───
         if (!forceLive && typeof window.CampaignEngine.fetchSavedCampaignResults === 'function') {
           try {
-            // สร้าง Member Avatar Map จาก Cache เพื่อให้รูปโปรไฟล์แสดงทันทีตั้งแต่ Tier 1
-            const memAvatarMap = {};
-            try {
-              const cachedApp = localStorage.getItem('stk_app_cache_data');
-              if (cachedApp) {
-                const parsed = JSON.parse(cachedApp);
-                (parsed.members || []).forEach(m => {
-                  const k = safeUp(m.user_id || m.id);
-                  if (k) memAvatarMap[k] = m.id_card_url || m.profileUrl || null;
-                });
-              }
-            } catch(e) {}
-
             const savedData = await window.CampaignEngine.fetchSavedCampaignResults(cId);
             if (Array.isArray(savedData) && savedData.length > 0) {
               const mapped = savedData.map(row => {
                 const dj = row.details_json || {};
-                const mKey = safeUp(row.member_id);
                 const qBoxes = Number(row.boxes_qualifying_quota || (row.is_qualified ? 5 : 0));
                 const isQual = !!row.is_qualified;
                 const isNoDed = row.deduct_policy === 'no_deduct';
@@ -208,36 +212,36 @@
                 return {
                   memberId: row.member_id,
                   memberName: row.member_name,
-                    profileUrl: memAvatarMap[mKey] || row.profile_url || null,
-                    team: row.team_name,
-                    teamName: row.team_name,
-                    clinicPatientCount: Number(row.clinic_patients_count || 0),
-                    clinicAbiPoints: Number(row.clinic_abi_points || 0),
-                    clinicCompPoints: Number(row.clinic_comprehensive_points || 0),
-                    clinicTotalPoints: Number(row.clinic_total_points || 0),
-                    clinicTargetPoints: Number(row.clinic_target_points || 5),
-                    clinicPassed: !!row.clinic_passed,
-                    patientVisits: dj.patientVisits || [],
-                    boxesTotalCount: Number(row.boxes_total_count || 0),
-                    boxesQualifyingQuota: qBoxes,
-                    boxesSurplusCount: Number(row.boxes_surplus_count || 0),
-                    boxesTarget: Number(row.boxes_target || 5),
-                    boxesMinPrice: Number(row.boxes_min_price || 1500),
-                    boxesPassed: !!row.boxes_passed,
-                    qualifyingSalesDetails: dj.qualifyingSalesDetails || [],
+                  profileUrl: null, // ตัดรูปภาพออก ประหยัด Egress
+                  team: row.team_name,
+                  teamName: row.team_name,
+                  clinicPatientCount: Number(row.clinic_patients_count || 0),
+                  clinicAbiPoints: Number(row.clinic_abi_points || 0),
+                  clinicCompPoints: Number(row.clinic_comprehensive_points || 0),
+                  clinicTotalPoints: Number(row.clinic_total_points || 0),
+                  clinicTargetPoints: Number(row.clinic_target_points || 5),
+                  clinicPassed: !!row.clinic_passed,
+                  patientVisits: dj.patientVisits || [],
+                  boxesTotalCount: Number(row.boxes_total_count || 0),
+                  boxesQualifyingQuota: qBoxes,
+                  boxesSurplusCount: Number(row.boxes_surplus_count || 0),
+                  boxesTarget: Number(row.boxes_target || 5),
+                  boxesMinPrice: Number(row.boxes_min_price || 1500),
+                  boxesPassed: !!row.boxes_passed,
+                  qualifyingSalesDetails: dj.qualifyingSalesDetails || [],
+                  isNoDeduct: isNoDed,
+                  policyLabel: isNoDed ? 'ไม่ตัดกล่อง (เก็บสถิติ/จ่ายเงินเต็ม 100%)' : 'ตัดกล่องโปรโมชั่น',
+                  referralDeducted: rDeducted,
+                  commissionDeducted: cDeducted,
+                  totalDeducted: cDeducted,
+                  deductionBreakdown: dj.deduction_breakdown || {
                     isNoDeduct: isNoDed,
-                    policyLabel: isNoDed ? 'ไม่ตัดกล่อง (เก็บสถิติ/จ่ายเงินเต็ม 100%)' : 'ตัดกล่องโปรโมชั่น',
+                    quotaBoxes: qBoxes,
+                    surplusBoxes: Number(row.boxes_surplus_count || 0),
                     referralDeducted: rDeducted,
                     commissionDeducted: cDeducted,
-                    totalDeducted: cDeducted,
-                    deductionBreakdown: dj.deduction_breakdown || {
-                      isNoDeduct: isNoDed,
-                      quotaBoxes: qBoxes,
-                      surplusBoxes: Number(row.boxes_surplus_count || 0),
-                      referralDeducted: rDeducted,
-                      commissionDeducted: cDeducted,
-                      totalDeducted: cDeducted
-                    },
+                    totalDeducted: cDeducted
+                  },
                   isQualified: !!row.is_qualified,
                   currency: row.currency || 'LAK',
                   status: row.status || (row.is_qualified ? 'QUALIFIED' : 'IN_PROGRESS')
@@ -255,18 +259,33 @@
         // ─── TIER 2: ประมวลผลสด Cross-Database ใน Background ───
         setIsBgLoading(true);
         try {
+          // ดึงสมาชิกและทีมจากแคชท้องถิ่นก่อน ถ้ามีอยู่แล้วจะไม่เรียก Supabase (ประหยัด Egress สูงสุด)
+          let membersRes = [];
+          let teamsRes = [];
+          try {
+            const cachedApp = localStorage.getItem('stk_app_cache_data');
+            if (cachedApp) {
+              const parsedApp = JSON.parse(cachedApp);
+              if (Array.isArray(parsedApp.members) && parsedApp.members.length > 0) {
+                membersRes = parsedApp.members;
+              }
+              if (Array.isArray(parsedApp.businessTeams) && parsedApp.businessTeams.length > 0) {
+                teamsRes = parsedApp.businessTeams;
+              }
+            }
+          } catch (e) {}
+
           // ดึงยอดขายเฉพาะช่วงวันที่ของแคมเปญ (ช่วยให้เร็วขึ้น 90% ไม่ต้องโหลดทั้งฐานข้อมูล)
           let salesQuery = 'select=id,order_id,date,seller_id,customer_id,customer_name,total_amount,total_bottles,status,items_json,payment_note,created_at&order=created_at.desc';
           if (startDate) salesQuery += `&date=gte.${startDate}`;
           if (endDate) salesQuery += `&date=lte.${endDate}`;
 
-          const [salesRes, membersRes, teamsRes] = await Promise.all([
+          const [salesRes, fetchedMembers, fetchedTeams] = await Promise.all([
             (window.supabaseSelect ? window.supabaseSelect('stk_sales', salesQuery) : Promise.resolve([])).catch(() => []),
-            (window.supabaseSelect ? window.supabaseSelect('stk_members', 'order=user_id.asc') : Promise.resolve([])).catch(() => []),
-            (window.supabaseSelect ? window.supabaseSelect('stk_business_teams') : Promise.resolve([])).catch(() => [])
+            (!membersRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_members', 'order=user_id.asc').catch(() => []) : Promise.resolve(membersRes),
+            (!teamsRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_business_teams').catch(() => []) : Promise.resolve(teamsRes)
           ]);
 
-          // ถ้า query ตามวันที่ได้ผลลัพธ์ ให้ใช้เลย ถ้าว่างหรือ fallback ให้ query ปกติ
           let finalSales = salesRes;
           if ((!finalSales || finalSales.length === 0) && window.supabaseSelect) {
             finalSales = await window.supabaseSelect('stk_sales', 'order=created_at.desc&limit=1000').catch(() => []);
@@ -274,12 +293,17 @@
 
           const evaluated = await window.CampaignEngine.evaluateCampaignCrossDB(activeCampaign, {
             allSales: finalSales || [],
-            allMembers: membersRes || [],
-            allBusinessTeams: teamsRes || []
+            allMembers: (fetchedMembers && fetchedMembers.length > 0) ? fetchedMembers : membersRes,
+            allBusinessTeams: (fetchedTeams && fetchedTeams.length > 0) ? fetchedTeams : teamsRes
           });
 
           if (Array.isArray(evaluated) && evaluated.length > 0) {
             setEvaluationResults(evaluated);
+            // บันทึกลง Session Cache (ประหยัด Egress ในการเปิดดูครั้งต่อไป)
+            try {
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: evaluated }));
+            } catch (e) {}
+
             // 💾 ซิงค์บันทึกผลลงตาราง stk_campaign_results แบบ Batch Background
             if (typeof window.CampaignEngine.syncAndSaveCampaignResults === 'function') {
               window.CampaignEngine.syncAndSaveCampaignResults(activeCampaign, evaluated, 'SYNCED').catch(e => console.warn('Auto-sync error:', e));
@@ -731,6 +755,23 @@
                   >
                     ⏳ กำลังแข่งขัน ({kpis.totalMarketing - kpis.qualifiedCount})
                   </button>
+
+                  {/* Force Sync Live Data Button */}
+                  <button
+                    onClick={() => runEvaluation(true)}
+                    disabled={isBgLoading}
+                    title="บังคับดึงข้อมูลสดจากเซิร์ฟเวอร์และอัปเดตแคชใหม่"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      isBgLoading
+                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                        : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/60'
+                    }`}
+                  >
+                    <svg className={`w-3.5 h-3.5 ${isBgLoading ? 'animate-spin text-indigo-500' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>{isBgLoading ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูลล่าสุด'}</span>
+                  </button>
                 </div>
               </div>
 
@@ -800,14 +841,9 @@
                               {/* 2. Member Info */}
                               <td className="py-3.5 px-4">
                                 <div className="flex items-center gap-3">
-                                  <img
-                                    src={cleanAvatar(row.profileUrl, row.memberName)}
-                                    alt={row.memberName}
-                                    className="w-10 h-10 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 shrink-0 shadow-2xs"
-                                    onError={(e) => {
-                                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(row.memberName || 'User')}&background=1e293b&color=cbd5e1`;
-                                    }}
-                                  />
+                                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-2xs border border-white/20 select-none">
+                                    {(row.memberName || row.memberId || 'ST').substring(0, 2).toUpperCase()}
+                                  </div>
                                   <div>
                                     <div className="font-black text-slate-900 dark:text-white flex items-center gap-1.5">
                                       <span>{row.memberName}</span>
@@ -985,11 +1021,9 @@
                 {/* Modal Header */}
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <img
-                      src={cleanAvatar(drilldownMember.profileUrl, drilldownMember.memberName)}
-                      alt={drilldownMember.memberName}
-                      className="w-12 h-12 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
-                    />
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm border border-white/20 select-none">
+                      {(drilldownMember.memberName || drilldownMember.memberId || 'ST').substring(0, 2).toUpperCase()}
+                    </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="text-lg font-black text-slate-900 dark:text-white">

@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.10.02.04';
+  const APP_VERSION = '2026.10.03.04';
   window.APP_VERSION = APP_VERSION;
 
   // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
@@ -19,6 +19,10 @@
       localStorage.removeItem('stk_reports_cache_data');
       localStorage.removeItem('stk_app_cache_time');
       sessionStorage.removeItem('stk_admin_products_full');
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith('stk_qc_')) sessionStorage.removeItem(k);
+      }
     }
     localStorage.setItem('stk_app_version', APP_VERSION);
   } catch (e) {}
@@ -93,8 +97,7 @@
   const DEFAULT_TABLE_SELECT = {
     'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,accumulated_pv,created_at',
     'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty,image_url',
-    'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at',
-    'stk_sales': 'order_id,date,created_at,customer_id,customer_name,seller_id,seller_name,closer_id,closer_team,total_amount,pay_mode,sale_type,items_json,payment_note,status'
+    'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at'
   };
 
   const SESSION_CACHE_PREFIX = 'stk_qc_';
