@@ -1,0 +1,4346 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Love STK Groupe</title>
+  <meta name="description"
+    content="Love STK Groupe — องค์กรที่มุ่งมั่นสร้างคุณค่าให้กับสังคม ด้วยทีมงานมืออาชีพและนวัตกรรมที่ไม่หยุดยั้ง" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* =========================================
+       DESIGN TOKENS & BASE
+    ========================================= */
+    :root {
+      --primary: #1E3599;
+      --primary-light: #6c80f5;
+      --primary-dark: #102D75;
+      --secondary: #261075;
+      --accent: #3b82f6;
+      --dark: #07214a;
+      --dark-card: rgba(255, 255, 255, 0.06);
+      --dark-card2: rgba(255, 255, 255, 0.1);
+      --text-primary: #f1f5f9;
+      --text-secondary: rgba(255, 255, 255, 0.75);
+      --text-muted: rgba(255, 255, 255, 0.55);
+      --border: rgba(255, 255, 255, 0.15);
+      --glass: rgba(255, 255, 255, 0.05);
+      --glass-hover: rgba(255, 255, 255, 0.1);
+      --gradient-main: linear-gradient(135deg, #1E3599 0%, #261075 100%);
+      --gradient-card: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      --shadow-glow: 0 0 35px rgba(96, 165, 250, 0.35);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Sukhumvit Set', 'IBM Plex Sans Thai', 'Prompt', 'Kanit', 'Noto Sans Lao', sans-serif;
+      background: linear-gradient(180deg, #092c63 0%, #07214a 50%, #092c63 100%) fixed;
+      background-attachment: fixed;
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* Utility Helpers */
+    .mr-2 {
+      margin-right: 0.5rem;
+    }
+
+    /* =========================================
+       SCROLLBAR
+    ========================================= */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #07214a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary-light);
+      border-radius: 3px;
+    }
+
+    /* =========================================
+       NAVBAR
+    ========================================= */
+    #navbar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      padding: 2.2rem 0;
+      transition: all 0.3s ease;
+    }
+
+    #navbar.scrolled {
+      position: fixed;
+      background: rgba(9, 44, 99, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1.2rem 0;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-logo {
+      display: none;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2.2rem;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .nav-links a {
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 0.98rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: #60a5fa;
+      text-shadow: none;
+    }
+
+    .mobile-nav-icon {
+      display: none;
+    }
+
+    .nav-text {
+      display: inline;
+    }
+
+    .btn-hr-system-login {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 1.1rem 2.8rem;
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #0b0f19 !important;
+      text-decoration: none;
+      border-radius: 50px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      box-shadow: 0 10px 30px rgba(245, 158, 11, 0.4);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .btn-hr-system-login:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 15px 40px rgba(245, 158, 11, 0.6);
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    }
+
+    .hamburger {
+      display: none !important;
+    }
+
+    @media (max-width: 991px) {
+      .services-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .subsidiaries-wrapper {
+        margin-top: 2rem !important;
+      }
+
+      .career-positions {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      #navbar {
+        position: fixed !important;
+        top: auto !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 64px !important;
+        background: rgba(4, 20, 56, 0.96) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-bottom: none !important;
+        padding: 0 0 env(safe-area-inset-bottom, 0px) 0 !important;
+        z-index: 10000 !important;
+        box-shadow: 0 -5px 25px rgba(0, 0, 0, 0.5) !important;
+        display: flex !important;
+        align-items: center !important;
+      }
+
+      .nav-container {
+        justify-content: center;
+        padding: 0;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+      }
+
+      .nav-links {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-around !important;
+        align-items: center !important;
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 500px;
+        margin: 0 auto !important;
+        padding: 0 0.5rem !important;
+        gap: 0.25rem !important;
+        list-style: none !important;
+      }
+
+      .nav-links li {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+      }
+
+      .nav-links li.desktop-only {
+        display: none !important;
+      }
+
+      .nav-links a {
+        font-size: 0.72rem !important;
+        padding: 0.35rem 0.5rem !important;
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        color: rgba(255, 255, 255, 0.6) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 100% !important;
+        text-decoration: none !important;
+        gap: 3px !important;
+        transition: all 0.2s ease !important;
+        box-shadow: none !important;
+        outline: none !important;
+      }
+
+      .nav-links a:hover,
+      .nav-links a:focus,
+      .nav-links a.active {
+        background: transparent !important;
+        border: none !important;
+        border-color: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+        outline: none !important;
+      }
+
+      .nav-links a .mobile-nav-icon {
+        display: block !important;
+        font-size: 1.25rem !important;
+        color: rgba(255, 255, 255, 0.6) !important;
+        transition: color 0.2s ease !important;
+      }
+
+      .nav-links a:hover .mobile-nav-icon,
+      .nav-links a.active .mobile-nav-icon {
+        color: #60a5fa !important;
+        text-shadow: none !important;
+        filter: none !important;
+      }
+
+      .nav-links a:hover .nav-text,
+      .nav-links a.active .nav-text {
+        color: #60a5fa !important;
+      }
+
+      .nav-links a .nav-text {
+        display: block !important;
+        font-size: 0.72rem !important;
+        font-weight: 600 !important;
+        line-height: 1.1 !important;
+        white-space: nowrap !important;
+      }
+
+      .nav-links a .mobile-nav-icon {
+        display: block !important;
+        font-size: 1.25rem !important;
+        transition: color 0.2s ease !important;
+      }
+
+      .hamburger {
+        display: none !important;
+      }
+
+      #hero {
+        padding-top: 3.5rem;
+        min-height: calc(100vh - 64px);
+        padding-bottom: 3.5rem;
+      }
+
+      body {
+        padding-bottom: 64px !important;
+      }
+
+      .hero-content {
+        padding: 1.5rem 1rem;
+      }
+
+      .hero-title {
+        font-size: 2.2rem !important;
+        line-height: 1.35 !important;
+      }
+
+      .hero-stats {
+        gap: 1.5rem;
+        margin-top: 2.5rem;
+      }
+
+      .about-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1.5rem !important;
+      }
+
+      .about-content {
+        display: contents !important;
+      }
+
+      .about-header {
+        order: 1 !important;
+        width: 100% !important;
+        text-align: center !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-bottom: 1.5rem !important;
+      }
+
+      .about-header .section-badge {
+        margin: 0 auto 0.75rem auto !important;
+      }
+
+      .about-header .section-title {
+        font-size: 2.1rem !important;
+        line-height: 1.25 !important;
+        margin-bottom: 1rem !important;
+        text-align: center !important;
+      }
+
+      .about-visual {
+        order: 2 !important;
+        width: 100% !important;
+      }
+
+      .mv-cards {
+        order: 3 !important;
+        width: 100% !important;
+      }
+
+      .services-grid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+      }
+
+      /* 📌 MOBILE VERTICAL SCROLL FLOW (NO SIDE SLIDER) */
+      .news-carousel-wrapper {
+        margin-top: 1.5rem;
+      }
+
+      .news-track {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1.5rem !important;
+        padding: 1rem 0.5rem 2rem !important;
+        overflow-x: visible !important;
+        scroll-snap-type: none !important;
+        width: 100% !important;
+        max-width: 550px;
+        margin: 0 auto;
+      }
+
+      .news-track::before,
+      .news-track::after {
+        display: none !important;
+      }
+
+      .news-card {
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        opacity: 1 !important;
+        transform: none !important;
+        scroll-snap-align: none !important;
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.25) !important;
+      }
+
+      .news-card .news-read-more {
+        opacity: 1 !important;
+      }
+
+      .news-nav-btn,
+      .news-dots {
+        display: none !important;
+      }
+
+      .team-grid {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .team-card {
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+
+      .career-positions {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr !important;
+        gap: 2rem !important;
+        text-align: center;
+      }
+
+      .footer-grid > div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      section {
+        padding: 3.5rem 0;
+      }
+
+      .container {
+        padding: 0 1.25rem;
+      }
+
+      .career-banner {
+        padding: 2rem 1.25rem;
+      }
+    }
+
+    /* =========================================
+       MINIMAL CONTACT BOTTOM SHEET
+    ========================================= */
+    .contact-sheet-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 10005;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .contact-sheet-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .contact-sheet-content {
+      width: 100%;
+      max-width: 480px;
+      background: linear-gradient(180deg, #0b1f47 0%, #061533 100%);
+      border-top: 1px solid rgba(96, 165, 250, 0.25);
+      border-radius: 20px 20px 0 0;
+      padding: 1rem 1.25rem 1.75rem;
+      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      margin-bottom: 64px;
+    }
+
+    @media (min-width: 769px) {
+      .contact-sheet-content {
+        margin-bottom: 0;
+        border-radius: 20px;
+        margin: auto;
+        transform: translateY(20px) scale(0.95);
+      }
+      .contact-sheet-overlay.active .contact-sheet-content {
+        transform: translateY(0) scale(1) !important;
+      }
+    }
+
+    .contact-sheet-overlay.active .contact-sheet-content {
+      transform: translateY(0);
+    }
+
+    .contact-sheet-handle {
+      width: 36px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 2px;
+      margin: 0 auto 0.75rem;
+    }
+
+    .contact-sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 1rem;
+    }
+
+    .contact-sheet-title {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .contact-sheet-close {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .contact-sheet-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .contact-sheet-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.75rem 0.9rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+    }
+
+    .contact-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(96, 165, 250, 0.15);
+      color: #60a5fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .contact-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .contact-label {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.55);
+      font-weight: 400;
+    }
+
+    .contact-val {
+      font-size: 0.88rem;
+      color: #ffffff;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .contact-action-btn {
+      padding: 0.4rem 0.8rem;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #ffffff !important;
+      text-decoration: none !important;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-shrink: 0;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .contact-action-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+    }
+
+    /* =========================================
+       HERO SECTION
+    ========================================= */
+    #hero {
+      min-height: 100vh;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding-top: 6rem;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 85% 65%, rgba(2, 132, 199, 0.25) 0%, transparent 60%),
+        radial-gradient(circle at 15% 20%, rgba(30, 53, 153, 0.2) 0%, transparent 50%);
+    }
+
+    #particles-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 2;
+    }
+
+    /* Animated particles */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      animation: float-particle ease-in-out infinite;
+      will-change: transform, opacity;
+      pointer-events: none;
+    }
+
+    @keyframes float-particle {
+      0% {
+        opacity: 0;
+        transform: translateY(0) translateX(0) scale(0.4);
+      }
+      20% {
+        opacity: 0.9;
+      }
+      50% {
+        transform: translateY(-55vh) translateX(35px) scale(1.3);
+      }
+      80% {
+        opacity: 0.9;
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-115vh) translateX(-30px) scale(0.5);
+      }
+    }
+
+    .hero-grid-lines {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(30, 53, 153, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30, 53, 153, 0.04) 1px, transparent 1px);
+      background-size: 65px 65px;
+      mask-image: radial-gradient(circle at 50% 50%, black 30%, transparent 80%);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 4rem 2rem;
+      text-align: center;
+    }
+
+    .hero-brand {
+      font-size: clamp(1.4rem, 3.5vw, 2.5rem);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      animation: fadeInDown 0.8s ease both;
+    }
+
+    .hero-title {
+      font-size: clamp(2.8rem, 6.5vw, 5.5rem);
+      font-weight: 800;
+      line-height: 1.25;
+      color: #ffffff;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.01em;
+      animation: fadeInUp 0.8s ease 0.1s both;
+    }
+
+    .hero-title .gradient-text {
+      background: linear-gradient(135deg, #ff8c00 0%, #f97316 50%, #ea580c 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      color: var(--text-secondary);
+      max-width: 700px;
+      margin: 0 auto 3.2rem;
+      font-weight: 300;
+      line-height: 1.8;
+      animation: fadeInUp 0.8s ease 0.2s both;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1.2rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeInUp 0.8s ease 0.3s both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.95rem 2.2rem;
+      background: var(--gradient-main);
+      color: white;
+      text-decoration: none;
+      border-radius: 50px;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.3s;
+      box-shadow: var(--shadow-glow);
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 45px rgba(30, 53, 153, 0.7);
+    }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.95rem 2.2rem;
+      background: rgba(15, 10, 30, 0.3);
+      color: var(--text-primary);
+      text-decoration: none;
+      border-radius: 50px;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.3s;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      cursor: pointer;
+    }
+
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-2px);
+    }
+
+    .btn-white {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.95rem 2.2rem;
+      background: #ffffff;
+      color: var(--primary) !important;
+      text-decoration: none;
+      border-radius: 50px;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.3s;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 10px 25px rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-white:hover {
+      background: rgba(255, 255, 255, 0.9);
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px rgba(255, 255, 255, 0.25);
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 5.5rem;
+      margin-top: 5.5rem;
+      flex-wrap: wrap;
+      animation: fadeInUp 0.8s ease 0.4s both;
+      position: relative;
+    }
+
+    .hero-stat {
+      text-align: center;
+    }
+
+    .hero-stat-number {
+      font-size: clamp(2.2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #6c80f5 0%, #1E3599 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: block;
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .hero-bottom-line {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(6, 182, 212, 0) 0%, rgba(30, 53, 153, 0.5) 30%, rgba(30, 53, 153, 0.5) 70%, rgba(6, 182, 212, 0) 100%);
+      margin-top: 1.8rem;
+    }
+
+    .hero-scroll-indicator {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      cursor: pointer;
+      animation: bounce 2s infinite;
+      z-index: 10;
+    }
+
+    @keyframes bounce {
+
+      0%,
+      100% {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      50% {
+        transform: translateX(-50%) translateY(8px);
+      }
+    }
+
+    /* =========================================
+       SECTION STYLES
+    ========================================= */
+    section {
+      padding: 6rem 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(249, 115, 22, 0.18);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      color: #fb923c;
+      padding: 0.35rem 1.2rem;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 4.5vw, 2.8rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    .section-desc {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      max-width: 600px;
+      font-weight: 300;
+    }
+
+    .section-header {
+      margin-bottom: 3.5rem;
+    }
+
+    /* =========================================
+       GLASS CARD
+    ========================================= */
+    .glass-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+
+    .glass-card:hover {
+      background: var(--glass-hover);
+      border-color: rgba(30, 53, 153, 0.4);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(30, 53, 153, 0.2);
+    }
+
+    /* =========================================
+       ABOUT / MISSION VISION
+    ========================================= */
+    #about {
+      background: radial-gradient(ellipse 60% 60% at 80% 50%, rgba(30, 53, 153, 0.12) 0%, transparent 60%);
+    }
+
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+
+    .about-visual {
+      position: relative;
+    }
+
+    .about-visual-inner {
+      background: var(--gradient-card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 3rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .about-visual-inner::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(30, 53, 153, 0.1) 0%, transparent 60%);
+      animation: rotate-glow 8s linear infinite;
+    }
+
+    @keyframes rotate-glow {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .about-big-icon {
+      font-size: 6rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 120px;
+    }
+
+    .about-big-icon-emoji {
+      background: var(--gradient-main);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .mv-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .mv-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      transition: all 0.3s;
+    }
+
+    .mv-card:hover {
+      background: var(--glass-hover);
+      border-color: rgba(30, 53, 153, 0.4);
+      transform: translateX(6px);
+    }
+
+    .mv-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      flex-shrink: 0;
+    }
+
+    .mv-icon.purple {
+      background: rgba(30, 53, 153, 0.25);
+      color: var(--primary-light);
+    }
+
+    .mv-icon.pink {
+      background: rgba(38, 16, 117, 0.25);
+      color: #8d78f7;
+    }
+
+    .mv-icon.amber {
+      background: rgba(16, 45, 117, 0.25);
+      color: #4dabf7;
+    }
+
+    .mv-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--primary-light);
+      margin-bottom: 0.25rem;
+    }
+
+    .mv-text {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      font-weight: 300;
+    }
+
+    /* =========================================
+       SERVICES
+    ========================================= */
+    #services {
+      background: linear-gradient(180deg, transparent 0%, rgba(30, 53, 153, 0.05) 50%, transparent 100%);
+    }
+
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    .service-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+    }
+
+    .service-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--gradient-main);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .service-card:hover {
+      background: var(--glass-hover);
+      border-color: rgba(30, 53, 153, 0.4);
+      transform: translateY(-6px);
+      box-shadow: 0 20px 60px rgba(30, 53, 153, 0.22);
+    }
+
+    .service-card:hover::before {
+      opacity: 1;
+    }
+
+    .service-icon-wrap {
+      width: 60px;
+      height: 60px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin-bottom: 1.25rem;
+      background: var(--gradient-card);
+      border: 1px solid var(--border);
+    }
+
+    .service-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .service-desc {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      font-weight: 300;
+      line-height: 1.7;
+    }
+
+    /* =========================================
+       SUBSIDIARIES CIRCLE DIAGRAM
+    ========================================= */
+    .subsidiaries-wrapper {
+      position: relative;
+      width: 100%;
+      margin-top: 11rem;
+    }
+
+    .circle-container {
+      position: relative;
+      width: 100%;
+      max-width: 1100px;
+      height: 650px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Circular Track */
+    .circle-track {
+      position: absolute;
+      width: 480px;
+      height: 480px;
+      border: 3px solid rgba(234, 179, 8, 0.25);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 50px rgba(30, 53, 153, 0.15);
+    }
+
+    .circle-track::before {
+      content: '';
+      position: absolute;
+      width: calc(100% + 24px);
+      height: calc(100% + 24px);
+      border: 1.5px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 50%;
+      animation: rotate-track 90s linear infinite;
+    }
+
+    @keyframes rotate-track {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Central Logo */
+    .circle-center {
+      position: absolute;
+      width: 250px;
+      height: 250px;
+      background: radial-gradient(circle, #101c54 0%, #080f33 100%);
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 12px 50px rgba(0, 0, 0, 0.6), inset 0 0 35px rgba(30, 53, 153, 0.5);
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .center-logo-svg {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 0.5rem;
+      filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.25));
+    }
+
+    .center-brand-name {
+      font-size: 1rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.05em;
+    }
+
+    .center-brand-sub {
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.6);
+      letter-spacing: 0.25em;
+      margin-top: 0.15rem;
+      font-weight: 700;
+    }
+
+    /* Subsidiary Nodes */
+    .sub-node {
+      position: absolute;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Logo Card */
+    .node-logo-card {
+      width: 110px;
+      height: 110px;
+      background: #ffffff;
+      border-radius: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 0.5rem;
+      position: relative;
+      z-index: 5;
+    }
+
+    .sub-node:hover .node-logo-card {
+      transform: scale(1.15);
+      box-shadow: 0 15px 40px rgba(30, 53, 153, 0.4), 0 0 25px rgba(255, 255, 255, 0.9);
+    }
+
+    /* Text Label Box */
+    .node-text-box {
+      position: absolute;
+      color: #ffffff;
+      transition: all 0.3s ease;
+      pointer-events: auto;
+    }
+
+    .node-text-title {
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #ffd43b;
+      margin-bottom: 0.15rem;
+      letter-spacing: 0.05em;
+    }
+
+    .node-text-sub {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 0.4rem;
+    }
+
+    .node-text-desc {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.75);
+      line-height: 1.45;
+      font-weight: 300;
+    }
+
+    /* Positioning (Radius 240px around center 50% 50%) */
+    /* 1. Top Node (Pharmacy & Supplement) - 270 deg */
+    .node-pharmacy {
+      top: calc(50% - 240px - 55px);
+      left: calc(50% - 55px);
+      flex-direction: column;
+    }
+
+    .node-pharmacy .node-text-box {
+      bottom: 125px;
+      text-align: center;
+      width: 320px;
+    }
+
+    /* 2. Top-Right Node (EV Showroom) - 342 deg */
+    .node-showroom {
+      top: calc(50% - 74px - 55px);
+      left: calc(50% + 228px - 55px);
+    }
+
+    .node-showroom .node-text-box {
+      left: 125px;
+      text-align: left;
+      width: 260px;
+    }
+
+    /* 3. Bottom-Right Node (Travel Agency) - 54 deg */
+    .node-travel {
+      top: calc(50% + 194px - 55px);
+      left: calc(50% + 141px - 55px);
+    }
+
+    .node-travel .node-text-box {
+      left: 125px;
+      text-align: left;
+      width: 250px;
+    }
+
+    /* 4. Bottom-Left Node (Wellness Agency) - 126 deg */
+    .node-wellness {
+      top: calc(50% + 194px - 55px);
+      left: calc(50% - 141px - 55px);
+      flex-direction: row-reverse;
+    }
+
+    .node-wellness .node-text-box {
+      right: 125px;
+      text-align: right;
+      width: 260px;
+    }
+
+    /* 5. Top-Left Node (Longevity Clinic) - 198 deg */
+    .node-clinic {
+      top: calc(50% - 74px - 55px);
+      left: calc(50% - 228px - 55px);
+      flex-direction: row-reverse;
+    }
+
+    .node-clinic .node-text-box {
+      right: 125px;
+      text-align: right;
+      width: 270px;
+    }
+
+    /* Responsive Mobile Layout (Adapt to Card List) */
+    @media (max-width: 991px) {
+      .circle-container {
+        height: auto;
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 1.5rem 0;
+      }
+
+      .circle-track {
+        display: none;
+      }
+
+      .circle-center {
+        position: relative;
+        margin: 0 auto 1.5rem;
+        top: auto !important;
+        left: auto !important;
+        width: 200px;
+        height: 200px;
+      }
+
+      .circle-center .center-logo-svg {
+        width: 80px;
+        height: 80px;
+      }
+
+      .sub-node {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        flex-direction: row !important;
+        width: 100%;
+        max-width: 600px;
+        background: var(--glass);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 1.25rem;
+        gap: 1.25rem;
+        align-items: center;
+        margin: 0 auto;
+      }
+
+      .node-logo-card {
+        width: 85px;
+        height: 85px;
+        flex-shrink: 0;
+        border-radius: 18px;
+        padding: 0.4rem;
+      }
+
+      .node-text-box {
+        position: relative !important;
+        top: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        text-align: left !important;
+        width: 100% !important;
+      }
+    }
+
+    /* =========================================
+       TEAM
+    ========================================= */
+    #team {
+      background: transparent;
+    }
+
+    .team-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+
+    .team-card {
+      background: var(--dark-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      flex: 1 1 270px;
+      max-width: 280px;
+    }
+
+    .team-card:hover {
+      background: var(--dark-card2);
+      border-color: rgba(30, 53, 153, 0.5);
+      transform: translateY(-4px);
+      box-shadow: 0 15px 40px rgba(30, 53, 153, 0.25);
+    }
+
+    .team-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin: 0 auto 1.5rem;
+      display: block;
+      border: none;
+    }
+
+    .team-avatar-initials {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: #1e3599;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0 auto 1.5rem;
+      border: none;
+    }
+
+    .team-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+    }
+
+    .team-role {
+      font-size: 0.85rem;
+      color: var(--primary-light);
+      font-weight: 500;
+    }
+
+    /* =========================================
+       ANNOUNCEMENTS — CAROUSEL
+    ========================================= */
+    #news {
+      background: linear-gradient(180deg, transparent 0%, rgba(30, 53, 153, 0.04) 50%, transparent 100%);
+      overflow: hidden;
+    }
+
+    .news-carousel-wrapper {
+      position: relative;
+      margin-top: 3rem;
+    }
+
+    /* Track */
+    .news-track {
+      display: flex;
+      gap: 24px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
+      scroll-padding-inline: calc(50% - 160px);
+      padding: 32px 0 48px;
+      cursor: grab;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .news-track::-webkit-scrollbar {
+      display: none;
+    }
+
+    .news-track {
+      scrollbar-width: none;
+    }
+
+    .news-track.dragging {
+      cursor: grabbing;
+      scroll-behavior: auto;
+    }
+
+    /* Centering spacers */
+    .news-track::before,
+    .news-track::after {
+      content: '';
+      flex: 0 0 calc(50% - 160px);
+      min-width: calc(50% - 160px);
+    }
+
+    /* Card */
+    .news-card {
+      flex: 0 0 320px;
+      scroll-snap-align: center;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.4s cubic-bezier(.25, .8, .25, 1),
+        box-shadow 0.4s ease,
+        opacity 0.4s ease;
+      opacity: 0.6;
+      transform: scale(0.88);
+      will-change: transform;
+      user-select: none;
+    }
+
+    .news-card.active {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: 0 32px 80px rgba(30, 53, 153, 0.35), 0 0 0 1px rgba(30, 53, 153, 0.3);
+      border-color: rgba(30, 53, 153, 0.5);
+    }
+
+    .news-card:hover {
+      opacity: 0.85;
+    }
+
+    .news-card.active:hover {
+      opacity: 1;
+    }
+
+    /* Image */
+    .news-img {
+      width: 100%;
+      height: 220px;
+      overflow: hidden;
+      background: var(--gradient-card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+      position: relative;
+    }
+
+    .news-img::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.55) 100%);
+      pointer-events: none;
+    }
+
+    .news-img-el {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s ease;
+    }
+
+    .news-card.active .news-img-el {
+      transform: scale(1.04);
+    }
+
+    /* Body */
+    .news-body {
+      padding: 1.4rem 1.6rem 1.8rem;
+    }
+
+    .news-type-badge {
+      display: inline-block;
+      padding: 0.22rem 0.8rem;
+      border-radius: 50px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.75rem;
+    }
+
+    .news-date {
+      font-size: 0.77rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .news-title {
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .news-read-more {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--primary-light);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .news-card.active .news-read-more {
+      opacity: 1;
+    }
+
+    /* Navigation arrows */
+    .news-nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-60%);
+      z-index: 10;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--glass);
+      color: #fff;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s;
+      backdrop-filter: blur(10px);
+    }
+
+    .news-nav-btn:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 0 20px rgba(30, 53, 153, 0.5);
+    }
+
+    .news-nav-prev {
+      left: 12px;
+    }
+
+    .news-nav-next {
+      right: 12px;
+    }
+
+    /* Dots */
+    .news-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 4px;
+      padding-bottom: 8px;
+    }
+
+    .news-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .news-dot.active {
+      width: 28px;
+      border-radius: 4px;
+      background: var(--primary-light);
+    }
+
+    .news-loading {
+      text-align: center;
+      padding: 4rem;
+      color: var(--text-muted);
+    }
+
+    .news-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* =========================================
+       NEWS MODAL
+    ========================================= */
+    .news-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .news-modal.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .news-modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 10, 15, 0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .news-modal-content {
+      position: relative;
+      background: rgba(20, 20, 30, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 680px;
+      max-height: 85vh;
+      overflow-y: auto;
+      z-index: 10001;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+      transform: translateY(20px) scale(0.95);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+    }
+
+    .news-modal.open .news-modal-content {
+      transform: translateY(0) scale(1);
+    }
+
+    .news-modal-close {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+
+    .news-modal-close:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: rotate(90deg);
+    }
+
+    .news-modal-img-container {
+      width: 100%;
+      height: 320px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .news-modal-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .news-modal-img-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--gradient-card);
+      font-size: 5rem;
+    }
+
+    .news-modal-body-content {
+      padding: 2rem;
+    }
+
+    .news-modal-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .news-modal-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1.3;
+      color: var(--text-primary);
+      margin-bottom: 1.25rem;
+    }
+
+    .news-modal-text {
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    /* ========================================================
+       CAREER
+    ========================================= */
+    #career {
+      background: radial-gradient(ellipse 60% 60% at 70% 50%, rgba(30, 53, 153, 0.1) 0%, transparent 60%);
+    }
+
+    .career-banner {
+      background: var(--gradient-card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 4rem 3rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .career-banner::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(30, 53, 153, 0.15) 0%, transparent 60%);
+    }
+
+    .career-banner-title {
+      font-size: clamp(1.8rem, 4vw, 2.5rem);
+      font-weight: 700;
+      margin-bottom: 1rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .career-banner-desc {
+      color: var(--text-secondary);
+      max-width: 550px;
+      margin: 0 auto 2rem;
+      font-weight: 300;
+      position: relative;
+      z-index: 1;
+    }
+
+    .career-positions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .position-chip {
+      background: rgba(30, 53, 153, 0.12);
+      border: 1px solid rgba(30, 53, 153, 0.2);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: left;
+    }
+
+    .position-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .position-dept {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .position-badge {
+      display: inline-block;
+      padding: 0.15rem 0.6rem;
+      background: rgba(30, 53, 153, 0.25);
+      color: var(--primary-light);
+      border-radius: 50px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    /* =========================================
+       CONTACT
+    ========================================= */
+    #contact {
+      background: linear-gradient(180deg, transparent 0%, rgba(30, 53, 153, 0.03) 100%);
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    .contact-info-item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      margin-bottom: 1.5rem;
+    }
+
+    .contact-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(30, 53, 153, 0.1);
+      border: 1px solid rgba(30, 53, 153, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary-light);
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .contact-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.2rem;
+    }
+
+    .contact-value {
+      font-size: 0.95rem;
+      color: var(--text-primary);
+    }
+
+    .map-wrapper {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      height: 350px;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* =========================================
+       HR CTA BANNER
+    ========================================= */
+    .hr-cta {
+      background: var(--gradient-main);
+      border-radius: 24px;
+      padding: 3rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin: 0 2rem;
+    }
+
+    .hr-cta::before {
+      content: '';
+      position: absolute;
+      top: -30%;
+      right: -10%;
+      width: 300px;
+      height: 300px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+    }
+
+    .hr-cta::after {
+      content: '';
+      position: absolute;
+      bottom: -30%;
+      left: -10%;
+      width: 250px;
+      height: 250px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 50%;
+    }
+
+    .hr-cta-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hr-cta-title {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    .hr-cta-desc {
+      opacity: 0.85;
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+    }
+
+    /* =========================================
+       FOOTER
+    ========================================= */
+    footer {
+      padding: 3rem 0 2rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-copy {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--primary-light);
+    }
+
+    /* =========================================
+       MOBILE MENU
+    ========================================= */
+    .mobile-menu {
+      position: fixed;
+      top: 0;
+      right: -100%;
+      width: 280px;
+      height: 100vh;
+      background: rgba(5, 7, 20, 0.98);
+      backdrop-filter: blur(20px);
+      z-index: 999;
+      padding: 5rem 2rem 2rem;
+      transition: right 0.3s ease;
+      border-left: 1px solid var(--border);
+    }
+
+    .mobile-menu.open {
+      right: 0;
+    }
+
+    .mobile-menu ul {
+      list-style: none;
+    }
+
+    .mobile-menu ul li {
+      margin-bottom: 0.5rem;
+    }
+
+    .mobile-menu ul li a {
+      display: block;
+      color: var(--text-primary);
+      text-decoration: none;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .mobile-menu ul li a:hover {
+      background: var(--glass-hover);
+      color: var(--primary-light);
+    }
+
+    .mobile-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 998;
+    }
+
+    .mobile-overlay.open {
+      display: block;
+    }
+
+    .mobile-close {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    /* =========================================
+       ANIMATIONS — PREMIUM ANIMATED WEBSITE
+    ========================================= */
+
+    /* ── Base Entrance Keyframes ── */
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInLeft {
+      from { opacity: 0; transform: translateX(-50px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes fadeInRight {
+      from { opacity: 0; transform: translateX(50px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes zoomBounce {
+      0%   { opacity: 0; transform: scale(0.6); }
+      60%  { opacity: 1; transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* ── Hero Shimmer on gradient text ── */
+    @keyframes shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+
+    .hero-title .gradient-text {
+      background-size: 200% auto;
+      animation: shimmer 4s linear infinite, fadeInUp 0.8s ease 0.1s both;
+    }
+
+    /* ── Floating / Breathing glow behind hero ── */
+    @keyframes breathe-glow {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50%      { opacity: 0.6; transform: scale(1.15); }
+    }
+
+    .hero-bg::after {
+      content: '';
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(249,115,22,0.12) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      animation: breathe-glow 6s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    /* ── Scroll-triggered reveal classes ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-left {
+      opacity: 0;
+      transform: translateX(-50px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal-left.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .reveal-right {
+      opacity: 0;
+      transform: translateX(50px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal-right.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .reveal-scale {
+      opacity: 0;
+      transform: scale(0.85);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal-scale.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ── Section badge pulse glow ── */
+    @keyframes badge-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.35); }
+      50%      { box-shadow: 0 0 18px 4px rgba(249, 115, 22, 0.15); }
+    }
+
+    .section-badge {
+      animation: badge-pulse 3s ease-in-out infinite;
+    }
+
+    /* ── Glass card tilt / shine on hover ── */
+    .glass-card, .mv-card, .service-card {
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .glass-card:hover, .mv-card:hover, .service-card:hover {
+      transform: translateY(-6px) rotateX(2deg);
+      box-shadow: 0 25px 60px rgba(249, 115, 22, 0.12),
+                  0 0 0 1px rgba(249, 115, 22, 0.15);
+    }
+
+    /* ── Animated gradient border on about card ── */
+    @keyframes gradient-border-spin {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .about-visual-inner {
+      position: relative;
+    }
+
+    .about-visual-inner::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 25px;
+      padding: 1px;
+      background: linear-gradient(270deg, #f97316, #1E3599, #261075, #f97316);
+      background-size: 300% 300%;
+      animation: gradient-border-spin 6s ease infinite;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Team card hover float ── */
+    .team-card {
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.5s ease;
+    }
+
+    .team-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3),
+                  0 0 20px rgba(249, 115, 22, 0.1);
+    }
+
+    /* ── News card slide-in on hover ── */
+    .news-card {
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.4s ease;
+    }
+
+    .news-card:hover {
+      transform: translateY(-8px) scale(1.02);
+    }
+
+    /* ── Navbar smooth entrance ── */
+    #navbar {
+      animation: fadeInDown 0.6s ease both;
+    }
+
+    /* ── Counter number animation ── */
+    @keyframes countUp {
+      from { opacity: 0; transform: translateY(15px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Orbit ring pulsing ── */
+    @keyframes orbit-pulse {
+      0%, 100% { opacity: 0.15; }
+      50%      { opacity: 0.35; }
+    }
+
+    /* ── Smooth section fade ── */
+    section {
+      animation: none;
+    }
+
+    /* ── Footer entrance ── */
+    footer {
+      position: relative;
+    }
+
+    /* ── Reduced motion for accessibility ── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ===== NAVBAR ===== -->
+  <header id="navbar">
+    <div class="nav-container">
+      <ul class="nav-links">
+        <li><a href="#hero" title="หน้าแรก" class="active"><i class="fa-solid fa-house mobile-nav-icon"></i><span class="nav-text">หน้าแรก</span></a></li>
+        <li><a href="#about" title="เกี่ยวกับเรา"><i class="fa-solid fa-user-group mobile-nav-icon"></i><span class="nav-text">เกี่ยวกับเรา</span></a></li>
+        <li><a href="#news" title="ข่าวสาร"><i class="fa-regular fa-newspaper mobile-nav-icon"></i><span class="nav-text">ข่าวสาร</span></a></li>
+        <li><a href="#footer-section" title="ติดต่อเรา" onclick="event.preventDefault(); window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});"><i class="fa-solid fa-headset mobile-nav-icon"></i><span class="nav-text">ติดต่อเรา</span></a></li>
+        <li class="desktop-only"><a href="#services" title="บริการ"><i class="fa-solid fa-briefcase mobile-nav-icon"></i><span class="nav-text">บริการ</span></a></li>
+        <li class="desktop-only"><a href="#team" title="ทีมงาน"><i class="fa-solid fa-users mobile-nav-icon"></i><span class="nav-text">ทีมงาน</span></a></li>
+        <li class="desktop-only"><a href="#career" title="ร่วมงาน"><i class="fa-regular fa-user mobile-nav-icon"></i><span class="nav-text">ร่วมงาน</span></a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section id="hero" style="position: relative; min-height: 85vh; display: flex; align-items: center; justify-content: center; overflow: hidden; background-color: #07214a;">
+    <!-- Dynamic Clean Background Image Slider Container (No Mockups - Real Data Only) -->
+    <div id="hero-slider-bg" style="position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1;"></div>
+
+    <!-- Navigation Arrows (Clean & Sharp) -->
+    <button id="hero-prev-btn" onclick="prevHeroSlide()" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); z-index: 10; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px); transition: all 0.3s;" aria-label="Previous Slide"><i class="fa-solid fa-chevron-left"></i></button>
+    <button id="hero-next-btn" onclick="nextHeroSlide()" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); z-index: 10; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px); transition: all 0.3s;" aria-label="Next Slide"><i class="fa-solid fa-chevron-right"></i></button>
+
+    <!-- Pagination Dots -->
+    <div id="hero-slider-dots" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; gap: 8px;"></div>
+
+    <div class="hero-scroll-indicator" onclick="document.getElementById('about').scrollIntoView({behavior: 'smooth'})" style="z-index: 10;">
+      <i class="fas fa-chevron-down"></i>
+    </div>
+  </section>
+
+  <!-- ===== ABOUT / MISSION VISION ===== -->
+  <section id="about">
+    <div class="container">
+      <div class="about-grid">
+        <div class="about-visual reveal">
+          <div class="about-visual-inner">
+            <div class="about-big-icon about-big-icon-emoji" id="about-logo-container">🏢</div>
+            <h3 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;position:relative;z-index:1"
+              id="about-card-title">LOVE STK GROUPE</h3>
+            <p style="color:var(--text-secondary);font-size:0.9rem;font-weight:300;position:relative;z-index:1"
+              id="about-card-desc">
+              ผู้นำกลุ่มธุรกิจเพื่อสุขภาพและนวัตกรรมที่เป็นมิตรต่อสิ่งแวดล้อมแห่งประเทศลาว LOVE STK GROUPE คือกลุ่มบริษัทชั้นนำในประเทศลาวที่ดำเนินธุรกิจอย่างมั่นคงและเติบโตอย่างต่อเนื่องมานานกว่า 8 ปี มุ่งมั่นสู่การเป็นผู้สร้างสรรค์ระบบนิเวศทางธุรกิจ (BUSINESS ECOSYSTEM) ที่ยกระดับคุณภาพชีวิตของผู้คน ควบคู่ไปกับการดูแลรักษาสิ่งแวดล้อมอย่างยั่งยืน
+            </p>
+          </div>
+        </div>
+
+        <div class="about-content reveal" style="transition-delay:0.15s">
+          <div class="about-header" style="text-align:center !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; width:100% !important; margin-bottom:1.5rem !important;">
+            <div class="section-badge" style="margin:0 auto 0.75rem auto !important;"><i class="fas fa-info-circle"></i> เกี่ยวกับเรา</div>
+            <h2 class="section-title" style="margin-bottom:1.5rem; text-align:center !important;">พันธกิจ วิสัยทัศน์ และค่านิยม</h2>
+          </div>
+
+          <div class="mv-cards">
+            <div class="mv-card">
+              <div class="mv-icon purple"><i class="fas fa-eye"></i></div>
+              <div>
+                <div class="mv-label">วิสัยทัศน์</div>
+                <div class="mv-text" id="vision-text">ที่สุดแห่งโครงสร้างรากฐานด้านศาสตร์ชะลอวัยธรรมชาติบำบัดและนวัตกรรมสุขภาพหนึ่งเดียวในประเทศลาว (LAOS' ULTIMATE ARCHITECTURE OF LONGEVITY AND HEALTH INNOVATION)</div>
+              </div>
+            </div>
+            <div class="mv-card">
+              <div class="mv-icon pink"><i class="fas fa-bullseye"></i></div>
+              <div>
+                <div class="mv-label">พันธกิจ</div>
+                <div class="mv-text" id="mission-text">
+                  <ul class="list-disc pl-4 space-y-1.5" style="list-style-type:disc">
+                    <li id="mission-mastering">ขับเคลื่อนศูนย์การแพทย์ชะลอวัยอันดับหนึ่ง เพื่อยกระดับคุณภาพชีวิตของผู้คนในประเทศลาว (MASTERING LONGEVITY)</li>
+                    <li id="mission-commanding">ครอบครองสิทธิ์สารอาหารนวัตกรรมระดับโลก ผสานพลังผลิตร่วมกับ 6 โรงงานพันธมิตรชั้นนำ (COMMANDING INNOVATION)</li>
+                    <li id="mission-unifying">เชื่อมต่อเครือข่ายทางการแพทย์และโรงพยาบาลพาร์ทเนอร์ เพื่อส่งต่อการดูแลรักษาที่สมบูรณ์แบบ (UNIFYING ALLIANCES)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="mv-card">
+              <div class="mv-icon amber"><i class="fas fa-heart"></i></div>
+              <div>
+                <div class="mv-label">ค่านิยมหลัก</div>
+                <div class="mv-text" id="values-desc">Love · System Team · Knowledge — ความรัก ความร่วมมือ และระบบ การเรียนรู้ที่ไม่หยุดยั้ง คือรากฐานของทุกสิ่งที่เราทำ</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SERVICES / SUBSIDIARIES ===== -->
+  <section id="services">
+    <div class="container">
+      <div class="section-header reveal" style="text-align:center">
+        <div class="section-badge" style="margin:0 auto 1rem"><i class="fas fa-briefcase"></i> กลุ่มธุรกิจในเครือ</div>
+        <h2 class="section-title">ธุรกิจในเครือ LOVE STK GROUPE</h2>
+        <p class="section-desc" style="margin:0 auto" id="services-desc">
+          บริษัททุกกลุ่มในเครือ LOVE STK GROUPE เป็นเครือบริษัทที่เกี่ยวกับธุรกิจกลุ่มสุขภาพ
+          และสินค้าที่ไม่ทำลายสิ่งแวดล้อม โดยในเครือประกอบไปด้วย 5 บริษัทย่อยดังนี้
+        </p>
+      </div>
+
+      <!-- Subsidiaries Section (Orbital Circle Layout) -->
+      <div id="subsidiaries-grid">
+        <!-- Dynamic circle diagram loaded here -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TEAM ===== -->
+  <section id="team">
+    <div class="container">
+      <div class="section-header reveal" style="text-align:center">
+        <div class="section-badge" style="margin:0 auto 1rem"><i class="fas fa-users"></i> ทีมงาน</div>
+        <h2 class="section-title">ผู้นำและทีมบริหาร</h2>
+        <p class="section-desc" style="margin:0 auto">
+          คนเก่ง คนดี ที่ขับเคลื่อนองค์กรด้วยความมุ่งมั่นและหัวใจ
+        </p>
+      </div>
+
+      <div class="team-grid" id="team-grid">
+        <!-- โหลดค่าเริ่มต้นผู้บริหารและผู้นำแบบ Mock-up หากยังไม่ได้ดึงข้อมูลจากฐานข้อมูลพนักงานจริง -->
+        <div class="team-card reveal">
+          <div class="team-avatar-initials">สม</div>
+          <div class="team-name">สมาชิกทีมงาน</div>
+          <div class="team-role">เจ้าหน้าที่</div>
+        </div>
+        <div class="team-card reveal" style="transition-delay:0.05s">
+          <div class="team-avatar-initials">สม</div>
+          <div class="team-name">สมาชิกทีมงาน</div>
+          <div class="team-role">เจ้าหน้าที่</div>
+        </div>
+        <div class="team-card reveal" style="transition-delay:0.1s">
+          <div class="team-avatar-initials">สม</div>
+          <div class="team-name">สมาชิกทีมงาน</div>
+          <div class="team-role">เจ้าหน้าที่</div>
+        </div>
+        <div class="team-card reveal" style="transition-delay:0.15s">
+          <div class="team-avatar-initials">สม</div>
+          <div class="team-name">สมาชิกทีมงาน</div>
+          <div class="team-role">เจ้าหน้าที่</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ANNOUNCEMENTS / NEWS ===== -->
+  <section id="news">
+    <div class="section-header reveal" style="text-align:center">
+      <div class="section-badge" style="margin:0 auto 1rem"><i class="fas fa-newspaper"></i> ข่าวสาร</div>
+      <h2 class="section-title">ประกาศและข่าวสาร</h2>
+      <p class="section-desc" style="margin:0 auto">
+        อัปเดตล่าสุดจากองค์กร ติดตามทุกความเคลื่อนไหวที่นี่
+      </p>
+    </div>
+
+    <div class="news-carousel-wrapper" id="news-carousel-wrapper">
+      <!-- Prev arrow -->
+      <button class="news-nav-btn news-nav-prev" id="news-nav-prev" onclick="newsCarouselNav(-1)">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+      <!-- Track -->
+      <div class="news-track" id="news-grid">
+        <div class="news-loading">
+          <div class="news-spinner"></div>
+          <p>กำลังโหลดข่าวสาร...</p>
+        </div>
+      </div>
+      <!-- Next arrow -->
+      <button class="news-nav-btn news-nav-next" id="news-nav-next" onclick="newsCarouselNav(1)">
+        <i class="fas fa-chevron-right"></i>
+      </button>
+      <!-- Dots -->
+      <div class="news-dots" id="news-dots"></div>
+    </div>
+  </section>
+
+  <!-- ===== CAREER ===== -->
+  <section id="career">
+    <div class="container">
+      <div class="career-banner reveal">
+        <div class="career-banner-title">
+          ร่วมเป็นส่วนหนึ่งของ<span
+            style="background:linear-gradient(135deg,#fff,rgba(255,255,255,0.7));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+            Love STK Groupe</span>
+        </div>
+        <p class="career-banner-desc">
+          เราเปิดรับคนรุ่นใหม่ที่มีความกระตือรือร้น อยากเรียนรู้ และพร้อมเติบโตไปพร้อมกับองค์กร
+        </p>
+
+        <div class="career-positions" id="career-positions-container">
+          <div class="position-chip">
+            <div class="position-title">นักพัฒนาซอฟต์แวร์</div>
+            <div class="position-dept">แผนกเทคโนโลยี</div>
+            <div class="position-badge">2 อัตรา</div>
+          </div>
+          <div class="position-chip">
+            <div class="position-title">เจ้าหน้าที่ฝ่าย HR</div>
+            <div class="position-dept">ทรัพยากรบุคคล</div>
+            <div class="position-badge">1 อัตรา</div>
+          </div>
+          <div class="position-chip">
+            <div class="position-title">ผู้จัดการการตลาด</div>
+            <div class="position-dept">การตลาด</div>
+            <div class="position-badge">1 อัตรา</div>
+          </div>
+        </div>
+
+        <a href="#contact" class="btn-white">
+          <i class="fas fa-paper-plane"></i>
+          ส่งใบสมัครงาน
+        </a>
+      </div>
+    </div>
+  </section>
+
+
+
+  <!-- ===== FOOTER ===== -->
+  <footer style="background: rgba(0, 0, 0, 0.15); color: #ffffff; padding: 0; border-top: 1px solid rgba(255,255,255,0.12);">
+    <!-- Main footer content -->
+    <div style="padding: 2.5rem 0;">
+      <div class="container">
+        <div class="footer-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start;">
+
+          <!-- Left: ติดต่อเรา -->
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ติดต่อเรา</h3>
+            <div style="display: flex; flex-direction: column; gap: 0.55rem; font-size: 0.92rem; color: rgba(255, 255, 255, 0.85); font-weight: 500; line-height: 1.6;">
+              <div style="display: flex; gap: 0.5rem;">
+                <span style="font-weight: 700; min-width: 56px; color: #60a5fa;">ที่อยู่:</span>
+                <span id="org-address-footer">Vientiane Laos PDR</span>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <span style="font-weight: 700; min-width: 56px; color: #60a5fa;">Email:</span>
+                <span id="org-email-footer">Vientiane@lstk.com</span>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <span style="font-weight: 700; min-width: 56px; color: #60a5fa;">Tel:</span>
+                <span id="org-phone-footer">+856 20 59 495 614</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: ระบบ (System links) -->
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ระบบ</h3>
+            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem;">
+              <li>
+                <a href="login.html" onclick="goToCeo(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
+                  CEO Dashboard
+                </a>
+              </li>
+              <li>
+                <a href="clinic/login.html" onclick="goToClinic(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
+                  System Clinic
+                </a>
+              </li>
+              <li>
+                <a href="Hr.html" onclick="goToHr(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
+                  System Human Resources
+                </a>
+              </li>
+              <li>
+                <a href="mlm/Mlm.html" onclick="goToMlm(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#f97316'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
+                  System LOVE STK GROUPE
+                </a>
+              </li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Thin bottom bar (copyright) -->
+    <div style="background: rgba(0, 0, 0, 0.25); color: rgba(255,255,255,0.6); padding: 0.9rem 1rem; text-align: center; font-size: 0.78rem; letter-spacing: 0.02em; border-top: 1px solid rgba(255,255,255,0.08);">
+      © 2026 Dev Bouala PHONGPHANAM. All Rights Reserved.
+    </div>
+  </footer>
+
+  <!-- ===== JAVASCRIPT ===== -->
+  <script src="company.js"></script>
+  <script>
+    function getAppRootPath() {
+      let path = window.location.pathname;
+      if (path.endsWith('.html') || path.endsWith('.htm')) {
+        path = path.substring(0, path.lastIndexOf('/') + 1);
+      }
+      path = path.replace(/\/(clinic|Clinic|mlm|project-phase23)(\/.*)?$/i, '/');
+      if (!path.endsWith('/')) {
+        path += '/';
+      }
+      return path;
+    }
+
+    function goToCeo(e) {
+      if (e) e.preventDefault();
+      window.location.href = 'login.html';
+    }
+
+    function goToClinic(e) {
+      if (e) e.preventDefault();
+      window.location.href = window.location.origin + getAppRootPath() + 'clinic/login.html';
+    }
+
+    function goToHr(e) {
+      if (e) e.preventDefault();
+      window.location.href = window.location.origin + getAppRootPath() + 'login.html';
+    }
+
+    function goToMlm(e) {
+      if (e) e.preventDefault();
+      window.location.href = window.location.origin + getAppRootPath() + 'mlm/Mlm.html';
+    }
+
+    </script>
+    <script src="company.js"></script>
+    <script src="js/i18n.js"></script>
+    <script>
+    // ─────────────────────────────────────────
+    // SCROLL GUARD — always start at top of page
+    // ─────────────────────────────────────────
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual'; // disable browser scroll restore
+    }
+    window.scrollTo(0, 0); // instant scroll to top immediately
+    window.addEventListener('load', () => {
+      window.scrollTo(0, 0);
+      if (window.location.hash) {
+        history.replaceState(null, null, window.location.pathname + window.location.search);
+      }
+    });
+
+    // ซ่อน / เคลียร์ Hash (เช่น #contact) บนแถบ URL ทันทีที่มีการกดลิงก์นำทาง
+    window.addEventListener('hashchange', () => {
+      setTimeout(() => {
+        history.replaceState(null, null, window.location.pathname + window.location.search);
+      }, 50);
+    });
+
+    // =========================================
+    // SUPABASE CONFIG
+    // =========================================
+    const SUPABASE_URL = window.SUPABASE_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co';
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
+
+    const apiCache = {};
+
+    function escapeHtml(value) {
+      return String(value === undefined || value === null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    async function supabaseFetch(table, params = '') {
+      let finalParams = params;
+      if (table === 'company_info') {
+        finalParams = '&limit=200';
+      } else if (table === 'staff') {
+        finalParams = '&limit=1000';
+      }
+
+      const cacheKey = `${table}?${finalParams}`;
+      if (apiCache[cacheKey]) {
+        console.log('[Supabase Cache] Returning cached rows for:', cacheKey);
+        return apiCache[cacheKey];
+      }
+
+      try {
+        const url = `${SUPABASE_URL}/rest/v1/${table}?select=*${finalParams}`;
+        console.log('[Supabase] Fetching:', url);
+        const res = await fetch(url, {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          }
+        });
+        console.log('[Supabase] Status:', res.status, res.statusText);
+        if (res.status === 521) {
+          console.error('[Supabase Error] Project is paused/offline (Cloudflare 521).');
+        }
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error('[Supabase] Error body:', errText);
+          throw new Error('Fetch failed: ' + res.status);
+        }
+        const data = await res.json();
+        console.log('[Supabase] Rows from', table, ':', data.length, data);
+        apiCache[cacheKey] = data;
+        return data;
+      } catch (e) {
+        console.warn('[Supabase]', e.message);
+        return [];
+      }
+    }
+
+    // =========================================
+    // NAVBAR SCROLL EFFECT
+    // =========================================
+    const navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 50) navbar.classList.add('scrolled');
+      else navbar.classList.remove('scrolled');
+    });
+
+    // =========================================
+    // MOBILE MENU
+    // =========================================
+    function openMobileMenu() {
+      document.getElementById('mobileMenu').classList.add('open');
+      document.getElementById('mobileOverlay').classList.add('open');
+    }
+    function closeMobileMenu() {
+      document.getElementById('mobileMenu').classList.remove('open');
+      document.getElementById('mobileOverlay').classList.remove('open');
+    }
+
+    // =========================================
+    // HERO PARTICLES
+    // =========================================
+    (function createParticles() {
+      const container = document.getElementById('particles-container');
+      if (!container) return;
+      const colors = ['#1E3599', '#102D75', '#261075', '#3b82f6', '#60a5fa', '#ffffff'];
+      for (let i = 0; i < 35; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const size = Math.random() * 4 + 1.5;
+        p.style.cssText = `
+          width:${size}px; height:${size}px;
+          background:${colors[Math.floor(Math.random() * colors.length)]};
+          left:${Math.random() * 100}%;
+          top:${Math.random() * 100}%;
+          animation-duration:${Math.random() * 18 + 12}s;
+          animation-delay:${Math.random() * 8}s;
+        `;
+        container.appendChild(p);
+      }
+    })();
+
+    // =========================================
+    // SCROLL REVEAL
+    // =========================================
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // =========================================
+    // UTILITY: FUZZY VALUE GETTER
+    // =========================================
+    function getFuzzyValue(row, searchKeys, defaultIndex = null) {
+      if (!row || typeof row !== 'object') return defaultIndex !== null ? '-' : '';
+
+      for (let searchKey of searchKeys) {
+        const target = String(searchKey).toLowerCase().trim();
+        for (let k in row) {
+          if (String(k).toLowerCase().trim() === target) {
+            const val = row[k];
+            if (val !== undefined && val !== null && val !== '') return val;
+          }
+        }
+      }
+
+      for (let searchKey of searchKeys) {
+        const target = String(searchKey).toLowerCase().trim();
+        if (target === 'id') continue;
+        for (let k in row) {
+          const lwK = String(k).toLowerCase().trim();
+          if (lwK.includes(target)) {
+            const val = row[k];
+            if (val !== undefined && val !== null && val !== '') return val;
+          }
+        }
+      }
+
+      if (searchKeys.includes('id') && row['id'] !== undefined && row['id'] !== null && row['id'] !== '') {
+        return row['id'];
+      }
+
+      if (defaultIndex !== null && Object.keys(row).length > defaultIndex) {
+        return Object.values(row)[defaultIndex];
+      }
+      return '-';
+    }
+
+    // =========================================
+    // UTILITY: EXTRACT INITIALS FOR THAI/EN NAMES
+    // =========================================
+    function getInitials(name) {
+      if (!name || name === '-') return 'สม';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+      }
+      return parts[0].slice(0, 2);
+    }
+
+    // =========================================
+    // LOAD ANNOUNCEMENTS FROM SUPABASE
+    // =========================================
+    async function loadAnnouncements() {
+      const track = document.getElementById('news-grid');
+
+      // --- SUPABASE FETCH ---
+      let rows = [];
+      try {
+        const url = `${SUPABASE_URL}/rest/v1/news?select=*&order=news_date.desc&limit=50`;
+        const res = await fetch(url, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        });
+        if (res.ok) rows = await res.json();
+      } catch (e) { console.warn('[Supabase news]', e.message); }
+
+      // Filter: hide only explicitly Internal
+      const publicRows = (rows || []).filter(r =>
+        String(r.audience || '').toLowerCase().trim() !== 'internal'
+      ).slice(0, 9);
+
+      const items = publicRows.length > 0 ? publicRows : null;
+      track.innerHTML = buildNewsCards(items);
+      initNewsCarousel();
+    }
+
+    function buildNewsCards(items) {
+      const typeColors = {
+        'ประกาศ': 'background:rgba(30,53,153,0.3);color:#6c80f5',
+        'ข่าวสาร': 'background:rgba(6,182,212,0.2);color:#22d3ee',
+        'กิจกรรม': 'background:rgba(38,16,117,0.3);color:#8d78f7',
+        'สินค้าใหม่': 'background:rgba(217,119,6,0.2);color:#fbbf24',
+        'บริการ': 'background:rgba(16,185,129,0.2);color:#34d399',
+        'ทั่วไป': 'background:rgba(100,116,139,0.2);color:#94a3b8',
+      };
+
+      // Fallback items
+      if (!items) {
+        items = (window.COMPANY_DATA && window.COMPANY_DATA.news) || [
+          { type: 'กิจกรรม', topic: 'งาน Company Outing ประจำปี 2026', news_date: '2026-07-01', emoji: '🎉' },
+          { type: 'ข่าวสาร', topic: 'การปรับเวลาทำงานช่วงฤดูร้อน', news_date: '2026-06-15', emoji: '📋' },
+          { type: 'ทั่วไป', topic: 'พนักงานดีเด่นประจำไตรมาส 2', news_date: '2026-06-01', emoji: '🏆' },
+        ];
+      }
+
+      // ── REORDER: put latest (items[0]) at center slot ──
+      // items are sorted DESC, so items[0] = most recent
+      const centerIdx = Math.floor(items.length / 2);
+      const ordered = [...items];
+      if (ordered.length > 1) {
+        const [latest] = ordered.splice(0, 1); // remove from front
+        ordered.splice(centerIdx, 0, latest);   // insert at center
+      }
+      // Expose centerIdx so initNewsCarousel can read it
+      window._newsCarouselCenterIdx = centerIdx;
+
+      return ordered.map((row, i) => {
+        const topic = escapeHtml(row.topic || row.Topic || row.title || 'ข่าวสารจากองค์กร');
+        const date = row.news_date || row.Date || row.date || '';
+        const type = escapeHtml(row.type || row.Type || 'ทั่วไป');
+        const photo = row.photo || row.Photo || '';
+        const emoji = escapeHtml(row.emoji || '📢');
+        const color = typeColors[row.type || row.Type || 'ทั่วไป'] || typeColors['ทั่วไป'];
+
+        let dateStr = '';
+        if (date) {
+          try {
+            dateStr = new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            if (dateStr.includes('Invalid')) dateStr = date;
+          } catch (e) { dateStr = date; }
+        }
+        dateStr = escapeHtml(dateStr);
+
+        const imgHTML = (photo && photo !== '-' && photo.trim())
+          ? `<img src="${photo}" alt="${topic}" class="news-img-el" onerror="this.parentElement.innerHTML='${emoji}'" />`
+          : emoji;
+
+        const rowJson = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
+        // Mark center index as initial active card
+        return `<div class="news-card${i === centerIdx ? ' active' : ''}" data-index="${i}" onclick="openNewsModal('${rowJson}')">
+          <div class="news-img">${imgHTML}</div>
+          <div class="news-body">
+            <span class="news-type-badge" style="${color}">${type}</span>
+            ${dateStr ? `<div class="news-date"><i class="fas fa-calendar-alt" style="margin-right:.35rem;opacity:.6"></i>${dateStr}</div>` : ''}
+            <div class="news-title">${topic}</div>
+            <div class="news-read-more">อ่านเพิ่มเติม <i class="fas fa-arrow-right" style="font-size:.75rem"></i></div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderFallbackNews() { return buildNewsCards(null); }
+
+    // =========================================
+    // NEWS CAROUSEL CONTROLLER
+    // =========================================
+    function initNewsCarousel() {
+      const track = document.getElementById('news-grid');
+      const dotsEl = document.getElementById('news-dots');
+      if (!track) return;
+
+      const cards = Array.from(track.querySelectorAll('.news-card'));
+      if (!cards.length) return;
+
+      // Start at center (latest news was placed there by buildNewsCards)
+      const centerIdx = window._newsCarouselCenterIdx ?? Math.floor(cards.length / 2);
+      let currentIdx = centerIdx;
+
+      // Build dots
+      if (dotsEl) {
+        dotsEl.innerHTML = cards.map((_, i) =>
+          `<div class="news-dot${i === 0 ? ' active' : ''}" onclick="newsGoTo(${i})"></div>`
+        ).join('');
+      }
+
+      // Mobile check: On mobile screens, activate all cards and disable horizontal auto-scroll
+      if (window.innerWidth <= 768) {
+        cards.forEach(c => c.classList.add('active'));
+      } else {
+        setActive(currentIdx);
+      }
+
+      // Set active card
+      function setActive(idx) {
+        if (window.innerWidth <= 768) {
+          cards.forEach(c => c.classList.add('active'));
+          return;
+        }
+        currentIdx = Math.max(0, Math.min(idx, cards.length - 1));
+        cards.forEach((c, i) => c.classList.toggle('active', i === currentIdx));
+        // Sync dots
+        if (dotsEl) {
+          dotsEl.querySelectorAll('.news-dot').forEach((d, i) =>
+            d.classList.toggle('active', i === currentIdx)
+          );
+        }
+        // Scroll card into view
+        const card = cards[currentIdx];
+        const offset = card.offsetLeft - (track.offsetWidth / 2) + (card.offsetWidth / 2);
+        track.scrollTo({ left: offset, behavior: 'smooth' });
+      }
+
+      window.newsGoTo = setActive;
+      window.newsCarouselNav = (dir) => setActive(currentIdx + dir);
+
+      // Snap detection on scroll
+      let scrollTimer;
+      track.addEventListener('scroll', () => {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+          const center = track.scrollLeft + track.offsetWidth / 2;
+          let closest = 0, minDist = Infinity;
+          cards.forEach((c, i) => {
+            const dist = Math.abs(c.offsetLeft + c.offsetWidth / 2 - center);
+            if (dist < minDist) { minDist = dist; closest = i; }
+          });
+          if (closest !== currentIdx) {
+            currentIdx = closest;
+            cards.forEach((c, i) => c.classList.toggle('active', i === currentIdx));
+            if (dotsEl) dotsEl.querySelectorAll('.news-dot').forEach((d, i) =>
+              d.classList.toggle('active', i === currentIdx));
+          }
+        }, 80);
+      });
+
+      // Drag to scroll
+      let startX, startScrollLeft, isDragging = false;
+      track.addEventListener('mousedown', e => {
+        isDragging = true;
+        startX = e.pageX - track.offsetLeft;
+        startScrollLeft = track.scrollLeft;
+        track.classList.add('dragging');
+      });
+      track.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const dx = e.pageX - track.offsetLeft - startX;
+        track.scrollLeft = startScrollLeft - dx;
+      });
+      ['mouseup', 'mouseleave'].forEach(evt => track.addEventListener(evt, () => {
+        if (!isDragging) return;
+        isDragging = false;
+        track.classList.remove('dragging');
+      }));
+
+      // ── Initial center: scroll to the latest news (center slot) instantly ──
+      function jumpToLatest() {
+        const card = cards[centerIdx];
+        if (!card) return;
+        const offset = card.offsetLeft - (track.offsetWidth / 2) + (card.offsetWidth / 2);
+        track.scrollLeft = offset;   // instant (no animation) — reliable
+        cards.forEach((c, i) => c.classList.toggle('active', i === centerIdx));
+        if (dotsEl) dotsEl.querySelectorAll('.news-dot').forEach((d, i) =>
+          d.classList.toggle('active', i === centerIdx));
+        currentIdx = centerIdx;
+      }
+
+      // Double rAF ensures layout is complete, then a 400ms safety pass
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        jumpToLatest();
+        setTimeout(jumpToLatest, 400);
+      }));
+    }
+
+    // =========================================
+    // NEWS MODAL FUNCTIONS
+    // =========================================
+    function openNewsModal(rowJsonEncoded) {
+      try {
+        const row = JSON.parse(decodeURIComponent(rowJsonEncoded));
+        const modal = document.getElementById('news-modal');
+        const body = document.getElementById('news-modal-body');
+
+        const topic = row.topic || row.Topic || 'ข่าวสารจากองค์กร';
+        const date = row.news_date || row.Date || '';
+        const type = row.type || row.Type || 'ทั่วไป';
+        const photo = row.photo || row.Photo || '';
+        const emoji = row.emoji || '📢';
+        const content = row.content || row.Content || 'ไม่มีรายละเอียดเพิ่มเติม';
+
+        let dateStr = '';
+        if (date) {
+          try {
+            dateStr = new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            if (dateStr.includes('Invalid')) dateStr = date;
+          } catch (err) {
+            dateStr = date;
+          }
+        }
+
+        const typeColors = {
+          'ประกาศ': 'background:rgba(30,53,153,0.3);color:#6c80f5',
+          'ข่าวสาร': 'background:rgba(6,182,212,0.2);color:#22d3ee',
+          'กิจกรรม': 'background:rgba(38,16,117,0.3);color:#8d78f7',
+          'สินค้าใหม่': 'background:rgba(217,119,6,0.2);color:#fbbf24',
+          'บริการ': 'background:rgba(16,185,129,0.2);color:#34d399',
+          'ทั่วไป': 'background:rgba(100,116,139,0.2);color:#94a3b8',
+        };
+        const colorStyle = typeColors[type] || typeColors['ทั่วไป'];
+
+        let imgHtml = '';
+        if (photo && photo !== '-' && photo.trim() !== '') {
+          imgHtml = `
+            <div class="news-modal-img-container">
+              <img src="${photo}" alt="${topic}" class="news-modal-img" onerror="this.parentElement.innerHTML='<div class=&quot;news-modal-img-fallback&quot;>📢</div>'" />
+            </div>
+          `;
+        } else {
+          imgHtml = `
+            <div class="news-modal-img-container">
+              <div class="news-modal-img-fallback">${emoji}</div>
+            </div>
+          `;
+        }
+
+        body.innerHTML = `
+          ${imgHtml}
+          <div class="news-modal-body-content">
+            <div class="news-modal-meta">
+              <span class="news-type-badge" style="${colorStyle}">${escapeHtml(type)}</span>
+              ${dateStr ? `<div class="news-date"><i class="fas fa-calendar-alt" style="margin-right:0.35rem;opacity:0.6"></i>${escapeHtml(dateStr)}</div>` : ''}
+            </div>
+            <h2 class="news-modal-title">${escapeHtml(topic)}</h2>
+            <div class="news-modal-text">${escapeHtml(content).replace(/\n/g, '<br/>')}</div>
+          </div>
+        `;
+
+        modal.style.display = 'flex';
+        // Force reflow
+        modal.offsetHeight;
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      } catch (e) {
+        console.error('Failed to open news modal:', e);
+      }
+    }
+
+    function closeNewsModal() {
+      const modal = document.getElementById('news-modal');
+      if (modal) {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+        setTimeout(() => {
+          modal.style.display = 'none';
+        }, 400);
+      }
+    }
+
+    // =========================================
+    // LOAD ORG INFO FROM SUPABASE
+    // =========================================
+    async function loadOrgInfo() {
+      try {
+        const rows = await supabaseFetch('organization', '&limit=1');
+        const org = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+        let phone = '+856 20 5555 8888';
+        let email = 'info@lovestkgroupe.com';
+        let website = 'www.lovestkgroupe.com';
+
+        if (org) {
+          phone = org.phone_number || org.phone || org['Phone Number'] || phone;
+          email = org.email || org.Email || email;
+          website = org.website || org.Website || website;
+        }
+
+        if (document.getElementById('org-phone')) document.getElementById('org-phone').textContent = phone;
+        if (document.getElementById('org-phone-footer')) document.getElementById('org-phone-footer').textContent = phone;
+        if (document.getElementById('org-email')) document.getElementById('org-email').textContent = email;
+        if (document.getElementById('org-email-footer')) document.getElementById('org-email-footer').textContent = email;
+        if (document.getElementById('org-website')) document.getElementById('org-website').textContent = website;
+      } catch (e) {
+        console.warn('Could not load org info:', e);
+      }
+
+      try {
+        const infoRows = await supabaseFetch('company_info', '&limit=200');
+        const infoMap = {};
+        if (Array.isArray(infoRows)) {
+          infoRows.forEach(r => { if (r.key) infoMap[r.key] = r.value || ''; });
+        }
+
+        const address = infoMap['contact_address'] || 'อาคาร Love STK Groupe\nกรุงเทพมหานคร, ประเทศไทย';
+        const fbUrl = infoMap['contact_facebook'] || '';
+        const igUrl = infoMap['contact_instagram'] || '';
+        const lineUrl = infoMap['contact_line'] || '';
+
+        if (document.getElementById('org-address')) document.getElementById('org-address').innerHTML = address.replace(/\n/g, '<br/>');
+        if (document.getElementById('org-address-footer')) document.getElementById('org-address-footer').innerHTML = address.replace(/\n/g, '<br/>');
+
+        const fbEl = document.getElementById('org-facebook');
+        const igEl = document.getElementById('org-instagram');
+        const lineEl = document.getElementById('org-line');
+        if (fbEl) { fbUrl ? fbEl.href = fbUrl : fbEl.style.display = 'none'; }
+        if (igEl) { igUrl ? igEl.href = igUrl : igEl.style.display = 'none'; }
+        if (lineEl) { lineUrl ? lineEl.href = lineUrl : lineEl.style.display = 'none'; }
+      } catch (e) {
+        console.warn('Could not load contact info from company_info:', e);
+      }
+    }
+
+    async function loadStats() {
+      const [staff, depts] = await Promise.all([
+        supabaseFetch('staff', '&limit=1000'),
+        supabaseFetch('departments', '&limit=100')
+      ]);
+
+      const empCount = Array.isArray(staff) ? staff.length : 0;
+      const deptCount = Array.isArray(depts) ? depts.length : 0;
+
+      if (empCount > 0) {
+        if (document.getElementById('stat-employees')) document.getElementById('stat-employees').textContent = empCount + '+';
+        if (document.getElementById('about-emp-count')) document.getElementById('about-emp-count').textContent = empCount;
+      }
+
+      if (deptCount > 0) {
+        if (document.getElementById('stat-dept')) document.getElementById('stat-dept').textContent = deptCount;
+        if (document.getElementById('about-dept-count')) document.getElementById('about-dept-count').textContent = deptCount;
+      }
+    }
+
+    // =========================================
+    // LOAD TEAM FROM STAFF DIRECTORY (FILTERED BY Position_ID)
+    // =========================================
+    async function loadTeam() {
+      // ดึงข้อมูลพนักงานทั้งหมดผ่าน Supabase API หรือ Local Cache
+      let rows = await supabaseFetch('staff', '&limit=200');
+      if (!Array.isArray(rows) || rows.length === 0) {
+        try {
+          const cached = localStorage.getItem('stk_app_cache_data');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && Array.isArray(parsed.staff)) rows = parsed.staff;
+          }
+        } catch (e) {}
+      }
+
+      if (!Array.isArray(rows) || rows.length === 0) return;
+
+      // กรองเฉพาะผู้บริหารระดับสูง (CEO, CFO, COO) เท่านั้น
+      const allowedRoles = ['ceo', 'coo', 'cfo'];
+
+      const filteredRows = rows.filter(row => {
+        // กรองสถานะ Active
+        const statusVal = String(row.Status || row.status || '').toLowerCase().trim();
+        const isActive = statusVal === 'active' || statusVal === '' || statusVal === '-' || statusVal === 'ปกติ';
+
+        // กรองตำแหน่งงานจากคอลัมน์ Position_ID (เฉพาะ CEO, CFO, COO)
+        const positionId = String(row.Position_ID || row.position_id || row['Position_ID'] || row.role || row.position || row.Position || row['ตำแหน่ง'] || '').toLowerCase().trim();
+        const isExecutive = allowedRoles.some(role => positionId.includes(role));
+
+        return isActive && isExecutive;
+      });
+
+      // หากไม่พบรายชื่อผู้ประเมินหรือพนักงานระดับบริหาร ให้เก็บสเตตัส Mock หน้าเดิมไว้
+      if (filteredRows.length === 0) return;
+
+      const grid = document.getElementById('team-grid');
+
+      const teamHTML = filteredRows.map((row, i) => {
+        const firstName = row.First_Name || row.first_name || row['First_Name'] || '';
+        const lastName = row.Last_Name || row.last_name || row['Last_Name'] || '';
+        const fullName = row.name || row['Name'] || `${firstName} ${lastName}`.trim() || 'สมาชิกทีมงาน';
+
+        const role = row.Position_ID || row.position_id || row['Position_ID'] || row.role || row.position || row.Position || 'เจ้าหน้าที่';
+
+        let photo = row.Photos || row.photos || row.Photo || row.photo || '';
+
+        // จัดการและแปลงลิงก์รูปภาพใน Google Drive
+        if (photo && photo.includes('drive.google.com')) {
+          let fileId = photo.includes('id=') ? photo.split('id=')[1].split('&')[0] : (photo.includes('/d/') ? photo.split('/d/')[1].split('/')[0] : '');
+          if (fileId) photo = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+        }
+
+        const initials = getInitials(fullName);
+
+        let avatarMarkup = '';
+        if (photo && photo !== '-' && photo.trim() !== '') {
+          avatarMarkup = `<img src="${photo}" alt="${fullName}" class="team-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                          <div class="team-avatar-initials" style="display:none;">${initials}</div>`;
+        } else {
+          avatarMarkup = `<div class="team-avatar-initials">${initials}</div>`;
+        }
+
+        return `
+          <div class="team-card reveal" style="transition-delay:${i * 0.05}s">
+            ${avatarMarkup}
+            <div class="team-name">${fullName}</div>
+            <div class="team-role">${role}</div>
+          </div>
+        `;
+      }).join('');
+
+      grid.innerHTML = teamHTML;
+
+      document.querySelectorAll('#team-grid .reveal').forEach(el => observer.observe(el));
+    }
+
+    // =========================================
+    // MAP (Leaflet)
+    // =========================================
+    async function initMap() {
+      // Load custom coordinates from Supabase (fallback to Bangkok)
+      let lat = 13.7563;
+      let lng = 100.5018;
+      let label = 'Love STK Groupe';
+      let subLabel = 'กรุงเทพมหานคร, ประเทศไทย';
+
+      try {
+        const infoRows = await supabaseFetch('company_info', '&limit=200');
+        const infoMap = {};
+        if (Array.isArray(infoRows)) {
+          infoRows.forEach(r => { if (r.key) infoMap[r.key] = r.value || ''; });
+        }
+        if (infoMap['map_lat'] && !isNaN(parseFloat(infoMap['map_lat']))) lat = parseFloat(infoMap['map_lat']);
+        if (infoMap['map_lng'] && !isNaN(parseFloat(infoMap['map_lng']))) lng = parseFloat(infoMap['map_lng']);
+        if (infoMap['map_label'] && infoMap['map_label'].trim()) label = infoMap['map_label'].trim();
+        if (infoMap['contact_address'] && infoMap['contact_address'].trim()) subLabel = infoMap['contact_address'].replace(/\n/g, ' ');
+      } catch (e) {
+        console.warn('Could not load map coords from Supabase, using defaults:', e);
+      }
+
+      try {
+        const mapEl = document.getElementById('footer-map') || document.getElementById('map');
+        if (mapEl) {
+          const map = L.map(mapEl.id).setView([lat, lng], 15);
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            maxZoom: 19
+          }).addTo(map);
+
+          const customIcon = L.divIcon({
+            className: '',
+            html: '<div style="width:40px;height:40px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 4px 20px rgba(245, 158, 11, 0.6)">🏢</div>',
+            iconSize: [40, 40],
+            iconAnchor: [20, 40],
+          });
+
+          L.marker([lat, lng], { icon: customIcon })
+            .addTo(map)
+            .bindPopup(`
+              <div style="font-family:'Prompt',sans-serif;text-align:center;padding:0.5rem">
+                <strong>${label}</strong><br/>
+                <span style="font-size:0.8rem;color:#666">${subLabel}</span>
+              </div>
+            `, { maxWidth: 200 });
+        }
+      } catch (e) {
+        console.warn('Map init failed:', e);
+      }
+    }
+
+    // =========================================
+    // LOAD COMPANY PROFILE & SUBSIDIARIES (Dynamic with Fallback)
+    // =========================================
+    async function loadCompanyProfile() {
+      // 1. Load initial fallback from company.js (window.COMPANY_DATA) or localStorage
+      let data = { ...(window.COMPANY_DATA || {}) };
+      try {
+        const localInfo = localStorage.getItem('stk_company_info');
+        if (localInfo) {
+          const infoRows = JSON.parse(localInfo);
+          if (Array.isArray(infoRows)) {
+            infoRows.forEach(row => {
+              const key = String(row.key || '').trim();
+              const val = String(row.value || '').trim();
+              if (key === 'about_title') { if (!data.about) data.about = {}; data.about.title = val; }
+              else if (key === 'about_desc') { if (!data.about) data.about = {}; data.about.description = val; }
+              else if (key === 'vision') { data.vision = val; }
+              else if (key === 'mission_mastering') { if (!data.mission) data.mission = {}; data.mission.mastering = val; }
+              else if (key === 'mission_commanding') { if (!data.mission) data.mission = {}; data.mission.commanding = val; }
+              else if (key === 'mission_unifying') { if (!data.mission) data.mission = {}; data.mission.unifying = val; }
+              else if (key === 'company_logo') { data.company_logo = val; }
+              else if (key === 'values_desc') { data.values_desc = val; }
+              else if (key === 'subsidiaries_desc') { data.subsidiaries_desc = val; }
+              else if (key === 'hero_slides') {
+                try {
+                  const parsed = JSON.parse(val);
+                  if (Array.isArray(parsed) && parsed.length > 0) data.hero_slides = parsed;
+                } catch (e) {}
+              }
+              else if (key === 'careers') {
+                try {
+                  const parsed = JSON.parse(val);
+                  if (Array.isArray(parsed) && parsed.length > 0) data.careers = parsed;
+                } catch (e) {}
+              }
+            });
+          }
+        }
+
+        const localHeroSlides = localStorage.getItem('stk_hero_slides');
+        if (localHeroSlides) {
+          try {
+            const parsed = JSON.parse(localHeroSlides);
+            if (Array.isArray(parsed) && parsed.length > 0) data.hero_slides = parsed;
+          } catch (e) {}
+        }
+
+        const localSubs = localStorage.getItem('stk_subsidiaries');
+        if (localSubs) {
+          const subRows = JSON.parse(localSubs);
+          if (Array.isArray(subRows) && subRows.length > 0) {
+            data.subsidiaries = subRows.map(row => ({
+              id: row.id || '',
+              name: row.name || row.Name || '',
+              title: row.title || row.Title || '',
+              description: row.description || row.Description || '',
+              emoji: row.emoji || row.Emoji || '🏢',
+              sort_order: Number(row.sort_order || 99)
+            }));
+          }
+        }
+
+        const localCareers = localStorage.getItem('stk_careers');
+        if (localCareers) {
+          const parsed = JSON.parse(localCareers);
+          if (Array.isArray(parsed) && parsed.length > 0) data.careers = parsed;
+        }
+      } catch (e) {}
+
+      // Bind to UI immediately using fallback / localStorage
+      bindCompanyProfileUI(data);
+
+      // 2. Try to fetch fresh online data from Supabase
+      try {
+        const [infoRows, subRows] = await Promise.all([
+          supabaseFetch('company_info', '&limit=100'),
+          supabaseFetch('subsidiaries', '&order=sort_order.asc&limit=50')
+        ]);
+
+        const onlineData = { ...data };
+
+        // Process company_info table rows
+        if (Array.isArray(infoRows) && infoRows.length > 0) {
+          infoRows.forEach(row => {
+            const key = String(row.key || '').trim();
+            const val = String(row.value || '').trim();
+            if (key === 'about_title') {
+              if (!onlineData.about) onlineData.about = {};
+              onlineData.about.title = val;
+            } else if (key === 'about_desc') {
+              if (!onlineData.about) onlineData.about = {};
+              onlineData.about.description = val;
+            } else if (key === 'vision') {
+              onlineData.vision = val;
+            } else if (key === 'mission_mastering') {
+              if (!onlineData.mission) onlineData.mission = {};
+              onlineData.mission.mastering = val;
+            } else if (key === 'mission_commanding') {
+              if (!onlineData.mission) onlineData.mission = {};
+              onlineData.mission.commanding = val;
+            } else if (key === 'mission_unifying') {
+              if (!onlineData.mission) onlineData.mission = {};
+              onlineData.mission.unifying = val;
+            } else if (key === 'company_logo') {
+              onlineData.company_logo = val;
+            } else if (key === 'values_desc') {
+              onlineData.values_desc = val;
+            } else if (key === 'hero_slides') {
+              try {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  onlineData.hero_slides = parsed;
+                }
+              } catch (e) {}
+            } else if (key === 'careers') {
+              try {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  onlineData.careers = parsed;
+                }
+              } catch (e) {
+                console.warn('Failed to parse careers JSON', e);
+              }
+            } else if (key === 'subsidiaries_desc') {
+              onlineData.subsidiaries_desc = val;
+            }
+          });
+        }
+
+        // Process subsidiaries table rows
+        if (Array.isArray(subRows) && subRows.length > 0) {
+          onlineData.subsidiaries = subRows.map(row => ({
+            id: row.id,
+            name: row.name || row.Name || '',
+            title: row.title || row.Title || '',
+            description: row.description || row.Description || '',
+            emoji: row.emoji || row.Emoji || '🏢',
+            sort_order: Number(row.sort_order || 99)
+          }));
+        }
+
+        // Fallback check if careers or subsidiaries missing from online response
+        if (!Array.isArray(onlineData.careers) || onlineData.careers.length === 0) {
+          onlineData.careers = data.careers || (window.COMPANY_DATA && window.COMPANY_DATA.careers) || [];
+        }
+        if (!Array.isArray(onlineData.subsidiaries) || onlineData.subsidiaries.length === 0) {
+          onlineData.subsidiaries = data.subsidiaries || (window.COMPANY_DATA && window.COMPANY_DATA.subsidiaries) || [];
+        }
+
+        // Re-bind to UI with fresh online data
+        bindCompanyProfileUI(onlineData);
+      } catch (err) {
+        console.warn('[Company Data] Failed to load online data, using local fallback.', err);
+      }
+    }
+
+    // ── HERO SLIDER ENGINE ──
+    let currentHeroSlide = 0;
+    let heroSlidesData = [];
+    let heroSlideTimer = null;
+
+    function initHeroSlider(slides) {
+      const sliderBg = document.getElementById('hero-slider-bg');
+      const dotsContainer = document.getElementById('hero-slider-dots');
+      const prevBtn = document.getElementById('hero-prev-btn');
+      const nextBtn = document.getElementById('hero-next-btn');
+
+      if (!slides || slides.length === 0) {
+        if (sliderBg) sliderBg.innerHTML = '';
+        if (dotsContainer) dotsContainer.style.display = 'none';
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+        stopHeroAutoplay();
+        heroSlidesData = [];
+        return;
+      }
+
+      const newJson = JSON.stringify(slides);
+      const oldJson = JSON.stringify(heroSlidesData);
+      
+      // If slider is ALREADY initialized with identical slide data, DO NOT WIPE/RE-RENDER (prevents flicker!)
+      if (heroSlidesData.length > 0 && newJson === oldJson && document.querySelector('.hero-slide-item')) {
+        return;
+      }
+
+      heroSlidesData = slides;
+      currentHeroSlide = 0;
+      stopHeroAutoplay();
+
+      if (!sliderBg) return;
+      sliderBg.innerHTML = '';
+      if (dotsContainer) dotsContainer.innerHTML = '';
+
+      slides.forEach((slide, idx) => {
+        const imgUrl = slide.image || slide.url || '';
+        
+        // Preload image in background
+        if (imgUrl) {
+          const imgPreload = new Image();
+          imgPreload.src = imgUrl;
+        }
+
+        const slideDiv = document.createElement('div');
+        slideDiv.className = `hero-slide-item ${idx === 0 ? 'active' : ''}`;
+        slideDiv.style.cssText = `
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          background-image: url('${imgUrl}');
+          background-size: cover;
+          background-position: center;
+          opacity: ${idx === 0 ? 1 : 0};
+          transition: opacity 0.8s ease-in-out;
+          will-change: opacity;
+        `;
+        sliderBg.appendChild(slideDiv);
+
+        if (dotsContainer && slides.length > 1) {
+          const dot = document.createElement('button');
+          dot.className = `hero-dot ${idx === 0 ? 'active' : ''}`;
+          dot.style.cssText = `
+            width: ${idx === 0 ? '24px' : '8px'};
+            height: 8px;
+            border-radius: 4px;
+            background: ${idx === 0 ? '#60a5fa' : 'rgba(255,255,255,0.4)'};
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          `;
+          dot.setAttribute('aria-label', `Go to slide ${idx + 1}`);
+          dot.onclick = () => goToHeroSlide(idx);
+          dotsContainer.appendChild(dot);
+        }
+      });
+
+      if (slides.length <= 1) {
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+        if (dotsContainer) dotsContainer.style.display = 'none';
+      } else {
+        if (prevBtn) prevBtn.style.display = 'flex';
+        if (nextBtn) nextBtn.style.display = 'flex';
+        if (dotsContainer) dotsContainer.style.display = 'flex';
+      }
+
+      updateHeroSlideText(0);
+      startHeroAutoplay();
+    }
+
+    function updateHeroSlideText(idx) {
+      if (!heroSlidesData[idx]) return;
+      const slide = heroSlidesData[idx];
+      const titleEl = document.getElementById('hero-display-title');
+      const subtitleEl = document.getElementById('hero-display-subtitle');
+
+      if (titleEl && slide.title) {
+        if (titleEl.innerHTML !== slide.title) {
+          titleEl.style.opacity = '0';
+          setTimeout(() => {
+            titleEl.innerHTML = slide.title;
+            titleEl.style.opacity = '1';
+          }, 200);
+        } else {
+          titleEl.style.opacity = '1';
+        }
+      }
+      if (subtitleEl) {
+        if (slide.subtitle) {
+          if (subtitleEl.textContent !== slide.subtitle) {
+            subtitleEl.style.opacity = '0';
+            setTimeout(() => {
+              subtitleEl.textContent = slide.subtitle;
+              subtitleEl.style.display = 'block';
+              subtitleEl.style.opacity = '1';
+            }, 200);
+          } else {
+            subtitleEl.style.display = 'block';
+            subtitleEl.style.opacity = '1';
+          }
+        } else {
+          subtitleEl.style.display = 'none';
+        }
+      }
+    }
+
+    function goToHeroSlide(idx) {
+      if (!heroSlidesData || heroSlidesData.length === 0) return;
+      const slideItems = document.querySelectorAll('.hero-slide-item');
+      const dots = document.querySelectorAll('.hero-dot');
+      if (!slideItems.length) return;
+
+      slideItems[currentHeroSlide].style.opacity = '0';
+      if (dots[currentHeroSlide]) {
+        dots[currentHeroSlide].style.width = '8px';
+        dots[currentHeroSlide].style.background = 'rgba(255,255,255,0.4)';
+      }
+
+      currentHeroSlide = (idx + heroSlidesData.length) % heroSlidesData.length;
+
+      slideItems[currentHeroSlide].style.opacity = '1';
+      if (dots[currentHeroSlide]) {
+        dots[currentHeroSlide].style.width = '24px';
+        dots[currentHeroSlide].style.background = '#60a5fa';
+      }
+
+      updateHeroSlideText(currentHeroSlide);
+      resetHeroAutoplay();
+    }
+
+    window.nextHeroSlide = function() {
+      goToHeroSlide(currentHeroSlide + 1);
+    };
+
+    window.prevHeroSlide = function() {
+      goToHeroSlide(currentHeroSlide - 1);
+    };
+
+    function startHeroAutoplay() {
+      stopHeroAutoplay();
+      if (heroSlidesData.length > 1) {
+        heroSlideTimer = setInterval(() => {
+          goToHeroSlide(currentHeroSlide + 1);
+        }, 5000);
+      }
+    }
+
+    function stopHeroAutoplay() {
+      if (heroSlideTimer) clearInterval(heroSlideTimer);
+    }
+
+    function resetHeroAutoplay() {
+      stopHeroAutoplay();
+      startHeroAutoplay();
+    }
+
+    function bindCompanyProfileUI(data) {
+      if (!data) return;
+
+      // 00. Hero Slider (Real Data Only)
+      let slides = data.hero_slides;
+      if (!slides || !Array.isArray(slides) || slides.length === 0) {
+        try {
+          slides = JSON.parse(localStorage.getItem('stk_hero_slides') || '[]');
+        } catch (e) {}
+      }
+      if (!slides || !Array.isArray(slides)) {
+        slides = [];
+      }
+      initHeroSlider(slides);
+
+      // 0. Update Company Logo (if available)
+      const logoUrl = data.company_logo || '';
+      const navLogoImg = document.getElementById('nav-logo-img');
+      const navLogoText = document.getElementById('nav-logo-text');
+      if (navLogoImg) {
+        if (logoUrl && logoUrl.trim() !== '') {
+          navLogoImg.src = logoUrl;
+          navLogoImg.style.display = 'block';
+          if (navLogoText) navLogoText.style.display = 'none';
+        } else {
+          navLogoImg.style.display = 'none';
+          if (navLogoText) navLogoText.style.display = 'block';
+        }
+      }
+
+      // 1. About Us
+      if (data.about) {
+        const aboutCardTitle = document.getElementById('about-card-title');
+        const aboutCardDesc = document.getElementById('about-card-desc');
+        const aboutMainDesc = document.getElementById('about-main-desc');
+        const aboutLogoContainer = document.getElementById('about-logo-container');
+
+        if (aboutCardTitle) aboutCardTitle.textContent = data.about.title || 'Love STK Groupe';
+        if (aboutCardDesc) aboutCardDesc.textContent = data.about.description || '';
+        if (aboutMainDesc) aboutMainDesc.textContent = data.about.description || '';
+
+        if (aboutLogoContainer) {
+          if (data.company_logo && data.company_logo.trim() !== '') {
+            aboutLogoContainer.classList.remove('about-big-icon-emoji');
+            aboutLogoContainer.innerHTML = `<img src="${data.company_logo}" style="width: 120px; height: 120px; object-fit: contain; border-radius: 16px; display: inline-block; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.35));" />`;
+          } else {
+            aboutLogoContainer.classList.add('about-big-icon-emoji');
+            aboutLogoContainer.innerHTML = '🏢';
+          }
+        }
+      }
+
+      // 2. Vision & Mission
+      const visionText = document.getElementById('vision-text');
+      const missionMastering = document.getElementById('mission-mastering');
+      const missionCommanding = document.getElementById('mission-commanding');
+      const missionUnifying = document.getElementById('mission-unifying');
+
+      if (visionText) visionText.textContent = data.vision || '';
+      if (data.mission) {
+        if (missionMastering) missionMastering.textContent = data.mission.mastering || '';
+        if (missionCommanding) missionCommanding.textContent = data.mission.commanding || '';
+        if (missionUnifying) missionUnifying.textContent = data.mission.unifying || '';
+      }
+
+      const valuesDesc = document.getElementById('values-desc');
+      if (valuesDesc) valuesDesc.textContent = data.values_desc || '';
+
+      const servicesDesc = document.getElementById('services-desc');
+      if (servicesDesc && data.subsidiaries_desc) {
+        servicesDesc.textContent = data.subsidiaries_desc;
+      }
+
+      // 3. Subsidiaries Grid (Orbital Circle Layout)
+      const grid = document.getElementById('subsidiaries-grid');
+      if (grid && Array.isArray(data.subsidiaries)) {
+        const logoSvgs = {
+          'LSTK-CLINIC': `
+            <svg viewBox="0 0 120 120" style="width:100%;height:100%">
+              <g transform="translate(60, 45)">
+                <path d="M -25,-10 A 28,28 0 1,1 15,22" fill="none" stroke="#1e3599" stroke-width="7" stroke-linecap="round" />
+                <path d="M -15,22 A 28,28 0 0,0 25,-10" fill="none" stroke="#eab308" stroke-width="7" stroke-linecap="round" />
+                <rect x="-4" y="-18" width="8" height="24" rx="3" fill="#ff9f43" />
+                <rect x="-12" y="-10" width="24" height="8" rx="3" fill="#ff9f43" />
+              </g>
+              <text x="60" y="92" font-family="'Prompt', sans-serif" font-size="12" font-weight="800" fill="#1e3599" text-anchor="middle">LOVE STK</text>
+              <text x="60" y="105" font-family="'Prompt', sans-serif" font-size="6" font-weight="600" fill="#eab308" text-anchor="middle" letter-spacing="1">HEALTH CARE</text>
+            </svg>`,
+          'LSTK-PHARMACY': `
+            <svg viewBox="0 0 120 120" style="width:100%;height:100%">
+              <g transform="translate(60, 45) rotate(-45)">
+                <path d="M -12,-25 L 12,-25 A 12,12 0 0,1 12,-3 L -12,-3 Z" fill="#1e3599" />
+                <path d="M -12,-3 L 12,-3 A 12,12 0 0,1 12,19 L -12,19 Z" fill="none" stroke="#1e3599" stroke-width="4" />
+                <path d="M -2,8 L 6,8 M 2,4 L 2,12" stroke="#ff9f43" stroke-width="3" stroke-linecap="round" />
+              </g>
+              <text x="60" y="92" font-family="'Prompt', sans-serif" font-size="12" font-weight="800" fill="#1e3599" text-anchor="middle">LOVE STK+</text>
+              <text x="60" y="105" font-family="'Prompt', sans-serif" font-size="6" font-weight="600" fill="#1e3599" text-anchor="middle" letter-spacing="0.5">PHARMACY & SUPPLEMENT</text>
+            </svg>`,
+          'LSTK-SHOWROOM': `
+            <svg viewBox="0 0 120 120" style="width:100%;height:100%">
+              <g transform="translate(60, 45)">
+                <path d="M -35,5 C -30,-5 -20,-10 -5,-10 C 10,-10 20,-5 25,5 L 35,5 C 38,5 40,8 35,12 L -35,12 C -40,8 -38,5 -35,5 Z" fill="none" stroke="#d946ef" stroke-width="3.5" stroke-linejoin="round" />
+                <circle cx="-20" cy="12" r="5" fill="#1e3599" />
+                <circle cx="18" cy="12" r="5" fill="#1e3599" />
+                <path d="M -2,-8 L 6,-8 L 0,0 L 5,0 L -4,12 L -1,2 L -6,2 Z" fill="#eab308" />
+              </g>
+              <text x="60" y="92" font-family="'Prompt', sans-serif" font-size="14" font-weight="800" fill="#111827" text-anchor="middle" letter-spacing="1">LSTK</text>
+              <text x="60" y="105" font-family="'Prompt', sans-serif" font-size="6" font-weight="700" fill="#d946ef" text-anchor="middle" letter-spacing="0.5">EV SHOWROOM</text>
+            </svg>`,
+          'LSTK-WELLNESS': `
+            <svg viewBox="0 0 120 120" style="width:100%;height:100%">
+              <g transform="translate(60, 45) scale(0.65)">
+                <g fill="none" stroke="#1e3599" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M 0,-40 C 15,-20 20,-10 0,0 C -20,-10 -15,-20 0,-40 Z" />
+                  <path d="M 0,40 C -15,20 -20,10 0,0 C 20,10 15,20 0,40 Z" />
+                  <path d="M -40,0 C -20,15 -10,20 0,0 C -10,-20 -20,-15 -40,0 Z" />
+                  <path d="M 40,0 C 20,-15 10,-20 0,0 C 10,20 20,15 40,0 Z" />
+                </g>
+              </g>
+              <text x="60" y="92" font-family="'Prompt', sans-serif" font-size="10" font-weight="800" fill="#1e3599" text-anchor="middle">LOVE STK</text>
+              <text x="60" y="104" font-family="'Prompt', sans-serif" font-size="6" font-weight="600" fill="#1e3599" text-anchor="middle" letter-spacing="1.5">GROUPE</text>
+            </svg>`,
+          'LSTK-TRAVEL': `
+            <svg viewBox="0 0 120 120" style="width:100%;height:100%">
+              <g transform="translate(60, 42)">
+                <path d="M -30,10 A 30,30 0 0,1 30,10" fill="none" stroke="#f59e0b" stroke-width="5" stroke-linecap="round" />
+                <path d="M -5,-15 L 0,-25 L 5,-15 L 25,-5 L 5,0 L 8,15 L 0,10 L -8,15 L -5,0 L -25,-5 Z" fill="#1e3599" transform="rotate(35)" />
+              </g>
+              <text x="60" y="88" font-family="'Prompt', sans-serif" font-size="12" font-weight="800" fill="#1e3599" text-anchor="middle">PUNG PUNG</text>
+              <text x="60" y="102" font-family="'Prompt', sans-serif" font-size="7" font-weight="600" fill="#f59e0b" text-anchor="middle" letter-spacing="1">TRAVEL AGENCY</text>
+            </svg>`
+        };
+
+        const nodeClassMap = {
+          'LSTK-PHARMACY': 'node-pharmacy',
+          'LSTK-SHOWROOM': 'node-showroom',
+          'LSTK-TRAVEL': 'node-travel',
+          'LSTK-WELLNESS': 'node-wellness',
+          'LSTK-CLINIC': 'node-clinic'
+        };
+
+        const companyLogoUrl = data.company_logo || '';
+        let centerLogoHtml = `
+              <svg viewBox="0 0 120 120" class="center-logo-svg">
+                <g fill="none" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M 60,20 C 72,32 78,42 60,60 C 42,42 48,32 60,20 Z" />
+                  <path d="M 60,100 C 48,88 42,78 60,60 C 78,78 72,88 60,100 Z" />
+                  <path d="M 20,60 C 32,48 42,42 60,60 C 42,78 32,72 20,60 Z" />
+                  <path d="M 100,60 C 88,72 78,78 60,60 C 78,42 88,48 100,60 Z" />
+                  <path d="M 32,32 C 44,44 54,44 60,60 C 44,54 44,44 32,32 Z" />
+                  <path d="M 88,88 C 76,76 66,76 60,60 C 76,66 76,76 88,88 Z" />
+                  <path d="M 32,88 C 44,76 44,66 60,60 C 54,76 44,76 32,88 Z" />
+                  <path d="M 88,32 C 76,44 66,54 60,60 C 66,44 76,44 88,32 Z" />
+                </g>
+                <circle cx="60" cy="60" r="3.5" fill="#ffffff" />
+              </svg>
+        `;
+        if (companyLogoUrl && companyLogoUrl.trim() !== '') {
+          centerLogoHtml = `<img src="${companyLogoUrl}" class="center-logo-svg" style="object-fit: contain; border-radius: 12px;" />`;
+        }
+
+        let html = `
+          <div class="circle-container">
+            <!-- Circular Track -->
+            <div class="circle-track"></div>
+            
+            <!-- Central Brand Logo -->
+            <div class="circle-center" style="display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: 10px;">
+              ${centerLogoHtml}
+              <div class="center-brand-name">LOVE STK</div>
+              <div class="center-brand-sub">GROUPE</div>
+            </div>
+        `;
+
+        data.subsidiaries.forEach((sub) => {
+          let logoHtml = '';
+          const emojiVal = String(sub.emoji || sub.logo || sub.icon || '').trim();
+
+          if (emojiVal && (emojiVal.startsWith('http') || emojiVal.startsWith('data:image') || emojiVal.startsWith('blob:') || emojiVal.includes('/') || emojiVal.includes('.'))) {
+            // Uploaded image, Data URL, or file path from HR Website Settings
+            logoHtml = `<img src="${emojiVal}" style="width: 80%; height: 80%; object-fit: contain; max-height: 50px;" alt="${escapeHtml(sub.name || '')}" />`;
+          } else if (emojiVal && emojiVal.startsWith('<svg')) {
+            // Raw SVG markup uploaded or entered in HR Website Settings
+            logoHtml = emojiVal;
+          } else if (emojiVal && emojiVal !== '🏢' && logoSvgs[sub.id] === undefined) {
+            // Custom Emoji or custom text icon
+            logoHtml = `<div style="font-size:2.4rem; display:flex; align-items:center; justify-content:center; height:100%; width:100%;">${emojiVal}</div>`;
+          } else {
+            // Fallback to default vector SVG if no custom logo/image uploaded in HR Website Settings
+            logoHtml = logoSvgs[sub.id] || `<div style="font-size:2.2rem; display:flex; align-items:center; justify-content:center; height:100%; width:100%;">${emojiVal || '🏢'}</div>`;
+          }
+          const nodeClass = nodeClassMap[sub.id] || 'sub-node';
+
+          html += `
+            <div class="sub-node ${nodeClass} reveal">
+              <div class="node-logo-card">
+                ${logoHtml}
+              </div>
+              <div class="node-text-box">
+                <div class="node-text-title">${sub.title}</div>
+                <div class="node-text-sub">${sub.name}</div>
+                <div class="node-text-desc">${sub.description}</div>
+              </div>
+            </div>
+          `;
+        });
+
+        html += `</div>`;
+        grid.className = 'subsidiaries-wrapper';
+        grid.innerHTML = html;
+
+        // Apply reveal observer to newly generated cards
+        document.querySelectorAll('.sub-node.reveal').forEach(el => observer.observe(el));
+      }
+
+      // 4. Render Careers/Jobs list dynamically
+      const careersContainer = document.getElementById('career-positions-container');
+      if (careersContainer) {
+        let careersList = data.careers;
+        if (!Array.isArray(careersList) || careersList.length === 0) {
+          careersList = (window.COMPANY_DATA && window.COMPANY_DATA.careers) || [
+            { title: 'นักพัฒนาซอฟต์แวร์', dept: 'แผนกเทคโนโลยี', badge: '2 อัตรา' },
+            { title: 'เจ้าหน้าที่ฝ่าย HR', dept: 'ทรัพยากรบุคคล', badge: '1 อัตรา' },
+            { title: 'ผู้จัดการการตลาด', dept: 'การตลาด', badge: '1 อัตรา' }
+          ];
+        }
+        careersContainer.innerHTML = careersList.map(job => `
+          <div class="position-chip">
+            <div class="position-title">${escapeHtml(job.title || '')}</div>
+            <div class="position-dept">${escapeHtml(job.dept || '')}</div>
+            <div class="position-badge">${escapeHtml(job.badge || '')}</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // =========================================
+    // INIT ALL
+    // =========================================
+    document.addEventListener('DOMContentLoaded', () => {
+      // Always start page at the very top
+      window.scrollTo(0, 0);
+      loadCompanyProfile();
+      loadAnnouncements();
+      loadOrgInfo();
+      loadStats();
+      loadTeam();
+      initMap();
+
+      // ═══════════════════════════════════════════
+      // PREMIUM ANIMATION ENGINE
+      // ═══════════════════════════════════════════
+
+      // ── 1. Enhanced IntersectionObserver with staggered reveals ──
+      const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry, idx) => {
+          if (entry.isIntersecting) {
+            const el = entry.target;
+            const delay = el.dataset.delay || (idx * 80);
+            setTimeout(() => el.classList.add('visible'), delay);
+            revealObserver.unobserve(el);
+          }
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+      document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach((el, i) => {
+        if (!el.dataset.delay) el.dataset.delay = i * 60;
+        revealObserver.observe(el);
+      });
+
+      // ── 2. Parallax hero on scroll ──
+      const heroEl = document.getElementById('hero');
+      const heroBg = document.querySelector('.hero-bg');
+      const heroContent = document.querySelector('.hero-content');
+
+      window.addEventListener('scroll', () => {
+        const scrollY = window.scrollY;
+        if (heroEl && scrollY < window.innerHeight * 1.2) {
+          const ratio = scrollY / window.innerHeight;
+          if (heroBg) heroBg.style.transform = `translateY(${scrollY * 0.35}px)`;
+          if (heroContent) {
+            heroContent.style.transform = `translateY(${scrollY * 0.15}px)`;
+            heroContent.style.opacity = Math.max(0, 1 - ratio * 1.1);
+          }
+        }
+      }, { passive: true });
+
+      // ── 3. High-Performance Canvas Particle System (Gold, Sky Blue, White) ──
+      const canvas = document.getElementById('hero-particles-canvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        let width = canvas.width = canvas.offsetWidth || window.innerWidth;
+        let height = canvas.height = canvas.offsetHeight || window.innerHeight;
+
+        window.addEventListener('resize', () => {
+          width = canvas.width = canvas.offsetWidth || window.innerWidth;
+          height = canvas.height = canvas.offsetHeight || window.innerHeight;
+        });
+
+        // 3 Specified colors: Gold (สีทอง), Sky Blue (สีฟ้า), White (สีขาว)
+        const particleColors = [
+          { r: 245, g: 158, b: 11 },  // Gold (สีทอง)
+          { r: 251, g: 191, b: 36 },  // Light Gold (สีทองสว่าง)
+          { r: 56,  g: 189, b: 248 }, // Sky Blue (สีฟ้า)
+          { r: 6,   g: 182, b: 212 }, // Cyan Blue (สีฟ้าเรืองแสง)
+          { r: 255, g: 255, b: 255 }  // White (สีขาว)
+        ];
+
+        const numParticles = 28;
+        const particles = [];
+
+        for (let i = 0; i < numParticles; i++) {
+          particles.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            radius: Math.random() * 1.8 + 1.0, // Subtle sizes: 1.0px to 2.8px
+            speedY: Math.random() * 0.5 + 0.2, // Very gentle upward drift
+            swaySpeed: Math.random() * 0.015 + 0.005,
+            swayAmp: Math.random() * 1.2 + 0.3,
+            swayOffset: Math.random() * Math.PI * 2,
+            color: particleColors[Math.floor(Math.random() * particleColors.length)],
+            baseAlpha: Math.random() * 0.25 + 0.15 // Soft subtle opacity: 0.15 to 0.40
+          });
+        }
+
+        function renderParticles() {
+          ctx.clearRect(0, 0, width, height);
+
+          particles.forEach(p => {
+            p.y -= p.speedY;
+            p.swayOffset += p.swaySpeed;
+            p.x += Math.sin(p.swayOffset) * p.swayAmp * 0.4;
+
+            // Fade out smoothly as particle reaches top 25% of height
+            let currentAlpha = p.baseAlpha;
+            const topFadeZone = height * 0.25;
+            const bottomFadeZone = height * 0.85;
+
+            if (p.y < topFadeZone) {
+              currentAlpha = p.baseAlpha * Math.max(0, p.y / topFadeZone);
+            } else if (p.y > bottomFadeZone) {
+              currentAlpha = p.baseAlpha * Math.max(0, (height - p.y) / (height - bottomFadeZone));
+            }
+
+            // Reset to bottom when particle floats past top edge
+            if (p.y < -15) {
+              p.y = height + 10;
+              p.x = Math.random() * width;
+              p.speedY = Math.random() * 0.5 + 0.2;
+            }
+
+            if (p.x < 0) p.x = width;
+            if (p.x > width) p.x = 0;
+
+            // Draw soft glowing particle
+            ctx.save();
+            ctx.shadowBlur = p.radius * 2.0;
+            ctx.shadowColor = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, ${currentAlpha * 0.7})`;
+            ctx.fillStyle = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, ${currentAlpha})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          });
+
+          requestAnimationFrame(renderParticles);
+        }
+
+        renderParticles();
+      }
+
+      // ── 4. Smooth counter animation for stats ──
+      function animateCounters() {
+        document.querySelectorAll('.hero-stat-number, [id*="count"]').forEach(el => {
+          const text = el.textContent.trim();
+          const match = text.match(/^(\d+)/);
+          if (!match) return;
+          const target = parseInt(match[1]);
+          const suffix = text.replace(/^\d+/, '');
+          let current = 0;
+          const duration = 2000;
+          const step = Math.ceil(target / (duration / 16));
+          const timer = setInterval(() => {
+            current = Math.min(current + step, target);
+            el.textContent = current + suffix;
+            if (current >= target) clearInterval(timer);
+          }, 16);
+        });
+      }
+
+      // Trigger counter when hero is visible
+      const counterObserver = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            animateCounters();
+            counterObserver.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.3 });
+      if (heroEl) counterObserver.observe(heroEl);
+
+      // ── 5. Mouse-follow glow effect on hero ──
+      if (heroEl) {
+        heroEl.addEventListener('mousemove', (e) => {
+          const rect = heroEl.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width) * 100;
+          const y = ((e.clientY - rect.top) / rect.height) * 100;
+          heroEl.style.setProperty('--mouse-x', x + '%');
+          heroEl.style.setProperty('--mouse-y', y + '%');
+          if (heroBg) {
+            heroBg.style.background = `
+              radial-gradient(circle 400px at ${x}% ${y}%, rgba(249,115,22,0.08) 0%, transparent 60%),
+              radial-gradient(circle at 15% 20%, rgba(30,53,153,0.15) 0%, transparent 45%),
+              radial-gradient(circle at 85% 75%, rgba(38,16,117,0.18) 0%, transparent 45%),
+              var(--dark)
+            `;
+          }
+        });
+      }
+
+      // ── 6. Stagger child animations for cards ──
+      document.querySelectorAll('.mv-cards, .services-grid, #team-grid, .career-positions').forEach(container => {
+        const staggerObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const children = entry.target.children;
+              Array.from(children).forEach((child, i) => {
+                child.style.opacity = '0';
+                child.style.transform = 'translateY(30px)';
+                child.style.transition = `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${i * 120}ms, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${i * 120}ms`;
+                requestAnimationFrame(() => {
+                  child.style.opacity = '1';
+                  child.style.transform = 'translateY(0)';
+                });
+              });
+              staggerObserver.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15 });
+        staggerObserver.observe(container);
+      });
+
+      // ── 7. Smooth navbar scroll & active tab highlight ──
+      let lastScroll = 0;
+      const navbar = document.getElementById('navbar');
+      const navLinks = document.querySelectorAll('.nav-links a');
+      const trackSections = [
+        { id: 'hero', element: document.getElementById('hero') },
+        { id: 'about', element: document.getElementById('about') },
+        { id: 'news', element: document.getElementById('news') },
+        { id: 'footer-section', element: document.querySelector('footer') }
+      ];
+
+      window.addEventListener('scroll', () => {
+        const currentScroll = window.scrollY;
+        if (navbar) {
+          if (currentScroll > 80) {
+            navbar.classList.add('scrolled');
+          } else {
+            navbar.classList.remove('scrolled');
+          }
+        }
+
+        // Active nav tab highlight on scroll
+        let currentSectionId = 'hero';
+        const pageBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 120);
+
+        if (pageBottom) {
+          currentSectionId = 'footer-section';
+        } else {
+          trackSections.forEach(sec => {
+            if (sec.element) {
+              const top = sec.element.offsetTop;
+              if (currentScroll >= top - 180) {
+                currentSectionId = sec.id;
+              }
+            }
+          });
+        }
+
+        navLinks.forEach(link => {
+          const href = link.getAttribute('href');
+          if (href === `#${currentSectionId}` || (currentSectionId === 'footer-section' && href === '#footer-section')) {
+            link.classList.add('active');
+          } else {
+            link.classList.remove('active');
+          }
+        });
+
+        lastScroll = currentScroll;
+      }, { passive: true });
+
+    });
+
+    function toggleContactModal(e) {
+      if (e) e.preventDefault();
+      const modal = document.getElementById('contact-modal');
+      if (modal) {
+        const isActive = modal.classList.contains('active');
+        if (!isActive) {
+          modal.classList.add('active');
+          // Update values from dynamic company profile
+          const phoneFooter = document.getElementById('org-phone-footer');
+          const emailFooter = document.getElementById('org-email-footer');
+          const addressFooter = document.getElementById('org-address-footer');
+          if (phoneFooter && phoneFooter.textContent.trim()) {
+            document.getElementById('sheet-phone').textContent = phoneFooter.textContent.trim();
+          }
+          if (emailFooter && emailFooter.textContent.trim()) {
+            document.getElementById('sheet-email').textContent = emailFooter.textContent.trim();
+          }
+          if (addressFooter && addressFooter.textContent.trim()) {
+            document.getElementById('sheet-address').textContent = addressFooter.textContent.trim();
+          }
+        } else {
+          modal.classList.remove('active');
+        }
+      }
+    }
+
+    function closeContactModal(e) {
+      if (e) e.preventDefault();
+      const modal = document.getElementById('contact-modal');
+      if (modal) {
+        modal.classList.remove('active');
+      }
+    }
+
+  </script>
+
+  <!-- ===== NEWS DETAIL MODAL ===== -->
+  <div id="news-modal" class="news-modal" style="display:none;">
+    <div class="news-modal-overlay" onclick="closeNewsModal()"></div>
+    <div class="news-modal-content">
+      <button class="news-modal-close" onclick="closeNewsModal()">&times;</button>
+      <div id="news-modal-body">
+        <!-- Content will be injected here dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MINIMAL CONTACT BOTTOM SHEET MODAL ===== -->
+  <div id="contact-modal" class="contact-sheet-overlay" onclick="closeContactModal(event)">
+    <div class="contact-sheet-content" onclick="event.stopPropagation()">
+      <div class="contact-sheet-handle"></div>
+      <div class="contact-sheet-header">
+        <div class="contact-sheet-title">
+          <i class="fa-solid fa-headset" style="color: #60a5fa;"></i>
+          <span>ติดต่อเรา</span>
+        </div>
+        <button class="contact-sheet-close" onclick="closeContactModal(event)">&times;</button>
+      </div>
+
+      <div class="contact-sheet-body">
+        <div class="contact-item">
+          <div class="contact-icon"><i class="fa-solid fa-phone"></i></div>
+          <div class="contact-info">
+            <div class="contact-label">เบอร์โทรศัพท์</div>
+            <div class="contact-val" id="sheet-phone">+856 20 59 495 614</div>
+          </div>
+          <a href="tel:+8562059495614" class="contact-action-btn"><i class="fa-solid fa-phone-flip"></i> โทรออก</a>
+        </div>
+
+        <div class="contact-item">
+          <div class="contact-icon"><i class="fa-solid fa-envelope"></i></div>
+          <div class="contact-info">
+            <div class="contact-label">อีเมล</div>
+            <div class="contact-val" id="sheet-email">Vientiane@lstk.com</div>
+          </div>
+          <a href="mailto:Vientiane@lstk.com" class="contact-action-btn"><i class="fa-solid fa-paper-plane"></i> ส่งเมล</a>
+        </div>
+
+        <div class="contact-item">
+          <div class="contact-icon"><i class="fa-solid fa-location-dot"></i></div>
+          <div class="contact-info">
+            <div class="contact-label">ที่อยู่องค์กร</div>
+            <div class="contact-val" id="sheet-address">Vientiane Laos PDR</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>
