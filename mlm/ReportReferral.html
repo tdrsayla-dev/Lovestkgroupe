@@ -629,6 +629,16 @@
                     if (!log) return;
                     const key = log.payout_id || `${log.member_id}_${log.payout_date}`;
                     if (key) {
+                        let pBoxes = Number(log.promo_deduct_boxes || 0);
+                        let pAmount = Number(log.promo_deduct_amount || 0);
+                        if (pBoxes === 0 && log.reference_note && typeof log.reference_note === 'string' && log.reference_note.startsWith('{')) {
+                            try {
+                                const meta = JSON.parse(log.reference_note);
+                                if (meta.promoDeductBoxes) pBoxes = Number(meta.promoDeductBoxes);
+                                if (meta.promoDeductAmount) pAmount = Number(meta.promoDeductAmount);
+                            } catch(e) {}
+                        }
+
                         currentRecords[key] = {
                             key: key,
                             payout_id: key,
@@ -636,6 +646,8 @@
                             paidAt: log.paid_at || log.created_at,
                             paidBy: log.paid_by || log.member_name || 'แอดมิน',
                             amount: Number(log.amount) || 0,
+                            promoDeductBoxes: pBoxes,
+                            promoDeductAmount: pAmount,
                             memberId: log.member_id,
                             memberName: log.member_name || '',
                             team: log.team_name || '',
@@ -1006,12 +1018,20 @@
         const hasSyncedKeysRef = React.useRef(new Set());
         React.useEffect(() => {
             if (!referralDailyPayoutData || referralDailyPayoutData.length === 0) return;
-            const toSync = referralDailyPayoutData.filter(item =>
-                item.status === 'PAID' &&
-                (item.promoDeductBoxes || 0) > 0 &&
-                !hasSyncedKeysRef.current.has(item.key) &&
-                (!paidRecords[item.key] || !paidRecords[item.key].promoDeductBoxes)
-            );
+            const toSync = referralDailyPayoutData.filter(item => {
+                if (item.status !== 'PAID' || (item.promoDeductBoxes || 0) <= 0) return false;
+                if (hasSyncedKeysRef.current.has(item.key)) return false;
+
+                const needsPaidRecordsUpdate = !paidRecords[item.key] || !paidRecords[item.key].promoDeductBoxes;
+
+                const matchedLog = (payoutLogs || []).find(l => 
+                    (l.payout_id === item.key || l.id === item.key) ||
+                    (String(l.member_id || l.memberId || '').toUpperCase() === String(item.memberId || '').toUpperCase() && (l.payout_date || l.date) === item.date)
+                );
+                const needsSupabaseUpdate = matchedLog && (!matchedLog.promo_deduct_boxes || Number(matchedLog.promo_deduct_boxes) === 0);
+
+                return needsPaidRecordsUpdate || needsSupabaseUpdate;
+            });
             if (toSync.length === 0) return;
 
             let hasUpdates = false;
@@ -1025,12 +1045,32 @@
                 updatedPaid[item.key].promoDeductBoxes = item.promoDeductBoxes || 0;
                 updatedPaid[item.key].promoDeductAmount = item.promoDeductAmount || 0;
 
+                const matchedLog = (payoutLogs || []).find(l => 
+                    (l.payout_id === item.key || l.id === item.key) ||
+                    (String(l.member_id || l.memberId || '').toUpperCase() === String(item.memberId || '').toUpperCase() && (l.payout_date || l.date) === item.date)
+                );
+
+                const updatePayload = {
+                    promo_deduct_boxes: item.promoDeductBoxes || 0,
+                    promo_deduct_amount: item.promoDeductAmount || 0
+                };
+                try {
+                    let noteObj = {};
+                    if (matchedLog && matchedLog.reference_note && typeof matchedLog.reference_note === 'string' && matchedLog.reference_note.startsWith('{')) {
+                        try { noteObj = JSON.parse(matchedLog.reference_note); } catch(e) {}
+                    }
+                    noteObj.promoDeductBoxes = item.promoDeductBoxes || 0;
+                    noteObj.promoDeductAmount = item.promoDeductAmount || 0;
+                    updatePayload.reference_note = JSON.stringify(noteObj);
+                } catch(e) {}
+
                 if (typeof window.supabaseUpdate === 'function') {
-                    window.supabaseUpdate('stk_payout_logs', item.key, {
-                        promo_deduct_boxes: item.promoDeductBoxes || 0,
-                        promo_deduct_amount: item.promoDeductAmount || 0
-                    }, 'payout_id').catch(err => {
-                        console.warn('Auto-sync promo deduct background error:', item.key, err);
+                    const targetKey = (matchedLog && matchedLog.payout_id) ? matchedLog.payout_id : item.key;
+                    window.supabaseUpdate('stk_payout_logs', targetKey, updatePayload, 'payout_id').catch(err => {
+                        console.warn('Auto-sync promo deduct background error (payout_id):', targetKey, err);
+                        if (matchedLog && matchedLog.id && matchedLog.id !== targetKey) {
+                            window.supabaseUpdate('stk_payout_logs', matchedLog.id, updatePayload, 'id').catch(() => {});
+                        }
                     });
                 }
             });
@@ -1038,8 +1078,24 @@
             if (hasUpdates) {
                 setPaidRecords(updatedPaid);
                 try { localStorage.setItem('stk_payout_history', JSON.stringify(updatedPaid)); } catch(e) {}
+                if (typeof setPayoutLogs === 'function') {
+                    setPayoutLogs(prev => (prev || []).map(l => {
+                        const matchItem = toSync.find(it => 
+                            (l.payout_id === it.key || l.id === it.key) ||
+                            (String(l.member_id || l.memberId || '').toUpperCase() === String(it.memberId || '').toUpperCase() && (l.payout_date || l.date) === it.date)
+                        );
+                        if (matchItem) {
+                            return {
+                                ...l,
+                                promo_deduct_boxes: matchItem.promoDeductBoxes || 0,
+                                promo_deduct_amount: matchItem.promoDeductAmount || 0
+                            };
+                        }
+                        return l;
+                    }));
+                }
             }
-        }, [referralDailyPayoutData, paidRecords]);
+        }, [referralDailyPayoutData, paidRecords, payoutLogs]);
 
         // ═════════════════════════════════════════════════════════════════════
 

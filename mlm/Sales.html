@@ -679,7 +679,9 @@
             const [memberIdInput, setMemberIdInput] = useState('');
 
             const [custMode, setCustMode] = useState('');
-            const isOldCustomerMode = (custMode || '').includes('เก่า');
+            const isOldCustomerMode = (typeof window.normalizeCustomerType === 'function')
+                ? window.normalizeCustomerType(custMode).isOld
+                : ((custMode || '').includes('เก่า') || (custMode || '').includes('ເກົ່າ'));
 
             const [custData, setCustData] = useState({ id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
             const [isSubmitting, setIsSubmitting] = useState(false);
@@ -858,7 +860,7 @@
             const closersSuggestList = useMemo(() => {
                 const selectedTeam = String(custData.closerTeam || '').trim().toUpperCase();
 
-                return allClosersPool.filter(c => {
+                const filtered = allClosersPool.filter(c => {
                     if (!selectedTeam) return true; // Show all if team not selected yet
 
                     const cTeam = String(c.team || '').trim().toUpperCase();
@@ -878,7 +880,24 @@
                     label: `${c.id} - ${c.name} (${c.team || 'ไม่ระบุทีม'})`,
                     value: `${c.id} - ${c.name}`
                 }));
-            }, [allClosersPool, custData.closerTeam]);
+
+                // 🛡️ หาก custData.closer มีชื่อระบุมา (เช่น หมอคลินิก/ทีม ที่ยังไม่ปรากฏใน allClosersPool) ให้เพิ่มเป็นตัวเลือกอัตโนมัติ
+                const currentCloser = String(custData.closer || '').trim();
+                if (currentCloser && currentCloser !== '-' && currentCloser !== 'หมอผู้เชี่ยวชาญ (Center)') {
+                    const alreadyExists = filtered.some(item => 
+                        item.value.toLowerCase() === currentCloser.toLowerCase() ||
+                        item.label.toLowerCase().includes(currentCloser.toLowerCase())
+                    );
+                    if (!alreadyExists) {
+                        filtered.unshift({
+                            label: `${currentCloser} (${custData.closerTeam || 'Center'})`,
+                            value: currentCloser
+                        });
+                    }
+                }
+
+                return filtered;
+            }, [allClosersPool, custData.closerTeam, custData.closer]);
 
             const [cart, setCart] = useState([]);
             const [catalogSearch, setCatalogSearch] = useState('');
@@ -953,9 +972,28 @@
                 }
 
                 if (foundExistingCust) {
+                    const normPendingType = (typeof window.normalizeCustomerType === 'function' && pending.customer_type)
+                        ? window.normalizeCustomerType(pending.customer_type, 'th', {
+                            disease: pending.disease || foundExistingCust.symptom || foundExistingCust.symptom_disease,
+                            symptom: pending.symptom,
+                            customer_name: pending.customer_name || foundExistingCust.name
+                        }).name
+                        : '';
+
+                    let resolvedCustType = normPendingType || pending.customer_type || pending.type;
+                    if (pending.customer_type_manually_selected) {
+                        resolvedCustType = normPendingType || pending.customer_type;
+                    } else if (resolvedCustType === 'ลูกค้าใหม่มาตรวจ') {
+                        // คนไข้มีประวัติในระบบแล้ว หากระบบคลินิกส่งค่าเริ่มต้นมา ให้ปรับเป็นลูกค้าเก่าอัตโนมัติ
+                        resolvedCustType = (foundExistingCust.customer_type && foundExistingCust.customer_type !== 'ลูกค้าใหม่มาตรวจ')
+                            ? foundExistingCust.customer_type
+                            : (foundExistingCust.type && foundExistingCust.type !== 'ลูกค้าใหม่มาตรวจ' ? foundExistingCust.type : 'ลูกค้าเก่ากลับมาต่อยา');
+                    } else if (!resolvedCustType) {
+                        resolvedCustType = foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่ากลับมาต่อยา';
+                    }
+
                     const resolvedCloser = pending.closer || pending.closer_dr || foundExistingCust.closer || foundExistingCust.closer_id || '';
                     const resolvedCloserTeam = pending.closerTeam || pending.closer_team || foundExistingCust.closerTeam || foundExistingCust.closer_team || '';
-                    const resolvedCustType = pending.customer_type || pending.type || foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่ากลับมาต่อยา';
 
                     setCustData(prev => ({
                         ...prev,
@@ -1018,21 +1056,15 @@
                         setPaymentNote(`VISIT: ${pending.visit_id}`);
                     }
 
-                    // 1. กำหนดผู้ปิดการขายและทีมผู้ปิด (อย่างปลอดภัย 100%)
-                    let pendingCloser = String(pending.closer || pending.closer_dr || '').trim();
-                    let pendingCloserTeam = String(pending.closer_team || pending.closerTeam || '').trim();
-                    const orderByTypeStr = String(pending.order_by_type || '').toLowerCase();
+                    // 1. กำหนดผู้ปิดการขายและทีมผู้ปิด (ใช้ resolveOrderCloser สากล แม่นยำ 100%)
+                    const cInfo = (typeof window.resolveOrderCloser === 'function')
+                        ? window.resolveOrderCloser(pending)
+                        : { closerName: String(pending.closer || pending.closer_dr || '').trim(), closerTeam: String(pending.closer_team || pending.closerTeam || 'Center').trim(), isSelf: false };
 
-                    if (orderByTypeStr.includes('เอง') || pendingCloserTeam.toLowerCase() === 'marketing' || pendingCloserTeam.includes('การตลาด')) {
-                        pendingCloserTeam = 'Marketing';
-                        if (!pendingCloser || pendingCloser === 'หมอผู้เชี่ยวชาญ (Center)') {
-                            pendingCloser = String(pending.recorded_by || '').trim();
-                        }
-                    } else if (orderByTypeStr.includes('หมอ') || pendingCloserTeam.toLowerCase() === 'center' || !pendingCloserTeam) {
-                        pendingCloserTeam = 'Center';
-                    }
+                    let pendingCloser = cInfo.closerName;
+                    let pendingCloserTeam = cInfo.closerTeam;
 
-                    if (pendingCloser) {
+                    if (pendingCloser && pendingCloser !== 'หมอผู้เชี่ยวชาญ (Center)') {
                         try {
                             const searchLower = pendingCloser.toLowerCase();
                             const poolList = (typeof allClosersPool !== 'undefined' && Array.isArray(allClosersPool) && allClosersPool.length > 0)
@@ -1042,39 +1074,27 @@
                                 if (!c) return false;
                                 const cName = String(c.name || '').toLowerCase();
                                 const cId = String(c.id || '').toLowerCase();
-                                return (cName && (cName === searchLower || searchLower.includes(cName))) ||
+                                return (cName && (cName === searchLower || searchLower.includes(cName) || cName.includes(searchLower))) ||
                                        (cId && (cId === searchLower || searchLower.includes(cId)));
                             });
                             if (foundCloserObj) {
                                 pendingCloser = `${foundCloserObj.id} - ${foundCloserObj.name}`;
-                                if (!pendingCloserTeam && foundCloserObj.team) pendingCloserTeam = foundCloserObj.team;
+                                if (foundCloserObj.team) pendingCloserTeam = foundCloserObj.team;
                             }
                         } catch (closerErr) {
                             console.warn('Closer match error:', closerErr);
                         }
                     }
 
-                    // 2. แมปประเภทลูกค้า (Customer Type)
-                    const rawCustType = String(pending.customer_type || pending.type || '').trim();
-                    let mappedCustMode = 'ลูกค้าใหม่มาตรวจ';
-                    if (rawCustType) {
-                        try {
-                            const typesList = (Array.isArray(customerTypes) && customerTypes.length > 0)
-                                ? customerTypes
-                                : (typeof activeCustomerTypes !== 'undefined' && Array.isArray(activeCustomerTypes) ? activeCustomerTypes : []);
-                            const foundType = typesList.find(t => {
-                                if (!t || !t.name) return false;
-                                const tName = String(t.name).trim().toLowerCase();
-                                const rawLower = rawCustType.toLowerCase();
-                                return tName === rawLower ||
-                                       (rawLower.includes('เก่า') && tName.includes('เก่า')) ||
-                                       (rawLower.includes('ใหม่') && tName.includes('ใหม่'));
-                            });
-                            mappedCustMode = foundType ? foundType.name : rawCustType;
-                        } catch (typeErr) {
-                            mappedCustMode = rawCustType;
-                        }
-                    }
+                    // 2. แมปประเภทลูกค้า (Customer Type) จากทุกภาษาให้เป็น Canonical Thai Name ที่ตรงกับ Dropdown และ Database 100%
+                    const normType = (typeof window.normalizeCustomerType === 'function')
+                        ? window.normalizeCustomerType(pending.customer_type || pending.customer_type_id || pending.type, 'th', {
+                            disease: pending.disease,
+                            symptom: pending.symptom,
+                            customer_name: pending.customer_name
+                        })
+                        : null;
+                    const mappedCustMode = normType ? normType.name : (String(pending.customer_type || pending.type || 'ลูกค้าใหม่มาตรวจ').trim());
                     setCustMode(mappedCustMode);
 
                     // 3. จัดการข้อมูลลูกค้า (HN, ชื่อ, เบอร์โทร, อาการ)
@@ -3050,7 +3070,10 @@
                                             <select className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custMode} onChange={(e) => {
                                                 const newMode = e.target.value;
                                                 setCustMode(newMode);
-                                                const isOld = newMode.includes('เก่า');
+                                                const norm = (typeof window.normalizeCustomerType === 'function')
+                                                    ? window.normalizeCustomerType(newMode)
+                                                    : { isOld: newMode.includes('เก่า') || newMode.includes('ເກົ່າ') };
+                                                const isOld = norm.isOld;
                                                 // 🛡️ ห้ามล้างข้อมูล (id, name, phone, lineId, symptom, closer, closerTeam) ที่มีอยู่แล้วทิ้งเด็ดขาด
                                                 if (!isOld) {
                                                     // หากเป็นลูกค้าใหม่ และยังไม่มีรหัสลูกค้าเลย ถึงจะไปคำนวณรหัสถัดไป
@@ -3060,7 +3083,11 @@
                                                 }
                                             }}>
                                                 <option value="" disabled>ระบุประเภท</option>
-                                                {activeCustomerTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                                {activeCustomerTypes.map(t => {
+                                                    const tNorm = (typeof window.normalizeCustomerType === 'function') ? window.normalizeCustomerType(t.name || t.id) : null;
+                                                    const displayLabel = tNorm ? tNorm.display : t.name;
+                                                    return <option key={t.id} value={t.name}>{displayLabel}</option>;
+                                                })}
                                             </select>
                                         </div>
                                         <div className="flex-[1.5] bg-slate-50 p-1.5 rounded-lg border border-slate-100">

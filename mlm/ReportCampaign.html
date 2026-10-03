@@ -88,8 +88,54 @@
         .trim() || '-';
     };
 
+    const CAMPAIGNS_CACHE_KEY = 'stk_campaigns_cache';
+    const SELECTED_CAMP_KEY = 'stk_selected_campaign_id';
+    const EVAL_CACHE_PREFIX = 'stk_rep_campaign_eval_';
+
+    // Synchronous initial cache loaders (0ms instant mount)
+    const getInitialCampaigns = () => {
+      try {
+        const saved = localStorage.getItem(CAMPAIGNS_CACHE_KEY);
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (Array.isArray(p) && p.length > 0) return p;
+        }
+        const appCache = localStorage.getItem('stk_app_cache_data');
+        if (appCache) {
+          const p = JSON.parse(appCache);
+          if (Array.isArray(p.campaigns) && p.campaigns.length > 0) return p.campaigns;
+        }
+      } catch(e) {}
+      return [];
+    };
+
+    const getInitialCampaignId = (camps) => {
+      try {
+        const urlId = new URLSearchParams(window.location.search).get('campaignId');
+        if (urlId) return urlId;
+        const savedId = localStorage.getItem(SELECTED_CAMP_KEY);
+        if (savedId && camps.some(c => c.campaign_id === savedId)) return savedId;
+        const active = camps.find(c => c.status === 'active') || camps[0];
+        return active ? active.campaign_id : (savedId || '');
+      } catch(e) {
+        return '';
+      }
+    };
+
+    const getInitialEvalCache = (cId) => {
+      if (!cId) return null;
+      try {
+        const raw = localStorage.getItem(EVAL_CACHE_PREFIX + cId) || sessionStorage.getItem(EVAL_CACHE_PREFIX + cId);
+        if (raw) {
+          const p = JSON.parse(raw);
+          if (p && Array.isArray(p.data) && p.data.length > 0) return p;
+        }
+      } catch(e) {}
+      return null;
+    };
+
     function App() {
-      // 1. Core States
+      // 1. Core States with Instant Local Cache
       const [currentUser, setCurrentUser] = useState(() => {
         try {
           const saved = localStorage.getItem('stk_current_user');
@@ -97,14 +143,19 @@
         } catch(e) { return null; }
       });
 
-      const [campaigns, setCampaigns] = useState([]);
-      const [selectedCampaignId, setSelectedCampaignId] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('campaignId') || '';
-      });
+      const initialCamps = useMemo(() => getInitialCampaigns(), []);
+      const [campaigns, setCampaigns] = useState(initialCamps);
 
-      const [evaluationResults, setEvaluationResults] = useState([]);
-      const [isLoading, setIsLoading] = useState(true);
+      const [selectedCampaignId, setSelectedCampaignId] = useState(() => getInitialCampaignId(initialCamps));
+
+      const initialEvalCache = useMemo(() => {
+        const cId = selectedCampaignId || getInitialCampaignId(initialCamps);
+        return getInitialEvalCache(cId);
+      }, []);
+
+      const [evaluationResults, setEvaluationResults] = useState(() => initialEvalCache ? initialEvalCache.data : []);
+      // ⚡ INSTANT RENDER: ถ้ามีแคชใน localStorage อยู่แล้ว ไม่ต้องแสดง Loading Spinner เลย (0ms)
+      const [isLoading, setIsLoading] = useState(() => !initialEvalCache);
       const [isBgLoading, setIsBgLoading] = useState(false);
       const [toast, setToast] = useState(null);
 
@@ -140,25 +191,42 @@
         setToast({ message, type });
       };
 
-      // 2. Fetch all campaigns on mount
+      // เปลี่ยนแคมเปญ พร้อมสลับแคชทันที 0ms
+      const handleSelectCampaign = useCallback((cId) => {
+        setSelectedCampaignId(cId);
+        try { localStorage.setItem(SELECTED_CAMP_KEY, cId); } catch(e) {}
+        const cached = getInitialEvalCache(cId);
+        if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+          setEvaluationResults(cached.data);
+          setIsLoading(false);
+        } else {
+          setIsLoading(true);
+        }
+      }, []);
+
+      // 2. Fetch all campaigns in background (เงียบๆ ไม่บล็อกหน้าจอ)
       useEffect(() => {
         async function loadCampaigns() {
           try {
             const camps = await window.CampaignEngine.fetchAllCampaigns();
-            setCampaigns(camps || []);
-
             if (camps && camps.length > 0) {
+              setCampaigns(camps);
+              try { localStorage.setItem(CAMPAIGNS_CACHE_KEY, JSON.stringify(camps)); } catch(e) {}
+
               const urlParamId = new URLSearchParams(window.location.search).get('campaignId');
               if (urlParamId && camps.some(c => c.campaign_id === urlParamId)) {
                 setSelectedCampaignId(urlParamId);
-              } else {
+                try { localStorage.setItem(SELECTED_CAMP_KEY, urlParamId); } catch(e) {}
+              } else if (!selectedCampaignId || !camps.some(c => c.campaign_id === selectedCampaignId)) {
                 const activeOne = camps.find(c => c.status === 'active') || camps[0];
-                setSelectedCampaignId(activeOne.campaign_id);
+                if (activeOne) {
+                  setSelectedCampaignId(activeOne.campaign_id);
+                  try { localStorage.setItem(SELECTED_CAMP_KEY, activeOne.campaign_id); } catch(e) {}
+                }
               }
             }
           } catch (err) {
             console.error('Load campaigns error:', err);
-            showToast('ไม่สามารถดึงข้อมูลแคมเปญได้', 'error');
           }
         }
         loadCampaigns();
@@ -172,33 +240,69 @@
         return activeCampaign && (activeCampaign.deduct_policy === 'no_deduct' || activeCampaign.cond2_type === 'boxes_no_deduct');
       }, [activeCampaign]);
 
-      // 3. Evaluate Campaign Cross-DB with Tiered Progressive Loading & Intelligent Cache (Zero redundant Egress)
+      // 3. Evaluate Campaign Cross-DB with Intelligent Persistent Cache & Silent Sentinel Background Check
       const runEvaluation = useCallback(async (forceLive = false) => {
         if (!activeCampaign) return;
         const cId = activeCampaign.campaign_id;
         const startDate = String(activeCampaign.start_date || '').trim().substring(0, 10);
         const endDate = String(activeCampaign.end_date || '').trim().substring(0, 10);
-        const CACHE_KEY = 'stk_rep_campaign_eval_' + cId;
-        const CACHE_TTL_MS = 5 * 60 * 1000; // 5 นาที (แคชพักข้อมูล ไม่ต้องดึงซ้ำ ลดภาระ Egress)
+        const CACHE_KEY = EVAL_CACHE_PREFIX + cId;
 
-        // ─── TIER 0: ตรวจสอบ Session Storage Cache ทันที (0ms, 0 Network, 0 Egress) ───
-        if (!forceLive) {
-          try {
-            const cachedEval = sessionStorage.getItem(CACHE_KEY);
-            if (cachedEval) {
-              const parsed = JSON.parse(cachedEval);
-              if (parsed && Array.isArray(parsed.data) && parsed.data.length > 0 && (Date.now() - (parsed.timestamp || 0) < CACHE_TTL_MS)) {
-                setEvaluationResults(parsed.data);
-                setIsLoading(false);
-                setIsBgLoading(false);
-                return;
-              }
-            }
-          } catch (e) {}
+        // ─── TIER 0: ตรวจสอบ Persistent Cache ทันที (0ms, 0 Network, 0 Egress) ───
+        let cachedObj = null;
+        try {
+          const raw = localStorage.getItem(CACHE_KEY) || sessionStorage.getItem(CACHE_KEY);
+          if (raw) cachedObj = JSON.parse(raw);
+        } catch(e) {}
+
+        const hasValidCache = cachedObj && Array.isArray(cachedObj.data) && cachedObj.data.length > 0;
+        const cacheAge = Date.now() - (cachedObj?.timestamp || 0);
+
+        // แสดงผลจากแคชทันทีหากมี และปลดสถานะ Loading ทันที (0ms)
+        if (hasValidCache) {
+          setEvaluationResults(cachedObj.data);
+          setIsLoading(false);
         }
 
-        // ─── TIER 1: โหลดผลที่เคยซิงค์ไว้ใน stk_campaign_results ทันที (< 100ms) ───
-        if (!forceLive && typeof window.CampaignEngine.fetchSavedCampaignResults === 'function') {
+        // หากแคชเพิ่งสร้างไม่เกิน 5 นาที และไม่ได้สั่งบังคับรีเฟรช ให้จบการทำงานทันที (0 Egress)
+        if (!forceLive && hasValidCache && cacheAge < 5 * 60 * 1000) {
+          setIsBgLoading(false);
+          return;
+        }
+
+        // ─── TIER 1: ตรวจสอบการยิงข้อมูลใหม่หลังบ้านแบบ Lightweight Sentinel (Egress < 500 bytes) ───
+        // หากมีแคชอยู่แล้ว แทนที่จะดาวน์โหลดทั้งฐานข้อมูล ให้เช็คแค่ ID แถวล่าสุด (limit=1)
+        if (!forceLive && hasValidCache) {
+          try {
+            const [latestSale, latestClinic] = await Promise.all([
+              (window.supabaseSelect ? window.supabaseSelect('stk_sales', 'select=id,created_at&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => []),
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('commission_logs', 'select=id,created_at&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => [])
+            ]);
+
+            const currentSaleId = latestSale?.[0]?.id || null;
+            const currentClinicId = latestClinic?.[0]?.id || null;
+
+            // ถ้าไม่มีบิลขายใหม่ และไม่มีคนไข้คลินิกใหม่ -> ถือว่าไม่มีข้อมูลใหม่ ไม่ต้องคำนวณซ้ำ ประหยัด Egress 100%
+            if (
+              cachedObj.lastSaleId && cachedObj.lastClinicId &&
+              cachedObj.lastSaleId === currentSaleId &&
+              cachedObj.lastClinicId === currentClinicId
+            ) {
+              cachedObj.timestamp = Date.now();
+              try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(cachedObj));
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify(cachedObj));
+              } catch(e) {}
+              setIsBgLoading(false);
+              return;
+            }
+          } catch(sentinelErr) {
+            console.warn('Sentinel check error, continuing background evaluation:', sentinelErr);
+          }
+        }
+
+        // ─── TIER 2: กรณีไม่มีแคชเลยในเครื่อง ให้ดึงจากตาราง stk_campaign_results ก่อน (< 100ms) ───
+        if (!hasValidCache && !forceLive && typeof window.CampaignEngine.fetchSavedCampaignResults === 'function') {
           try {
             const savedData = await window.CampaignEngine.fetchSavedCampaignResults(cId);
             if (Array.isArray(savedData) && savedData.length > 0) {
@@ -212,7 +316,7 @@
                 return {
                   memberId: row.member_id,
                   memberName: row.member_name,
-                  profileUrl: null, // ตัดรูปภาพออก ประหยัด Egress
+                  profileUrl: null,
                   team: row.team_name,
                   teamName: row.team_name,
                   clinicPatientCount: Number(row.clinic_patients_count || 0),
@@ -249,41 +353,41 @@
               });
 
               setEvaluationResults(mapped);
-              setIsLoading(false); // ปลดการโหลดทันที ผู้ใช้เห็นตารางได้เลย
+              setIsLoading(false);
+
+              try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: mapped }));
+              } catch(e) {}
             }
           } catch (e) {
-            console.warn('Tier 1 cache load error:', e);
+            console.warn('Tier 2 saved campaign results load error:', e);
           }
         }
 
-        // ─── TIER 2: ประมวลผลสด Cross-Database ใน Background ───
+        // ─── TIER 3: ประมวลผลสด Cross-Database ดึงอยู่หลังบ้าน (ไม่บล็อก UI ตาราง) ───
         setIsBgLoading(true);
         try {
-          // ดึงสมาชิกและทีมจากแคชท้องถิ่นก่อน ถ้ามีอยู่แล้วจะไม่เรียก Supabase (ประหยัด Egress สูงสุด)
           let membersRes = [];
           let teamsRes = [];
           try {
             const cachedApp = localStorage.getItem('stk_app_cache_data');
             if (cachedApp) {
               const parsedApp = JSON.parse(cachedApp);
-              if (Array.isArray(parsedApp.members) && parsedApp.members.length > 0) {
-                membersRes = parsedApp.members;
-              }
-              if (Array.isArray(parsedApp.businessTeams) && parsedApp.businessTeams.length > 0) {
-                teamsRes = parsedApp.businessTeams;
-              }
+              if (Array.isArray(parsedApp.members) && parsedApp.members.length > 0) membersRes = parsedApp.members;
+              if (Array.isArray(parsedApp.businessTeams) && parsedApp.businessTeams.length > 0) teamsRes = parsedApp.businessTeams;
             }
           } catch (e) {}
 
-          // ดึงยอดขายเฉพาะช่วงวันที่ของแคมเปญ (ช่วยให้เร็วขึ้น 90% ไม่ต้องโหลดทั้งฐานข้อมูล)
           let salesQuery = 'select=id,order_id,date,seller_id,customer_id,customer_name,total_amount,total_bottles,status,items_json,payment_note,created_at&order=created_at.desc';
           if (startDate) salesQuery += `&date=gte.${startDate}`;
           if (endDate) salesQuery += `&date=lte.${endDate}`;
 
-          const [salesRes, fetchedMembers, fetchedTeams] = await Promise.all([
+          const [salesRes, fetchedMembers, fetchedTeams, latestSaleSentinel, latestClinicSentinel] = await Promise.all([
             (window.supabaseSelect ? window.supabaseSelect('stk_sales', salesQuery) : Promise.resolve([])).catch(() => []),
             (!membersRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_members', 'order=user_id.asc').catch(() => []) : Promise.resolve(membersRes),
-            (!teamsRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_business_teams').catch(() => []) : Promise.resolve(teamsRes)
+            (!teamsRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_business_teams').catch(() => []) : Promise.resolve(teamsRes),
+            (window.supabaseSelect ? window.supabaseSelect('stk_sales', 'select=id&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => []),
+            (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('commission_logs', 'select=id&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => [])
           ]);
 
           let finalSales = salesRes;
@@ -299,19 +403,30 @@
 
           if (Array.isArray(evaluated) && evaluated.length > 0) {
             setEvaluationResults(evaluated);
-            // บันทึกลง Session Cache (ประหยัด Egress ในการเปิดดูครั้งต่อไป)
+
+            const payloadToSave = {
+              timestamp: Date.now(),
+              lastSaleId: latestSaleSentinel?.[0]?.id || null,
+              lastClinicId: latestClinicSentinel?.[0]?.id || null,
+              data: evaluated
+            };
+
+            // บันทึก Persistent Cache ทั้ง localStorage และ sessionStorage
             try {
-              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: evaluated }));
+              localStorage.setItem(CACHE_KEY, JSON.stringify(payloadToSave));
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify(payloadToSave));
             } catch (e) {}
 
-            // 💾 ซิงค์บันทึกผลลงตาราง stk_campaign_results แบบ Batch Background
+            // ซิงค์บันทึกผลลงตาราง stk_campaign_results แบบ Batch Background
             if (typeof window.CampaignEngine.syncAndSaveCampaignResults === 'function') {
               window.CampaignEngine.syncAndSaveCampaignResults(activeCampaign, evaluated, 'SYNCED').catch(e => console.warn('Auto-sync error:', e));
             }
           }
         } catch (err) {
           console.error('Evaluate cross db error:', err);
-          showToast('เกิดข้อผิดพลาดในการคำนวณผลแคมเปญ: ' + err.message, 'error');
+          if (!hasValidCache) {
+            showToast('เกิดข้อผิดพลาดในการคำนวณผลแคมเปญ: ' + err.message, 'error');
+          }
         } finally {
           setIsLoading(false);
           setIsBgLoading(false);
@@ -524,14 +639,14 @@
                           รายงานแคมเปญ & การหักคอมมิชชั่น
                         </h1>
                         {isBgLoading ? (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 animate-pulse">
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
                             <Activity size={12} className="animate-spin text-blue-600 dark:text-blue-400" />
-                            กำลังประมวลผลเชื่อม 2 ฐานข้อมูลสด...
+                            ตรวจสอบข้อมูลล่าสุดหลังบ้าน...
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            ซิงค์ฐานข้อมูลอัตโนมัติ ({displayRows.length} ท่าน)
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            ข้อมูลล่าสุด ({displayRows.length} ท่าน)
                           </span>
                         )}
                       </div>
@@ -547,7 +662,7 @@
                     <div className="relative min-w-[260px]">
                       <select
                         value={selectedCampaignId}
-                        onChange={(e) => setSelectedCampaignId(e.target.value)}
+                        onChange={(e) => handleSelectCampaign(e.target.value)}
                         className="w-full pl-3.5 pr-8 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none shadow-2xs"
                       >
                         {campaigns.map(c => (
@@ -558,17 +673,6 @@
                       </select>
                       <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     </div>
-
-                    {/* Refresh / Sync Button */}
-                    <button
-                      onClick={() => runEvaluation(true)}
-                      disabled={isBgLoading}
-                      className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-                      title="ซิงค์และคำนวณข้อมูลใหม่จากฐานข้อมูลสด"
-                    >
-                      <Activity size={15} className={isBgLoading ? 'animate-spin text-blue-600' : ''} />
-                      {isBgLoading ? 'กำลังประมวลผล...' : 'รีเฟรชซิงค์'}
-                    </button>
 
                     {/* Export Excel Button */}
                     <button
@@ -754,23 +858,6 @@
                     }`}
                   >
                     ⏳ กำลังแข่งขัน ({kpis.totalMarketing - kpis.qualifiedCount})
-                  </button>
-
-                  {/* Force Sync Live Data Button */}
-                  <button
-                    onClick={() => runEvaluation(true)}
-                    disabled={isBgLoading}
-                    title="บังคับดึงข้อมูลสดจากเซิร์ฟเวอร์และอัปเดตแคชใหม่"
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      isBgLoading
-                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
-                        : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/60'
-                    }`}
-                  >
-                    <svg className={`w-3.5 h-3.5 ${isBgLoading ? 'animate-spin text-indigo-500' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>{isBgLoading ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูลล่าสุด'}</span>
                   </button>
                 </div>
               </div>

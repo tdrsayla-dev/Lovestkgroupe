@@ -125,26 +125,36 @@
 
     // 🏷️ ฟังก์ชันช่วยวิเคราะห์และตัดสินว่าออเดอร์นี้เป็น "หมอสั่งจ่าย (Center)" หรือ "สั่งจ่ายยาเอง (Marketing)"
     function resolveOrderCloserInfo(ord) {
-      if (!ord) return { orderByType: 'หมอสั่งจ่าย', closerTeam: 'Center', closerName: 'หมอผู้เชี่ยวชาญ (Center)' };
+      if (typeof window.resolveOrderCloser === 'function') {
+        return window.resolveOrderCloser(ord);
+      }
+      if (!ord) return { orderByType: 'หมอสั่งจ่าย', closerTeam: 'Center', closerName: 'หมอผู้เชี่ยวชาญ (Center)', isSelf: false, badgeText: '🩺 หมอปิด (Center)', badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200' };
       
       const typeStr = String(ord.order_by_type || ord.prescribe_type || ord.closer_type || ord.closer_team || '').trim().toLowerCase();
       const closerDrStr = String(ord.closer_dr || '').trim();
       const recordedByStr = String(ord.recorded_by || '').trim();
 
-      const isSelf = typeStr.includes('เอง') || typeStr.includes('ตลาด') || typeStr.includes('self') || typeStr.includes('marketing') || typeStr.includes('staff');
-      const isDoc = typeStr.includes('หมอ') || typeStr.includes('แพทย์') || typeStr.includes('doctor') || typeStr.includes('dr') || typeStr.includes('center');
+      const isSelf = closerDrStr.includes('ປິດເອງ') || closerDrStr.includes('ປີດເອງ') || closerDrStr.includes('ปิดเอง') || closerDrStr.includes('เอง') || typeStr.includes('เอง') || typeStr.includes('ตลาด') || typeStr.includes('self') || typeStr.includes('marketing') || (recordedByStr && closerDrStr && recordedByStr.toLowerCase() === closerDrStr.toLowerCase());
 
-      let orderByType = 'หมอสั่งจ่าย';
-      let closerTeam = 'Center';
-      let closerName = closerDrStr && closerDrStr !== '-' ? closerDrStr : 'หมอผู้เชี่ยวชาญ (Center)';
-
-      if (isSelf || (!isDoc && recordedByStr && closerDrStr && recordedByStr.toLowerCase() === closerDrStr.toLowerCase())) {
-        orderByType = 'สั่งจ่ายยาเอง';
-        closerTeam = 'Marketing';
-        closerName = recordedByStr && recordedByStr !== '-' ? recordedByStr : 'พนักงานการตลาด';
+      if (isSelf) {
+        return {
+          orderByType: 'สั่งจ่ายยาเอง',
+          closerTeam: 'Marketing',
+          closerName: (closerDrStr && !closerDrStr.includes('ເອງ') && !closerDrStr.includes('เอง') && closerDrStr !== '-') ? closerDrStr : (recordedByStr || 'พนักงานการตลาด'),
+          isSelf: true,
+          badgeText: '👤 สั่งเอง (Marketing)',
+          badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        };
       }
 
-      return { orderByType, closerTeam, closerName };
+      return {
+        orderByType: 'หมอสั่งจ่าย',
+        closerTeam: 'Center',
+        closerName: closerDrStr && closerDrStr !== '-' ? closerDrStr : 'หมอผู้เชี่ยวชาญ (Center)',
+        isSelf: false,
+        badgeText: '🩺 หมอปิด (Center)',
+        badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+      };
     }
 
     // ฟังก์ชันช่วยสกัด ID / Visit ID ทุกรูปแบบที่เป็นไปได้เพื่อใช้เทียบและลบข้อมูลถาวร
@@ -206,6 +216,20 @@
       const [endDate, setEndDate] = useState('');
       const [quickFilter, setQuickFilter] = useState('all'); // 'today', 'month', 'all', 'custom'
       const [loading, setLoading] = useState(true);
+      const [currentLang, setCurrentLang] = useState(window.getCurrentLang ? window.getCurrentLang() : 'th');
+      const [customTypeOverrides, setCustomTypeOverrides] = useState(() => {
+        try {
+          return JSON.parse(localStorage.getItem('stk_nutrient_custom_types') || '{}');
+        } catch(e) { return {}; }
+      });
+
+      useEffect(() => {
+        const handleLangChange = (e) => {
+          if (e && e.detail && e.detail.lang) setCurrentLang(e.detail.lang);
+        };
+        window.addEventListener('stk_lang_change', handleLangChange);
+        return () => window.removeEventListener('stk_lang_change', handleLangChange);
+      }, []);
 
       const setFilterPeriod = (period) => {
         setQuickFilter(period);
@@ -256,6 +280,19 @@
             // หากบิลถูกยกเลิก หรืออยู่ในประวัติการลบ ให้ปรับสถานะเป็นบิลถูกยกเลิกเพื่อนำไปโชว์ในแท็บแทน
             const finalStatus = (item.status === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet)) ? 'บิลถูกยกเลิก' : (item.status || 'รอดำเนินการ');
             
+            const resolvedCustType = (() => {
+              const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+              const norm = (typeof window.normalizeCustomerType === 'function')
+                ? window.normalizeCustomerType(explicit, 'th', {
+                    disease: item.disease || item.disease_name || '',
+                    symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
+                    customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
+                    hn: item.hn || item.customer_id || ''
+                  })
+                : null;
+              return norm ? norm.name : (explicit || 'ลูกค้าใหม่มาตรวจ');
+            })();
+
             return {
               id: item.order_id || String(item.id),
               visit_id: item.visit_id || '-',
@@ -263,7 +300,7 @@
               customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || item.customer || '-',
               phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
               disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
-              customer_type: item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || 'ลูกค้าใหม่มาตรวจ',
+              customer_type: resolvedCustType,
               order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
               closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
               recorded_by: item.recorded_by || '-',
@@ -322,6 +359,19 @@
               total: Number(it.total || (it.price * it.qty) || 0)
             })) : [];
 
+            const resolvedLocalCustType = (() => {
+              const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+              const norm = (typeof window.normalizeCustomerType === 'function')
+                ? window.normalizeCustomerType(explicit, 'th', {
+                    disease: item.disease || item.disease_name || '',
+                    symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
+                    customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
+                    hn: item.hn || item.customer_id || ''
+                  })
+                : null;
+              return norm ? norm.name : (explicit || 'ลูกค้าใหม่มาตรวจ');
+            })();
+
             const localEntry = {
               id: orderId,
               visit_id: vId,
@@ -329,7 +379,7 @@
               customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || item.customer || '-',
               phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
               disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
-              customer_type: item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || 'ลูกค้าใหม่มาตรวจ',
+              customer_type: resolvedLocalCustType,
               order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
               closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
               recorded_by: item.recorded_by || item.seller_id || '-',
@@ -445,56 +495,42 @@
       }, [orders, searchTerm, startDate, endDate]);
 
       // เพิ่ม State ควบคุมแท็บ
-const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'completed', 'canceled'
+      const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'completed', 'canceled'
 
-const pendingOrders = useMemo(() => {
-  return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว' && ord.status !== 'บิลถูกยกเลิก');
-}, [filteredOrders]);
+      const pendingOrders = useMemo(() => {
+        return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว' && ord.status !== 'บิลถูกยกเลิก');
+      }, [filteredOrders]);
 
-const completedOrders = useMemo(() => {
-  return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว');
-}, [filteredOrders]);
+      const completedOrders = useMemo(() => {
+        return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว');
+      }, [filteredOrders]);
 
-const canceledOrders = useMemo(() => {
-  return filteredOrders.filter(ord => ord.status === 'บิลถูกยกเลิก');
-}, [filteredOrders]);
+      const canceledOrders = useMemo(() => {
+        return filteredOrders.filter(ord => ord.status === 'บิลถูกยกเลิก');
+      }, [filteredOrders]);
 
       // ฟังก์ชันดำเนินการสร้าง "ร่างใบสั่งซื้อ" / "จ่ายยาเสร็จสิ้น"
       const handleCreateDraftOrder = async (order) => {
-        // --- ⚡ เพิ่มการตรวจสอบสต็อกแบบ Real-time ก่อนร่างใบสั่งซื้อ ---
+        if (!order) return;
+
+        // --- ⚡ ตรวจสอบสต็อกแบบรวดเร็ว (ไม่ต้องเปิด Swal loading ซ้ำซ้อน เพื่อป้องกัน Modal ยืนยันค้างสถานะ spinner) ---
         try {
-          if (typeof window.supabaseSelect === 'function') {
+          if (typeof window.supabaseSelect === 'function' && Array.isArray(order.items) && order.items.length > 0) {
             const outOfStockItems = [];
-            
-            // แสดง Loading ขณะเช็คสต็อก
-            Swal.fire({
-              title: 'กำลังตรวจสอบสต็อก...',
-              allowOutsideClick: false,
-              didOpen: () => { Swal.showLoading(); }
-            });
 
             for (const item of order.items) {
               const pName = (item.name || '').trim();
+              if (!pName) continue;
               let currentStock = null;
               
-              // 1. ลองค้นหาใน stk_products (แก้ไขคอลัมน์จาก product_name เป็น name และดักจับ Error)
+              // 1. ค้นหาใน stk_products
               let pData = null;
               try {
                 pData = await window.supabaseSelect('stk_products', `name=eq.${encodeURIComponent(pName)}&select=current_stock`);
-              } catch (e) { /* ปล่อยผ่านถ้าไม่มีตารางนี้ */ }
+              } catch (e) {}
 
               if (pData && pData.length > 0) {
                 currentStock = parseInt(pData[0].current_stock) || 0;
-              } else {
-                // 2. ถ้าไม่พบ ลองหาใน products (เผื่อเป็นตารางเก่า)
-                let pData2 = null;
-                try {
-                  pData2 = await window.supabaseSelect('products', `name=eq.${encodeURIComponent(pName)}&select=stock`);
-                } catch (e) { /* ปล่อยผ่านถ้าไม่มีตารางนี้ */ }
-                
-                if (pData2 && pData2.length > 0) {
-                  currentStock = parseInt(pData2[0].stock) || 0;
-                }
               }
 
               const qtyNeeded = parseInt(item.qty) || 1;
@@ -506,32 +542,45 @@ const canceledOrders = useMemo(() => {
             if (outOfStockItems.length > 0) {
               Swal.fire({
                 icon: 'error',
-                title: 'สินค้าหมดสต็อก!',
-                html: `ไม่สามารถร่างใบสั่งซื้อได้เนื่องจากสินค้าดังต่อไปนี้มีสต็อกไม่เพียงพอ:<br/><br/><ul class="text-left text-sm text-rose-600 list-disc pl-6">${outOfStockItems.map(i => `<li>${i}</li>`).join('')}</ul>`,
+                title: currentLang === 'lo' ? 'ສິນຄ້າໝົດສະຕັອກ!' : 'สินค้าหมดสต็อก!',
+                html: `${currentLang === 'lo' ? 'ບໍ່ສາມາດຮ່າງໃບສັ່ງຊື້ໄດ້ ເນື່ອງຈາກສິນຄ້າຕໍ່ໄປນີ້ບໍ່ພໍ:' : 'ไม่สามารถร่างใบสั่งซื้อได้เนื่องจากสินค้าดังต่อไปนี้มีสต็อกไม่เพียงพอ:'}<br/><br/><ul class="text-left text-sm text-rose-600 list-disc pl-6">${outOfStockItems.map(i => `<li>${i}</li>`).join('')}</ul>`,
                 confirmButtonColor: '#047857',
-                confirmButtonText: 'ตกลง'
+                confirmButtonText: currentLang === 'lo' ? 'ຕົກລົງ' : 'ตกลง'
               });
               return; // หยุดการทำงาน ไม่ให้ร่างบิล
-            } else {
-              Swal.close(); // ปิด loading ถ้าสต็อกพอ
             }
           }
         } catch (e) {
           console.warn('Stock check error:', e);
-          Swal.close();
         }
-        // -------------------------------------------
-        
-        Swal.hideLoading();
 
         const closerInfo = resolveOrderCloserInfo(order);
-        const custTypeDisplay = order.customer_type || 'ลูกค้าใหม่มาตรวจ';
-        const isOldCustomer = custTypeDisplay.includes('เก่า');
+        const normCustType = (typeof window.normalizeCustomerType === 'function')
+            ? window.normalizeCustomerType(order.customer_type)
+            : { id: 'T001', name: order.customer_type || 'ลูกค้าใหม่มาตรวจ', display: order.customer_type || 'ลูกค้าใหม่มาตรวจ', isOld: String(order.customer_type || '').includes('เก่า'), lo: 'ລູກຄ້າໃໝ່ມາກວດ', th: 'ลูกค้าใหม่มาตรวจ', en: 'New Customer - Clinic Visit' };
+        const custTypeDisplay = normCustType.display;
+        const isOldCustomer = normCustType.isOld;
+
+        const allTypesList = window.STK_CUSTOMER_TYPES_MAP || [
+          { id: 'T001', name: 'ลูกค้าใหม่มาตรวจ', th: 'ลูกค้าใหม่มาตรวจ', lo: 'ລູກຄ້າໃໝ່ມາກວດ', en: 'New Customer - Clinic Visit' },
+          { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', th: 'ลูกค้าเก่ากลับมาต่อยา', lo: 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ', en: 'Returning Customer - Medicine Refill' },
+          { id: 'T003', name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', th: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', lo: 'ລູກຄ້າໃໝ່ນຳຜົນກວດມາປຶກສາ', en: 'New Customer - Consult Lab Results' },
+          { id: 'T004', name: 'โทรปิดการขายลูกค้าใหม่', th: 'โทรปิดการขายลูกค้าใหม่', lo: 'ໂທປິດການຂາຍລູກຄ້າໃໝ່', en: 'Telesales - New Customer' },
+          { id: 'T005', name: 'ลูกค้าเก่านำผลตรวจมาปรึกษา', th: 'ลูกค้าเก่านำผลตรวจมาปรึกษา', lo: 'ລູກຄ້າເກົ່ານຳຜົນກວດມາປຶກສາ', en: 'Returning Customer - Consult Lab Results' },
+          { id: 'T006', name: 'โทรปิดการขายลูกค้าเก่า', th: 'โทรปิดการขายลูกค้าเก่า', lo: 'ໂທປິດการຂາຍລູກຄ້າເກົ່າ', en: 'Telesales - Returning Customer' },
+          { id: 'T007', name: 'ส่วนกลางใหม่', th: 'ส่วนกลางใหม่', lo: 'ສ່ວນກາງໃໝ່', en: 'Headquarters / Center - New' }
+        ];
+
+        const optionsHtml = allTypesList.map(t => {
+          const isSelected = (t.id === normCustType.id || t.name === normCustType.name) ? 'selected' : '';
+          const label = t[currentLang] || t.th;
+          return `<option value="${t.name}" ${isSelected}>🏷️ ${label}</option>`;
+        }).join('');
 
         Swal.fire({
-          title: 'ยืนยันสร้างร่างใบสั่งซื้อ',
+          title: currentLang === 'lo' ? 'ຢືນຢັນສ້າງຮ່າງໃບສັ່ງຊື້' : (currentLang === 'en' ? 'Confirm Draft Order' : 'ยืนยันสร้างร่างใบสั่งซื้อ'),
           html: `
-            <div class="text-left text-sm space-y-2 p-2">
+            <div class="text-left text-sm space-y-2.5 p-2">
               <div class="flex justify-between items-center border-b border-slate-200 pb-2">
                 <span class="text-xs text-slate-500 font-bold">รหัส VISIT: <strong class="text-blue-600">${order.visit_id}</strong></span>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-black ${isOldCustomer ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-blue-100 text-blue-800 border border-blue-300'}">
@@ -542,17 +591,27 @@ const canceledOrders = useMemo(() => {
               <p><strong>ชื่อคนไข้:</strong> <span class="font-bold text-slate-800">${order.customer_name}</span></p>
               <p><strong>เบอร์โทร:</strong> ${order.phone || '-'}</p>
               <p><strong>โรค/อาการ:</strong> ${order.disease || '-'}</p>
+
+              <!-- Dropdown เลือกประเภทลูกค้าก่อนส่งเข้าหน้าขาย (ป้องกันการตีกลับเป็นลูกค้าใหม่มาตรวจ) -->
+              <div class="bg-blue-50/70 p-2.5 rounded-xl border border-blue-200 text-xs mt-2">
+                <label class="block font-bold text-slate-700 mb-1">
+                  🏷️ ประเภทลูกค้า (สามารถเลือกเปลี่ยนได้หากระบบคลินิกส่งมาไม่ตรง):
+                </label>
+                <select id="swal-select-customer-type" class="w-full bg-white border border-blue-300 rounded-lg p-2 font-bold text-slate-800 text-xs shadow-2xs focus:border-blue-500 focus:outline-none">
+                  ${optionsHtml}
+                </select>
+              </div>
               
               <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs space-y-1 mt-2">
                 <p><strong>ผู้แนะนำ (ผู้ขาย):</strong> <span class="text-slate-800 font-bold">${order.recorded_by}</span></p>
-                <p><strong>รูปแบบสั่งจ่าย:</strong> <span class="font-bold ${closerInfo.closerTeam === 'Center' ? 'text-indigo-600' : 'text-emerald-600'}">${closerInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิดการขาย / สั่งจ่าย' : '👤 สั่งจ่ายยาเอง'} (ทีม: ${closerInfo.closerTeam})</span></p>
+                <p><strong>รูปแบบสั่งจ่าย:</strong> <span class="font-bold ${closerInfo.closerTeam === 'Center' ? 'text-indigo-600' : 'text-emerald-600'}">${closerInfo.badgeText || (closerInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิดการขาย / สั่งจ่าย' : '👤 สั่งจ่ายยาเอง')} (ทีม: ${closerInfo.closerTeam})</span></p>
                 <p><strong>ผู้ปิดการขายในบิล:</strong> <span class="font-black text-slate-900">${closerInfo.closerName}</span></p>
               </div>
 
               <hr class="my-2 border-slate-200"/>
               <p class="font-bold text-slate-700">รายการยา:</p>
               <ul class="list-disc pl-5 text-[11px] text-slate-600 space-y-1">
-  ${order.items.map(i => {
+  ${(order.items || []).map(i => {
       const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
       const qty = Number(i.qty || 1);
       return `<li>${i.name} (${getItemTypeLabel(i)}) x ${qty} = ${(price * qty).toLocaleString()} ฿</li>`;
@@ -560,7 +619,7 @@ const canceledOrders = useMemo(() => {
 </ul>
 <div class="mt-3 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex justify-between items-center font-bold text-emerald-800">
   <span>ราคารวมทั้งหมด:</span>
-  <span>${order.items.reduce((s, i) => {
+  <span>${(order.items || []).reduce((s, i) => {
       const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
       const qty = Number(i.qty || 1);
       return s + (price * qty);
@@ -569,12 +628,41 @@ const canceledOrders = useMemo(() => {
           `,
           icon: 'question',
           showCancelButton: true,
+          showLoaderOnConfirm: false,
           confirmButtonColor: '#047857',
           cancelButtonColor: '#64748b',
-          confirmButtonText: 'ร่างใบสั่งซื้อใน M&M',
-          cancelButtonText: 'ยกเลิก'
+          confirmButtonText: currentLang === 'lo' ? 'ຮ່າງໃບສັ່ງຊື້ໃນ M&M' : (currentLang === 'en' ? 'Create Draft in M&M' : 'ร่างใบสั่งซื้อใน M&M'),
+          cancelButtonText: currentLang === 'lo' ? 'ຍົກເລີກ' : (currentLang === 'en' ? 'Cancel' : 'ยกเลิก'),
+          didOpen: () => {
+            try {
+              Swal.hideLoading();
+              const cBtn = Swal.getConfirmButton();
+              if (cBtn) {
+                cBtn.classList.remove('swal2-loading');
+                cBtn.removeAttribute('disabled');
+              }
+            } catch (err) {}
+          },
+          preConfirm: () => {
+            const selectEl = document.getElementById('swal-select-customer-type');
+            return selectEl ? selectEl.value : normCustType.name;
+          }
         }).then((result) => {
           if (result.isConfirmed) {
+            const selectedCustTypeName = result.value || normCustType.name;
+            const finalCustTypeObj = (typeof window.normalizeCustomerType === 'function')
+              ? window.normalizeCustomerType(selectedCustTypeName)
+              : { id: normCustType.id, name: selectedCustTypeName, lo: selectedCustTypeName, th: selectedCustTypeName, en: selectedCustTypeName };
+
+            // บันทึก override เก็บไว้ใน localStorage เพื่อไม่ให้เด้งกลับไปเป็นลูกค้าใหม่
+            try {
+              const currentOverrides = JSON.parse(localStorage.getItem('stk_nutrient_custom_types') || '{}');
+              if (order.id) currentOverrides[order.id] = finalCustTypeObj.name;
+              if (order.visit_id) currentOverrides[order.visit_id] = finalCustTypeObj.name;
+              localStorage.setItem('stk_nutrient_custom_types', JSON.stringify(currentOverrides));
+              setCustomTypeOverrides(currentOverrides);
+            } catch(e) {}
+
             try {
               const pendingSale = {
                 visit_id: order.visit_id,
@@ -588,8 +676,14 @@ const canceledOrders = useMemo(() => {
                 closer_team: closerInfo.closerTeam,
                 closerTeam: closerInfo.closerTeam,
                 order_by_type: closerInfo.orderByType,
-                customer_type: custTypeDisplay,
-                type: custTypeDisplay,
+                customer_type: finalCustTypeObj.name,
+                customer_type_id: finalCustTypeObj.id,
+                customer_type_name: finalCustTypeObj.name,
+                customer_type_lo: finalCustTypeObj.lo,
+                customer_type_th: finalCustTypeObj.th,
+                customer_type_en: finalCustTypeObj.en,
+                customer_type_manually_selected: true,
+                type: finalCustTypeObj.name,
                 items: (order.items || []).map(i => {
                   const typeLabel = typeof getItemTypeLabel === 'function' ? getItemTypeLabel(i) : (i.type || i.priceType || '');
                   return {
@@ -600,19 +694,24 @@ const canceledOrders = useMemo(() => {
                 })
               };
               localStorage.setItem('stk_pending_sale', JSON.stringify(pendingSale));
-            } catch (ex) {}
+            } catch (ex) {
+              console.warn('Pending sale save error:', ex);
+            }
 
+            const targetUrl = window.resolvePageUrl ? window.resolvePageUrl('Sales.html') : 'Sales.html';
             Swal.fire({
               icon: 'success',
-              title: 'ส่งข้อมูลเข้าสู่หน้าขายเรียบร้อย!',
-              text: `กำลังนำข้อมูลสำหรับ ${order.customer_name} (VISIT: ${order.visit_id}) ไปเปิดบิลที่หน้าป้อนข้อมูลขาย (Sales)...`,
+              title: currentLang === 'lo' ? 'ສົ່ງຂໍ້ມູນສຳເລັດ!' : (currentLang === 'en' ? 'Draft Order Created!' : 'ส่งข้อมูลเข้าสู่หน้าขายเรียบร้อย!'),
+              text: currentLang === 'lo' ? 'ກຳລັງພາໄປໜ້າຂາຍ...' : `กำลังนำข้อมูลสำหรับ ${order.customer_name || ''} (VISIT: ${order.visit_id || ''}) ไปเปิดบิลที่หน้าขาย (Sales)...`,
               confirmButtonColor: '#047857',
-              timer: 1200,
+              timer: 800,
               showConfirmButton: false
-            }).then(() => {
-              const targetUrl = window.resolvePageUrl ? window.resolvePageUrl('Sales.html') : 'Sales.html';
-              window.location.href = targetUrl;
             });
+
+            // การันตีการเปลี่ยนหน้า 100% ไม่ติดค้าง
+            setTimeout(() => {
+              window.location.href = targetUrl;
+            }, 600);
           }
         });
       };
@@ -908,9 +1007,32 @@ const canceledOrders = useMemo(() => {
                               </div>
                             )}
                             <div className="flex items-center gap-1 mt-1 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-black ${String(ord.customer_type || '').includes('เก่า') ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
-                                🏷️ {ord.customer_type || 'ลูกค้าใหม่มาตรวจ'}
-                              </span>
+                              {(() => {
+                                const currentEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
+                                const normType = (typeof window.normalizeCustomerType === 'function')
+                                  ? window.normalizeCustomerType(currentEffectiveType, currentLang, {
+                                      disease: ord.disease,
+                                      symptom: ord.disease,
+                                      customer_name: ord.customer_name,
+                                      hn: ord.hn
+                                    })
+                                  : { name: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', display: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', isOld: String(currentEffectiveType || '').includes('เก่า') };
+                                
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCreateDraftOrder({ ...ord, customer_type: normType.name });
+                                    }}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black cursor-pointer hover:opacity-80 transition-all ${normType.isOld ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200'}`}
+                                    title="คลิกเพื่อตรวจสอบหรือเปลี่ยนประเภทลูกค้า"
+                                  >
+                                    🏷️ {normType.display}
+                                    <span className="text-[8px] opacity-60">✏️</span>
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </td>
                           <td className="py-2 px-3 text-slate-600 align-middle border-r border-slate-100 ">{ord.disease || '-'}</td>
@@ -921,8 +1043,8 @@ const canceledOrders = useMemo(() => {
                               return (
                                 <div className="space-y-1">
                                   <div className="font-bold text-slate-800 text-[11px]">{cInfo.closerName}</div>
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black ${cInfo.closerTeam === 'Center' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-                                    {cInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิด (Center)' : '👤 สั่งเอง (Marketing)'}
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black ${cInfo.badgeClass || (cInfo.closerTeam === 'Center' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200')}`}>
+                                    {cInfo.badgeText || (cInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิด (Center)' : '👤 สั่งเอง (Marketing)')}
                                   </span>
                                 </div>
                               );

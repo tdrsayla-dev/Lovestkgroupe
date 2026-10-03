@@ -591,10 +591,10 @@
         return window.__stkClinicLogsCache[cacheKey];
       }
       try {
-        var sess = sessionStorage.getItem('stk_clinic_logs_' + cacheKey);
-        if (sess) {
-          var parsed = JSON.parse(sess);
-          if (parsed && Array.isArray(parsed.data) && (Date.now() - (parsed.ts || 0) < 300000)) { // 5 นาที แคช
+        var raw = sessionStorage.getItem('stk_clinic_logs_' + cacheKey) || localStorage.getItem('stk_clinic_logs_' + cacheKey);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.data) && (Date.now() - (parsed.ts || 0) < 900000)) { // 15 นาที แคช (ลด Egress สลับหน้า 0ms)
             if (!window.__stkClinicLogsCache) window.__stkClinicLogsCache = {};
             window.__stkClinicLogsCache[cacheKey] = parsed.data;
             return parsed.data;
@@ -617,7 +617,9 @@
         if (!window.__stkClinicLogsCache) window.__stkClinicLogsCache = {};
         window.__stkClinicLogsCache[cacheKey] = res;
         try {
-          sessionStorage.setItem('stk_clinic_logs_' + cacheKey, JSON.stringify({ ts: Date.now(), data: res }));
+          var cachePayload = JSON.stringify({ ts: Date.now(), data: res });
+          sessionStorage.setItem('stk_clinic_logs_' + cacheKey, cachePayload);
+          localStorage.setItem('stk_clinic_logs_' + cacheKey, cachePayload);
         } catch (e) {}
         return res;
       } catch (e) {

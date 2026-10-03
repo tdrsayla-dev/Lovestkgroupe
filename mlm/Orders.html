@@ -266,8 +266,8 @@
         const [historyEndDate, setHistoryEndDate] = useState(todayStr);
         const [filterRecordedBy, setFilterRecordedBy] = useState('ALL');
 
-        // ⚡ DYNAMIC DATE RANGE FETCHING: ดึงข้อมูลบิลย้อนหลังจาก Supabase ตามช่วงวันที่เลือกจริง
-        const fetchedDateRangesRef = useRef(new Set());
+        // ⚡ DYNAMIC DATE RANGE FETCHING: ดึงข้อมูลบิลย้อนหลังจาก Supabase ตามช่วงวันที่เลือกจริง (บิลวันนี้โหลดแล้วตั้งแต่เปิดหน้า)
+        const fetchedDateRangesRef = useRef(new Set([`${todayStr}_${todayStr}`]));
         const dateFetchDebounceRef = useRef(null);
 
         useEffect(() => {
@@ -323,6 +323,53 @@
                 if (dateFetchDebounceRef.current) clearTimeout(dateFetchDebounceRef.current);
             };
         }, [historyStartDate, historyEndDate, isMarketing, currentUser, setSales]);
+
+        // 🔍 SMART BACKGROUND SEARCH: เมื่อค้นหารหัสบิล/ลูกค้าที่ไม่ได้อยู่ในบิลวันนี้ ระบบจะดึงจาก Supabase ให้เงียบๆ อัตโนมัติ
+        useEffect(() => {
+            const term = (salesSearchTerm || '').trim();
+            if (!term || term.length < 3) return;
+            const searchTimer = setTimeout(async () => {
+                const hasMatch = (sales || []).some(s => {
+                    const st = term.toLowerCase();
+                    return String(s.id || '').toLowerCase().includes(st) || 
+                           String(s.customerId || '').toLowerCase().includes(st) || 
+                           String(s.customerName || '').toLowerCase().includes(st);
+                });
+                if (!hasMatch && typeof window.supabaseSelect === 'function') {
+                    try {
+                        setIsFetchingHistory(true);
+                        const safeTerm = encodeURIComponent(term);
+                        let sq = `or=(order_id.ilike.*${safeTerm}*,customer_id.ilike.*${safeTerm}*)&order=order_id.desc&limit=50`;
+                        if (isMarketing && currentUser) {
+                            sq += `&seller_id=eq.${String(currentUser.id || '').toUpperCase()}`;
+                        }
+                        const sRes = await window.supabaseSelect('stk_sales', sq);
+                        if (Array.isArray(sRes) && sRes.length > 0) {
+                            const formatted = sRes.map(s => ({
+                                ...s,
+                                id: s.id || s.sale_id || s.receipt_id || s.order_id,
+                                customerId: s.customerId || s.customer_id,
+                                memberId: s.memberId || s.sellerId || s.seller_id,
+                                totalAmount: s.totalAmount || s.total_amount,
+                                saleType: s.saleType || s.sale_type,
+                                date: s.date || s.created_at, 
+                                createdAt: s.created_at || s.createdAt || s.date, 
+                                time: s.time || s.created_time || s.created_at,
+                                recordedBy: s.recordedBy || s.recorded_by,
+                                paymentNote: s.paymentNote || s.payment_note
+                            }));
+                            setSales(prev => {
+                                const map = new Map((prev || []).map(x => [String(x.id || x.order_id), x]));
+                                formatted.forEach(x => map.set(String(x.id || x.order_id), x));
+                                return Array.from(map.values()).sort((a, b) => String(b.id || b.order_id || '').localeCompare(String(a.id || a.order_id || '')));
+                            });
+                        }
+                    } catch(e) {}
+                    finally { setIsFetchingHistory(false); }
+                }
+            }, 400);
+            return () => clearTimeout(searchTimer);
+        }, [salesSearchTerm, isMarketing, currentUser, sales, setSales]);
         const [deletedOrdersLog, setDeletedOrdersLog] = useState(() => {
             try {
                 const saved = localStorage.getItem('stk_deleted_orders_log');
@@ -564,11 +611,33 @@
             const mName = memberObj.name || saleRecord.memberName || saleRecord.member_name || '-';
             const mPhone = memberObj.phone || memberObj.phone_number || memberObj.phoneNumber || saleRecord.memberPhone || saleRecord.member_phone || saleRecord.sellerPhone || saleRecord.seller_phone || '';
             const mDisplay = mPhone ? `<div>${mName}</div><div style="font-size: 10px; color: #475569; margin-top: 1px;">(โทร: ${mPhone})</div>` : mName;
-            const custObj = (customers || []).find(c => c && (c.id === saleRecord.customerId || c.id === saleRecord.customer_id)) || {};
+            const targetSaleCustId = String(saleRecord.customerId || saleRecord.customer_id || '').trim().toUpperCase();
+            const custObj = (customers || []).find(c => {
+                if (!c) return false;
+                const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
+                return cid && cid === targetSaleCustId;
+            }) || {};
             const custName = custObj.name || saleRecord.customerName || saleRecord.customer_name || '';
             const closersList = typeof closers !== 'undefined' ? closers : [];
-            const closerObj = closersList.find(cl => cl && (cl.id === (custObj.closer || custObj.closerId || custObj.closer_id) || cl.name === custObj.closer)) || {};
-            const closerName = closerObj.name || custObj.closer || custObj.closerName || custObj.closer_name || '-';
+            const rawReceiptCloser = String(custObj.closer || custObj.closerId || custObj.closer_id || saleRecord.closer || saleRecord.closer_id || '').trim();
+            let closerName = '-';
+            if (rawReceiptCloser) {
+                const rawUpper = rawReceiptCloser.toUpperCase();
+                const matchedCloser = closersList.find(cl => {
+                    if (!cl) return false;
+                    const clId = String(cl.id || cl.closer_id || '').trim().toUpperCase();
+                    const clName = String(cl.name || '').trim().toUpperCase();
+                    return (clId && (clId === rawUpper || rawUpper.startsWith(clId + ' ') || rawUpper.startsWith(clId + '-'))) ||
+                           (clName && (clName === rawUpper || rawUpper.includes(clName)));
+                });
+                if (matchedCloser && matchedCloser.name) {
+                    closerName = matchedCloser.name;
+                } else if (rawReceiptCloser.includes(' - ')) {
+                    closerName = rawReceiptCloser.split(' - ').slice(1).join(' - ').trim() || rawReceiptCloser;
+                } else {
+                    closerName = rawReceiptCloser;
+                }
+            }
             const cleanCustName = (() => {
                 const parts = custName.split(/\s+/);
                 const nameParts = [];
@@ -1509,13 +1578,41 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                            <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
                            
                            {(() => {
-                               const cObj = (customers || []).find(c => c && c.id === viewBillDetail.customerId);
-                               if (!cObj) return null;
+                               const targetModalCustId = String(viewBillDetail.customerId || viewBillDetail.customer_id || '').trim().toUpperCase();
+                               const cObj = (customers || []).find(c => {
+                                   if (!c) return false;
+                                   const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
+                                   return cid && cid === targetModalCustId;
+                               });
+                               const rawModalCloser = cObj ? String(cObj.closer_id || cObj.closer || '').trim() : String(viewBillDetail.closer || viewBillDetail.closer_id || '').trim();
+                               let modalCloserName = '-';
+                               if (rawModalCloser) {
+                                   const rawUpper = rawModalCloser.toUpperCase();
+                                   const matched = (closers || []).find(cl => {
+                                       if (!cl) return false;
+                                       const clId = String(cl.id || cl.closer_id || '').trim().toUpperCase();
+                                       const clName = String(cl.name || '').trim().toUpperCase();
+                                       return (clId && (clId === rawUpper || rawUpper.startsWith(clId + ' ') || rawUpper.startsWith(clId + '-'))) ||
+                                              (clName && (clName === rawUpper || rawUpper.includes(clName)));
+                                   });
+                                   if (matched && matched.name) {
+                                       modalCloserName = matched.name;
+                                   } else if (rawModalCloser.includes(' - ')) {
+                                       modalCloserName = rawModalCloser.split(' - ').slice(1).join(' - ').trim() || rawModalCloser;
+                                   } else {
+                                       modalCloserName = rawModalCloser;
+                                   }
+                               }
                                return (
                                    <React.Fragment>
-                                       <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{cObj.phone || '-'}</span></div>
-                                       {cObj.lineId && <div className="flex justify-between"><span className="text-slate-500">LINE ID:</span> <span className="font-bold text-slate-800">{cObj.lineId}</span></div>}
-                                       {cObj.symptom && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{cObj.symptom}</span></div>}
+                                       <div className="flex justify-between"><span className="text-slate-500">ผู้ปิดการขาย (หมอ):</span> <span className="font-bold text-emerald-700">{modalCloserName}</span></div>
+                                       {cObj && (
+                                           <React.Fragment>
+                                               <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{cObj.phone || '-'}</span></div>
+                                               {cObj.lineId && <div className="flex justify-between"><span className="text-slate-500">LINE ID:</span> <span className="font-bold text-slate-800">{cObj.lineId}</span></div>}
+                                               {cObj.symptom && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{cObj.symptom}</span></div>}
+                                           </React.Fragment>
+                                       )}
                                    </React.Fragment>
                                );
                            })()}
@@ -1741,11 +1838,33 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                               </td>
                            </tr>
                        ) : paginatedSalesHistory.map((rs, index) => {
-                          const mName = (members || []).find(m => m && m.id === rs.memberId)?.name || rs.memberName || rs.memberId;
-                          const cName = (customers || []).find(c => c && c.id === rs.customerId)?.name || rs.customerName || '';
-                           const custObj = (customers || []).find(c => c && c.id === rs.customerId);
-                           const closerId = custObj ? String(custObj.closer_id || custObj.closer || '').trim() : '';
-                           const closerName = (closers || []).find(cl => cl && (String(cl.id).trim() === closerId || String(cl.name).trim() === closerId))?.name || closerId || '-';
+                          const mName = (members || []).find(m => m && String(m.id).trim().toUpperCase() === String(rs.memberId).trim().toUpperCase())?.name || rs.memberName || rs.memberId;
+                          const targetCustId = String(rs.customerId || rs.customer_id || '').trim().toUpperCase();
+                          const custObj = (customers || []).find(c => {
+                              if (!c) return false;
+                              const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
+                              return cid && cid === targetCustId;
+                          });
+                          const cName = custObj?.name || rs.customerName || rs.customer_name || '';
+                          const rawCloser = custObj ? String(custObj.closer_id || custObj.closer || '').trim() : String(rs.closer || rs.closer_id || '').trim();
+                          let closerName = '-';
+                          if (rawCloser) {
+                              const rawUpper = rawCloser.toUpperCase();
+                              const matchedCloser = (closers || []).find(cl => {
+                                  if (!cl) return false;
+                                  const clId = String(cl.id || cl.closer_id || '').trim().toUpperCase();
+                                  const clName = String(cl.name || '').trim().toUpperCase();
+                                  return (clId && (clId === rawUpper || rawUpper.startsWith(clId + ' ') || rawUpper.startsWith(clId + '-'))) ||
+                                         (clName && (clName === rawUpper || rawUpper.includes(clName)));
+                              });
+                              if (matchedCloser && matchedCloser.name) {
+                                  closerName = matchedCloser.name;
+                              } else if (rawCloser.includes(' - ')) {
+                                  closerName = rawCloser.split(' - ').slice(1).join(' - ').trim() || rawCloser;
+                              } else {
+                                  closerName = rawCloser;
+                              }
+                          }
                           return (
                            <tr key={index} className="hover:bg-slate-50/80 transition-colors">
                               <td className="py-2.5 px-3 align-top border-r border-slate-100 overflow-hidden">
@@ -2001,17 +2120,19 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
             }
             lastSalesRefreshTime = now;
             try {
-                let query = `order=order_id.desc&limit=800`;
+                // ⚡ โหลดบิลเฉพาะของวันนี้แบบวันต่อวัน เพื่อความเร็วสูงสุดและประหยัด Egress
+                const todayIsoStr = (typeof getLocalISODate === 'function') ? getLocalISODate() : new Date().toISOString().split('T')[0];
+                let query = `date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
                 const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
                 
                 if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
                     query += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;
                 }
 
-                // ⚡ FIX: ดึงเฉพาะคอลัมน์ที่จำเป็น และเรียงลำดับลูกค้าตามวันที่สร้าง
+                // ⚡ FIX: ดึงเฉพาะคอลัมน์ที่จำเป็น (ตัด extra_details_json เพื่อลดขนาด Payload) และเรียงลำดับลูกค้าตามวันที่สร้าง
                 const [saleRes, custRes] = await Promise.all([
                     supabaseSelect('stk_sales', query).catch(() => []),
-                    supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,extra_details_json,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=1000').catch(() => [])
+                    supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=2500').catch(() => [])
                 ]);
                 
                 if (Array.isArray(saleRes)) {
@@ -2054,7 +2175,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                         closer: x.closer_id || x.closer || "", 
                         closerTeam: x.closerTeam || x.closer_team || x.extra_details_json?.closerTeam || "", 
                         memberId: x.owner_member_id || x.member_id || x.memberId, 
-                        memberName: x.member_name || x.memberName || x.extra_details_json?.memberName || ""
+                        memberName: (members || []).find(m => m && m.id === (x.owner_member_id || x.member_id))?.name || x.memberName || x.extra_details_json?.memberName || ""
                     }));
                     
                     setCustomers(prev => {
@@ -2120,8 +2241,9 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
             } catch(e) {}
         }, 1500);
 
-        // ดึงข้อมูลโหลดแรกสุด
-        let salesQuery = `order=order_id.desc&limit=800`;
+        // ⚡ ดึงข้อมูลโหลดแรกสุด: ดึงเฉพาะบิลของวันนี้ (วันต่อวัน) เพื่อโหลดไวปานสายฟ้าแลบ ไม่ต้องรอโหลด 800 บิล
+        const todayIsoStr = (typeof getLocalISODate === 'function') ? getLocalISODate() : new Date().toISOString().split('T')[0];
+        let salesQuery = `date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
         const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
         if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
             salesQuery += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;
@@ -2129,8 +2251,8 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
         Promise.all([
           supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => supabaseSelect('members')).catch(() => []),
-          // ⚡ เรียงลำดับ created_at.desc เพื่อดึงลูกค้าใหม่ล่าสุดก่อนเสมอ
-          supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,extra_details_json,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=1000').catch(() => supabaseSelect('customers')).catch(() => []), 
+          // ⚡ เรียงลำดับ created_at.desc เพื่อดึงลูกค้าใหม่ล่าสุดก่อนเสมอ (ตัด extra_details_json)
+          supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=2500').catch(() => supabaseSelect('customers')).catch(() => []), 
           supabaseSelect('stk_products', 'select=product_id,name,current_stock,price_full,price_member,price_promo,give_pv,status,category').catch(() => supabaseSelect('products')).catch(() => []),
           supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => []),

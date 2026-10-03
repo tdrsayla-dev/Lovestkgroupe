@@ -94,7 +94,24 @@ window.stkDict = {
     "widget_sold": { th: "ขายได้: ", lo: "ຂາຍໄດ້: ", en: "Sold: " },
     "widget_box": { th: " กล่อง", lo: " ກ່ອງ", en: " Boxes" },
     "widget_progress": { th: "คืบหน้า", lo: "ຄືບໜ້າ", en: "Progress" },
-    "widget_target": { th: "เป้า: ", lo: "ເປົ້າ: ", en: "Target: " }
+    "widget_target": { th: "เป้า: ", lo: "ເປົ້າ: ", en: "Target: " },
+
+    // ---- ประเภทลูกค้า (Customer Types T001 - T007) ----
+    "cust_type_T001": { th: "ลูกค้าใหม่มาตรวจ", lo: "ລູກຄ້າໃໝ່ມາກວດ", en: "New Customer - Clinic Visit" },
+    "cust_type_T002": { th: "ลูกค้าเก่ากลับมาต่อยา", lo: "ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ", en: "Returning Customer - Medicine Refill" },
+    "cust_type_T003": { th: "ลูกค้าใหม่นำผลตรวจมาปรึกษา", lo: "ລູກຄ້າໃໝ່ນຳຜົນກວດມາປຶກສາ", en: "New Customer - Consult Lab Results" },
+    "cust_type_T004": { th: "โทรปิดการขายลูกค้าใหม่", lo: "ໂທປິດການຂາຍລູກຄ້າໃໝ່", en: "Telesales - New Customer" },
+    "cust_type_T005": { th: "ลูกค้าเก่านำผลตรวจมาปรึกษา", lo: "ລູກຄ້າເກົ່ານຳຜົນກວດມາປຶກສາ", en: "Returning Customer - Consult Lab Results" },
+    "cust_type_T006": { th: "โทรปิดการขายลูกค้าเก่า", lo: "ໂທປິດການຂາຍລູກຄ້າເກົ່າ", en: "Telesales - Returning Customer" },
+    "cust_type_T007": { th: "ส่วนกลางใหม่", lo: "ສ່ວນກາງໃໝ່", en: "Headquarters / Center - New" },
+
+    // ---- ผู้ปิดการขายและทีม (Closers & Prescribing Roles) ----
+    "closer_role_doctor": { th: "หมอปิด (Center)", lo: "ທ່ານໝໍປິດ (Center)", en: "Doctor (Center)" },
+    "closer_role_self": { th: "สั่งเอง (Marketing)", lo: "ສັ່ງເອງ (Marketing)", en: "Self-Order (Marketing)" },
+    "closer_role_doctor_full": { th: "หมอสั่งจ่าย", lo: "ທ່ານໝໍສັ່ງຈ່າຍ", en: "Doctor Prescribed" },
+    "closer_role_self_full": { th: "สั่งจ่ายยาเอง", lo: "ສັ່ງຈ່າຍຢາເອງ", en: "Self-Order" },
+    "closer_team_center": { th: "Center (ทีมแพทย์ / ผู้เชี่ยวชาญ)", lo: "Center (ທີມແພດ / ຜູ້ຊ່ຽວຊານ)", en: "Center (Medical Specialists)" },
+    "closer_team_marketing": { th: "Marketing (ฝ่ายการตลาด)", lo: "Marketing (ຝ່າຍການຕະຫຼາດ)", en: "Marketing" }
 };
 
 // ==========================================
@@ -120,4 +137,305 @@ window.t = function(key, fallbackText) {
         return window.stkDict[key][lang];
     }
     return fallbackText || key;
+};
+
+// =========================================================================
+// 🏷️ ระบบแมปและแปลประเภทลูกค้าสากล (Universal Customer Type Normalizer)
+// =========================================================================
+
+window.STK_CUSTOMER_TYPES_MAP = [
+    {
+        id: 'T001',
+        name: 'ลูกค้าใหม่มาตรวจ',
+        th: 'ลูกค้าใหม่มาตรวจ',
+        lo: 'ລູກຄ້າໃໝ່ມາກວດ',
+        en: 'New Customer - Clinic Visit',
+        isOld: false,
+        keywords: ['t001', 'ลูกค้าใหม่มาตรวจ', 'ລູກຄ້າໃໝ່ມາກວດ', 'ລູກຄ້າໃຫມ່ມາກວດ', 'มาตรวจ', 'ມາກວດ', 'ตรวจใหม่', 'กวดใหม่']
+    },
+    {
+        id: 'T002',
+        name: 'ลูกค้าเก่ากลับมาต่อยา',
+        th: 'ลูกค้าเก่ากลับมาต่อยา',
+        lo: 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ',
+        en: 'Returning Customer - Medicine Refill',
+        isOld: true,
+        keywords: ['t002', 'ลูกค้าเก่ากลับมาต่อยา', 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ', 'ต่อยา', 'ຕໍ່ຢາ', 'กลับมาต่อยา', 'ກັບມາຕໍ່ຢາ', 'เก่าต่อยา', 'ເກົ່າຕໍ່ຢາ']
+    },
+    {
+        id: 'T003',
+        name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา',
+        th: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา',
+        lo: 'ລູກຄ້າໃໝ່ນຳຜົນກວດມາປຶກສາ',
+        en: 'New Customer - Consult Lab Results',
+        isOld: false,
+        keywords: ['t003', 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', 'ລູກຄ້າໃໝ່ນຳຜົນກວດມາປຶກສາ', 'ລູກຄ້າໃຫມ່ນຳຜົນກວດມາປຶກສາ', 'ใหม่นำผล', 'ໃໝ່ນຳຜົນ', 'ໃຫມ່ນຳຜົນ', 'ใหม่ปรึกษา', 'ໃໝ່ປຶກສາ']
+    },
+    {
+        id: 'T004',
+        name: 'โทรปิดการขายลูกค้าใหม่',
+        th: 'โทรปิดการขายลูกค้าใหม่',
+        lo: 'ໂທປິດການຂายລູກຄ້າໃໝ່',
+        en: 'Telesales - New Customer',
+        isOld: false,
+        keywords: ['t004', 'โทรปิดการขายลูกค้าใหม่', 'ໂທປິດການຂາຍລູກຄ້າໃໝ່', 'ໂທປິດການຂາຍລູກຄ້າໃຫມ່', 'โทรปิดใหม่', 'ໂທປິດໃໝ່', 'ໂທປິດໃຫມ່', 'telesale new']
+    },
+    {
+        id: 'T005',
+        name: 'ลูกค้าเก่านำผลตรวจมาปรึกษา',
+        th: 'ลูกค้าเก่านำผลตรวจมาปรึกษา',
+        lo: 'ລູກຄ້າເກົ່ານຳຜົນກວດມາປຶກສາ',
+        en: 'Returning Customer - Consult Lab Results',
+        isOld: true,
+        keywords: ['t005', 'ลูกค้าเก่านำผลตรวจมาปรึกษา', 'ລູກຄ້າເກົ່ານຳຜົນກວດມາປຶກສາ', 'เก่านำผล', 'ເກົ່ານຳຜົນ', 'เก่าปรึกษา', 'ເກົ່າປຶກສາ', 'consult returning']
+    },
+    {
+        id: 'T006',
+        name: 'โทรปิดการขายลูกค้าเก่า',
+        th: 'โทรปิดการขายลูกค้าเก่า',
+        lo: 'ໂທປິດການຂายລູກຄ້າເກົ່າ',
+        en: 'Telesales - Returning Customer',
+        isOld: true,
+        keywords: ['t006', 'โทรปิดการขายลูกค้าเก่า', 'ໂທປິດການຂາຍລູກຄ້າເກົ່າ', 'โทรปิดเก่า', 'ໂທປິດເກົ່າ', 'telesale return']
+    },
+    {
+        id: 'T007',
+        name: 'ส่วนกลางใหม่',
+        th: 'ส่วนกลางใหม่',
+        lo: 'ສ່ວນກາງໃໝ່',
+        en: 'Headquarters / Center - New',
+        isOld: false,
+        keywords: ['t007', 'ส่วนกลางใหม่', 'ສ່ວນກາງໃໝ່', 'ສ່ວນກາງໃຫມ່', 'ส่วนกลาง', 'ສ່ວນກາງ', 'center new', 'hq new']
+    }
+];
+
+/**
+ * แปลงประเภทลูกค้าจากทุกรูปแบบ (รหัส T001-T007, ภาษาลาว, ภาษาไทย, ภาษาอังกฤษ)
+ * ให้กลายเป็น Canonical Customer Type Object ที่ถูกต้องสมบูรณ์
+ * @param {string} input - ข้อความประเภทลูกค้าที่ส่งมาจากระบบคลินิกหรือหน้าฟอร์ม
+ * @param {string} [targetLang] - ภาษาที่ต้องการแสดงผล ('th' | 'lo' | 'en') หากไม่ระบุจะใช้ภาษาปัจจุบัน
+ * @param {object} [context] - ข้อมูลเสริม เช่น { disease, symptom, customer_name, hn }
+ * @returns {object} { id, name, th, lo, en, isOld, label, display }
+ */
+window.normalizeCustomerType = function(input, targetLang, context) {
+    const list = window.STK_CUSTOMER_TYPES_MAP;
+    const curLang = targetLang || window.getCurrentLang() || 'th';
+    const defaultObj = list[0]; // T001
+
+    // หากมี context ส่งมา ให้ตรวจสอบว่ามีร่องรอยการต่อยา/ลูกค้าเก่าหรือไม่
+    let contextHint = '';
+    if (context && typeof context === 'object') {
+        contextHint = [
+            context.disease || '',
+            context.symptom || '',
+            context.customer_name || '',
+            context.patient_name || '',
+            context.chief_complaint || ''
+        ].join(' ').toLowerCase();
+    }
+
+    if (!input) {
+        if (contextHint && (contextHint.includes('ต่อยา') || contextHint.includes('ຕໍ່ຢາ') || contextHint.includes('ເກົ່າ') || contextHint.includes('เก่า'))) {
+            const refillItem = list[1]; // T002
+            return {
+                ...refillItem,
+                label: refillItem[curLang] || refillItem.th,
+                display: refillItem[curLang] || refillItem.th
+            };
+        }
+        return {
+            ...defaultObj,
+            label: defaultObj[curLang] || defaultObj.th,
+            display: defaultObj[curLang] || defaultObj.th
+        };
+    }
+
+    const raw = String(input).trim();
+    const rawLower = raw.toLowerCase();
+    const rawClean = rawLower.replace(/\s+/g, '');
+
+    // 1. ตรวจสอบจาก ID ตรงๆ (T001, T002, ..., T1, T2)
+    const idMatch = rawLower.match(/t0*([1-7])/);
+    if (idMatch) {
+        const found = list.find(item => item.id === `T00${idMatch[1]}`);
+        if (found) {
+            return {
+                ...found,
+                label: found[curLang] || found.th,
+                display: found[curLang] || found.th
+            };
+        }
+    }
+
+    // 2. ตรวจสอบ Exact Match (name, th, lo, en)
+    for (const item of list) {
+        if (
+            item.name.toLowerCase() === rawLower ||
+            item.th.toLowerCase() === rawLower ||
+            item.lo.toLowerCase() === rawLower ||
+            item.en.toLowerCase() === rawLower ||
+            item.th.replace(/\s+/g, '') === rawClean ||
+            item.lo.replace(/\s+/g, '') === rawClean
+        ) {
+            return {
+                ...item,
+                label: item[curLang] || item.th,
+                display: item[curLang] || item.th
+            };
+        }
+    }
+
+    // 3. ตรวจจับคีย์เวิร์ดเฉพาะเจาะจง (Keyword Priority Detection)
+    // ตรวจจับ 'ต่อยา' / 'ຕໍ່ຢາ' -> T002
+    if (rawLower.includes('ต่อยา') || rawLower.includes('ຕໍ່ຢາ') || rawLower.includes('refill')) {
+        const item = list[1]; // T002
+        return { ...item, label: item[curLang] || item.th, display: item[curLang] || item.th };
+    }
+
+    // ตรวจจับ 'ปรึกษา' / 'ປຶກສາ' / 'consult'
+    if (rawLower.includes('ปรึกษา') || rawLower.includes('ປຶກສາ') || rawLower.includes('consult')) {
+        const isOld = rawLower.includes('เก่า') || rawLower.includes('ເກົ່າ') || rawLower.includes('return') || rawLower.includes('old');
+        const item = isOld ? list[4] : list[2]; // T005 หรือ T003
+        return { ...item, label: item[curLang] || item.th, display: item[curLang] || item.th };
+    }
+
+    // ตรวจจับ 'โทรปิด' / 'ໂທປິດ' / 'telesale'
+    if (rawLower.includes('โทร') || rawLower.includes('ໂທ') || rawLower.includes('telesale')) {
+        const isOld = rawLower.includes('เก่า') || rawLower.includes('ເກົ່າ') || rawLower.includes('return') || rawLower.includes('old');
+        const item = isOld ? list[5] : list[3]; // T006 หรือ T004
+        return { ...item, label: item[curLang] || item.th, display: item[curLang] || item.th };
+    }
+
+    // ตรวจจับ 'ส่วนกลาง' / 'ສ່ວນກາງ' -> T007
+    if (rawLower.includes('ส่วนกลาง') || rawLower.includes('ສ່ວນກາງ') || rawLower.includes('center') || rawLower.includes('hq')) {
+        const item = list[6]; // T007
+        return { ...item, label: item[curLang] || item.th, display: item[curLang] || item.th };
+    }
+
+    // 4. ตรวจจับคำว่า 'เก่า' / 'ເກົ່າ' (Returning Customer Generic)
+    if (rawLower.includes('เก่า') || rawLower.includes('ເກົ່າ') || rawLower.includes('return') || rawLower.includes('old')) {
+        const item = list[1]; // T002 ลูกค้าเก่ากลับมาต่อยา
+        return { ...item, label: item[curLang] || item.th, display: item[curLang] || item.th };
+    }
+
+    // 5. หากข้อความที่ส่งมาเป็นค่า Default (เช่น ลูกค้าใหม่มาตรวจ) แต่ context ชี้ชัดว่าเป็นการต่อยา หรือเป็นคนไข้เก่า
+    if (contextHint && (contextHint.includes('ต่อยา') || contextHint.includes('ຕໍ່ຢາ') || contextHint.includes('ເກົ່າຕໍ່ຢາ') || contextHint.includes('เก่าต่อยา') || contextHint.includes('ເກົ່າ') || contextHint.includes('เก่า'))) {
+        const item = list[1]; // T002 ลูกค้าเก่ากลับมาต่อยา
+        return { ...item, label: item[curLang] || item.th, display: item[curLang] || item.th };
+    }
+
+    // 6. ตรวจจับคำว่า 'ใหม่' / 'ໃໝ່' / 'ໃຫມ່' / 'ตรวจ' / 'ກວດ' (New Customer Generic)
+    if (rawLower.includes('ใหม่') || rawLower.includes('ໃໝ່') || rawLower.includes('ໃຫມ່') || rawLower.includes('ตรวจ') || rawLower.includes('ກວດ') || rawLower.includes('new')) {
+        const item = list[0]; // T001 ลูกค้าใหม่มาตรวจ
+        return { ...item, label: item[curLang] || item.th, display: item[curLang] || item.th };
+    }
+
+    // Default Fallback
+    return {
+        ...defaultObj,
+        label: defaultObj[curLang] || defaultObj.th,
+        display: defaultObj[curLang] || defaultObj.th
+    };
+};
+
+/**
+ * 🩺 ฟังก์ชันกลางวิเคราะห์และตัดสินผู้สั่งจ่าย / ผู้ปิดการขาย (Prescriber & Closer Resolver)
+ * รองรับทั้งภาษาไทยและภาษาลาว ป้องกันข้อผิดพลาดที่ชอบหลุดไปขึ้นเป็น "หมอเป็นเซ็นเตอร์หมด"
+ * @param {object} ord - ออบเจกต์ออเดอร์จาก stk_nutrient_orders หรือ stk_pending_sale
+ * @returns {object} { orderByType, closerTeam, closerName, isSelf, badgeText, badgeClass }
+ */
+window.resolveOrderCloser = function(ord) {
+    const curLang = window.getCurrentLang() || 'th';
+    if (!ord) {
+        return {
+            orderByType: 'หมอสั่งจ่าย',
+            closerTeam: 'Center',
+            closerName: 'หมอผู้เชี่ยวชาญ (Center)',
+            isSelf: false,
+            badgeText: curLang === 'lo' ? '🩺 ທ່ານໝໍປິດ (Center)' : (curLang === 'en' ? '🩺 Doctor (Center)' : '🩺 หมอปิด (Center)'),
+            badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+        };
+    }
+
+    const recordedByStr = String(ord.recorded_by || ord.seller_id || '').trim();
+    const closerDrStr = String(ord.closer_dr || ord.closer || '').trim();
+    const typeStr = String(ord.order_by_type || ord.prescribe_type || ord.closer_type || '').trim().toLowerCase();
+    const teamStr = String(ord.closer_team || ord.closerTeam || '').trim().toLowerCase();
+
+    const closerLower = closerDrStr.toLowerCase();
+    const recordedLower = recordedByStr.toLowerCase();
+
+    // 1. ตรวจสอบคีย์เวิร์ด "สั่งจ่ายเอง / ตัวเองปิด / ฝ่ายการตลาด" (ครอบคลุมทั้งภาษาลาวและไทย)
+    // ภาษาลาว: ປິດເອງ, ປີດເອງ, ສັ່ງເອງ, ສັ່ງຈ່າຍເອງ, ຕົວແທນ, ການຕະຫຼາດ, ເອງ
+    // ภาษาไทย: ปิดเอง, ตัวเองปิด, สั่งเอง, สั่งจ่ายเอง, พนักงานปิดเอง, การตลาด, เอง
+    const isSelfByCloser = closerLower.includes('ປິດເອງ') || closerLower.includes('ປີດເອງ') || closerLower.includes('ສັ່ງເອງ') || closerLower.includes('ສັ່ງຈ່າຍເອງ') || closerLower.includes('ເອງ')
+        || closerLower.includes('ปิดเอง') || closerLower.includes('ตัวเองปิด') || closerLower.includes('สั่งเอง') || closerLower.includes('สั่งจ่ายเอง') || closerLower.includes('การตลาด')
+        || closerLower.includes('self') || closerLower.includes('own') || closerLower.includes('marketing');
+
+    const isSelfByType = (typeStr.includes('เอง') || typeStr.includes('ເອງ') || typeStr.includes('ตลาด') || typeStr.includes('ຕະຫຼາດ') || typeStr.includes('self') || typeStr.includes('marketing'))
+        && !typeStr.includes('หมอ') && !typeStr.includes('ແພດ') && !typeStr.includes('dr');
+
+    const isSelfByTeam = (teamStr === 'marketing' || teamStr.includes('การตลาด') || teamStr.includes('ຕະຫຼາດ'));
+
+    // 2. ตรวจสอบกรณีชื่อผู้สั่งจ่าย (closer_dr) ตรงกับผู้แนะนำ/ผู้บันทึก (recorded_by)
+    // เช่น recorded_by: "T6395 - Tester" และ closer_dr: "T6395 - Tester"
+    let isCloserSameAsRecorded = false;
+    if (recordedByStr && closerDrStr && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)') {
+        if (recordedLower === closerLower) {
+            isCloserSameAsRecorded = true;
+        } else {
+            // สกัด ID ต้นสาย เช่น T6395 จาก 'T6395 - Tester'
+            const recId = recordedByStr.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const closeId = closerDrStr.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (recId && closeId && recId === closeId) {
+                isCloserSameAsRecorded = true;
+            }
+        }
+    }
+
+    const isSelf = isSelfByCloser || isSelfByType || isSelfByTeam || isCloserSameAsRecorded;
+
+    if (isSelf) {
+        // --- กรณีสั่งจ่ายเอง / ตัวเองปิด (Marketing) ---
+        const orderByType = 'สั่งจ่ายยาเอง';
+        const closerTeam = 'Marketing';
+        let closerName = '';
+
+        if (closerDrStr && !isSelfByCloser && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)') {
+            closerName = closerDrStr;
+        } else if (recordedByStr && recordedByStr !== '-') {
+            closerName = recordedByStr;
+        } else {
+            closerName = 'พนักงานการตลาด';
+        }
+
+        const badgeText = curLang === 'lo' ? '👤 ສັ່ງເອງ (Marketing)' : (curLang === 'en' ? '👤 Self-Order (Marketing)' : '👤 สั่งเอง (Marketing)');
+
+        return {
+            orderByType,
+            closerTeam,
+            closerName,
+            isSelf: true,
+            badgeText,
+            badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        };
+    } else {
+        // --- กรณีหมอสั่งจ่าย / Center ปิด ---
+        const orderByType = 'หมอสั่งจ่าย';
+        const closerTeam = 'Center';
+        let closerName = (closerDrStr && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)')
+            ? closerDrStr
+            : 'หมอผู้เชี่ยวชาญ (Center)';
+
+        const badgeText = curLang === 'lo' ? '🩺 ທ່ານໝໍປິດ (Center)' : (curLang === 'en' ? '🩺 Doctor (Center)' : '🩺 หมอปิด (Center)');
+
+        return {
+            orderByType,
+            closerTeam,
+            closerName,
+            isSelf: false,
+            badgeText,
+            badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+        };
+    }
 };
