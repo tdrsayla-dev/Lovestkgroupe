@@ -5410,8 +5410,8 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
                 }
                 if (!resolvedReferrer && typeof _supabase !== 'undefined') {
                     try {
-                        const { data: pDb } = await _supabase.from('patients').select('referred_by, referrer, ref_code').eq('hn', hn).maybeSingle();
-                        if (pDb) resolvedReferrer = pDb.referred_by || pDb.referrer || pDb.ref_code || '';
+                        const { data: pDb } = await _supabase.from('patients').select('referred_by').eq('hn', hn).maybeSingle();
+                        if (pDb) resolvedReferrer = pDb.referred_by || '';
                     } catch (e) { }
                 }
             }
@@ -7968,6 +7968,9 @@ async function submitLabOrder() {
     if (error) {
         Swal.fire('ข้อผิดพลาด', error.message, 'error');
     } else {
+        if (document.activeElement && document.getElementById('labOrderModal')?.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
         bootstrap.Modal.getOrCreateInstance(document.getElementById('labOrderModal')).hide();
         loadDoctorQueue();
         loadPaymentQueue();
@@ -20310,16 +20313,16 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         if ((!referrerCode || referrerCode === '-') && typeof _supabase !== 'undefined') {
             try {
                 if (patientHn && patientHn !== '-') {
-                    const { data: pDb } = await _supabase.from('patients').select('referred_by, referrer, ref_code, patient_name').eq('hn', patientHn).maybeSingle();
+                    const { data: pDb } = await _supabase.from('patients').select('referred_by, patient_name').eq('hn', patientHn).maybeSingle();
                     if (pDb) {
-                        referrerCode = pDb.referred_by || pDb.referrer || pDb.ref_code || '';
+                        referrerCode = pDb.referred_by || '';
                         if ((!rawPatientName || rawPatientName === 'ผู้ป่วย') && pDb.patient_name) rawPatientName = pDb.patient_name;
                     }
                 }
                 if (!referrerCode && rawPatientName && rawPatientName !== 'ผู้ป่วย') {
-                    const { data: pDb } = await _supabase.from('patients').select('referred_by, referrer, ref_code, patient_name').ilike('patient_name', rawPatientName.trim()).maybeSingle();
+                    const { data: pDb } = await _supabase.from('patients').select('referred_by, patient_name').ilike('patient_name', rawPatientName.trim()).maybeSingle();
                     if (pDb) {
-                        referrerCode = pDb.referred_by || pDb.referrer || pDb.ref_code || '';
+                        referrerCode = pDb.referred_by || '';
                     }
                 }
             } catch (e) { }
