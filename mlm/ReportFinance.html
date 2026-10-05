@@ -264,7 +264,6 @@
         const [startDate, setStartDate] = useState(todayStr);
         const [endDate, setEndDate] = useState(todayStr);
         const [closingDate, setClosingDate] = useState(todayStr); // 🌟 วันที่สำหรับใบสรุปยอดเงินรายวัน (Daily Closing Date)
-        const [showDailyBillsList, setShowDailyBillsList] = useState(false); // สวิตช์เปิด/ปิดตารางบิลประกอบการปิดยอด
         const [searchQuery, setSearchQuery] = useState('');
         const debouncedSearchQuery = useDebounce(searchQuery, 300);
         const [productReportGroupBy, setProductReportGroupBy] = useState('seller');
@@ -2659,85 +2658,6 @@
                                             <span className="text-[10px] text-slate-400 mt-1">LOVE STK GROUPE</span>
                                         </div>
                                     </div>
-                                </div>
-
-                                {/* 🌟 3. รายการบิลขายประกอบการปิดยอด (Daily Bills Audit Trace) */}
-                                <div className={`${boxWrapper} p-5 sm:p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm`}>
-                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 dark:border-slate-700 pb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black">
-                                                <FileText size={20} />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-base font-black text-slate-800 dark:text-white">
-                                                    ລາຍການບິນຂາຍປະຈຳວັນທີ {closingDate}
-                                                </h4>
-                                                <p className="text-xs text-slate-500">
-                                                    รายการบิลทั้งหมด {dailyClosingData.billsCount} บิล สำหรับตรวจสอบการเงินย้อนหลัง
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowDailyBillsList(!showDailyBillsList)}
-                                            className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5"
-                                        >
-                                            <span>{showDailyBillsList ? 'ซ่อนรายการบิล' : 'แสดงรายการบิล'}</span>
-                                            <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">{dailyClosingData.billsCount}</span>
-                                        </button>
-                                    </div>
-
-                                    {showDailyBillsList && (
-                                        <div className="overflow-x-auto pt-4 animation-fade-in">
-                                            <table className="w-full text-left text-xs">
-                                                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700 uppercase">
-                                                    <tr>
-                                                        <th className="p-3 pl-4">#</th>
-                                                        <th className="p-3">เลขที่บิล</th>
-                                                        <th className="p-3">ผู้ขาย</th>
-                                                        <th className="p-3">ลูกค้า</th>
-                                                        <th className="p-3">ช่องทางชำระเงิน</th>
-                                                        <th className="p-3 text-right">ยอดรวม (บาท)</th>
-                                                        <th className="p-3 text-center no-print">จัดการ</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                    {dailyClosingData.dailyBills.map((b, idx) => (
-                                                        <tr key={b.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                                            <td className="p-3 pl-4 text-slate-400 font-mono">{idx + 1}</td>
-                                                            <td className="p-3 font-mono font-bold text-blue-600 dark:text-blue-400">{b.id || b.order_id}</td>
-                                                            <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{b.sellerName || b.memberId}</td>
-                                                            <td className="p-3 text-slate-600 dark:text-slate-300">{b.customerName || b.customerId || '-'}</td>
-                                                            <td className="p-3">
-                                                                <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                                                                    {b.saleType || b.payMode || 'เงินโอน'}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-3 text-right font-mono font-black text-slate-900 dark:text-white">
-                                                                ฿{Number(b['ยอดขายรวม'] || b.total_amount || 0).toLocaleString()}
-                                                            </td>
-                                                            <td className="p-3 text-center no-print">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setViewBillDetail(b)}
-                                                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-bold transition-colors"
-                                                                >
-                                                                    <Eye size={12} /> ดูบิล
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                    {dailyClosingData.dailyBills.length === 0 && (
-                                                        <tr>
-                                                            <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
-                                                                ไม่พบบิลขายในวันที่ {closingDate}
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         ) : null}

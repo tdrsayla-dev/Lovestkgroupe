@@ -222,6 +222,12 @@
           return JSON.parse(localStorage.getItem('stk_nutrient_custom_types') || '{}');
         } catch(e) { return {}; }
       });
+      const [existingCustomersData, setExistingCustomersData] = useState({
+        hns: new Set(),
+        phones: new Set(),
+        names: new Set()
+      });
+      const [membersList, setMembersList] = useState([]);
 
       useEffect(() => {
         const handleLangChange = (e) => {
@@ -274,50 +280,150 @@
           if (typeof window.supabaseSelect === 'function') {
             const isForce = forceRefresh === true || (showLoading && typeof showLoading === 'object');
             const cacheParam = isForce ? '&nocache=true' : '';
-            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=150' + cacheParam);
-            if (Array.isArray(data)) {
-          dbList = data.map(item => {
-            // หากบิลถูกยกเลิก หรืออยู่ในประวัติการลบ ให้ปรับสถานะเป็นบิลถูกยกเลิกเพื่อนำไปโชว์ในแท็บแทน
-            const finalStatus = (item.status === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet)) ? 'บิลถูกยกเลิก' : (item.status || 'รอดำเนินการ');
-            
-            const resolvedCustType = (() => {
-              const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
-              const norm = (typeof window.normalizeCustomerType === 'function')
-                ? window.normalizeCustomerType(explicit, 'th', {
-                    disease: item.disease || item.disease_name || '',
-                    symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
-                    customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
-                    hn: item.hn || item.customer_id || ''
-                  })
-                : null;
-              return norm ? norm.name : (explicit || 'ลูกค้าใหม่มาตรวจ');
-            })();
 
-            return {
-              id: item.order_id || String(item.id),
-              visit_id: item.visit_id || '-',
-              hn: item.hn || item.customer_id || item.customerId || item.patient_hn || item.patientHn || '-',
-              customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || item.customer || '-',
-              phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
-              disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
-              customer_type: resolvedCustType,
-              order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
-              closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
-              recorded_by: item.recorded_by || '-',
-              closer_dr: item.closer_dr || '-',
-              date: item.created_at || item.date || new Date().toISOString(),
-              status: finalStatus,
-              sale_order_id: item.sale_order_id || null,
-              items: (() => {
-                try {
-                  let parsed = item.items_json || item.items || item.products;
-                  if (typeof parsed === "string") parsed = JSON.parse(parsed);
-                  return Array.isArray(parsed) ? parsed : [];
-                } catch(e) { return []; }
-              })()
+            // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก
+            const [data, salesRes, custRes, membersRes, clinicPatientsRes] = await Promise.all([
+              window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
+              window.supabaseSelect('stk_sales', 'select=order_id,payment_note&order=created_at.desc&limit=300' + cacheParam).catch(() => []),
+              window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id').catch(() => []),
+              window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []),
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by') : Promise.resolve([])).catch(() => [])
+            ]);
+
+            if (Array.isArray(membersRes) && membersRes.length > 0) {
+              setMembersList(membersRes);
+            }
+
+            // Map ผู้แนะนำตัวจริงจากคลินิก (ตาราง patients)
+            const patientRefMap = new Map();
+            if (Array.isArray(clinicPatientsRes)) {
+              clinicPatientsRes.forEach(p => {
+                if (p && p.hn && p.referred_by) {
+                  patientRefMap.set(String(p.hn).trim().toUpperCase(), String(p.referred_by).trim());
+                }
+              });
+            }
+
+            // Map ผู้ดูแลลูกค้าเดิมจาก stk_customers
+            const custOwnerMap = new Map();
+            if (Array.isArray(custRes)) {
+              custRes.forEach(c => {
+                const owner = c.owner_member_id ? String(c.owner_member_id).trim() : '';
+                if (!owner) return;
+                if (c.customer_id) custOwnerMap.set(String(c.customer_id).trim().toUpperCase(), owner);
+                const clP = String(c.phone || '').replace(/[^0-9]/g, '');
+                if (clP.length >= 7) custOwnerMap.set(clP, owner);
+                const clN = String(c.name || '').trim().toLowerCase();
+                if (clN && clN !== '-' && clN !== '--') custOwnerMap.set(clN, owner);
+              });
+            }
+
+            // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales
+            const salesVisitMap = new Map();
+            if (Array.isArray(salesRes)) {
+              salesRes.forEach(s => {
+                const note = String(s.payment_note || s.paymentNote || '');
+                const m = note.match(/VISIT:\s*([^\)\s]+)/);
+                if (m && m[1]) {
+                  salesVisitMap.set(m[1].trim().toUpperCase(), s.order_id);
+                }
+              });
+            }
+
+            // สร้าง Set ของลูกค้าเดิมในระบบเพื่อตรวจสอบความมีอยู่จริง
+            const hnSet = new Set();
+            const phoneSet = new Set();
+            const nameSet = new Set();
+            if (Array.isArray(custRes)) {
+              custRes.forEach(c => {
+                if (c.customer_id) hnSet.add(String(c.customer_id).trim().toUpperCase());
+                const clP = String(c.phone || '').replace(/[^0-9]/g, '');
+                if (clP.length >= 7) phoneSet.add(clP);
+                const clN = String(c.name || '').trim().toLowerCase();
+                if (clN && clN !== '-' && clN !== '--') nameSet.add(clN);
+              });
+            }
+            setExistingCustomersData({ hns: hnSet, phones: phoneSet, names: nameSet });
+
+            const checkCustomerExists = (hn, phone, name) => {
+              const h = String(hn || '').trim().toUpperCase();
+              const p = String(phone || '').replace(/[^0-9]/g, '');
+              const n = String(name || '').trim().toLowerCase();
+              return Boolean(
+                (h && h !== '-' && hnSet.has(h)) ||
+                (p && p.length >= 7 && phoneSet.has(p)) ||
+                (n && n !== '-' && nameSet.has(n))
+              );
             };
-          });
-        }
+
+            if (Array.isArray(data)) {
+              dbList = data.map(item => {
+                const vUpper = String(item.visit_id || '').trim().toUpperCase();
+                const matchingSaleId = item.sale_order_id || salesVisitMap.get(vUpper) || null;
+                const isCompleted = item.status === 'ขายสำเร็จแล้ว' || Boolean(matchingSaleId);
+                const finalStatus = (item.status === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet))
+                  ? 'บิลถูกยกเลิก'
+                  : (isCompleted ? 'ขายสำเร็จแล้ว' : (item.status || 'รอดำเนินการ'));
+
+                // ซิงค์สถานะบิลขายสำเร็จกลับ Supabase อัตโนมัติในพื้นหลังหากยังไม่ได้อัปเดต
+                if (matchingSaleId && item.status !== 'ขายสำเร็จแล้ว' && typeof window.supabaseUpdate === 'function') {
+                  window.supabaseUpdate('stk_nutrient_orders', item.visit_id, {
+                    status: 'ขายสำเร็จแล้ว',
+                    sale_order_id: matchingSaleId
+                  }, 'visit_id').catch(() => {});
+                }
+
+                const isExisting = checkCustomerExists(item.hn || item.customer_id, item.phone || item.customer_phone, item.customer_name || item.customerName);
+                const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+                const resolvedCustType = (typeof window.resolveVisitCustomerType === 'function')
+                  ? window.resolveVisitCustomerType(item.visit_id, isExisting, explicit, 'th', {
+                      disease: item.disease || item.disease_name || '',
+                      symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
+                      customer_name: item.customer_name || item.customerName || '',
+                      hn: item.hn || item.customer_id || ''
+                    }).name
+                  : (explicit || 'ลูกค้าใหม่มาตรวจ');
+
+                // 🛡️ Resolve ผู้แนะนำ (การตลาด) ตัวจริง ป้องกันกรณีคลินิกส่ง user ประจำจุดมาทับ
+                const hnUp = String(item.hn || item.customer_id || '').trim().toUpperCase();
+                const pClean = String(item.phone || item.customer_phone || '').replace(/[^0-9]/g, '');
+                const nClean = String(item.customer_name || item.customerName || '').trim().toLowerCase();
+                const clinicReferrer = (hnUp && hnUp !== '-') ? patientRefMap.get(hnUp) : null;
+                const custOwner = (hnUp && hnUp !== '-') ? custOwnerMap.get(hnUp) : (pClean ? custOwnerMap.get(pClean) : custOwnerMap.get(nClean));
+
+                let resolvedRecordedBy = item.recorded_by || '-';
+                if (clinicReferrer && clinicReferrer.trim() && clinicReferrer !== '-') {
+                  resolvedRecordedBy = clinicReferrer.trim();
+                } else if (custOwner && (!resolvedRecordedBy || resolvedRecordedBy === '-' || resolvedRecordedBy.toLowerCase().includes('admin'))) {
+                  const mObj = Array.isArray(membersRes) ? membersRes.find(m => m && (m.user_id === custOwner || m.id === custOwner)) : null;
+                  resolvedRecordedBy = mObj ? `${mObj.user_id || mObj.id} - ${mObj.name}` : custOwner;
+                }
+
+                return {
+                  id: item.order_id || String(item.id),
+                  visit_id: item.visit_id || '-',
+                  hn: item.hn || item.customer_id || item.customerId || item.patient_hn || item.patientHn || '-',
+                  customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || item.customer || '-',
+                  phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
+                  disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
+                  customer_type: resolvedCustType,
+                  order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
+                  closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
+                  recorded_by: resolvedRecordedBy,
+                  closer_dr: item.closer_dr || '-',
+                  date: item.created_at || item.date || new Date().toISOString(),
+                  status: finalStatus,
+                  sale_order_id: matchingSaleId || item.sale_order_id || null,
+                  items: (() => {
+                    try {
+                      let parsed = item.items_json || item.items || item.products;
+                      if (typeof parsed === "string") parsed = JSON.parse(parsed);
+                      return Array.isArray(parsed) ? parsed : [];
+                    } catch(e) { return []; }
+                  })()
+                };
+              });
+            }
           }
         } catch (err) {
           console.warn('Supabase fetch nutrient_orders error:', err);
@@ -329,7 +435,7 @@
           const localClinicMlm = JSON.parse(localStorage.getItem('clinic_mlm_orders') || '[]');
           const rawCombined = [...localNutrient, ...localClinicMlm];
 
-          const dbIdSet = new Set(dbList.map(o => o.id));
+          const dbVisitSet = new Set(dbList.map(o => String(o.visit_id || '').trim().toUpperCase()));
 
           for (const item of rawCombined) {
             let parsedItems = [];
@@ -340,11 +446,17 @@
 
             const vId = item.visit_id || (item.payment_note && item.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? item.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : null) || item.rxVisitId || `VIS-${item.id}`;
             const orderId = item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`;
+            const vUpper = String(vId || '').trim().toUpperCase();
 
-            // เปลี่ยนจาก continue ทิ้ง เป็นการอัปเดตสถานะให้อยู่ในแท็บยกเลิกแทน
+            // ตรวจสอบว่าออเดอร์นี้ขายสำเร็จไปแล้วหรือไม่
+            const matchingSaleId = item.sale_order_id || (typeof salesVisitMap !== 'undefined' ? salesVisitMap.get(vUpper) : null) || null;
+            const isCompleted = item.status === 'ขายสำเร็จแล้ว' || Boolean(matchingSaleId);
+
             let finalLocalStatus = item.status || 'รอดำเนินการ';
             if (finalLocalStatus === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet) || isOrderDeleted({ id: orderId, visit_id: vId }, deletedIdsSet)) {
                 finalLocalStatus = 'บิลถูกยกเลิก';
+            } else if (isCompleted) {
+                finalLocalStatus = 'ขายสำเร็จแล้ว';
             }
 
             const normalizedItems = Array.isArray(parsedItems) ? parsedItems.map(it => ({
@@ -359,18 +471,21 @@
               total: Number(it.total || (it.price * it.qty) || 0)
             })) : [];
 
-            const resolvedLocalCustType = (() => {
-              const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
-              const norm = (typeof window.normalizeCustomerType === 'function')
-                ? window.normalizeCustomerType(explicit, 'th', {
-                    disease: item.disease || item.disease_name || '',
-                    symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
-                    customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
-                    hn: item.hn || item.customer_id || ''
-                  })
-                : null;
-              return norm ? norm.name : (explicit || 'ลูกค้าใหม่มาตรวจ');
-            })();
+            const isExistingLocal = Boolean(
+              (item.hn && item.hn !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(String(item.hn).trim().toUpperCase())) ||
+              (item.phone && existingCustomersData.phones && existingCustomersData.phones.has(String(item.phone).replace(/[^0-9]/g, ''))) ||
+              (item.customer_name && existingCustomersData.names && existingCustomersData.names.has(String(item.customer_name).trim().toLowerCase()))
+            );
+
+            const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+            const resolvedLocalCustType = (typeof window.resolveVisitCustomerType === 'function')
+              ? window.resolveVisitCustomerType(vId, isExistingLocal, explicit, 'th', {
+                  disease: item.disease || item.disease_name || '',
+                  symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
+                  customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
+                  hn: item.hn || item.customer_id || ''
+                }).name
+              : (explicit || 'ลูกค้าใหม่มาตรวจ');
 
             const localEntry = {
               id: orderId,
@@ -386,12 +501,12 @@
               closer_dr: item.closer_dr || '-',
               date: item.created_at || item.date || new Date().toISOString(),
               status: finalLocalStatus,
-              sale_order_id: item.sale_order_id || null,
+              sale_order_id: matchingSaleId || item.sale_order_id || null,
               items: normalizedItems
             };
 
-            // ─── Sync ขึ้น Supabase ถ้ายังไม่มี ───────────────────────────
-            if (!dbIdSet.has(orderId) && orderId && vId && vId !== '-') {
+            // ─── Sync ขึ้น Supabase ถ้ายังไม่มีใน DB ───────────────────────────
+            if (!dbVisitSet.has(vUpper) && orderId && vId && vId !== '-') {
               try {
                 const upsertPayload = {
                   order_id: orderId,
@@ -409,12 +524,12 @@
                 if (typeof window.supabaseInsert === 'function') {
                   await window.supabaseInsert('stk_nutrient_orders', upsertPayload);
                 }
-                dbIdSet.add(orderId);
+                dbVisitSet.add(vUpper);
               } catch(syncErr) {
                 console.warn('Sync to Supabase failed:', syncErr);
               }
               localList.push(localEntry);
-            } else if (!dbIdSet.has(orderId)) {
+            } else if (!dbVisitSet.has(vUpper)) {
               localList.push(localEntry);
             }
           }
@@ -422,15 +537,24 @@
           console.warn('LocalStorage parse error:', ex);
         }
 
-        // ─── 3. รวมและ deduplicate ────────────────
-        const idMap = new Map();
+        // ─── 3. รวมและ deduplicate ตาม visit_id อย่างแม่นยำ 100% ────────────────
+        const visitMap = new Map();
         [...dbList, ...localList].forEach(o => {
-          if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id) && !isOrderDeleted(o, deletedIdsSet)) {
-            idMap.set(o.id, o);
+          const vKey = String(o.visit_id || '').trim().toUpperCase();
+          if (vKey && vKey !== '-' && !isOrderDeleted(o, deletedIdsSet)) {
+            if (!visitMap.has(vKey)) {
+              visitMap.set(vKey, o);
+            } else {
+              const existing = visitMap.get(vKey);
+              // หากรายการใดมีสถานะ 'ขายสำเร็จแล้ว' หรือมี sale_order_id ให้ใช้สถานะสำเร็จทันที
+              if (existing.status !== 'ขายสำเร็จแล้ว' && (o.status === 'ขายสำเร็จแล้ว' || o.sale_order_id)) {
+                visitMap.set(vKey, { ...existing, ...o, status: 'ขายสำเร็จแล้ว', sale_order_id: o.sale_order_id || existing.sale_order_id });
+              }
+            }
           }
         });
 
-        setOrders(Array.from(idMap.values()));
+        setOrders(Array.from(visitMap.values()));
         setLoading(false);
       };
 
@@ -501,6 +625,15 @@
         return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว' && ord.status !== 'บิลถูกยกเลิก');
       }, [filteredOrders]);
 
+      // ซิงค์จำนวนออเดอร์รอดำเนินการจริงไปยัง Sidebar Badge ด้านซ้ายแบบเรียลไทม์
+      useEffect(() => {
+        const count = orders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว' && ord.status !== 'บิลถูกยกเลิก').length;
+        try {
+          localStorage.setItem('stk_pending_nutrient_count', String(count));
+          window.dispatchEvent(new CustomEvent('stk_nutrient_count_update', { detail: { count } }));
+        } catch(e) {}
+      }, [orders]);
+
       const completedOrders = useMemo(() => {
         return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว');
       }, [filteredOrders]);
@@ -554,10 +687,21 @@
           console.warn('Stock check error:', e);
         }
 
+        const hnUpper = String(order.hn || '').trim().toUpperCase();
+        const pClean = String(order.phone || '').replace(/[^0-9]/g, '');
+        const nClean = String(order.customer_name || '').trim().toLowerCase();
+        const isExistingCustomer = Boolean(
+          (hnUpper && hnUpper !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(hnUpper)) ||
+          (pClean && pClean.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pClean)) ||
+          (nClean && nClean !== '-' && existingCustomersData.names && existingCustomersData.names.has(nClean))
+        );
+
         const closerInfo = resolveOrderCloserInfo(order);
-        const normCustType = (typeof window.normalizeCustomerType === 'function')
-            ? window.normalizeCustomerType(order.customer_type)
-            : { id: 'T001', name: order.customer_type || 'ลูกค้าใหม่มาตรวจ', display: order.customer_type || 'ลูกค้าใหม่มาตรวจ', isOld: String(order.customer_type || '').includes('เก่า'), lo: 'ລູກຄ້າໃໝ່ມາກວດ', th: 'ลูกค้าใหม่มาตรวจ', en: 'New Customer - Clinic Visit' };
+        const normCustType = (typeof window.resolveVisitCustomerType === 'function')
+            ? window.resolveVisitCustomerType(order.visit_id, isExistingCustomer, order.customer_type, currentLang)
+            : ((typeof window.normalizeCustomerType === 'function')
+                ? window.normalizeCustomerType(order.customer_type)
+                : { id: 'T001', name: order.customer_type || 'ลูกค้าใหม่มาตรวจ', display: order.customer_type || 'ลูกค้าใหม่มาตรวจ', isOld: isExistingCustomer, lo: 'ລູກຄ້າໃໝ່ມາກວດ', th: 'ลูกค้าใหม่มาตรวจ', en: 'New Customer - Clinic Visit' });
         const custTypeDisplay = normCustType.display;
         const isOldCustomer = normCustType.isOld;
 
@@ -577,6 +721,20 @@
           return `<option value="${t.name}" ${isSelected}>🏷️ ${label}</option>`;
         }).join('');
 
+        const currentSellerStr = String(order.recorded_by || '').trim();
+        let sellerFoundInList = false;
+        const sellerOptionsHtml = (membersList || []).map(m => {
+          const mId = m.user_id || m.id;
+          const val = `${mId} - ${m.name}`;
+          const isSelected = currentSellerStr && (currentSellerStr.toUpperCase() === val.toUpperCase() || currentSellerStr.toUpperCase() === String(mId).toUpperCase() || currentSellerStr.toUpperCase().startsWith(String(mId).toUpperCase()));
+          if (isSelected) sellerFoundInList = true;
+          return `<option value="${val}" ${isSelected ? 'selected' : ''}>👤 ${val}</option>`;
+        }).join('');
+
+        const fullSellerSelectHtml = sellerFoundInList || !currentSellerStr || currentSellerStr === '-'
+          ? sellerOptionsHtml
+          : `<option value="${currentSellerStr}" selected>👤 ${currentSellerStr} (จากใบสั่งยา)</option>` + sellerOptionsHtml;
+
         Swal.fire({
           title: currentLang === 'lo' ? 'ຢືນຢັນສ້າງຮ່າງໃບສັ່ງຊື້' : (currentLang === 'en' ? 'Confirm Draft Order' : 'ยืนยันสร้างร่างใบสั่งซื้อ'),
           html: `
@@ -592,7 +750,7 @@
               <p><strong>เบอร์โทร:</strong> ${order.phone || '-'}</p>
               <p><strong>โรค/อาการ:</strong> ${order.disease || '-'}</p>
 
-              <!-- Dropdown เลือกประเภทลูกค้าก่อนส่งเข้าหน้าขาย (ป้องกันการตีกลับเป็นลูกค้าใหม่มาตรวจ) -->
+              <!-- Dropdown เลือกประเภทลูกค้าก่อนส่งเข้าหน้าขาย -->
               <div class="bg-blue-50/70 p-2.5 rounded-xl border border-blue-200 text-xs mt-2">
                 <label class="block font-bold text-slate-700 mb-1">
                   🏷️ ประเภทลูกค้า (สามารถเลือกเปลี่ยนได้หากระบบคลินิกส่งมาไม่ตรง):
@@ -601,9 +759,18 @@
                   ${optionsHtml}
                 </select>
               </div>
+
+              <!-- Dropdown ตรวจสอบและเลือกผู้แนะนำ (การตลาด/ผู้ขาย) ก่อนส่งเข้าหน้าขาย -->
+              <div class="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200 text-xs mt-2">
+                <label class="block font-bold text-slate-700 mb-1">
+                  👤 ผู้แนะนำ / ผู้ขาย (การตลาด) ในบิล:
+                </label>
+                <select id="swal-select-seller" class="w-full bg-white border border-amber-300 rounded-lg p-2 font-bold text-slate-800 text-xs shadow-2xs focus:border-amber-500 focus:outline-none">
+                  ${fullSellerSelectHtml}
+                </select>
+              </div>
               
               <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs space-y-1 mt-2">
-                <p><strong>ผู้แนะนำ (ผู้ขาย):</strong> <span class="text-slate-800 font-bold">${order.recorded_by}</span></p>
                 <p><strong>รูปแบบสั่งจ่าย:</strong> <span class="font-bold ${closerInfo.closerTeam === 'Center' ? 'text-indigo-600' : 'text-emerald-600'}">${closerInfo.badgeText || (closerInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิดการขาย / สั่งจ่าย' : '👤 สั่งจ่ายยาเอง')} (ทีม: ${closerInfo.closerTeam})</span></p>
                 <p><strong>ผู้ปิดการขายในบิล:</strong> <span class="font-black text-slate-900">${closerInfo.closerName}</span></p>
               </div>
@@ -644,12 +811,17 @@
             } catch (err) {}
           },
           preConfirm: () => {
-            const selectEl = document.getElementById('swal-select-customer-type');
-            return selectEl ? selectEl.value : normCustType.name;
+            const selectType = document.getElementById('swal-select-customer-type');
+            const selectSeller = document.getElementById('swal-select-seller');
+            return {
+              custTypeName: selectType ? selectType.value : normCustType.name,
+              sellerName: selectSeller ? selectSeller.value : (order.recorded_by || '')
+            };
           }
         }).then((result) => {
           if (result.isConfirmed) {
-            const selectedCustTypeName = result.value || normCustType.name;
+            const selectedCustTypeName = result.value?.custTypeName || normCustType.name;
+            const selectedSeller = result.value?.sellerName || order.recorded_by;
             const finalCustTypeObj = (typeof window.normalizeCustomerType === 'function')
               ? window.normalizeCustomerType(selectedCustTypeName)
               : { id: normCustType.id, name: selectedCustTypeName, lo: selectedCustTypeName, th: selectedCustTypeName, en: selectedCustTypeName };
@@ -670,7 +842,7 @@
                 customer_name: (order.customer_name && order.customer_name !== '-') ? order.customer_name : '',
                 phone: (order.phone && order.phone !== '-' && order.phone !== '--') ? order.phone : '',
                 disease: (order.disease && order.disease !== '-') ? order.disease : '',
-                recorded_by: order.recorded_by,
+                recorded_by: selectedSeller || order.recorded_by,
                 closer_dr: closerInfo.closerName,
                 closer: closerInfo.closerName,
                 closer_team: closerInfo.closerTeam,
@@ -1009,14 +1181,22 @@
                             <div className="flex items-center gap-1 mt-1 flex-wrap">
                               {(() => {
                                 const currentEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
-                                const normType = (typeof window.normalizeCustomerType === 'function')
-                                  ? window.normalizeCustomerType(currentEffectiveType, currentLang, {
+                                const hnUpper = String(ord.hn || '').trim().toUpperCase();
+                                const pClean = String(ord.phone || '').replace(/[^0-9]/g, '');
+                                const nClean = String(ord.customer_name || '').trim().toLowerCase();
+                                const isExisting = Boolean(
+                                  (hnUpper && hnUpper !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(hnUpper)) ||
+                                  (pClean && pClean.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pClean)) ||
+                                  (nClean && nClean !== '-' && existingCustomersData.names && existingCustomersData.names.has(nClean))
+                                );
+                                const normType = (typeof window.resolveVisitCustomerType === 'function')
+                                  ? window.resolveVisitCustomerType(ord.visit_id, isExisting, currentEffectiveType, currentLang, {
                                       disease: ord.disease,
                                       symptom: ord.disease,
                                       customer_name: ord.customer_name,
                                       hn: ord.hn
                                     })
-                                  : { name: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', display: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', isOld: String(currentEffectiveType || '').includes('เก่า') };
+                                  : { name: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', display: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', isOld: isExisting };
                                 
                                 return (
                                   <button

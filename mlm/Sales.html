@@ -857,6 +857,95 @@
                 return Array.from(poolMap.values());
             }, [closers, members, businessTeams]);
 
+            // 🛡️ ฟังก์ชันแกะและตรวจจับทีมผู้ปิดการขายและชื่อผู้ปิดอย่างแม่นยำ 100%
+            const resolveCloserAndTeam = useCallback((target, fallbackSellerId = '') => {
+                if (!target) return { closer: '', closerTeam: '' };
+
+                let rawCloser = String(target.closer || target.closer_id || target.closerName || target.closer_dr || '').trim();
+                let extraObj = {};
+                if (target.extra_details_json) {
+                    try {
+                        extraObj = typeof target.extra_details_json === 'string'
+                            ? JSON.parse(target.extra_details_json)
+                            : target.extra_details_json;
+                    } catch (e) {
+                        extraObj = {};
+                    }
+                }
+
+                let rawTeam = String(target.closerTeam || target.closer_team || extraObj.closerTeam || '').trim();
+                if (rawTeam === 'Team A') rawTeam = 'Marketing';
+                if (rawTeam === 'Team B') rawTeam = 'Center';
+
+                const sellerId = String(fallbackSellerId || target.seller_id || target.memberId || target.owner_member_id || '').trim();
+
+                // ถ้าไม่มีผู้ปิดเลย และมีรหัสผู้ขาย ให้ fallback หาผู้ขาย
+                if (!rawCloser && sellerId) {
+                    const m = (members || []).find(mem => mem && String(mem.id || '').toUpperCase() === sellerId.toUpperCase());
+                    if (m) {
+                        rawCloser = m.name ? `${m.id} - ${m.name}` : m.id;
+                        if (!rawTeam) rawTeam = m.businessTeam || 'Marketing';
+                    }
+                }
+
+                // ถ้ายังไม่ทราบทีมผู้ปิด ให้แกะจากชื่อหรือรหัสผู้ปิดเทียบกับ Pool ทันที
+                if (!rawTeam && rawCloser) {
+                    const pool = Array.isArray(allClosersPool) ? allClosersPool : [];
+                    const searchVal = String(rawCloser).trim().toUpperCase();
+
+                    // 1. ค้นหาใน allClosersPool
+                    const foundInPool = pool.find(c => {
+                        if (!c) return false;
+                        const cId = String(c.id || '').toUpperCase();
+                        const cName = String(c.name || '').toUpperCase();
+                        const cCombined = `${cId} - ${cName}`;
+                        return (cId && (searchVal === cId || searchVal.startsWith(cId) || searchVal.includes(cId))) ||
+                               (cName && (searchVal === cName || searchVal.includes(cName))) ||
+                               (cCombined && (searchVal === cCombined || searchVal.includes(cCombined)));
+                    });
+
+                    if (foundInPool && foundInPool.team) {
+                        rawTeam = foundInPool.team;
+                    } else {
+                        // 2. ค้นหาในตาราง closers (Center)
+                        const foundInClosers = (closers || []).find(c => {
+                            if (!c) return false;
+                            const cId = String(c.id || c.closer_id || '').toUpperCase();
+                            const cName = String(c.name || c.closer_name || '').toUpperCase();
+                            return (cId && (searchVal === cId || searchVal.includes(cId))) || (cName && (searchVal === cName || searchVal.includes(cName)));
+                        });
+                        if (foundInClosers) {
+                            rawTeam = foundInClosers.team || 'Center';
+                        } else {
+                            // 3. ค้นหาในตาราง members (Marketing)
+                            const foundInMembers = (members || []).find(m => {
+                                if (!m) return false;
+                                const mId = String(m.id || m.user_id || '').toUpperCase();
+                                const mName = String(m.name || '').toUpperCase();
+                                return (mId && (searchVal === mId || searchVal.includes(mId))) || (mName && (searchVal === mName || searchVal.includes(mName)));
+                            });
+                            if (foundInMembers) {
+                                rawTeam = foundInMembers.businessTeam || 'Marketing';
+                            }
+                        }
+                    }
+
+                    // 4. Fallback จากคีย์เวิร์ดทั่วไป
+                    if (!rawTeam) {
+                        if (searchVal.includes('หมอ') || searchVal.includes('CENTER') || searchVal.includes('DR')) {
+                            rawTeam = 'Center';
+                        } else if (searchVal.includes('MARKETING') || searchVal.includes('ตลาด')) {
+                            rawTeam = 'Marketing';
+                        }
+                    }
+                }
+
+                if (rawTeam === 'Team A') rawTeam = 'Marketing';
+                if (rawTeam === 'Team B') rawTeam = 'Center';
+
+                return { closer: rawCloser, closerTeam: rawTeam };
+            }, [allClosersPool, closers, members]);
+
             const closersSuggestList = useMemo(() => {
                 const selectedTeam = String(custData.closerTeam || '').trim().toUpperCase();
 
@@ -983,6 +1072,8 @@
                     let resolvedCustType = normPendingType || pending.customer_type || pending.type;
                     if (pending.customer_type_manually_selected) {
                         resolvedCustType = normPendingType || pending.customer_type;
+                    } else if (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id) {
+                        resolvedCustType = window.resolveVisitCustomerType(pending.visit_id, Boolean(foundExistingCust), resolvedCustType).name;
                     } else if (resolvedCustType === 'ลูกค้าใหม่มาตรวจ') {
                         // คนไข้มีประวัติในระบบแล้ว หากระบบคลินิกส่งค่าเริ่มต้นมา ให้ปรับเป็นลูกค้าเก่าอัตโนมัติ
                         resolvedCustType = (foundExistingCust.customer_type && foundExistingCust.customer_type !== 'ลูกค้าใหม่มาตรวจ')
@@ -1008,6 +1099,14 @@
                     }));
                     if (resolvedCustType) {
                         setCustMode(resolvedCustType);
+                    }
+
+                    // 🛡️ หากลูกค้ามีประวัติในระบบและมีผู้ดูแลการตลาดเดิม (owner_member_id) ให้ซิงค์ผู้ขายเป็นผู้ดูแลตัวจริงอัตโนมัติ
+                    const existingOwnerId = String(foundExistingCust.owner_member_id || foundExistingCust.ownerMemberId || foundExistingCust.memberId || '').trim();
+                    if (existingOwnerId) {
+                        const matchedM = (members || []).find(m => m && safeUpper(m.id) === safeUpper(existingOwnerId));
+                        const ownerDisplay = matchedM ? `${matchedM.id} - ${matchedM.name}` : existingOwnerId;
+                        setMemberIdInput(ownerDisplay);
                     }
                 }
             };
@@ -1087,13 +1186,15 @@
                     }
 
                     // 2. แมปประเภทลูกค้า (Customer Type) จากทุกภาษาให้เป็น Canonical Thai Name ที่ตรงกับ Dropdown และ Database 100%
-                    const normType = (typeof window.normalizeCustomerType === 'function')
-                        ? window.normalizeCustomerType(pending.customer_type || pending.customer_type_id || pending.type, 'th', {
-                            disease: pending.disease,
-                            symptom: pending.symptom,
-                            customer_name: pending.customer_name
-                        })
-                        : null;
+                    const normType = (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id && !pending.customer_type_manually_selected)
+                        ? window.resolveVisitCustomerType(pending.visit_id, false, pending.customer_type, 'th')
+                        : ((typeof window.normalizeCustomerType === 'function')
+                            ? window.normalizeCustomerType(pending.customer_type || pending.customer_type_id || pending.type, 'th', {
+                                disease: pending.disease,
+                                symptom: pending.symptom,
+                                customer_name: pending.customer_name
+                            })
+                            : null);
                     const mappedCustMode = normType ? normType.name : (String(pending.customer_type || pending.type || 'ลูกค้าใหม่มาตรวจ').trim());
                     setCustMode(mappedCustMode);
 
@@ -1263,7 +1364,7 @@
                         let fetchedCust = null;
                         if (saleCustId) {
                             try {
-                                const custRes = await supabaseSelect('stk_customers', `customer_id=eq.${encodeURIComponent(saleCustId)}`).catch(() => []);
+                                const custRes = await supabaseSelect('stk_customers', `customer_id=eq.${encodeURIComponent(saleCustId)}&select=*`).catch(() => []);
                                 if (Array.isArray(custRes) && custRes.length > 0) {
                                     fetchedCust = custRes[0];
                                     const mappedCust = {
@@ -1274,7 +1375,8 @@
                                         lineId: fetchedCust.line_id || fetchedCust.lineId || '',
                                         symptom: fetchedCust.symptom_disease || fetchedCust.symptom || '',
                                         closer: fetchedCust.closer || fetchedCust.closer_id || '',
-                                        type: fetchedCust.customer_type || fetchedCust.type || ''
+                                        type: fetchedCust.customer_type || fetchedCust.type || '',
+                                        extra_details_json: fetchedCust.extra_details_json
                                     };
                                     setCustomers(prev => {
                                         const existing = (prev || []).filter(c => c && c.id !== mappedCust.id);
@@ -1413,43 +1515,41 @@
                         if (fetchedCust) {
                             const custType = rawSale.customer_type || rawSale.customerType || fetchedCust.customer_type || fetchedCust.type || '';
                             setCustMode(custType);
-                            const closerName = fetchedCust.closer || fetchedCust.closer_id || '';
-                            const cObj = (closers || []).find(cl => cl.name === closerName);
-                            let cTeam = cObj ? cObj.team : (fetchedCust.extra_details_json?.closerTeam || '');
-                            if (cTeam === 'Team A') cTeam = 'Marketing';
-                            if (cTeam === 'Team B') cTeam = 'Center';
+                            const { closer: cName, closerTeam: cTeam } = resolveCloserAndTeam(fetchedCust, saleSellerId);
                             setCustData({
                                 id: fetchedCust.customer_id || fetchedCust.id || saleCustId,
                                 name: fetchedCust.name || fetchedCust.customer_name || '',
                                 phone: fetchedCust.phone || fetchedCust.phone_number || '',
                                 lineId: fetchedCust.line_id || fetchedCust.lineId || '',
                                 symptom: fetchedCust.symptom_disease || fetchedCust.symptom || '',
-                                closer: closerName,
+                                closer: cName,
                                 closerTeam: cTeam
                             });
                         } else {
                             const localCust = (customers || []).find(c => c && String(c.id).toUpperCase() === String(saleCustId).toUpperCase());
                             if (localCust) {
                                 setCustMode(localCust.type || localCust.customer_type || '');
+                                const { closer: cName, closerTeam: cTeam } = resolveCloserAndTeam(localCust, saleSellerId);
                                 setCustData({
                                     id: localCust.id,
                                     name: localCust.name || '',
                                     phone: localCust.phone || '',
                                     lineId: localCust.lineId || localCust.line_id || '',
                                     symptom: localCust.symptom || localCust.symptom_disease || '',
-                                    closer: localCust.closer || '',
-                                    closerTeam: localCust.closerTeam || ''
+                                    closer: cName,
+                                    closerTeam: cTeam
                                 });
                             } else {
                                 setCustMode(rawSale.customer_type || rawSale.customerType || '');
+                                const { closer: cName, closerTeam: cTeam } = resolveCloserAndTeam(rawSale, saleSellerId);
                                 setCustData({
                                     id: saleCustId,
                                     name: rawSale.customer_name || rawSale.customerName || '',
                                     phone: '',
                                     lineId: '',
                                     symptom: '',
-                                    closer: '',
-                                    closerTeam: ''
+                                    closer: cName,
+                                    closerTeam: cTeam
                                 });
                             }
                         }
@@ -1653,10 +1753,7 @@
             const handleOldCustomerChange = (searchId) => {
                 const foundCust = (customers || []).find(c => c && (safeUpper(c.id) === safeUpper(searchId) || safeUpper(c.customer_id) === safeUpper(searchId) || (c.phone && c.phone === searchId)));
                 if (foundCust) {
-                    const cObj = (closers || []).find(c => c.name === foundCust.closer || c.closer_name === foundCust.closer);
-                    let cTeam = cObj ? (cObj.team || cObj.team_name || '') : '';
-                    if (cTeam === 'Team A') cTeam = 'Marketing';
-                    if (cTeam === 'Team B') cTeam = 'Center';
+                    const { closer: cName, closerTeam: cTeam } = resolveCloserAndTeam(foundCust);
                     setCustData(prev => ({
                         ...prev,
                         id: foundCust.id || foundCust.customer_id || searchId,
@@ -1664,7 +1761,7 @@
                         phone: foundCust.phone || prev.phone || '',
                         lineId: foundCust.lineId || prev.lineId || '',
                         symptom: foundCust.symptom || prev.symptom || '',
-                        closer: foundCust.closer || prev.closer || '',
+                        closer: cName || prev.closer || '',
                         closerTeam: cTeam || prev.closerTeam || ''
                     }));
                 } else {
@@ -1768,14 +1865,12 @@
 
                 if (cust) {
                     setCustMode(record.customerType || record.customer_type || cust.type || '');
-                    const cObj = (closers || []).find(cl => cl.name === cust.closer);
-                    let cTeam = cObj ? cObj.team : '';
-                    if (cTeam === 'Team A') cTeam = 'Marketing';
-                    if (cTeam === 'Team B') cTeam = 'Center';
-                    setCustData({ id: cust.id, name: cust.name || '', phone: cust.phone || '', lineId: cust.lineId || '', symptom: cust.symptom || '', closer: cust.closer || '', closerTeam: cTeam });
+                    const { closer: cName, closerTeam: cTeam } = resolveCloserAndTeam(cust, record.memberId || record.seller_id);
+                    setCustData({ id: cust.id, name: cust.name || '', phone: cust.phone || '', lineId: cust.lineId || '', symptom: cust.symptom || '', closer: cName, closerTeam: cTeam });
                 } else {
                     setCustMode(record.customerType || record.customer_type || '');
-                    setCustData({ id: record.customerId || '', name: record.customerName || '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
+                    const { closer: cName, closerTeam: cTeam } = resolveCloserAndTeam(record, record.memberId || record.seller_id);
+                    setCustData({ id: record.customerId || '', name: record.customerName || '', phone: '', lineId: '', symptom: '', closer: cName, closerTeam: cTeam });
                 }
 
                 const loadedCart = [];
@@ -2273,6 +2368,24 @@
                         showToast('กรุณาระบุจำนวนเงินที่รับชำระให้ครบถ้วน', 'error');
                         setIsSubmitting(false);
                         return;
+                    }
+
+                    // 🛡️ ป้องกันเงินโอนเกินยอดบิล (Transfer Overpayment Guard)
+                    // เงินโอนไม่มีการทอนเงิน ยอดโอนรวมต้องไม่เกินมูลค่าบิล เพื่อป้องกันบิลไม่ดุลย์
+                    const totalTransferTHB = tThaiTHB + tLaosTHB + (tLaosLAK / exchangeRate);
+                    if (payMode === 'โอน') {
+                        // ปัดเศษทศนิยม 2 ตำแหน่งเพื่อเลี่ยง precision error
+                        if (Math.round((totalTransferTHB - cartTotals.amount) * 100) / 100 > 1) {
+                            showToast(`ยอดเงินโอนเกินมูลค่าบิล! (ยอดบิล ฿${cartTotals.amount.toLocaleString()} แต่มียอดโอนเทียบเท่า ฿${Math.round(totalTransferTHB).toLocaleString()}) กรุณาระบุยอดโอนให้พอดี`, 'error');
+                            setIsSubmitting(false);
+                            return;
+                        }
+                    } else if (payMode === 'สด+โอน') {
+                        if (Math.round((totalTransferTHB - cartTotals.amount) * 100) / 100 > 1) {
+                            showToast(`ยอดเงินโอนเกินมูลค่าบิลทั้งหมด! (ยอดบิล ฿${cartTotals.amount.toLocaleString()}) กรุณาปรับลดส่วนของเงินโอนลง`, 'error');
+                            setIsSubmitting(false);
+                            return;
+                        }
                     }
                 }
 
@@ -2891,18 +3004,34 @@
                     if (newRecord.paymentNote && String(newRecord.paymentNote).includes('VISIT:')) {
                         const visitMatch = String(newRecord.paymentNote).match(/VISIT:\s*([^\)\s]+)/);
                         if (visitMatch && visitMatch[1]) {
-                            const visitId = visitMatch[1];
+                            const visitId = visitMatch[1].trim();
                             if (typeof window.supabaseUpdate === 'function') {
                                 try {
                                     await window.supabaseUpdate('stk_nutrient_orders', visitId, { 
                                         status: 'ขายสำเร็จแล้ว',
                                         sale_order_id: newRecord.id 
                                     }, 'visit_id');
-                                    localStorage.setItem('stk_refresh_trigger', Date.now().toString());
                                 } catch (e) {
                                     console.warn('Failed to update nutrient order status to completed:', e);
                                 }
                             }
+                            // 🛡️ ซิงค์อัปเดตลง localStorage ของ Nutrients ทันที เพื่อล้างออกจากแท็บรอดำเนินการ 100%
+                            try {
+                                ['stk_nutrient_orders', 'clinic_mlm_orders'].forEach(k => {
+                                    const arr = JSON.parse(localStorage.getItem(k) || '[]');
+                                    let changed = false;
+                                    const updated = arr.map(it => {
+                                        const itV = String(it.visit_id || (it.payment_note && it.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? it.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : '')).trim().toUpperCase();
+                                        if (itV === visitId.toUpperCase()) {
+                                            changed = true;
+                                            return { ...it, status: 'ขายสำเร็จแล้ว', sale_order_id: newRecord.id };
+                                        }
+                                        return it;
+                                    });
+                                    if (changed) localStorage.setItem(k, JSON.stringify(updated));
+                                });
+                            } catch (eLocal) {}
+                            localStorage.setItem('stk_refresh_trigger', Date.now().toString());
                         }
                     }
                     handleSuccessFinish(newRecord);
@@ -3023,7 +3152,18 @@
                 )
             };
 
-            const renderSalesForm = () => (
+            const renderSalesForm = () => {
+                const cTHB = parseFloat(payCashTHB) || 0;
+                const cLAK = parseFloat(payCashLAK) || 0;
+                const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
+                const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
+                const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
+                const showCash = payMode === 'สด' || payMode === 'สด+โอน';
+                const showTransfer = payMode === 'โอน' || payMode === 'สด+โอน';
+                const totalPaidTHB = (showCash ? cTHB + (cLAK / exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK / exchangeRate) : 0);
+                const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
+
+                return (
                 <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[calc(100vh-120px)] xl:min-h-[650px] mb-0 relative">
 
                     {/* LEFT COLUMN (50%): Customer + Payment */}
@@ -3123,7 +3263,24 @@
                                         </div>
                                         <div className="flex-[2] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                             <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ผู้ปิดการขาย *</label>
-                                            <AutoSuggestInput value={custData.closer} onChange={(val) => setCustData(prev => ({ ...prev, closer: val }))} onSelect={(val) => setCustData(prev => ({ ...prev, closer: val }))} data={closersSuggestList} placeholder="พิมพ์ค้นหารหัส หรือชื่อผู้ปิด..." required={true} />
+                                            <AutoSuggestInput
+                                                value={custData.closer}
+                                                onChange={(val) => {
+                                                    setCustData(prev => {
+                                                        const autoTeam = resolveCloserAndTeam({ closer: val, closerTeam: prev.closerTeam }).closerTeam;
+                                                        return { ...prev, closer: val, closerTeam: autoTeam || prev.closerTeam };
+                                                    });
+                                                }}
+                                                onSelect={(val) => {
+                                                    setCustData(prev => {
+                                                        const autoTeam = resolveCloserAndTeam({ closer: val }).closerTeam;
+                                                        return { ...prev, closer: val, closerTeam: autoTeam || prev.closerTeam };
+                                                    });
+                                                }}
+                                                data={closersSuggestList}
+                                                placeholder="พิมพ์ค้นหารหัส หรือชื่อผู้ปิด..."
+                                                required={true}
+                                            />
                                         </div>
                                     </div>
 
@@ -3152,20 +3309,7 @@
                         <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg shrink-0 flex flex-col xl:mt-auto z-20 w-full">
 
                             {/* สรุปยอดสุทธิ + สถานะการชำระเงิน (ปรับให้สมมาตร โปร่งสบายตา) */}
-                            {(() => {
-                                const cTHB = parseFloat(payCashTHB) || 0;
-                                const cLAK = parseFloat(payCashLAK) || 0;
-                                const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
-                                const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
-                                const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
-
-                                const showCash = payMode === 'สด' || payMode === 'สด+โอน';
-                                const showTransfer = payMode === 'โอน' || payMode === 'สด+โอน';
-
-                                const totalPaidTHB = (showCash ? cTHB + (cLAK / exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK / exchangeRate) : 0);
-                                const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
-
-                                return (
+                            {(() => (
                                     <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg p-2.5 shadow-sm gap-1 mb-2">
                                         <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-200 pb-1.5">
                                             <span>รวมราคาปกติ:</span>
@@ -3210,8 +3354,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                );
-                            })()}
+                                ))()}
 
                             {saleTab === 'OLD_SYSTEM' ? (
                                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center mb-1.5 shadow-sm">
@@ -3273,7 +3416,35 @@
 
                                     {(payMode === 'โอน' || payMode === 'สด+โอน') && (
                                         <div className="bg-slate-50/80 p-1.5 rounded-lg border border-slate-200 mb-1.5">
-                                            <label className="text-[10px] font-black text-slate-500 flex items-center gap-1 mb-1.5"><Activity size={12} /> ช่องทางรับเงินโอน</label>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <label className="text-[10px] font-black text-slate-500 flex items-center gap-1"><Activity size={12} /> ช่องทางรับเงินโอน</label>
+                                                {remainingTHB > 0 && (
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[9px] font-bold text-slate-400">ใส่ยอดพอดี:</span>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => {
+                                                                const neededLak = Math.round(remainingTHB * exchangeRate);
+                                                                setPayTransferLaosLAK(String(neededLak));
+                                                            }}
+                                                            className="text-[9px] font-black px-1.5 py-0.5 bg-green-100 text-green-700 hover:bg-green-200 rounded border border-green-200 transition-colors"
+                                                            title="ใส่ยอดโอนกีบพอดีกับบิล"
+                                                        >
+                                                            โอนกีบพอดี (₭{Math.round(remainingTHB * exchangeRate).toLocaleString()})
+                                                        </button>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => {
+                                                                setPayTransferLaosTHB(String(remainingTHB));
+                                                            }}
+                                                            className="text-[9px] font-black px-1.5 py-0.5 bg-red-100 text-red-700 hover:bg-red-200 rounded border border-red-200 transition-colors"
+                                                            title="ใส่ยอดโอนบาทพอดีกับบิล"
+                                                        >
+                                                            โอนบาทพอดี (฿{remainingTHB.toLocaleString()})
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
 
                                                 {/* กล่อง 1: ลาวกีบ (โทนสีเขียว) */}
@@ -3505,6 +3676,7 @@
                     </div>
                 </div>
             );
+        };
 
             return (
                 <div className="flex flex-col gap-5 h-full animation-fade-in relative z-10 w-full mx-auto pb-28 xl:pb-6">

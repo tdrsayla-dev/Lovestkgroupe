@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.10.03.09';
+  const APP_VERSION = '2026.10.05.13';
   window.APP_VERSION = APP_VERSION;
 
   // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
@@ -22,6 +22,11 @@
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const k = sessionStorage.key(i);
         if (k && k.startsWith('stk_qc_')) sessionStorage.removeItem(k);
+        if (k && k.startsWith('stk_campaign_eval_')) sessionStorage.removeItem(k);
+      }
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('stk_campaign_eval_')) localStorage.removeItem(k);
       }
     }
     localStorage.setItem('stk_app_version', APP_VERSION);
@@ -89,15 +94,16 @@
     'stk_campaigns': 2 * 60 * 1000,        // แคมเปญแข่งขัน 2 นาที
     'stk_campaign_results': 60 * 1000,     // ผลแคมเปญ 1 นาที
     'stk_b2b_price_tiers': 3 * 60 * 1000,  // เรทราคาส่ง B2B 3 นาที
-    'stk_b2b_orders': 45 * 1000            // ออเดอร์ขายส่ง B2B 45 วินาที
+    'stk_b2b_orders': 45 * 1000,           // ออเดอร์ขายส่ง B2B 45 วินาที
+    'stk_daily_balance': 30 * 1000         // กระทบยอดสต๊อกประจำวัน แคช 30 วินาที
   };
 
-  // กำหนดคอลัมน์มาตรฐานสำหรับตารางต่างๆ (รวม id_card_url เพื่อให้รูปโปรไฟล์แสดงผล และ image_url เพื่อให้รูปสินค้าแสดงผล)
-  // stk_customers: ตัด extra_details_json ออก เพราะเป็น JSON ขนาดใหญ่ที่ไม่ได้ใช้แสดงผลในตาราง ลด Egress ได้มาก
+  // กำหนดคอลัมน์มาตรฐานสำหรับตารางต่างๆ (รวม id_card_url เพื่อให้รูปโปรไฟล์แสดงผล, image_url รูปสินค้า, และ extra_details_json สำหรับทีมผู้ปิด)
   const DEFAULT_TABLE_SELECT = {
     'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,accumulated_pv,created_at',
     'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty,image_url',
-    'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at'
+    'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,extra_details_json,created_at',
+    'stk_daily_balance': 'id,balance_date,warehouse_id,product_id,domain_type,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at'
   };
 
   const SESSION_CACHE_PREFIX = 'stk_qc_';

@@ -940,20 +940,95 @@
         if (isChecking) return;
         isChecking = true;
         try {
+          // 1. ตรวจสอบ Blacklist รายการที่ถูกลบ
+          let deletedIdsSet = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+            delList.forEach(id => {
+              if (id) {
+                const s = String(id).trim().toUpperCase();
+                deletedIdsSet.add(s);
+                deletedIdsSet.add(s.toLowerCase());
+                const digits = s.replace(/[^0-9]/g, '');
+                if (digits) {
+                  deletedIdsSet.add(digits);
+                  deletedIdsSet.add(`VIS-${digits}`);
+                  deletedIdsSet.add(`ORD-CLINIC-${digits}`);
+                }
+              }
+            });
+          } catch(e) {}
+
           let count = 0;
           let hasDb = false;
+
+          // 2. ดึงจาก Supabase
           if (typeof window.supabaseSelect === 'function') {
-            const data = await window.supabaseSelect('stk_nutrient_orders', 'status=eq.รอดำเนินการ&select=id');
-            if (Array.isArray(data)) {
-               count = data.length;
-               hasDb = true;
+            try {
+              const [pendingData, recentSales] = await Promise.all([
+                window.supabaseSelect('stk_nutrient_orders', 'status=eq.รอดำเนินการ&select=id,order_id,visit_id,sale_order_id,created_at&nocache=true').catch(() => null),
+                window.supabaseSelect('stk_sales', 'select=payment_note&order=created_at.desc&limit=100&nocache=true').catch(() => [])
+              ]);
+
+              if (Array.isArray(pendingData)) {
+                hasDb = true;
+                const salesVisitSet = new Set();
+                if (Array.isArray(recentSales)) {
+                  recentSales.forEach(s => {
+                    const note = String(s.payment_note || '');
+                    const m = note.match(/VISIT:\s*([^\)\s]+)/);
+                    if (m && m[1]) {
+                      salesVisitSet.add(m[1].trim().toUpperCase());
+                    }
+                  });
+                }
+
+                const uniquePendingVisits = new Set();
+                pendingData.forEach(item => {
+                  const vId = String(item.visit_id || item.order_id || item.id || '').trim().toUpperCase();
+                  const cleanV = vId.replace(/^(ORD-CLINIC-|VISIT:\s*)/i, '');
+                  const digits = vId.replace(/[^0-9]/g, '');
+
+                  const isDeleted = deletedIdsSet.has(vId) || (cleanV && deletedIdsSet.has(cleanV)) || (digits && deletedIdsSet.has(digits));
+                  const isSold = Boolean(item.sale_order_id) || salesVisitSet.has(vId) || (cleanV && salesVisitSet.has(cleanV));
+
+                  if (!isDeleted && !isSold && vId) {
+                    uniquePendingVisits.add(vId);
+                  }
+                });
+
+                count = uniquePendingVisits.size;
+              }
+            } catch (dbErr) {
+              console.warn('Check pending orders DB error:', dbErr);
             }
           }
+
+          // 3. Fallback ดึงจาก LocalStorage ถ้าไม่มี DB
           if (!hasDb) {
             const localNutrient = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
             const localClinicMlm = JSON.parse(localStorage.getItem('clinic_mlm_orders') || '[]');
-            count = [...localNutrient, ...localClinicMlm].filter(o => o.status === 'รอดำเนินการ' || o.status === 'รอจ่ายยา' || !o.status).length;
+            const combined = [...localNutrient, ...localClinicMlm];
+            const uniquePending = new Set();
+            combined.forEach(o => {
+              const v = String(o.visit_id || o.id || '').trim().toUpperCase();
+              const isPend = (o.status === 'รอดำเนินการ' || o.status === 'รอจ่ายยา' || !o.status) && o.status !== 'ขายสำเร็จแล้ว' && o.status !== 'บิลถูกยกเลิก';
+              const isDel = deletedIdsSet.has(v) || (v && deletedIdsSet.has(v.toLowerCase()));
+              if (isPend && !isDel && !o.sale_order_id && v) {
+                uniquePending.add(v);
+              }
+            });
+            count = uniquePending.size;
           }
+
+          // 4. ซิงค์กับ local storage count ทันทีหากหน้า Nutrients.html ส่งค่าตรง
+          if (typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('nutrients')) {
+            const storedCount = localStorage.getItem('stk_pending_nutrient_count');
+            if (storedCount !== null && !isNaN(parseInt(storedCount, 10))) {
+              count = parseInt(storedCount, 10);
+            }
+          }
+
           setPendingNutrientCount(count);
         } catch(e) { }
         isChecking = false;
@@ -963,11 +1038,25 @@
 
       // ตอบสนองทันทีผ่าน Storage Event และ BroadcastChannel เมื่อมีการสั่งซื้อหรืออัปเดตบิล
       const handleStorageUpdate = (e) => {
-        if (!e || !e.key || e.key === 'stk_nutrient_orders' || e.key === 'clinic_mlm_orders' || e.key === 'stk_refresh_trigger') {
+        if (!e || !e.key || e.key === 'stk_nutrient_orders' || e.key === 'clinic_mlm_orders' || e.key === 'stk_refresh_trigger' || e.key === 'stk_deleted_nutrient_orders' || e.key === 'stk_pending_nutrient_count') {
+          if (e && e.key === 'stk_pending_nutrient_count' && e.newValue !== null) {
+            const val = parseInt(e.newValue, 10);
+            if (!isNaN(val)) {
+              setPendingNutrientCount(val);
+              return;
+            }
+          }
           checkPendingOrders();
         }
       };
       window.addEventListener('storage', handleStorageUpdate);
+
+      const handleDirectCount = (e) => {
+        if (e && e.detail && typeof e.detail.count === 'number') {
+          setPendingNutrientCount(e.detail.count);
+        }
+      };
+      window.addEventListener('stk_nutrient_count_update', handleDirectCount);
 
       let bc = null;
       if (typeof BroadcastChannel !== 'undefined') {
@@ -992,6 +1081,7 @@
       return () => {
         clearInterval(intervalId);
         window.removeEventListener('storage', handleStorageUpdate);
+        window.removeEventListener('stk_nutrient_count_update', handleDirectCount);
         if (typeof document !== 'undefined') {
           document.removeEventListener('visibilitychange', handleVisibility);
         }

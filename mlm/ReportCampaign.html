@@ -486,8 +486,15 @@
           if (sortBy === 'deducted') {
             return (b.commissionDeducted || 0) - (a.commissionDeducted || 0);
           }
-          // Default: Rank
+          // Default: Rank (เรียงตามลำดับที่ผ่านเกณฑ์แบบเดียวกับ Dashboard)
           if (a.isQualified !== b.isQualified) return a.isQualified ? -1 : 1;
+          if (a.isQualified && b.isQualified) {
+            const oA = a.qualifiedOrder || 999999;
+            const oB = b.qualifiedOrder || 999999;
+            if (oA !== oB) return oA - oB;
+            if (b.clinicTotalPoints !== a.clinicTotalPoints) return (b.clinicTotalPoints || 0) - (a.clinicTotalPoints || 0);
+            return (b.boxesTotalCount || 0) - (a.boxesTotalCount || 0);
+          }
           if (b.clinicTotalPoints !== a.clinicTotalPoints) return (b.clinicTotalPoints || 0) - (a.clinicTotalPoints || 0);
           return (b.boxesTotalCount || 0) - (a.boxesTotalCount || 0);
         });
@@ -818,7 +825,7 @@
                     onChange={(e) => setSortBy(e.target.value)}
                     className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                   >
-                    <option value="rank">🏅 เรียงตาม: อันดับผู้ผ่านเกณฑ์</option>
+                    <option value="rank">🏅 เรียงตาม: อันดับผู้ผ่านเกณฑ์ (ตามลำดับที่ผ่านก่อน)</option>
                     <option value="points">🩺 เรียงตาม: แต้มตรวจคลินิกมากสุด</option>
                     <option value="boxes">📦 เรียงตาม: กล่องขายมากสุด</option>
                     <option value="deducted">💰 เรียงตาม: ยอดหักคอมมิชชั่น</option>

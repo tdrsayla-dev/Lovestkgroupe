@@ -185,7 +185,12 @@
       const todayISO = (typeof window.getLocalISODate === 'function') ? window.getLocalISODate() : new Date().toISOString().split('T')[0];
       const [auditDate, setAuditDate] = useState(todayISO);
       const [ledgerDate, setLedgerDate] = useState(todayISO);
+      const [ledgerDetailOpen, setLedgerDetailOpen] = useState(true);
       const [ledgerBalances, setLedgerBalances] = useState([]);
+      const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+      const [auditHistorySessions, setAuditHistorySessions] = useState([]);
+      const [isLoadingAuditHistory, setIsLoadingAuditHistory] = useState(false);
+      const [auditSavedInfo, setAuditSavedInfo] = useState(null);
 
       // Physical Count State for Daily Audit: { [productId]: countNumber }
       const [physicalCounts, setPhysicalCounts] = useState({});
@@ -523,6 +528,15 @@
               });
               setPhysicalCounts(countMap);
               if (loadedNotes) setAuditNotes(loadedNotes);
+              setAuditSavedInfo({
+                date: auditDate,
+                auditedBy: balRes[0]?.audited_by || 'ADMIN',
+                count: balRes.length,
+                updatedAt: balRes[0]?.created_at,
+                hasPhysicalCount: balRes.some(b => b.physical_count_qty !== null && b.physical_count_qty !== undefined)
+              });
+            } else {
+              setAuditSavedInfo(null);
             }
 
             if (Array.isArray(salesRes)) {
@@ -562,25 +576,94 @@
         })();
       }, [auditDate, products]);
 
-      // Load ledger balances when ledgerDate changes
-      useEffect(() => {
-        if (!ledgerDate || typeof window.supabaseSelect !== 'function') return;
-        (async () => {
-          try {
-            const balRes = await window.supabaseSelect('stk_daily_balance', `balance_date=eq.${ledgerDate}&limit=200`);
-            if (Array.isArray(balRes)) {
-              setLedgerBalances(balRes);
-            }
-          } catch(e) {
-            console.warn('ledgerDate fetch balance error:', e);
+      // โหลดประวัติกระทบยอดตามวันที่กำหนด (Ledger)
+      const loadLedgerBalances = useCallback(async (targetDate) => {
+        const d = targetDate || ledgerDate;
+        if (!d || typeof window.supabaseSelect !== 'function') return;
+        setIsLoadingLedger(true);
+        try {
+          const balRes = await window.supabaseSelect('stk_daily_balance', `balance_date=eq.${d}&limit=200`);
+          if (Array.isArray(balRes)) {
+            setLedgerBalances(balRes);
+          } else {
+            setLedgerBalances([]);
           }
-        })();
+        } catch(e) {
+          console.warn('loadLedgerBalances error:', e);
+        } finally {
+          setIsLoadingLedger(false);
+        }
       }, [ledgerDate]);
 
-      // Filtered Products by active domain & search
+      // โหลดสรุปประวัติการตรวจนับทั้งหมด (Sessions History) - ใช้คอลัมน์น้ำหนักเบา ประหยัดโควต้า
+      const loadAuditHistorySessions = useCallback(async () => {
+        if (typeof window.supabaseSelect !== 'function') return;
+        setIsLoadingAuditHistory(true);
+        try {
+          const res = await window.supabaseSelect('stk_daily_balance', 'select=balance_date,warehouse_id,audited_by,audit_status,audit_notes,created_at,diff_qty,physical_count_qty,system_closing_qty&order=balance_date.desc&limit=500');
+          if (Array.isArray(res) && res.length > 0) {
+            const sessionMap = {};
+            res.forEach(row => {
+              const key = `${row.balance_date}_${row.warehouse_id || 'FRONT_STORE'}`;
+              if (!sessionMap[key]) {
+                sessionMap[key] = {
+                  date: row.balance_date,
+                  warehouseId: row.warehouse_id || 'FRONT_STORE',
+                  auditedBy: row.audited_by || 'ADMIN',
+                  notes: row.audit_notes || '',
+                  createdAt: row.created_at,
+                  totalItems: 0,
+                  countedItems: 0,
+                  balancedItems: 0,
+                  diffItems: 0,
+                  hasDiscrepancy: false
+                };
+              }
+              sessionMap[key].totalItems += 1;
+              if (row.physical_count_qty !== null && row.physical_count_qty !== undefined) {
+                sessionMap[key].countedItems += 1;
+                const diff = Number(row.diff_qty !== null && row.diff_qty !== undefined ? row.diff_qty : (Number(row.physical_count_qty) - Number(row.system_closing_qty || 0)));
+                if (diff === 0) {
+                  sessionMap[key].balancedItems += 1;
+                } else {
+                  sessionMap[key].diffItems += 1;
+                  sessionMap[key].hasDiscrepancy = true;
+                }
+              }
+            });
+            const list = Object.values(sessionMap).sort((a, b) => b.date.localeCompare(a.date));
+            setAuditHistorySessions(list);
+          } else {
+            setAuditHistorySessions([]);
+          }
+        } catch(e) {
+          console.warn('loadAuditHistorySessions error:', e);
+        } finally {
+          setIsLoadingAuditHistory(false);
+        }
+      }, []);
+
+      // Load ledger balances when ledgerDate changes
+      useEffect(() => {
+        loadLedgerBalances(ledgerDate);
+      }, [ledgerDate, loadLedgerBalances]);
+
+      // Load audit history sessions initially
+      useEffect(() => {
+        loadAuditHistorySessions();
+      }, [loadAuditHistorySessions]);
+
+      // ฟังก์ชันตรวจสอบสินค้าที่เลิกขาย / ปิดการขาย / ยกเลิก
+      const isProductDiscontinued = useCallback((p) => {
+        if (!p) return false;
+        const st = String(p.status || '').trim().toLowerCase();
+        return st === 'เลิกขาย' || st === 'ยกเลิก' || st === 'ปิดการขาย' || st === 'ปิด' || st === 'inactive' || st === 'discontinued' || st === 'disabled';
+      }, []);
+
+      // Filtered Products by active domain & search (กรองสินค้าเลิกขายออกทันทีตามคำสั่ง)
       const filteredProducts = useMemo(() => {
         return products.filter(p => {
-          if (p.status === 'ยกเลิก') return false;
+          if (isProductDiscontinued(p)) return false;
           // Domain filter (Supplements are default products; Pharmacy & Medical can be mapped by category or custom domain)
           if (activeDomain === 'PHARMACY') {
             const cat = String(p.category || '').toLowerCase();
@@ -1283,7 +1366,7 @@
       const dailyReconciliation = useMemo(() => {
         // Daily formula: Opening + Transfer In - Sales = System Closing
         return productStockSummary
-          .filter(item => !item.isPromoBundle)
+          .filter(item => !item.isPromoBundle && !isProductDiscontinued(item.product))
           .map(item => {
           const pid = item.product.product_id;
           // Calculate transfers in on this date
@@ -1328,11 +1411,14 @@
             transferInQty: dateTransfersIn,
             salesQty: dateSales,
             systemClosingQty: systemClosing,
+            frontStockQty: systemClosing,
+            mainStockQty: Number(item.mainStock || 0),
+            totalStockQty: Number(item.totalStock || 0),
             physicalCount: physCount,
             diff: diff
           };
         });
-      }, [productStockSummary, transfers, movements, auditDate, physicalCounts, dailySalesMap]);
+      }, [productStockSummary, transfers, movements, auditDate, physicalCounts, dailySalesMap, isProductDiscontinued]);
 
       // Handle Physical Count Input Change
       const handlePhysicalCountChange = (productId, val) => {
@@ -1375,13 +1461,23 @@
           });
 
           if (res.success) {
-            showToast(`✅ บันทึกกระทบยอดประจำวัน (${auditDate}) เรียบร้อยแล้ว`, 'success');
+            showToast(`✅ บันทึกกระทบยอดประจำวัน (${auditDate}) เรียบร้อยแล้ว (${res.count} รายการ)`, 'success');
+            setAuditSavedInfo({
+              date: auditDate,
+              auditedBy: currentUser?.name || 'ADMIN',
+              count: res.count,
+              updatedAt: new Date().toISOString(),
+              hasPhysicalCount: auditRecords.some(r => r.physicalCount !== null && r.physicalCount !== undefined)
+            });
+            // อัปเดตประวัติและสมุดบัญชีย้อนหลังทันที
+            await loadLedgerBalances(auditDate);
+            await loadAuditHistorySessions();
           } else {
             showToast(res.error || 'บันทึกไม่สำเร็จ', 'error');
           }
         } catch (err) {
           console.error(err);
-          showToast('เกิดข้อผิดพลาดในการบันทึกยอดตรวจนับ', 'error');
+          showToast('เกิดข้อผิดพลาดในการบันทึกยอดตรวจนับ: ' + (err.message || String(err)), 'error');
         } finally {
           setIsSavingAudit(false);
         }
@@ -2958,15 +3054,11 @@
                   {activeTab === 'audit' && (
                     <div className="space-y-6">
                       {/* Formula Banner */}
-                      <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900 to-indigo-900 text-white shadow-lg flex flex-wrap items-center justify-between gap-4">
+                      <div className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-900 to-indigo-900 text-white shadow-sm flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">สูตรการกระทบยอดสต๊อกหน้าร้าน</span>
-                          <h3 className="text-base font-black mt-0.5">
-                            ยอดยกมา + เบิกเข้าห้องขาย - ยอดขายประจำวัน = สต๊อกตามระบบ (Closing)
+                          <h3 className="text-[11px] font-bold text-blue-100">
+                            ยอดยกมา + เบิกเข้า - ยอดขาย = สต๊อกตามระบบ
                           </h3>
-                          <p className="text-xs text-blue-200 mt-1">
-                            ตรวจสอบเปรียบเทียบกับ "ยอดนับจริงหน้าร้าน (Physical Count)" เพื่อดูผลต่าง ขาด/เกิน ทันที
-                          </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                           <label className="text-xs font-bold text-blue-200">วันที่ตรวจนับ:</label>
@@ -2976,14 +3068,39 @@
                             onChange={e => setAuditDate(e.target.value)}
                             className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-bold focus:outline-none"
                           />
-                          <button
-                            onClick={handleAutoFillPhysicalCounts}
-                            className="px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-all shadow-sm"
-                          >
-                            คัดลอกยอดระบบเป็นนับจริง
-                          </button>
                         </div>
                       </div>
+
+                      {/* Audit Status Notification Banner */}
+                      {auditSavedInfo ? (
+                        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                              <CheckCircle size={16} />
+                            </div>
+                            <div>
+                              <p className="font-bold text-xs text-emerald-900 dark:text-emerald-200">
+                                วันที่นี้ได้ทำการบันทึกปิดยอดตรวจนับแล้ว ({auditSavedInfo.count} รายการ)
+                              </p>
+                              <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                                ผู้ตรวจนับ: <span className="font-bold">{auditSavedInfo.auditedBy}</span> &bull; บันทึกเมื่อ: {auditSavedInfo.updatedAt ? new Date(auditSavedInfo.updatedAt).toLocaleString('th-TH') : '-'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => { setLedgerDate(auditDate); setActiveTab('ledger'); }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
+                          >
+                            <Eye size={13} />
+                            <span>ดูสมุดบัญชีย้อนหลังของวันนี้</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+                          <Info size={16} className="text-blue-500 shrink-0" />
+                          <span>ยังไม่มีการบันทึกตรวจนับปิดยอดสำหรับวันที่ <b>{auditDate}</b> — สามารถกรอกยอดนับจริงแล้วกดปุ่มบันทึกด้านล่างเพื่อบันทึกประวัติ</span>
+                        </div>
+                      )}
 
                       {/* Reconciliation Table */}
                       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -3002,9 +3119,10 @@
                                 <th className="py-3 px-4 text-center">ยอดยกมาต้นวัน</th>
                                 <th className="py-3 px-4 text-center">เบิกเข้าหน้าร้าน (+)</th>
                                 <th className="py-3 px-4 text-center">ยอดขายวันนี้ (-)</th>
-                                <th className="py-3 px-4 text-center bg-blue-50/50 dark:bg-blue-950/20">สต๊อกตามระบบ</th>
-                                <th className="py-3 px-4 text-center">นับจริงหน้าร้าน</th>
-                                <th className="py-3 px-4 text-center">ผลต่าง (Diff)</th>
+                                <th className="py-3 px-4 text-center bg-blue-50/50 dark:bg-blue-950/20">🏪 สต๊อกหน้าร้าน (ระบบ)</th>
+                                <th className="py-3 px-4 text-center bg-indigo-50/50 dark:bg-indigo-950/20">🌐 สต๊อกรวมทั้งระบบ</th>
+                                <th className="py-3 px-4 text-center">✍️ นับจริงหน้าร้าน</th>
+                                <th className="py-3 px-4 text-center">⚖️ ผลต่างหน้าร้าน (Diff)</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -3026,6 +3144,9 @@
                                     </td>
                                     <td className="py-3 px-4 text-center font-black text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20 text-sm">
                                       {r.systemClosingQty}
+                                    </td>
+                                    <td className="py-3 px-4 text-center font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 text-sm">
+                                      {r.totalStockQty.toLocaleString()}
                                     </td>
                                     <td className="py-3 px-4 text-center">
                                       <input
@@ -3116,18 +3237,153 @@
                         </div>
                       </div>
 
+                      {/* Audit History Log / Sessions Overview */}
+                      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-3">
+                          <div>
+                            <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                              <ClipboardList size={18} className="text-blue-600 dark:text-blue-400" />
+                              <span>ประวัติการบันทึกกระทบยอดย้อนหลัง (Audit History Log)</span>
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              รายการวันที่เคยบันทึกตรวจนับและปิดยอดสต๊อกหน้าร้านไว้ในระบบ
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-400">
+                              {auditHistorySessions.length} วันที่บันทึก
+                            </span>
+                            <button
+                              onClick={() => loadAuditHistorySessions()}
+                              disabled={isLoadingAuditHistory}
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-all"
+                              title="รีเฟรชประวัติ"
+                            >
+                              <RefreshCw size={14} className={isLoadingAuditHistory ? "animate-spin" : ""} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase font-black text-[10px] tracking-wider">
+                              <tr>
+                                <th className="py-2.5 px-4">วันที่ตรวจนับ</th>
+                                <th className="py-2.5 px-4 text-center">คลัง</th>
+                                <th className="py-2.5 px-4 text-center">สินค้าที่ตรวจ</th>
+                                <th className="py-2.5 px-4 text-center">ผลการตรวจนับ</th>
+                                <th className="py-2.5 px-4">ผู้ตรวจนับ</th>
+                                <th className="py-2.5 px-4">หมายเหตุ</th>
+                                <th className="py-2.5 px-4 text-center">วันที่บันทึก</th>
+                                <th className="py-2.5 px-4 text-center">การกระทำ</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                              {auditHistorySessions.length > 0 ? (
+                                auditHistorySessions.map(s => {
+                                  const isSelected = ledgerDetailOpen && ledgerDate === s.date;
+                                  return (
+                                    <tr 
+                                      key={`${s.date}_${s.warehouseId}`} 
+                                      className={`transition-colors cursor-pointer ${
+                                        isSelected 
+                                          ? 'bg-blue-50/70 dark:bg-blue-950/40 border-l-4 border-l-blue-600' 
+                                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                                      }`}
+                                      onClick={() => { setLedgerDate(s.date); }}
+                                    >
+                                      <td className="py-2.5 px-4">
+                                        <div className="flex items-center gap-2">
+                                          <Calendar size={14} className={isSelected ? "text-blue-600" : "text-slate-400"} />
+                                          <span className="font-bold text-slate-900 dark:text-white">{s.date}</span>
+                                          {isSelected && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-600 text-white">กำลังดู</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="py-2.5 px-4 text-center text-slate-500 font-mono text-[10px]">
+                                        {s.warehouseId === 'FRONT_STORE' ? 'หน้าร้าน' : s.warehouseId}
+                                      </td>
+                                      <td className="py-2.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">
+                                        {s.countedItems > 0 ? `${s.countedItems} / ${s.totalItems}` : `${s.totalItems}`} รายการ
+                                      </td>
+                                      <td className="py-2.5 px-4 text-center">
+                                        {s.countedItems === 0 ? (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                            ปิดยอดตามระบบ
+                                          </span>
+                                        ) : s.hasDiscrepancy ? (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                                            ⚠️ พบผลต่าง {s.diffItems} รายการ
+                                          </span>
+                                        ) : (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+                                            ✅ ยอดตรงเป๊ะ
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300 text-xs">
+                                        {s.auditedBy || 'ADMIN'}
+                                      </td>
+                                      <td className="py-2.5 px-4 text-slate-400 text-xs max-w-[150px] truncate" title={s.notes}>
+                                        {s.notes || '-'}
+                                      </td>
+                                      <td className="py-2.5 px-4 text-center text-[10px] text-slate-400 font-mono">
+                                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString('th-TH') : '-'}
+                                      </td>
+                                      <td className="py-2.5 px-4 text-center">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLedgerDate(s.date);
+                                            setLedgerDetailOpen(true);
+                                          }}
+                                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 mx-auto ${
+                                            isSelected 
+                                              ? 'bg-blue-600 text-white' 
+                                              : 'bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300'
+                                          }`}
+                                        >
+                                          <Eye size={12} />
+                                          <span>{isSelected ? 'กำลังดู' : 'ดูรายละเอียด'}</span>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              ) : (
+                                <tr>
+                                  <td colSpan="8" className="py-6 text-center text-slate-400 font-bold text-xs">
+                                    {isLoadingAuditHistory ? 'กำลังโหลดประวัติ...' : 'ยังไม่มีประวัติการบันทึกกระทบยอดในระบบ'}
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
                       {/* Daily Balance Snapshot Table from stk_daily_balance */}
                       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                           <h4 className="font-black text-sm text-slate-900 dark:text-white">
                             ยอดคงเหลือและผลการกระทบยอดประจำวัน ({ledgerDate})
                           </h4>
-                          <span className="text-xs text-slate-400">
-                            {ledgerBalances.length > 0 ? `พบข้อมูลบันทึก ${ledgerBalances.length} รายการ` : 'ยังไม่มีการปิดยอดในวันนี้'}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-400">
+                              {isLoadingLedger ? 'กำลังโหลดข้อมูล...' : ledgerBalances.length > 0 ? `พบข้อมูลบันทึก ${ledgerBalances.length} รายการ` : 'ยังไม่มีการปิดยอดในวันนี้'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setLedgerDetailOpen(o => !o)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-300 transition-all"
+                            >
+                              {ledgerDetailOpen ? '✕ ปิด' : 'เปิดดู'}
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className={ledgerDetailOpen ? 'overflow-x-auto' : 'hidden'}>
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
                               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase font-black text-[10px] tracking-wider">

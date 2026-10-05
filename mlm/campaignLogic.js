@@ -22,6 +22,12 @@
     return f + m;
   }
 
+  function isSaleCancelled(s) {
+    if (!s) return false;
+    var st = safeUp(s.status || s.order_status || s.orderStatus || '');
+    return st === 'ยกเลิก' || st === 'CANCELLED' || st === 'CANCELED' || st === 'VOID';
+  }
+
   var DEFAULT_TEAM_NAMES = {
     'T01': 'Marketing',
     'T02': 'Center',
@@ -347,6 +353,9 @@
     if (Array.isArray(logs) && logs.length > 0) {
       logs.forEach(function (log) {
         if (!log) return;
+        var logDate = String(log.created_at || log.date || log.visit_date || '').trim().substring(0, 10);
+        if (startDate && logDate && logDate < startDate) return;
+        if (endDate && logDate && logDate > endDate) return;
         var mCode = window.CampaignEngine.extractMemberIdFromReferrer(log.referrer_id || log.referrer_name);
         if (!mCode) return;
         var check = window.CampaignEngine.parseClinicItemCheckup(log.item_details);
@@ -359,9 +368,9 @@
       });
     }
 
-    // 2.2 กรองบิลขาย MLM เฉพาะช่วงวันที่ของแคมเปญ
+    // 2.2 กรองบิลขาย MLM เฉพาะช่วงวันที่ของแคมเปญ และไม่นับบิลยกเลิก
     var salesInRange = (allSales || []).filter(function (s) {
-      if (!s) return false;
+      if (!s || isSaleCancelled(s)) return false;
       var d = parseSaleDate(s);
       if (startDate && d < startDate) return false;
       if (endDate && d > endDate) return false;
@@ -737,19 +746,22 @@
 
       var self = this;
 
-      // จัดกลุ่มคลินิก Logs ตามรหัสการตลาด
+      // จัดกลุ่มคลินิก Logs ตามรหัสการตลาด และกรองช่วงวันที่
       var clinicLogsByMember = {};
       (clinicLogs || []).forEach(function (log) {
         if (!log) return;
+        var logDate = String(log.created_at || log.date || log.visit_date || '').trim().substring(0, 10);
+        if (startDate && logDate && logDate < startDate) return;
+        if (endDate && logDate && logDate > endDate) return;
         var mCode = self.extractMemberIdFromReferrer(log.referrer_id || log.referrer_name);
         if (!mCode) return;
         if (!clinicLogsByMember[mCode]) clinicLogsByMember[mCode] = [];
         clinicLogsByMember[mCode].push(log);
       });
 
-      // กรองบิลขาย MLM ให้อยู่ในช่วงวันที่ของแคมเปญ
+      // กรองบิลขาย MLM ให้อยู่ในช่วงวันที่ของแคมเปญ และไม่นับบิลยกเลิก
       var salesInRange = (allSales || []).filter(function (s) {
-        if (!s) return false;
+        if (!s || isSaleCancelled(s)) return false;
         var d = parseSaleDate(s);
         if (startDate && d < startDate) return false;
         if (endDate && d > endDate) return false;
@@ -772,12 +784,27 @@
         salesByMember[mId].push(s);
       });
 
+      // ดึงผลการตัดสินจาก Dashboard Engine หลัก (เพื่อให้ผลลัพธ์คนที่ผ่าน และลำดับการผ่านเกณฑ์ตรงกัน 100%)
+      var dashResults = [];
+      try {
+        if (typeof self.calcCampaignResults === 'function') {
+          dashResults = self.calcCampaignResults(campaign, salesInRange, allMembers, [], allBusinessTeams, clinicLogs);
+        }
+      } catch(e) {
+        console.warn('evaluateCampaignCrossDB: calcCampaignResults error', e);
+      }
+      var dashMap = {};
+      (dashResults || []).forEach(function (r) {
+        if (r && r.memberId) dashMap[safeUp(r.memberId)] = r;
+      });
+
       // ประมวลผลรายคน
       var results = marketingMembers.map(function (m) {
         var memberId = String(m.user_id || m.id || '').trim();
         var key = safeUp(memberId);
         var rawTeam = String(m.team || m.business_team || m.businessTeam || '').trim();
         var teamName = (teamsMap && teamsMap[safeUp(rawTeam)]) || rawTeam || 'พนักงานการตลาด';
+        var dRes = dashMap[key];
 
         // 1. วิเคราะห์ฝั่งคลินิก (Clinic Examination Points)
         var memLogs = clinicLogsByMember[key] || [];
@@ -809,16 +836,48 @@
           });
         });
 
-        // ⭐ ถ้าแต้มถึง หรือ จำนวนคนไข้ที่พามาตรวจถึงเป้าหมาย (เช่น 5 คน) ถือว่าผ่านเกณฑ์คลินิก
-        var clinicPassed = (totalClinicPoints >= targetClinicPoints) || (patientVisits.length >= targetClinicPoints);
-        if (clinicPassed && totalClinicPoints < targetClinicPoints) {
-          totalClinicPoints = targetClinicPoints;
-        }
-
         // 2. วิเคราะห์ฝั่งสินค้า (MLM Qualifying Boxes & Surplus)
         var memSales = salesByMember[key] || [];
         var totalQualifyingBoxes = 0;
         var qualifyingSalesDetails = [];
+
+        // ตรวจสอบบิลตรวจจากฝั่ง MLM เพิ่มเติม (Fallback Checkup) เช่นเดียวกับ Dashboard Engine
+        var fallbackCheckups = {};
+        memSales.forEach(function (s) {
+          var isCheckup = isNewCheckupSale(s, null, startDate, endDate);
+          if (isCheckup) {
+            var vNote = String(s.payment_note || s.paymentNote || '').trim();
+            var match = vNote.match(/VIS(?:IT)?[:\s\-]+([A-Za-z0-9_\-]+)/i);
+            var vKey = match ? match[1].trim().toUpperCase() : safeUp(s.customerId || s.customer_id || s.id);
+            var alreadyInClinic = patientVisits.some(function(pv) { return safeUp(pv.visitId) === vKey; });
+            if (!alreadyInClinic && !fallbackCheckups[vKey]) {
+              fallbackCheckups[vKey] = true;
+              totalClinicPoints += 1;
+              patientVisits.push({
+                visitId: vKey,
+                patientName: s.customerName || s.customer_name || 'คนไข้ (ตรวจสุขภาพ)',
+                itemDetails: 'ตรวจสุขภาพ (อ้างอิงบิล MLM ' + (s.order_id || s.id || '') + ')',
+                date: parseSaleDate(s),
+                points: 1,
+                checkType: 'MLM Checkup'
+              });
+            }
+          }
+        });
+
+        // หากผลลัพธ์จาก Dashboard Engine มีแต้มตรวจที่นับได้สูงกว่า ให้ซิงค์ตามแดชบอร์ด
+        if (dRes && dRes.actual_cond1 > totalClinicPoints) {
+          totalClinicPoints = dRes.actual_cond1;
+        }
+
+        var cond1Enabled = campaign.cond1_enabled !== false && campaign.cond1_enabled !== 'false' && campaign.cond1_enabled !== 0;
+        var cond2Enabled = campaign.cond2_enabled !== false && campaign.cond2_enabled !== 'false' && campaign.cond2_enabled !== 0;
+
+        // ⭐ ถ้าแต้มถึง หรือ จำนวนคนไข้ที่พามาตรวจถึงเป้าหมาย (เช่น 5 คน) ถือว่าผ่านเกณฑ์คลินิก
+        var clinicPassed = !cond1Enabled || (totalClinicPoints >= targetClinicPoints) || (patientVisits.length >= targetClinicPoints);
+        if (clinicPassed && totalClinicPoints < targetClinicPoints && cond1Enabled) {
+          totalClinicPoints = targetClinicPoints;
+        }
 
         memSales.forEach(function (s) {
           var sDate = parseSaleDate(s);
@@ -881,9 +940,11 @@
         // 3. ตรวจสอบนโยบายแคมเปญ (Deduction Policy)
         var isNoDeduct = (campaign.deduct_policy === 'no_deduct' || campaign.cond2_type === 'boxes_no_deduct');
 
-        // 4. ตัดสินผลแคมเปญ (ผ่านครบ 2 ข้อ: คลินิก + ยอดขาย)
-        var boxesPassed = totalQualifyingBoxes >= targetBoxes;
-        var isQualified = clinicPassed && boxesPassed;
+        // 4. ตัดสินผลแคมเปญ (ผ่านครบทุกเงื่อนไขที่เปิดใช้งาน และซิงค์ผลกับ Dashboard Engine 100%)
+        var boxesPassed = !cond2Enabled || (totalQualifyingBoxes >= targetBoxes);
+        var isQualified = dRes ? Boolean(dRes.passed) : (clinicPassed && boxesPassed);
+        var qualifiedOrder = (dRes && dRes.qualifiedOrder !== undefined) ? dRes.qualifiedOrder : null;
+        var qualifiedAt = (dRes && dRes.qualifiedAt) ? dRes.qualifiedAt : null;
 
         // 5. คำนวณการจัดสรรกล่อง และยอดเงินงดจ่าย (Deduction Breakdown)
         var quotaBoxes = 0;
@@ -963,15 +1024,20 @@
 
           // Final Qualification & Commission
           isQualified: isQualified,
+          qualifiedOrder: qualifiedOrder,
+          qualifiedAt: qualifiedAt,
           currency: 'LAK',
           status: isQualified ? 'QUALIFIED' : 'IN_PROGRESS'
         };
       });
 
-      // จัดเรียงผลลัพธ์: คนที่ผ่านเกณฑ์ขึ้นก่อน เรียงตามยอดแต้มตรวจและยอดกล่อง
+      // จัดเรียงผลลัพธ์: คนที่ผ่านเกณฑ์ขึ้นก่อน เรียงตามลำดับที่ผ่านเกณฑ์ (ตรงกับแดชบอร์ด) แล้วตามด้วยแต้มและกล่อง
       results.sort(function (a, b) {
         if (a.isQualified !== b.isQualified) return a.isQualified ? -1 : 1;
         if (a.isQualified && b.isQualified) {
+          var oA = a.qualifiedOrder || 999999;
+          var oB = b.qualifiedOrder || 999999;
+          if (oA !== oB) return oA - oB;
           if (b.clinicTotalPoints !== a.clinicTotalPoints) return b.clinicTotalPoints - a.clinicTotalPoints;
           return b.boxesTotalCount - a.boxesTotalCount;
         }

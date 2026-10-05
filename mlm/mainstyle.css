@@ -652,7 +652,7 @@ html, body {
 }
 
 body {
-  font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', 'Inter', sans-serif;
+  font-family: 'Noto Sans Thai', 'Noto Sans Lao', 'Sarabun', 'Inter', system-ui, sans-serif;
   background-color: var(--bg-main);
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
@@ -660,9 +660,18 @@ body {
 }
 
 /* Force global font-family & line-height across elements */
+/* Noto Sans Thai first so every device renders the same (Sukhumvit Set only exists on Apple devices) */
 body, button, input, select, textarea, .font-sans, [class*="font-"] {
-  font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', 'Inter', sans-serif !important;
+  font-family: 'Noto Sans Thai', 'Noto Sans Lao', 'Sarabun', 'Inter', system-ui, sans-serif !important;
 }
+
+/* Softer font weights for readability (900/800 -> 700, 700 -> 600) */
+.font-black, .font-extrabold { font-weight: 700 !important; }
+.font-bold { font-weight: 600 !important; }
+
+/* Tiny text bumped slightly for small screens */
+.text-\[10px\] { font-size: 11px !important; }
+.text-\[11px\] { font-size: 12px !important; }
 
 h1, h2, h3, h4, h5, h6, p, span, button, a, label, td, th {
   line-height: 1.45;

@@ -1347,9 +1347,18 @@
         }));
 
         if (typeof window.supabaseUpsert === 'function') {
-            await window.supabaseUpsert('stk_daily_balance', insertPayloads).catch(e => {
-                console.warn('stk_daily_balance upsert fallback:', e);
-            });
+            try {
+                await window.supabaseUpsert('stk_daily_balance', insertPayloads);
+            } catch (err) {
+                console.error('stk_daily_balance upsert error:', err);
+                return { success: false, error: 'บันทึกฐานข้อมูลไม่สำเร็จ: ' + (err.message || String(err)) };
+            }
+        } else {
+            return { success: false, error: 'ไม่พบฟังก์ชัน supabaseUpsert สำหรับบันทึกข้อมูล' };
+        }
+
+        if (typeof window.invalidateTableCache === 'function') {
+            window.invalidateTableCache('stk_daily_balance');
         }
 
         return { success: true, count: insertPayloads.length };

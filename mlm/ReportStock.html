@@ -97,6 +97,83 @@
         filterZeroPromoBills 
     } = window.ReportStockEngine || {};
 
+    // 📊 ฟังก์ชันโหลด XLSX อัตโนมัติพร้อม CDN Fallback (มาตรฐานเดียวกับ ReportFinance)
+    const ensureXlsxLoaded = () => {
+        return new Promise((resolve) => {
+            if (window.XLSX) return resolve(true);
+            const cdns = [
+                'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js',
+                'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+                'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+            ];
+            let idx = 0;
+            const tryLoad = () => {
+                if (window.XLSX) return resolve(true);
+                if (idx >= cdns.length) return resolve(false);
+                const s = document.createElement('script');
+                s.src = cdns[idx++];
+                s.onload = () => resolve(true);
+                s.onerror = () => tryLoad();
+                document.head.appendChild(s);
+            };
+            tryLoad();
+        });
+    };
+
+    const exportStockExcel = async (rows, filename, sheetName = "StockReport") => {
+        await ensureXlsxLoaded();
+        if (typeof window.XLSX !== 'undefined') {
+            try {
+                const ws = window.XLSX.utils.aoa_to_sheet(rows);
+                if (rows && rows.length > 0) {
+                    const colWidths = rows[0].map((_, colIdx) => {
+                        let maxLen = 12;
+                        rows.forEach(r => {
+                            const val = r[colIdx] !== null && r[colIdx] !== undefined ? String(r[colIdx]) : '';
+                            if (val.length > maxLen) maxLen = Math.min(val.length, 50);
+                        });
+                        return { wch: maxLen + 3 };
+                    });
+                    ws['!cols'] = colWidths;
+                }
+                const wb = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                const finalFilename = filename.toLowerCase().endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+                window.XLSX.writeFile(wb, finalFilename, { compression: true });
+                return;
+            } catch (err) {
+                console.error('XLSX export error, falling back to CSV:', err);
+            }
+        }
+
+        // Fallback: ส่งออกเป็น CSV พร้อม UTF-8 BOM
+        try {
+            const csvFilename = filename.replace(/\.xlsx$/i, '') + '.csv';
+            const csvContent = '\uFEFF' + (rows || []).map(row => 
+                (row || []).map(cell => {
+                    let text = (cell === null || cell === undefined) ? '' : String(cell);
+                    if (text.includes('"') || text.includes(',') || text.includes('\n') || text.includes('\r')) {
+                        text = '"' + text.replace(/"/g, '""') + '"';
+                    }
+                    return text;
+                }).join(',')
+            ).join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = csvFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch(e) {
+            alert('ไม่สามารถดาวน์โหลดไฟล์ได้: ' + (e.message || ''));
+        }
+    };
+
 
     function App() {
         const [isAppLoading, setIsAppLoading] = useState(true);
@@ -332,23 +409,511 @@
             return [];
         }, [unfoldedSales, isZeroPromoView, debouncedSearchQuery, searchQuery]);
 
-        const handleExportStockExcel = () => {
+        // ═════════════════════════════════════════════════════════════════════
+        // 📊 EXPORT STOCK EXCEL (REAL .XLSX WITH UTF-8 BOM CSV FALLBACK)
+        // ═════════════════════════════════════════════════════════════════════
+        const handleExportStockExcel = async () => {
             let rows = [];
+            let filename = '';
+            let sheetName = '';
+
             if (isZeroPromoView) {
-                rows = [['เลขที่บิล', 'วันที่', 'ผู้ขาย (สมาชิก)', 'สังกัดทีม', 'ประเภทลูกค้า', 'สินค้าที่แถม/ตัดศูนย์', 'ประเภทแถม/ศูนย์', 'จำนวนที่แถม (กล่อง)']];
-                zeroPromoBills.forEach(b => rows.push([b.billId, b.date, b.memberName, b.team, b.custType, b.product, b.priceType, b.qty]));
+                filename = `STK_Zero_Promo_Report_${startDate}_to_${endDate}.xlsx`;
+                sheetName = "ZeroPromoBills";
+                rows = [
+                    ['รายงานสินค้าตัดศูนย์และสินค้าแถมโปรโมชั่น - LOVE STK GROUPE'],
+                    [`ช่วงเวลา: ${startDate} ถึง ${endDate}`, '', '', `พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')}`],
+                    [],
+                    ['ลำดับ', 'เลขที่บิล', 'วันที่', 'ผู้ขาย (สมาชิก)', 'รหัสสมาชิก', 'สังกัดทีม', 'ประเภทลูกค้า', 'สินค้าที่แถม/ตัดศูนย์', 'ประเภทแถม/ศูนย์', 'จำนวนที่แถม (กล่อง)']
+                ];
+                zeroPromoBills.forEach((b, idx) => {
+                    rows.push([
+                        idx + 1,
+                        b.billId,
+                        b.date,
+                        b.memberName,
+                        b.memberId,
+                        b.team || '-',
+                        b.custType || 'ทั่วไป',
+                        b.product,
+                        b.priceType === 'ราคาศูนย์' ? 'ตัดศูนย์ราคา' : 'แถมโปรโมชั่น',
+                        Number(b.qty || 0)
+                    ]);
+                });
+                const totalBoxes = zeroPromoBills.reduce((acc, curr) => acc + (Number(curr.qty) || 0), 0);
+                rows.push([]);
+                rows.push(['', '', '', '', '', '', '', 'ยอดรวมทั้งหมด (Grand Total)', `${zeroPromoBills.length} รายการ`, totalBoxes]);
             } else if (isBalanceView) {
-                rows = [['รหัสสินค้า', 'ชื่อสินค้า', 'ยอดยกมา', 'รับเข้าสะสม', 'เบิก/ขายออกในช่วงเวลา', 'ยอดสต๊อกคงเหลือ']];
-                stockSalesReport.forEach(i => rows.push([i.id, i.name, i.openingBalance, i.currentIn, i.totalOut, i.currentStock]));
-                rows.push(['', 'ยอดรวม (Grand Total)', stockSalesReport.reduce((a,b)=>a+b.openingBalance, 0), stockSalesReport.reduce((a,b)=>a+b.currentIn, 0), stockSalesReport.reduce((a,b)=>a+b.totalOut, 0), stockSalesReport.reduce((a,b)=>a+b.currentStock, 0)]);
+                filename = `STK_Stock_Balance_Report_${startDate}_to_${endDate}.xlsx`;
+                sheetName = "StockBalance";
+                rows = [
+                    ['รายงานสต๊อกสินค้าคงเหลือ - LOVE STK GROUPE'],
+                    [`ช่วงเวลา: ${startDate} ถึง ${endDate}`, '', '', `พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')}`],
+                    [],
+                    ['ลำดับ', 'รหัสสินค้า', 'ชื่อสินค้า', 'ยอดยกมา', 'รับเข้าสะสม', 'เบิก/ขายออกในช่วงเวลา', 'ยอดสต๊อกคงเหลือ']
+                ];
+                stockSalesReport.forEach((i, idx) => {
+                    rows.push([
+                        idx + 1,
+                        i.id,
+                        i.name,
+                        Number(i.openingBalance || 0),
+                        Number(i.currentIn || 0),
+                        Number(i.totalOut || 0),
+                        Number(i.currentStock || 0)
+                    ]);
+                });
+                rows.push([
+                    '',
+                    '',
+                    'ยอดรวม (Grand Total)',
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.openingBalance)||0), 0),
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.currentIn)||0), 0),
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.totalOut)||0), 0),
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.currentStock)||0), 0)
+                ]);
             } else {
-                rows = [['รหัสสินค้า', 'ชื่อสินค้า', 'ขายราคาเต็ม', 'ขายราคาสมาชิก', 'ขายราคาโปร', 'ตัดศูนย์ราคา', 'รวมเบิกขายทั้งหมด']];
-                stockSalesReport.forEach(i => rows.push([i.id, i.name, i.fullQty, i.memberQty, i.promoQty, i.zeroQty, i.totalOut]));
-                rows.push(['', 'ยอดรวม (Grand Total)', stockSalesReport.reduce((a,b)=>a+b.fullQty, 0), stockSalesReport.reduce((a,b)=>a+b.memberQty, 0), stockSalesReport.reduce((a,b)=>a+b.promoQty, 0), stockSalesReport.reduce((a,b)=>a+b.zeroQty, 0), stockSalesReport.reduce((a,b)=>a+b.totalOut, 0)]);
+                filename = `STK_Sales_By_Product_Report_${startDate}_to_${endDate}.xlsx`;
+                sheetName = "SalesByProduct";
+                rows = [
+                    ['รายงานสรุปยอดขายแยกตามสินค้า - LOVE STK GROUPE'],
+                    [`ช่วงเวลา: ${startDate} ถึง ${endDate}`, '', '', `พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')}`],
+                    [],
+                    ['ลำดับ', 'รหัสสินค้า', 'ชื่อสินค้า', 'ขายราคาเต็ม', 'ขายราคาสมาชิก', 'ขายราคาโปร', 'ตัดศูนย์ราคา', 'รวมเบิกขายทั้งหมด']
+                ];
+                stockSalesReport.forEach((i, idx) => {
+                    rows.push([
+                        idx + 1,
+                        i.id,
+                        i.name,
+                        Number(i.fullQty || 0),
+                        Number(i.memberQty || 0),
+                        Number(i.promoQty || 0),
+                        Number(i.zeroQty || 0),
+                        Number(i.totalOut || 0)
+                    ]);
+                });
+                rows.push([
+                    '',
+                    '',
+                    'ยอดรวม (Grand Total)',
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.fullQty)||0), 0),
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.memberQty)||0), 0),
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.promoQty)||0), 0),
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.zeroQty)||0), 0),
+                    stockSalesReport.reduce((a,b)=>a + (Number(b.totalOut)||0), 0)
+                ]);
             }
-            if (typeof window.exportToCSV === 'function') {
-                window.exportToCSV(`STK_Stock_Report_${startDate}_to_${endDate}.csv`, rows);
+            await exportStockExcel(rows, filename, sheetName);
+        };
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 🖨️ OFFICIAL PRINT & PDF REPORT GENERATOR (FOR STOCK)
+        // ═════════════════════════════════════════════════════════════════════
+        const handlePrintStockReport = (isPdf = false) => {
+            const printWin = window.open('', '_blank');
+            if (!printWin) {
+                alert('เบราว์เซอร์บล็อกหน้าต่าง Popup กรุณาอนุญาต (Allow Pop-ups) ก่อนพิมพ์เอกสารรายงาน');
+                return;
             }
+
+            let compSettings = {
+                name: 'LOVE STK GROUPE',
+                branch: 'สำนักงานใหญ่',
+                address: 'เวียงจันทน์, สปป.ลาว',
+                phone: '+856 20 xx xxx xxx',
+                taxId: '',
+                logoUrl: ''
+            };
+
+            if (typeof window.getCompanySettings === 'function') {
+                try {
+                    const cs = window.getCompanySettings();
+                    if (cs) compSettings = Object.assign({}, compSettings, cs);
+                } catch(e) {}
+            }
+
+            let logoUrl = compSettings.logoUrl || '';
+            if (!logoUrl) {
+                try {
+                    const direct = localStorage.getItem('stk_company_settings');
+                    if (direct) {
+                        const parsed = JSON.parse(direct);
+                        if (parsed && parsed.logoUrl) {
+                            logoUrl = parsed.logoUrl;
+                            compSettings = Object.assign({}, compSettings, parsed);
+                        }
+                    }
+                } catch(e) {}
+            }
+            if (!logoUrl) {
+                try {
+                    const sysStr = localStorage.getItem('stk_system_settings');
+                    if (sysStr) {
+                        const sys = JSON.parse(sysStr);
+                        if (sys.company_info) {
+                            const info = typeof sys.company_info === 'string' ? JSON.parse(sys.company_info) : sys.company_info;
+                            if (info && info.logoUrl) {
+                                logoUrl = info.logoUrl;
+                                compSettings = Object.assign({}, compSettings, info);
+                            }
+                        }
+                        if (!logoUrl && (sys.company_logo || sys.logo_url)) {
+                            logoUrl = sys.company_logo || sys.logo_url;
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            const now = new Date();
+            const printDateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            const printTimeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+            const escapeHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            let docTitle = '';
+            let docSubTitle = '';
+            let tableHeadersHtml = '';
+            let tableRowsHtml = '';
+            let tableFootHtml = '';
+            let itemCount = 0;
+
+            if (isZeroPromoView) {
+                docTitle = 'รายงานสินค้าตัดศูนย์และแถมโปรโมชั่น (Zero Price & Free Promo)';
+                docSubTitle = 'ລາຍງານສິນຄ້າຕັດສູນ ແລະ ແຖມໂປຣໂມຊັ່ນ ຕາມລາຍການບິນ (Stock Zero & Free Report)';
+                itemCount = zeroPromoBills.length;
+
+                tableHeadersHtml = `
+                    <tr>
+                        <th style="width: 40px; text-align: center;">ลำดับ</th>
+                        <th style="width: 100px;">เลขที่บิล</th>
+                        <th style="width: 85px;">วันที่</th>
+                        <th>ผู้ขาย (สมาชิก)</th>
+                        <th style="width: 85px;">สังกัดทีม</th>
+                        <th style="width: 95px;">ประเภทลูกค้า</th>
+                        <th>สินค้าที่แถม/ตัดศูนย์</th>
+                        <th style="width: 95px; text-align: center;">ประเภท</th>
+                        <th style="width: 95px; text-align: center;">จำนวน (กล่อง)</th>
+                    </tr>
+                `;
+
+                let totalBoxes = 0;
+                tableRowsHtml = zeroPromoBills.map((b, idx) => {
+                    const qtyNum = Number(b.qty || 0);
+                    totalBoxes += qtyNum;
+                    const isZero = b.priceType === 'ราคาศูนย์';
+                    const badgeStyle = isZero 
+                        ? 'background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;'
+                        : 'background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;';
+                    const badgeText = isZero ? 'ตัดศูนย์ราคา' : '🎁 แถมโปร';
+
+                    return `
+                        <tr>
+                            <td style="text-align: center; font-weight: bold; color: #64748b;">${idx + 1}</td>
+                            <td style="font-family: monospace; font-weight: bold; color: #1d4ed8;">${escapeHtml(b.billId)}</td>
+                            <td>${escapeHtml(b.date)}</td>
+                            <td>
+                                <div style="font-weight: bold; color: #0f172a;">${escapeHtml(b.memberName)}</div>
+                                <div style="font-size: 9.5px; color: #64748b; font-family: monospace;">รหัส: ${escapeHtml(b.memberId)}</div>
+                            </td>
+                            <td><span style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 1px 6px; border-radius: 4px; font-size: 10px;">${escapeHtml(b.team || '-')}</span></td>
+                            <td style="color: #4338ca; font-weight: 600;">${escapeHtml(b.custType || 'ทั่วไป')}</td>
+                            <td style="font-weight: bold; color: #0f172a;">${escapeHtml(b.product)}</td>
+                            <td style="text-align: center;"><span style="${badgeStyle}">${badgeText}</span></td>
+                            <td style="text-align: center; font-weight: 800; font-family: monospace; color: #b91c1c; background: #fff1f2;">${qtyNum.toLocaleString()} กล่อง</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                tableFootHtml = `
+                    <tr style="border-top: 2px solid #0f172a; font-weight: 900; background: #f8fafc;">
+                        <td colspan="8" style="text-align: right; padding: 8px 12px; font-size: 12px;">รวมจำนวนสินค้าที่แถม/ตัดศูนย์ทั้งหมด (${zeroPromoBills.length} รายการ):</td>
+                        <td style="text-align: center; padding: 8px 12px; font-size: 13px; font-family: monospace; color: #b91c1c; background: #ffe4e6;">${totalBoxes.toLocaleString()} กล่อง</td>
+                    </tr>
+                `;
+            } else if (isBalanceView) {
+                docTitle = 'รายงานสต๊อกสินค้าคงเหลือและการเคลื่อนไหว (Stock Balance Report)';
+                docSubTitle = 'ລາຍງານສະຕັອກສິນຄ້າຄົງເຫຼືອ, ຍອດຍົກມາ, ຮັບເຂົ້າ ແລະ ເບີກ/ຂາຍອອກ';
+                itemCount = stockSalesReport.length;
+
+                tableHeadersHtml = `
+                    <tr>
+                        <th style="width: 45px; text-align: center;">ลำดับ</th>
+                        <th style="width: 90px;">รหัสสินค้า</th>
+                        <th>ชื่อสินค้า (Product Name)</th>
+                        <th style="width: 100px; text-align: center;">ยอดยกมา</th>
+                        <th style="width: 100px; text-align: center;">รับเข้าสะสม</th>
+                        <th style="width: 110px; text-align: center;">เบิก/ขายออก</th>
+                        <th style="width: 130px; text-align: center;">สต๊อกคงเหลือ</th>
+                    </tr>
+                `;
+
+                let sumOpening = 0, sumIn = 0, sumOut = 0, sumStock = 0;
+                tableRowsHtml = stockSalesReport.map((item, idx) => {
+                    sumOpening += Number(item.openingBalance || 0);
+                    sumIn += Number(item.currentIn || 0);
+                    sumOut += Number(item.totalOut || 0);
+                    sumStock += Number(item.currentStock || 0);
+
+                    return `
+                        <tr>
+                            <td style="text-align: center; font-weight: bold; color: #64748b;">${idx + 1}</td>
+                            <td style="font-family: monospace; font-weight: bold; color: #475569;">${escapeHtml(item.id)}</td>
+                            <td style="font-weight: bold; color: #0f172a;">${escapeHtml(item.name)}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 700; color: #475569;">${item.openingBalance.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 700; color: #1d4ed8; background: #eff6ff;">${item.currentIn.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 700; color: #b45309; background: #fffbeb;">${item.totalOut.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 900; font-size: 13px; color: #047857; background: #ecfdf5;">${item.currentStock.toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                tableFootHtml = `
+                    <tr style="border-top: 2px solid #0f172a; font-weight: 900; background: #f8fafc;">
+                        <td colspan="3" style="text-align: right; padding: 8px 12px; font-size: 12px;">ยอดรวมทั้งหมด (Grand Total - ${stockSalesReport.length} สินค้า):</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 12px;">${sumOpening.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 12px; color: #1d4ed8;">${sumIn.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 12px; color: #b45309;">${sumOut.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 13px; color: #047857; background: #d1fae5;">${sumStock.toLocaleString()}</td>
+                    </tr>
+                `;
+            } else {
+                docTitle = 'รายงานสรุปยอดขายและเบิกจ่ายแยกตามสินค้า (Sales by Product)';
+                docSubTitle = 'ລາຍງານສະຫຼຸບການເບີກຈ່າຍສິນຄ້າ ແຍກຕາມປະເພດລາຄາເຕັມ, ສະມາຊິກ, ໂປຣ ແລະ ຕັດສູນ';
+                itemCount = stockSalesReport.length;
+
+                tableHeadersHtml = `
+                    <tr>
+                        <th style="width: 45px; text-align: center;">ลำดับ</th>
+                        <th style="width: 90px;">รหัสสินค้า</th>
+                        <th>ชื่อสินค้า (Product Name)</th>
+                        <th style="width: 90px; text-align: center;">ขายราคาเต็ม</th>
+                        <th style="width: 100px; text-align: center;">ขายราคาสมาชิก</th>
+                        <th style="width: 90px; text-align: center;">ขายราคาโปร</th>
+                        <th style="width: 90px; text-align: center;">ตัดศูนย์ราคา</th>
+                        <th style="width: 120px; text-align: center;">รวมเบิกขายทั้งหมด</th>
+                    </tr>
+                `;
+
+                let sumFull = 0, sumMember = 0, sumPromo = 0, sumZero = 0, sumTotal = 0;
+                tableRowsHtml = stockSalesReport.map((item, idx) => {
+                    sumFull += Number(item.fullQty || 0);
+                    sumMember += Number(item.memberQty || 0);
+                    sumPromo += Number(item.promoQty || 0);
+                    sumZero += Number(item.zeroQty || 0);
+                    sumTotal += Number(item.totalOut || 0);
+
+                    return `
+                        <tr>
+                            <td style="text-align: center; font-weight: bold; color: #64748b;">${idx + 1}</td>
+                            <td style="font-family: monospace; font-weight: bold; color: #475569;">${escapeHtml(item.id)}</td>
+                            <td style="font-weight: bold; color: #0f172a;">${escapeHtml(item.name)}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 700;">${item.fullQty.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 700; color: #1d4ed8; background: #eff6ff;">${item.memberQty.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 700; color: #b45309;">${item.promoQty.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 700; color: #64748b;">${item.zeroQty.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 900; font-size: 13px; color: #1e3a8a; background: #e0e7ff;">${item.totalOut.toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                tableFootHtml = `
+                    <tr style="border-top: 2px solid #0f172a; font-weight: 900; background: #f8fafc;">
+                        <td colspan="3" style="text-align: right; padding: 8px 12px; font-size: 12px;">ยอดรวมทั้งหมด (Grand Total - ${stockSalesReport.length} สินค้า):</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 12px;">${sumFull.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 12px; color: #1d4ed8;">${sumMember.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 12px; color: #b45309;">${sumPromo.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 12px; color: #64748b;">${sumZero.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 13px; color: #1e3a8a; background: #c7d2fe;">${sumTotal.toLocaleString()}</td>
+                    </tr>
+                `;
+            }
+
+            const htmlContent = `
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(docTitle)} - ${startDate}_to_${endDate}</title>
+  <style>
+    @page { size: A4 landscape; margin: 8mm 8mm 10mm 8mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0; background-color: #f1f5f9;
+      font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif;
+      color: #0f172a; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    }
+    .no-print {
+      display: flex; justify-content: space-between; align-items: center;
+      background-color: #0f172a; color: #ffffff; padding: 10px 24px;
+      position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .no-print .btn { padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+    .btn-print { background-color: #2563eb; color: #fff; margin-right: 8px; }
+    .btn-pdf { background-color: #e11d48; color: #fff; margin-right: 8px; }
+    .btn-close { background-color: #475569; color: #fff; }
+    .report-sheet {
+      background: #ffffff; width: 297mm; min-height: 210mm;
+      margin: 16px auto; padding: 10mm 12mm; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 6px;
+    }
+    .comp-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; margin-bottom: 10px; }
+    .comp-brand { display: flex; align-items: center; gap: 14px; }
+    .comp-logo { max-height: 52px; max-width: 140px; object-fit: contain; display: block; }
+    .comp-info h2 { margin: 0; font-size: 17px; font-weight: 800; color: #1e3a8a; }
+    .comp-info p { margin: 1px 0; font-size: 10px; color: #475569; }
+    .doc-badge { text-align: right; }
+    .doc-badge .main-title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0; }
+    .doc-badge .sub-title { font-size: 11px; font-weight: 700; color: #2563eb; margin: 1px 0 0 0; letter-spacing: 0.5px; }
+    .meta-box {
+      background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+      padding: 7px 14px; margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 10.5px;
+    }
+    .meta-item { display: flex; flex-direction: column; }
+    .meta-label { color: #64748b; font-weight: 600; font-size: 9.5px; margin-bottom: 1px; }
+    .meta-val { color: #0f172a; font-weight: 700; }
+    .table-container { width: 100%; margin-bottom: 12px; }
+    table.report-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    table.report-table th { background-color: #f1f5f9; color: #0f172a; font-weight: 700; border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; white-space: nowrap; }
+    table.report-table td { border: 1px solid #e2e8f0; padding: 5px 8px; vertical-align: middle; }
+    table.report-table tbody tr:nth-child(even) { background-color: #f8fafc; }
+    table.report-table tfoot td { background-color: #f1f5f9; font-weight: 800; border: 1px solid #cbd5e1; border-top: 2px solid #0f172a; padding: 6px 8px; }
+    .num-cell { text-align: right; font-family: monospace; font-weight: 600; white-space: nowrap; }
+    .signature-section { margin-top: 32px; display: flex; justify-content: space-between; gap: 24px; page-break-inside: avoid; }
+    .sig-box { flex: 1; border: none; background: transparent; padding: 10px 6px; text-align: center; }
+    .sig-title { font-weight: 700; font-size: 11px; color: #0f172a; margin-bottom: 45px; }
+    .sig-line { border-bottom: 1px dotted #64748b; width: 190px; max-width: 85%; margin: 0 auto 6px auto; }
+    .sig-name { font-size: 10px; color: #334155; margin-bottom: 2px; }
+    .sig-role { font-size: 9.5px; color: #64748b; margin-top: 1px; }
+    .sig-date { font-size: 9.5px; color: #64748b; margin-top: 4px; }
+    
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+      .report-sheet { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: auto !important; }
+      table.report-table { page-break-inside: auto; }
+      table.report-table tr { page-break-inside: avoid; page-break-after: auto; }
+      table.report-table thead { display: table-header-group; }
+      table.report-table tfoot { display: table-row-group; page-break-inside: avoid; }
+      .signature-section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div>
+      <span style="font-weight: 800; font-size: 14px;">🖨️ หน้าต่างตัวอย่างเอกสารรายงานสต๊อก (${isPdf ? 'ส่งออก PDF' : 'สั่งพิมพ์'})</span>
+    </div>
+    <div>
+      <button onclick="window.print()" class="btn btn-print">🖨️ สั่งพิมพ์</button>
+      <button onclick="window.print()" class="btn btn-pdf">📄 บันทึกเป็น PDF</button>
+      <button onclick="window.close()" class="btn btn-close">❌ ปิดหน้าต่าง</button>
+    </div>
+  </div>
+
+  <div class="report-sheet">
+    <div class="comp-header">
+      <div class="comp-brand">
+        ${logoUrl ? `<img src="${logoUrl}" class="comp-logo" alt="Logo" />` : ''}
+        <div class="comp-info">
+          <h2>${escapeHtml(compSettings.name || 'LOVE STK GROUPE')}</h2>
+          <p><strong>สาขา:</strong> ${escapeHtml(compSettings.branch || 'สำนักงานใหญ่')} | <strong>ที่อยู่:</strong> ${escapeHtml(compSettings.address || 'เวียงจันทน์, สปป.ลาว')}</p>
+          <p><strong>โทรศัพท์:</strong> ${escapeHtml(compSettings.phone || '-')} ${compSettings.taxId ? `| <strong>เลขผู้เสียภาษี:</strong> ${escapeHtml(compSettings.taxId)}` : ''}</p>
+        </div>
+      </div>
+      <div class="doc-badge">
+        <h1 class="main-title">${escapeHtml(docTitle)}</h1>
+        <p class="sub-title">${escapeHtml(docSubTitle)}</p>
+      </div>
+    </div>
+
+    <div class="meta-box">
+      <div class="meta-item">
+        <span class="meta-label">ช่วงเวลาข้อมูล (Date Range):</span>
+        <span class="meta-val">${startDate} ถึง ${endDate}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">วันที่พิมพ์เอกสาร (Print Date):</span>
+        <span class="meta-val">${printDateStr} (${printTimeStr})</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">ผู้พิมพ์รายงาน (Printed By):</span>
+        <span class="meta-val">${escapeHtml(currentUser?.name || currentUser?.username || 'Administrator')}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">จำนวนรายการทั้งหมด:</span>
+        <span class="meta-val">${itemCount.toLocaleString()} รายการ</span>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table class="report-table">
+        <thead>
+          ${tableHeadersHtml}
+        </thead>
+        <tbody>
+          ${tableRowsHtml || '<tr><td colspan="10" style="text-align: center; padding: 20px; color: #94a3b8;">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</td></tr>'}
+        </tbody>
+        <tfoot>
+          ${tableFootHtml}
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="signature-section">
+      <div class="sig-box">
+        <div class="sig-title">ผู้จัดทำรายงาน</div>
+        <div class="sig-space"></div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">เจ้าหน้าที่คลังสินค้า / ผู้จัดทำ</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">ผู้ตรวจสอบเอกสาร</div>
+        <div class="sig-space"></div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">หัวหน้าฝ่ายคลังสินค้าและการเงิน</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">ผู้อนุมัติ</div>
+        <div class="sig-space"></div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">ผู้จัดการ / กรรมการผู้มีอำนาจ</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function() {
+      var img = document.querySelector('.comp-logo');
+      var printed = false;
+      function triggerPrint() {
+        if (printed) return;
+        printed = true;
+        setTimeout(function() {
+          window.print();
+        }, 300);
+      }
+      if (img && !img.complete) {
+        img.onload = triggerPrint;
+        img.onerror = triggerPrint;
+        setTimeout(triggerPrint, 1500);
+      } else {
+        setTimeout(triggerPrint, 350);
+      }
+    });
+  <' + '/script>
+</body>
+</html>
+            `;
+
+            printWin.document.open();
+            printWin.document.write(htmlContent);
+            printWin.document.close();
+            printWin.focus();
         };
 
         const boxWrapper = "bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5";
@@ -414,11 +979,11 @@
                                     <Archive size={14}/>
                                     Export Excel
                                 </button>
-                                <button onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
+                                <button onClick={() => handlePrintStockReport(true)} className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px] active:scale-95">
                                     <FileText size={14}/>
                                     Export PDF
                                 </button>
-                                <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
+                                <button onClick={() => handlePrintStockReport(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px] active:scale-95">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     พิมพ์ (Print)
                                 </button>

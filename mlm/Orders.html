@@ -94,7 +94,7 @@
         }
     };
 
-    const OrdersView = ({ sales, setSales, members, customers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [], loading }) => {
+    const OrdersView = ({ sales, setSales, members, customers, setCustomers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [], loading }) => {
         // ⚡ SPEED FIX: สร้าง Index Map สำหรับหาสินค้าแบบรวดเร็ว (O(1)) เพื่อแก้ปัญหาหน้าจอค้าง
         const prodMap = useMemo(() => {
             const m = {};
@@ -266,6 +266,66 @@
         const [historyEndDate, setHistoryEndDate] = useState(todayStr);
         const [filterRecordedBy, setFilterRecordedBy] = useState('ALL');
 
+        // ⚡ เก็บ customer reference ล่าสุดเสมอ ป้องกัน stale closure เมื่อเรียกแบบ background async
+        const customersRef = useRef(customers);
+        useEffect(() => {
+            customersRef.current = customers;
+        }, [customers]);
+
+        // ⚡ SMART SILENT BACKGROUND FETCH: ดึงชื่อลูกค้าประวัติย้อนหลังที่ยังไม่มีใน customers แบบเงียบๆ (ไม่หน่วงหน้าจอ ไม่บล็อก spinner)
+        const fetchMissingCustomers = async (salesList) => {
+            if (typeof setCustomers !== 'function' || typeof window.supabaseSelect !== 'function' || !Array.isArray(salesList) || salesList.length === 0) return;
+            try {
+                const currentCusts = customersRef.current || [];
+                const existingCustSet = new Set(currentCusts.map(c => String(c?.id || c?.customer_id || '').trim().toUpperCase()));
+                const missingCustIds = [...new Set(
+                    salesList
+                        .map(s => String(s.customerId || s.customer_id || '').trim().toUpperCase().replace(/[(),"]/g, ''))
+                        .filter(id => id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL' && !existingCustSet.has(id))
+                )];
+                if (missingCustIds.length === 0) return;
+
+                const chunkSize = 50;
+                for (let i = 0; i < missingCustIds.length; i += chunkSize) {
+                    const chunk = missingCustIds.slice(i, i + chunkSize);
+                    const custQuery = `customer_id=in.(${chunk.join(',')})&select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease`;
+                    const custRes = await window.supabaseSelect('stk_customers', custQuery).catch(() => []);
+                    if (Array.isArray(custRes) && custRes.length > 0) {
+                        const formattedNewCusts = custRes.map(x => ({
+                            ...x,
+                            id: x.customer_id || x.id,
+                            name: x.name || x.customer_name || '',
+                            phone: x.phone || x.phone_number || '',
+                            symptom: x.symptom_disease || x.symptom || '',
+                            type: String(x.type || x.customer_type || x.customerType || '').trim(),
+                            closer: x.closer_id || x.closer || ''
+                        }));
+                        setCustomers(prev => {
+                            const curMap = new Map((prev || []).map(c => [String(c?.id || c?.customer_id || '').trim().toUpperCase(), c]));
+                            formattedNewCusts.forEach(c => {
+                                const k = String(c.id || c.customer_id || '').trim().toUpperCase();
+                                if (k && !curMap.has(k)) {
+                                    curMap.set(k, c);
+                                }
+                            });
+                            const nextList = Array.from(curMap.values());
+                            customersRef.current = nextList;
+                            return nextList;
+                        });
+                    }
+                }
+            } catch (cErr) {
+                console.warn('Silent customer fetch warning:', cErr);
+            }
+        };
+
+        // ตรวจสอบชื่อลูกค้าที่อาจตกหล่นเมื่อบิลถูกโหลดเข้ามา
+        useEffect(() => {
+            if (Array.isArray(sales) && sales.length > 0) {
+                fetchMissingCustomers(sales);
+            }
+        }, [sales ? sales.length : 0]);
+
         // ⚡ DYNAMIC DATE RANGE FETCHING: ดึงข้อมูลบิลย้อนหลังจาก Supabase ตามช่วงวันที่เลือกจริง (บิลวันนี้โหลดแล้วตั้งแต่เปิดหน้า)
         const fetchedDateRangesRef = useRef(new Set([`${todayStr}_${todayStr}`]));
         const dateFetchDebounceRef = useRef(null);
@@ -274,7 +334,11 @@
             if (!historyStartDate || !historyEndDate || !setSales) return;
             const rangeKey = `${historyStartDate}_${historyEndDate}`;
             
-            // ป้องกันการดึงช่วงเดิมซ้ำ
+            // ข้ามบิลของวันนี้เนื่องจากโหลดไว้แล้วตั้งแต่เปิดหน้า ป้องกันการดึงซ้ำซ้อน
+            if (rangeKey === `${todayStr}_${todayStr}`) {
+                fetchedDateRangesRef.current.add(rangeKey);
+                return;
+            }
             if (fetchedDateRangesRef.current.has(rangeKey)) return;
 
             if (dateFetchDebounceRef.current) clearTimeout(dateFetchDebounceRef.current);
@@ -311,6 +375,9 @@
                             });
                             return Array.from(map.values()).sort((a, b) => String(b.id || b.order_id || '').localeCompare(String(a.id || a.order_id || '')));
                         });
+
+                        // ⚡ ปล่อยให้ background ดึงชื่อลูกค้าประวัติย้อนหลังแบบเงียบๆ ไม่บล็อก UI
+                        fetchMissingCustomers(cleanNewSales);
                     }
                 } catch (err) {
                     console.error('Error fetching historical sales by date range:', err);
@@ -363,6 +430,8 @@
                                 formatted.forEach(x => map.set(String(x.id || x.order_id), x));
                                 return Array.from(map.values()).sort((a, b) => String(b.id || b.order_id || '').localeCompare(String(a.id || a.order_id || '')));
                             });
+                            // ⚡ ดึงชื่อลูกค้าสำหรับบิลที่ค้นพบ
+                            fetchMissingCustomers(formatted);
                         }
                     } catch(e) {}
                     finally { setIsFetchingHistory(false); }
@@ -2129,11 +2198,8 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                     query += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;
                 }
 
-                // ⚡ FIX: ดึงเฉพาะคอลัมน์ที่จำเป็น (ตัด extra_details_json เพื่อลดขนาด Payload) และเรียงลำดับลูกค้าตามวันที่สร้าง
-                const [saleRes, custRes] = await Promise.all([
-                    supabaseSelect('stk_sales', query).catch(() => []),
-                    supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=2500').catch(() => [])
-                ]);
+                // ⚡ ดึงเฉพาะบิลขายที่มีการอัปเดต (ตัดการดึงลูกค้า 2,500 รายการซ้ำออกไป ประหยัด Egress มหาศาล)
+                const saleRes = await supabaseSelect('stk_sales', query).catch(() => []);
                 
                 if (Array.isArray(saleRes)) {
                     let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
@@ -2160,32 +2226,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                         });
                         return Array.from(map.values()).sort((a, b) => String(b.id || b.order_id || '').localeCompare(String(a.id || a.order_id || '')));
                     });
-                }
-
-                // ⚡ FIX: นำข้อมูลลูกค้าใหม่มาผนวก (Merge) กับข้อมูลเดิม เพื่อไม่ให้ข้อมูลเก่าหาย
-                if (Array.isArray(custRes) && custRes.length > 0) {
-                    const formattedCusts = custRes.map(x => ({
-                        ...x, 
-                        id: x.customer_id || x.id, 
-                        name: x.name || x.customer_name || '',
-                        phone: x.phone || x.phone_number || '',
-                        symptom: x.symptom_disease || x.symptom || '',
-                        type: String(x.type || x.customer_type || x.customerType || '').trim(), 
-                        lineId: x.lineId || x.line_id, 
-                        closer: x.closer_id || x.closer || "", 
-                        closerTeam: x.closerTeam || x.closer_team || x.extra_details_json?.closerTeam || "", 
-                        memberId: x.owner_member_id || x.member_id || x.memberId, 
-                        memberName: (members || []).find(m => m && m.id === (x.owner_member_id || x.member_id))?.name || x.memberName || x.extra_details_json?.memberName || ""
-                    }));
-                    
-                    setCustomers(prev => {
-                        const merged = [...formattedCusts];
-                        const newIds = new Set(formattedCusts.map(c => c.id));
-                        (prev || []).forEach(oldC => {
-                            if (!newIds.has(oldC.id)) merged.push(oldC);
-                        });
-                        return merged;
-                    });
+                    setIsAppLoading(false);
                 }
             } catch (err) {
                 console.error('Fetch sales error:', err);
@@ -2250,15 +2291,16 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
         }
 
         Promise.all([
-          supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => supabaseSelect('members')).catch(() => []),
-          // ⚡ เรียงลำดับ created_at.desc เพื่อดึงลูกค้าใหม่ล่าสุดก่อนเสมอ (ตัด extra_details_json)
-          supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=2500').catch(() => supabaseSelect('customers')).catch(() => []), 
-          supabaseSelect('stk_products', 'select=product_id,name,current_stock,price_full,price_member,price_promo,give_pv,status,category').catch(() => supabaseSelect('products')).catch(() => []),
-          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
-          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => []),
-          supabaseSelect('stk_sales', salesQuery).catch(() => supabaseSelect('sales', salesQuery)).catch(() => [])
+          supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => []),
+          // ⚡ ดึงลูกค้าล่าสุด 600 รายการเพื่อประหยัด Egress และโหลดเร็วทันใจ
+          supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=600').catch(() => []), 
+          supabaseSelect('stk_products', 'select=product_id,name,current_stock,price_full,price_member,price_promo,give_pv,status,category').catch(() => []),
+          supabaseSelect('stk_system_settings').catch(() => []),
+          supabaseSelect('stk_closers').catch(() => []),
+          supabaseSelect('stk_sales', salesQuery).catch(() => [])
         ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes]) => {
            lastSalesRefreshTime = Date.now();
+           setIsAppLoading(false); // ⚡ ปลด Loading ทันที
            const settingsObj = { exchange_rate: 700 };
            if (Array.isArray(setRes)) setRes.forEach(s => settingsObj[s.key || s.setting_key] = s.value || s.setting_value);
 
@@ -2362,6 +2404,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                setSales={setSales} 
                members={members} 
                customers={customers} 
+               setCustomers={setCustomers} 
                products={products}
                systemSettings={systemSettings}
                isAdmin={isAdmin} 

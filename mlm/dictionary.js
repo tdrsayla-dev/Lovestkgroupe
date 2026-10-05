@@ -6,15 +6,15 @@ window.stkDict = {
     // ---- เมนูหลัก (Sidebar) ----
     "menu_dashboard": { th: "แดชบอร์ด", lo: "ແດຊບອດ", en: "Dashboard" },
     "menu_reports": { th: "รายงานสรุปผลงาน", lo: "ລາຍງານສະຫຼຸບຜົນງານ", en: "Reports" },
-    "menu_reports_sales": { th: "ยอดขาย & พนักงาน", lo: "ຍອດຂາຍ & ພະນັກງານ", en: "Sales & Staff" },
-    "menu_reports_finance": { th: "การเงิน & รายรับ", lo: "ການເງິນ & ລາຍຮັບ", en: "Finance & Revenue" },
-    "menu_reports_stock": { th: "สต๊อก & สินค้าตัดศูนย์", lo: "ສະຕ໋ອກ & ສິນຄ້າຕັດສູນ", en: "Stock & Zero-price Items" },
-    "menu_reports_referral": { th: "ค่าแนะนำ & ปันผล", lo: "ຄ່າແນະນຳ & ປັນຜົນ", en: "Referral & Dividends" },
-    "menu_reports_campaign": { th: "แคมเปญ & โปรโมชั่น", lo: "ແຄມເປນ & ໂປຣໂມຊັ່ນ", en: "Campaigns & Promotions" },
+    "menu_reports_sales": { th: "ยอดขาย", lo: "ຍອດຂາຍ", en: "Sales" },
+    "menu_reports_finance": { th: "การเงิน", lo: "ການເງິນ", en: "Finance" },
+    "menu_reports_stock": { th: "สต๊อกสินค้า", lo: "ສະຕ໋ອກສິນຄ້າ", en: "Stock" },
+    "menu_reports_referral": { th: "ค่าแนะนำ", lo: "ຄ່າແນະນຳ", en: "Referral" },
+    "menu_reports_campaign": { th: "แคมเปญ", lo: "ແຄມເປນ", en: "Campaigns" },
     "menu_org_chart": { th: "ผังองค์กรสายงาน", lo: "ຜັງອົງກອນສາຍງານ", en: "Organization Chart" },
     "menu_daily_transactions": { th: "ธุรกรรมประจำวัน", lo: "ທຸລະກຳປະຈຳວັນ", en: "Daily Transactions" },
     "menu_sales": { th: "ป้อนข้อมูลขาย", lo: "ປ້ອນຂໍ້ມູນຂາຍ", en: "Sales Entry" },
-    "menu_b2b": { th: "ขายส่ง (B2B)", lo: "ຂາຍສົ່ງ (B2B)", en: "Wholesale (B2B)" },
+    "menu_b2b": { th: "ขายส่ง", lo: "ຂາຍສົ່ງ", en: "Wholesale" },
     "menu_b2b_short": { th: "ขายส่ง", lo: "ຂາຍສົ່ງ", en: "Wholesale" },
     "menu_nutrients": { th: "จ่ายยา", lo: "ຈ່າຍຢາ", en: "Prescriptions" },
     "menu_orders": { th: "จัดการบิล", lo: "ຈັດການບິນ", en: "Order Management" },
@@ -331,6 +331,76 @@ window.normalizeCustomerType = function(input, targetLang, context) {
     }
 
     // Default Fallback
+    return {
+        ...defaultObj,
+        label: defaultObj[curLang] || defaultObj.th,
+        display: defaultObj[curLang] || defaultObj.th
+    };
+};
+
+/**
+ * 🏷️ ฟังก์ชันจัดประเภทลูกค้าตามรูปแบบรหัส Visit (VIS-ORD- vs VIS-ตัวเลข) และสถานะประวัติในระบบ
+ * @param {string} visitId - รหัส Visit เช่น 'VIS-ORD-62512' หรือ 'VIS-163960'
+ * @param {boolean} isExistingCustomer - ลูกค้ารายนี้มีประวัติในระบบแล้วหรือไม่
+ * @param {string} [explicitType] - ประเภทเดิมที่ระบุมา
+ * @param {string} [targetLang] - ภาษา ('th' | 'lo' | 'en')
+ * @param {object} [context] - ข้อมูลเสริม
+ * @returns {object} { id, name, th, lo, en, isOld, label, display }
+ */
+window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicitType, targetLang, context) {
+    const curLang = targetLang || window.getCurrentLang() || 'th';
+    const list = window.STK_CUSTOMER_TYPES_MAP || [];
+    const vStr = String(visitId || '').trim().toUpperCase();
+
+    // 1. ตรวจสอบรหัส VIS-ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์ ห้ามเป็น "ลูกค้าใหม่มาตรวจ" เด็ดขาด)
+    if (vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-')) {
+        const targetId = isExistingCustomer ? 'T006' : 'T004';
+        const item = list.find(t => t.id === targetId) || {
+            id: targetId,
+            name: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
+            th: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
+            lo: isExistingCustomer ? 'ໂທປິດການຂາຍລູກຄ້າເກົ່າ' : 'ໂທປິດການຂາຍລູກຄ້າໃໝ່',
+            en: isExistingCustomer ? 'Telesales - Returning Customer' : 'Telesales - New Customer',
+            isOld: Boolean(isExistingCustomer)
+        };
+        return {
+            ...item,
+            label: item[curLang] || item.th,
+            display: item[curLang] || item.th
+        };
+    }
+
+    // 2. ตรวจสอบรหัส VIS- ตามด้วยตัวเลข (คนไข้มาตรวจที่คลินิกจริง)
+    if (/^VIS-\d+/i.test(vStr)) {
+        const targetId = isExistingCustomer ? 'T002' : 'T001';
+        const item = list.find(t => t.id === targetId) || {
+            id: targetId,
+            name: isExistingCustomer ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ',
+            th: isExistingCustomer ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ',
+            lo: isExistingCustomer ? 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ' : 'ລູກຄ້າໃໝ່ມາກວດ',
+            en: isExistingCustomer ? 'Returning Customer - Medicine Refill' : 'New Customer - Clinic Visit',
+            isOld: Boolean(isExistingCustomer)
+        };
+        return {
+            ...item,
+            label: item[curLang] || item.th,
+            display: item[curLang] || item.th
+        };
+    }
+
+    // 3. Fallback: หากไม่ใช่ทั้งสองรูปแบบ ให้ใช้ normalizeCustomerType เดิม
+    if (typeof window.normalizeCustomerType === 'function') {
+        return window.normalizeCustomerType(explicitType, curLang, context);
+    }
+
+    const defaultObj = list[0] || {
+        id: 'T001',
+        name: explicitType || 'ลูกค้าใหม่มาตรวจ',
+        th: explicitType || 'ลูกค้าใหม่มาตรวจ',
+        lo: 'ລູກຄ້າໃໝ່ມາກວດ',
+        en: 'New Customer - Clinic Visit',
+        isOld: false
+    };
     return {
         ...defaultObj,
         label: defaultObj[curLang] || defaultObj.th,
