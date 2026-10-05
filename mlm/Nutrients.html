@@ -156,7 +156,55 @@
         badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
       };
     }
+    // 🛡️ ฟังก์ชันช่วยวิเคราะห์และป้องกันการดีดกลับของประเภทลูกค้า (VIS-ORD vs VIS-ตัวเลข)
+    function getAccurateCustomerTypeLocally(visitId, explicitType, isExisting) {
+        const vUp = String(visitId || '').toUpperCase();
+        let baseType = String(explicitType || '').trim();
 
+        // 📌 กำหนดลิสต์ที่ถือว่าเป็น "ลูกค้าเก่า" ที่ยอมรับได้จากระบบคลินิกต้นทาง
+        const validOldTypes = [
+            'โทรปิดการขายลูกค้าเก่า', 
+            'ลูกค้าเก่ากลับมาต่อยา', 
+            'ลูกค้าเก่านำผลตรวจมาปรึกษา', 
+            'ลูกค้านำผลตรวจมาปรึกษา',
+            'ส่วนกลางใหม่' // ถ้าอนุโลมให้เป็นลูกค้าเก่าได้
+        ];
+
+        // กฎเหล็ก 1: ถ้าเป็น VIS-ORD หรือ ORD- (ออเดอร์ที่ไม่ได้มาตรวจจริงที่คลินิก)
+        if (vUp.includes('VIS-ORD') || vUp.includes('VISIT-ORD') || vUp.startsWith('ORD-')) {
+            if (isExisting) {
+                // ถ้าเป็นลูกค้าเก่า และต้นทางเลือก "หมวดลูกค้าเก่า" มาให้แล้ว => ใช้ตามต้นทาง
+                if (baseType && validOldTypes.includes(baseType)) {
+                    return baseType;
+                }
+                // ถ้าว่าง หรือส่งมาผิดหมวด (เช่น ส่ง 'ลูกค้าใหม่มาตรวจ') => บังคับตีกลับ
+                return 'โทรปิดการขายลูกค้าเก่า';
+            } else {
+                // ถ้าเป็นลูกค้าใหม่
+                if (baseType === 'โทรปิดการขายลูกค้าใหม่' || baseType === 'ลูกค้าใหม่นำผลตรวจมาปรึกษา') {
+                    return baseType; 
+                }
+                return 'โทรปิดการขายลูกค้าใหม่';
+            }
+        }
+
+        // กฎเหล็ก 2: ถ้าเป็น VIS-ตัวเลข แสดงว่าเป็นคนไข้คลินิกจริง
+        if (/VIS(?:IT)?[:\s\-]+(?:VIS[-:\s]*)?\d+/i.test(vUp) || /VIS-\d+/i.test(vUp)) {
+            if (isExisting) {
+                if (baseType && validOldTypes.includes(baseType)) return baseType;
+                return 'ลูกค้าเก่านำผลตรวจมาปรึกษา'; 
+            } else {
+                if (baseType && (baseType === 'ลูกค้าใหม่มาตรวจ' || baseType === 'ลูกค้าใหม่นำผลตรวจมาปรึกษา')) return baseType;
+                return 'ลูกค้าใหม่มาตรวจ';
+            }
+        }
+
+        // Fallback
+        if (!baseType) {
+            return isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ';
+        }
+        return baseType;
+    }
     // ฟังก์ชันช่วยสกัด ID / Visit ID ทุกรูปแบบที่เป็นไปได้เพื่อใช้เทียบและลบข้อมูลถาวร
     function getNormalizedIds(val) {
       if (!val) return [];
