@@ -336,10 +336,7 @@
               try {
                 // อัปเดต: ใส่ select เพื่อดึงเฉพาะคอลัมน์ที่มีในฐานข้อมูลจริง (ตัด warehouse_id ทิ้ง) 
                 // และปรับ limit เป็น 2000 เพื่อดึงประวัติย้อนหลังมาหักสต๊อกหน้าร้านให้ถูกต้องครบถ้วน
-                return await window.supabaseSelect(
-                  'stk_stock_movements', 
-                  'select=product_id,type,sub_type,quantity,date,created_at,notes,created_by&order=created_at.desc&limit=2000' + cacheParam
-                );
+                return await window.supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=300' + cacheParam);
               } catch(e) {
                 console.warn('fetchMovements error:', e);
               }
@@ -741,40 +738,34 @@
         };
       }, []);
 
-      // Calculate Stock per Product by Warehouse using Lots and live database stock
+      // Calculate Stock per Product by Warehouse
       const productStockSummary = useMemo(() => {
         const map = {};
 
-        // 1. สร้าง Map สำหรับสินค้าทั้งหมด (สินค้าโปรโมชั่นจะเซ็ตสต๊อกเริ่มต้นเป็น 0 เสมอ ไม่ใช้ตัวเลขหลอก 100,000)
+        // 1. สร้าง Map ตั้งต้น
         filteredProducts.forEach(p => {
           const isBundle = isPromoBundleProduct(p);
-          const rawStock = Number(p.current_stock !== undefined && p.current_stock !== null ? p.current_stock : (p.stock || 0));
+          const liveCurrentStock = Number(p.current_stock !== undefined && p.current_stock !== null ? p.current_stock : (p.stock || 0));
           map[p.product_id] = {
             product: p,
             isPromoBundle: isBundle,
             baseInfo: null,
             mainStock: 0,
             frontStock: 0,
-            totalStock: isBundle ? 0 : Math.max(0, rawStock),
+            totalStock: isBundle ? 0 : Math.max(0, liveCurrentStock),
             earliestExpiry: null,
             earliestStatus: 'NORMAL',
             daysRemaining: null,
-            lotCount: 0
+            lotCount: 0,
+            frontEvents: []
           };
         });
 
-        // 2. คำนวณยอดสต๊อกจากล็อตจริง (เฉพาะสินค้าหลัก ไม่นับ movement ของสินค้าโปร)
+        // 2. ดึงวันหมดอายุจากล็อต (เอาแค่ FEFO ไม่เอายอดมาคำนวณคลังใหญ่แล้ว)
         lots.forEach(lot => {
           const pid = lot.product_id;
           if (map[pid] && !map[pid].isPromoBundle) {
-            const rem = Number(lot.remaining_qty || 0);
-            if (lot.warehouse_id === 'MAIN_WH' || lot.warehouse_id === 'PHARMA_MAIN' || lot.warehouse_id === 'MED_DEVICE_MAIN') {
-              map[pid].mainStock += rem;
-            } else {
-              map[pid].frontStock += rem;
-            }
             map[pid].lotCount += 1;
-
             const cleanExp = lot.expiry_date ? String(lot.expiry_date).split('T')[0] : null;
             if (cleanExp && (!map[pid].earliestExpiry || cleanExp < map[pid].earliestExpiry)) {
               map[pid].earliestExpiry = cleanExp;
@@ -784,10 +775,9 @@
           }
         });
 
-        // 2.1 🛡️ คำนวณยอดที่ได้ทำใบเบิกย้าย (TRF) มาหน้าร้านจากประวัติการเบิก (ทั้งจาก Supabase และ localStorage Cache)
+        // 3. กวาดประวัติเบิกเข้าหน้าร้าน (TRANSFER IN)
         const combinedTransfers = [...(transfers || []), ...(transferHistoryList || [])];
         const processedTrfIds = new Set();
-
         combinedTransfers.forEach(tr => {
           if (!tr || tr.status === 'CANCELLED') return;
           const trfId = String(tr.transfer_id || '');
@@ -797,37 +787,21 @@
           const toWh = String(tr.to_warehouse || '').toUpperCase();
           if (toWh === 'FRONT_STORE' || toWh.includes('FRONT')) {
             let trItems = [];
-            if (tr.items_json) {
-              try { trItems = typeof tr.items_json === 'string' ? JSON.parse(tr.items_json) : tr.items_json; } catch(e){}
-            }
+            if (tr.items_json) { try { trItems = typeof tr.items_json === 'string' ? JSON.parse(tr.items_json) : tr.items_json; } catch(e){} }
             if (Array.isArray(trItems)) {
               const trTime = tr.created_at || (tr.transfer_date ? tr.transfer_date + 'T00:00:00Z' : '') || tr.date || '';
               trItems.forEach(it => {
                 let pid = it.productId || it.product_id || it.id;
-                const pName = String(it.productName || it.product_name || it.name || '').trim().toLowerCase();
-                
-                // Fallback หาจากชื่อถ้า pid ไม่ตรง
-                if (!map[pid] && pName) {
-                  const foundP = products.find(p => String(p.name || '').trim().toLowerCase() === pName);
-                  if (foundP) pid = foundP.product_id;
-                }
-
                 const q = Number(it.qty || it.quantity || 0);
                 if (map[pid] && !map[pid].isPromoBundle && q > 0) {
-                  if (!map[pid].frontEvents) map[pid].frontEvents = [];
-                  map[pid].frontEvents.push({
-                    type: 'TRANSFER_IN',
-                    time: trTime,
-                    qty: q
-                  });
-                  map[pid].hasTransfer = true;
+                  map[pid].frontEvents.push({ type: 'TRANSFER_IN', time: trTime, qty: q });
                 }
               });
             }
           }
         });
 
-        // 2.2 คำนวณยอดขายและยอดคืนสต๊อกที่ส่งผลต่อห้องขายหน้าร้าน (Front Store Sales Movements)
+        // 4. กวาดประวัติการขาย และคืนสินค้า (บังคับให้การขายทุกอย่างหักจากหน้าร้านเสมอ)
         (movements || []).forEach(m => {
           const pid = m.product_id;
           if (!map[pid] || map[pid].isPromoBundle) return;
@@ -837,97 +811,61 @@
           const subType = String(m.sub_type || '').toLowerCase();
           const notesStr = String(m.notes || '').toLowerCase();
           const mTime = m.created_at || (m.date ? m.date + 'T00:00:00Z' : '') || '';
-          const whId = String(m.warehouse_id || '').toUpperCase();
 
-          // ข้ามบิลที่ระบุชัดเจนว่าตัดจากคลังใหญ่ (ไม่นำมาหักสต๊อกหน้าร้าน)
-          const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
+          const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+          if (isTransfer) return;
 
-          const isSaleOut = m.type === 'OUT' && 
-                            (subType.includes('ขาย') || subType.includes('ตัดสต๊อก') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale')) && 
-                            !subType.includes('เบิกย้าย') && !notesStr.includes('เบิกย้าย') && !isMainWh;
+          const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+          if (isGrn) return;
 
-          const isSaleReturn = m.type === 'IN' && 
-                               (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && 
-                               !isMainWh;
-
-          // การตัดสต๊อกขายออกจากหน้าร้าน (ไม่นับการเบิกย้าย TRF)
-          if (isSaleOut) {
-            if (!map[pid].frontEvents) map[pid].frontEvents = [];
-            map[pid].frontEvents.push({
-              type: 'SALE_OUT',
-              time: mTime,
-              qty: q
-            });
-          }
-          // การคืนสต๊อกเข้าหน้าร้านจากการลบบิล / ยกเลิกบิล
-          else if (isSaleReturn) {
-            if (!map[pid].frontEvents) map[pid].frontEvents = [];
-            map[pid].frontEvents.push({
-              type: 'SALE_RETURN',
-              time: mTime,
-              qty: q
-            });
+          if (m.type === 'OUT') {
+            map[pid].frontEvents.push({ type: 'SALE_OUT', time: mTime, qty: q });
+          } else if (m.type === 'IN') {
+            map[pid].frontEvents.push({ type: 'SALE_RETURN', time: mTime, qty: q });
           }
         });
 
-        // 3. จัดสรรสต๊อกระหว่างคลังใหญ่และห้องขายหน้าร้าน โดยยึด current_stock ในฐานข้อมูลเป็นหลักสูงสุด (Single Source of Truth)
+        // 5. จัดสรรสต๊อก (หน้าร้าน = ประวัติ + ยอดนับจริง, คลังใหญ่ = ยอดรวม - หน้าร้าน)
         Object.values(map).forEach(item => {
           if (!item.isPromoBundle) {
-            // ยอดสต๊อกรวมจริงอ้างอิงจาก current_stock ของสินค้าเสมอ (Single Source of Truth)
-            const liveCurrentStock = Number(item.product?.current_stock !== undefined && item.product?.current_stock !== null 
-              ? item.product.current_stock 
-              : (item.product?.stock !== undefined && item.product?.stock !== null ? item.product.stock : (item.totalStock || 0)));
-            item.totalStock = Math.max(0, liveCurrentStock);
+            const getTimeMs = (t) => { if (!t) return 0; const ms = new Date(t).getTime(); return isNaN(ms) ? 0 : ms; };
 
-            // คำนวณสต๊อกหน้าร้านแบบ Chronological Replay ตามลำดับเวลา
-            // ยอดขายประวัติเก่าในอดีตจะไม่ไปหักลดสต๊อกของใบเบิกย้ายล็อตใหม่
-            const getTimeMs = (t) => {
-              if (!t) return 0;
-              const ms = new Date(t).getTime();
-              return isNaN(ms) ? 0 : ms;
-            };
+            item.frontEvents.sort((a, b) => {
+              const diff = getTimeMs(a.time) - getTimeMs(b.time);
+              if (diff !== 0) return diff;
+              if (a.type === 'TRANSFER_IN' && b.type !== 'TRANSFER_IN') return -1;
+              if (b.type === 'TRANSFER_IN' && a.type !== 'TRANSFER_IN') return 1;
+              return 0;
+            });
 
-            const events = item.frontEvents || [];
-            if (events.length > 0) {
-              events.sort((a, b) => {
-                const diff = getTimeMs(a.time) - getTimeMs(b.time);
-                if (diff !== 0) return diff;
-                // ถ้าเวลาตรงกันเป๊ะ ให้ใบเบิก TRANSFER_IN เข้ามาก่อนการขาย SALE_OUT
-                if (a.type === 'TRANSFER_IN' && b.type !== 'TRANSFER_IN') return -1;
-                if (b.type === 'TRANSFER_IN' && a.type !== 'TRANSFER_IN') return 1;
-                return 0;
-              });
+            let runningFront = 0;
+            item.frontEvents.forEach(ev => {
+              if (ev.type === 'TRANSFER_IN') runningFront += ev.qty;
+              else if (ev.type === 'SALE_OUT') runningFront = Math.max(0, runningFront - ev.qty);
+              else if (ev.type === 'SALE_RETURN') runningFront += ev.qty;
+            });
 
-              // ถ้ามีการทำใบเบิก TRF ให้เริ่มนับจากยอดเบิกตามเหตุการณ์ (ไม่นำ lot เดิมมาบวกซ้ำเพราะ lot ถูกสร้างจาก movement เดียวกัน)
-              let runningFront = item.hasTransfer ? 0 : Number(item.frontStock || 0);
-              events.forEach(ev => {
-                if (ev.type === 'TRANSFER_IN') {
-                  runningFront += ev.qty;
-                } else if (ev.type === 'SALE_OUT') {
-                  runningFront = Math.max(0, runningFront - ev.qty);
-                } else if (ev.type === 'SALE_RETURN') {
-                  runningFront += ev.qty;
-                }
-              });
+            // 5.1 กำหนดสต๊อกหน้าร้าน
+            item.frontStock = Math.max(0, runningFront);
 
-              item.frontStock = Math.min(item.totalStock, Math.max(0, runningFront));
-            } else {
-              // กรณีไม่มีประวัติการเบิกย้ายหน้าร้าน ใช้ frontStock จากล็อต หรือ 0
-              item.frontStock = Math.min(item.totalStock, Math.max(0, item.frontStock || 0));
+            // 🔥 5.2 กฎเหล็ก: ถ้ามีการใส่ "ยอดนับจริง" ในวันนี้ ให้ล็อกยอดหน้าร้านเป็นค่านั้นทันที
+            if (physicalCounts[item.product.product_id] !== undefined && physicalCounts[item.product.product_id] !== null && physicalCounts[item.product.product_id] !== '') {
+                item.frontStock = Number(physicalCounts[item.product.product_id]);
             }
 
-            // คลังใหญ่: สต๊อกคงเหลือจริงในคลังหลัก = ยอดรวมทั้งหมด - ยอดที่จัดสรรอยู่หน้าร้าน
+            // ป้องกันไม่ให้หน้าร้านเยอะกว่ายอดรวม
+            item.frontStock = Math.min(item.totalStock, item.frontStock);
+
+            // 5.3 คลังใหญ่ = สต๊อกรวม - หน้าร้าน
             item.mainStock = Math.max(0, item.totalStock - item.frontStock);
           }
         });
 
-        // 4. คำนวณสต๊อกเสมือนของสินค้าจัดชุด (Bundle) อิงจากยอดสต๊อกจริงของสินค้าหลัก
+        // 6. คำนวณสต๊อกสินค้าเซ็ต (Bundle)
         Object.values(map).forEach(item => {
           if (item.isPromoBundle) {
             const baseInfo = resolveBundleBaseInfo(item.product, products);
             item.baseInfo = baseInfo;
-
-            // ค้นหาสินค้าหลักจาก map
             const baseStockItem = baseInfo.baseProductId ? map[baseInfo.baseProductId] : null;
             if (baseStockItem) {
               const bQty = baseInfo.bundleQty;
@@ -938,21 +876,13 @@
               item.earliestStatus = baseStockItem.earliestStatus;
               item.daysRemaining = baseStockItem.daysRemaining;
               item.lotCount = baseStockItem.lotCount;
-            } else {
-              item.mainStock = 0;
-              item.frontStock = 0;
-              item.totalStock = 0;
-              item.earliestExpiry = null;
-              item.earliestStatus = 'NORMAL';
-              item.daysRemaining = null;
-              item.lotCount = 0;
             }
           }
         });
 
         return Object.values(map);
-      }, [filteredProducts, lots, products, transfers, transferHistoryList, movements, isPromoBundleProduct, resolveBundleBaseInfo]);
-
+      }, [filteredProducts, lots, products, transfers, transferHistoryList, movements, physicalCounts, isPromoBundleProduct, resolveBundleBaseInfo]);
+      
       // สลับการจัดเรียงคอลัมน์ในตารางคลังสินค้า
       const handleToggleInventorySort = useCallback((col) => {
         if (inventorySortBy === col) {
