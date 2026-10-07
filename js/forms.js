@@ -2244,7 +2244,29 @@ window.showBillDetailsModal = function (encodedRow) {
         if (idEl) idEl.innerText = row.Id_Budget || row.budget_id || row.id || '-';
 
         const dateEl = document.getElementById('bill-modal-date');
-        if (dateEl) dateEl.innerText = row.Request_Date || row.request_date || '-';
+        if (dateEl) {
+            const rawDt = row.created_at || row.Created_At || row.Request_Date || row.request_date || '';
+            if (rawDt) {
+                try {
+                    const dt = new Date(rawDt);
+                    if (!isNaN(dt.getTime())) {
+                        const day = String(dt.getDate()).padStart(2, '0');
+                        const month = String(dt.getMonth() + 1).padStart(2, '0');
+                        const year = dt.getFullYear();
+                        const hh = String(dt.getHours()).padStart(2, '0');
+                        const mm = String(dt.getMinutes()).padStart(2, '0');
+                        const hasTime = String(rawDt).includes('T') || String(rawDt).includes(':');
+                        dateEl.innerText = hasTime ? `${day}/${month}/${year} ${hh}:${mm} น.` : `${day}/${month}/${year}`;
+                    } else {
+                        dateEl.innerText = rawDt;
+                    }
+                } catch (e) {
+                    dateEl.innerText = rawDt;
+                }
+            } else {
+                dateEl.innerText = '-';
+            }
+        }
 
         const status = row.Signature || row.signature || row.Status || row.status || 'Pending';
         const statusLower = String(status).toLowerCase();
@@ -2756,8 +2778,7 @@ window.submitDirectBillApproval = async function (e) {
     // Update Supabase Database permanently with signatures & images
     try {
         const payload = {
-            signature: newStatus,
-            status: newStatus
+            signature: newStatus
         };
         if (activeRow.dept_head_sign || activeRow.Dept_Head_Sign) payload.dept_head_sign = activeRow.dept_head_sign || activeRow.Dept_Head_Sign;
         if (activeRow.approver_sign || activeRow.Approver_Sign) payload.approver_sign = activeRow.approver_sign || activeRow.Approver_Sign;
@@ -2765,15 +2786,31 @@ window.submitDirectBillApproval = async function (e) {
         if (activeRow.approver_img || activeRow.Approver_Img) payload.approver_img = activeRow.approver_img || activeRow.Approver_Img;
         if (activeRow.currency || activeRow.Currency) payload.currency = activeRow.currency || activeRow.Currency;
 
-        const targetRecordId = activeRow.__db_id || activeRow.budget_id || activeRow.Id_Budget || activeRow.id || activeRow.Id;
-        const bridge = createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
+        const targetRecordId = activeRow.budget_id || activeRow.Id_Budget || activeRow.__db_id || activeRow.id || activeRow.Id;
+        const bridge = (typeof createSupabaseBridge === 'function' ? createSupabaseBridge : window.createSupabaseBridge)({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
 
-        let res = await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, payload);
-        if (res && res.error) {
-            res = await bridge.updateRow('budget_requests', 'id', targetRecordId, payload);
+        try {
+            await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, payload);
+        } catch (e1) {
+            console.warn('[submitDirectBillApproval] update by budget_id failed, trying id:', e1);
+            try {
+                await bridge.updateRow('budget_requests', 'id', targetRecordId, payload);
+            } catch (e2) {
+                console.warn('[submitDirectBillApproval] update by id failed, trying minimal signature payload:', e2);
+                try {
+                    await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, { signature: newStatus });
+                } catch (e3) {
+                    console.error('[submitDirectBillApproval] all budget_requests update attempts failed:', e3);
+                    throw e3;
+                }
+            }
         }
-        if (res && res.error) {
-            await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, { signature: newStatus });
+
+        // Invalidate caches so refresh/re-fetch always gets fresh data from Supabase
+        if (window.tableQueryCache) {
+            delete window.tableQueryCache['budget_requests'];
+            delete window.tableQueryCache['Budget Request'];
+            delete window.tableQueryCache['Budget_Requests'];
         }
 
         // Also update facebook_budget_requests if applicable
@@ -2792,8 +2829,15 @@ window.submitDirectBillApproval = async function (e) {
         if (typeof window.loadFacebookBudgetDashboard === 'function') {
             window.loadFacebookBudgetDashboard();
         }
+
+        if (typeof showToast === 'function') {
+            showToast('ลงนามอนุมัติและบันทึกข้อมูลเรียบร้อยแล้ว', 'success');
+        }
     } catch (err) {
-        console.warn('Direct approval save warning:', err);
+        console.error('Direct approval save error:', err);
+        if (typeof showToast === 'function') {
+            showToast('บันทึกลงฐานข้อมูลไม่สำเร็จ: ' + (err.message || err), 'error');
+        }
     }
 };
 

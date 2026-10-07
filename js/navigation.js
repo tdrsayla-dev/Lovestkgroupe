@@ -122,7 +122,7 @@ function navigate(pageId, title, sheetName = '') {
                     calMonthInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 }
             }
-            fetchData(sheetName, isAttendance);
+            fetchData(sheetName, false);
         }
         else if (pageId === 'scan') {
             initScanner(); loadTodayAttendance(); setTimeout(() => { if (map) map.invalidateSize(); }, 200);

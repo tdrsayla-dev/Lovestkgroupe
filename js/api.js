@@ -6,10 +6,6 @@
  * 📌 ส่วนที่ 13: DATA FETCHING & API (ฟังก์ชันดึงข้อมูลจาก Google Sheets / Supabase)
  * ===================================================================== */
 function fetchData(sheetName, forceRefresh = false) {
-    const isAttendance = (sheetName === 'Fingerprint_Logs' || sheetName === 'fingerprint_logs');
-    if (isAttendance) {
-        forceRefresh = true;
-    }
 
     if (sheetName.trim() === 'Organization Structure') {
         currentSheet = sheetName;
@@ -196,7 +192,10 @@ function filterData() {
         filtered = matched.map(m => m.row);
     }
 
-    if (currentSheet === 'Leave application' || currentSheet === 'Leave Requests' || String(currentSheet).toLowerCase().includes('leave')) {
+    const isLeaveSheet = currentSheet === 'Leave application' || currentSheet === 'Leave Requests' || String(currentSheet).toLowerCase().includes('leave');
+    const isBudgetSheet = currentSheet === 'Budget Request' || currentSheet === 'Budget Requests' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget');
+
+    if (isLeaveSheet || isBudgetSheet) {
         const leaveMode = window.activeLeavePeriodMode || 'all';
         if (leaveMode === 'month') {
             const mVal = document.getElementById('leaveMonthInput') ? document.getElementById('leaveMonthInput').value : '';
@@ -206,7 +205,7 @@ function filterData() {
                 const targetEnd = new Date(y, m, 0, 23, 59, 59);
 
                 filtered = filtered.filter(row => {
-                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'date']);
+                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'request_date', 'created_at', 'date']);
                     let eStr = getFuzzyValue(row, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || sStr;
                     let dStart = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
                     let dEnd = typeof parseDateStr === 'function' ? parseDateStr(eStr) : new Date(eStr);
@@ -225,7 +224,7 @@ function filterData() {
                 const targetEnd = eVal ? new Date(eVal + 'T23:59:59') : null;
 
                 filtered = filtered.filter(row => {
-                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'date']);
+                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'request_date', 'created_at', 'date']);
                     let eStr = getFuzzyValue(row, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || sStr;
                     let dStart = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
                     let dEnd = typeof parseDateStr === 'function' ? parseDateStr(eStr) : new Date(eStr);
@@ -243,7 +242,7 @@ function filterData() {
             if (yVal) {
                 const targetYear = parseInt(yVal, 10);
                 filtered = filtered.filter(row => {
-                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'date']);
+                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'request_date', 'created_at', 'date']);
                     let eStr = getFuzzyValue(row, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || sStr;
                     let dStart = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
                     let dEnd = typeof parseDateStr === 'function' ? parseDateStr(eStr) : new Date(eStr);

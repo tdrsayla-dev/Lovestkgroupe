@@ -1299,30 +1299,166 @@ function directApproveLeave(rowId, newStatus, event) {
  * 🔔 Browser Notification, Audio Chime Alert & Sidebar Badge System
  * ===================================================================== */
 function updateSidebarPendingBadges(leaveRows) {
-    let list = Array.isArray(leaveRows) ? leaveRows : ((typeof tableCache !== 'undefined' && tableCache['Leave application']?.data) ? tableCache['Leave application'].data : []);
-    if (!Array.isArray(list)) return;
+    if (typeof refreshAllPendingBadges === 'function') {
+        refreshAllPendingBadges(leaveRows);
+    }
+}
 
-    let pendingCount = 0;
-    list.forEach(r => {
-        let rawStatus = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) || 'Pending').toLowerCase().trim();
-        let isApproved = rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต') || rawStatus.includes('dept head') || rawStatus.includes('ceo') || rawStatus.includes('coo') || rawStatus.includes('cfo');
-        let isRejected = rawStatus.includes('reject') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('denied');
-        let isPending = !isApproved && !isRejected;
-        if (isPending) pendingCount++;
-    });
+async function refreshAllPendingBadges(optLeaves = null) {
+    try {
+        const bridge = (typeof createSupabaseBridge === 'function' ? createSupabaseBridge : window.createSupabaseBridge)
+            ? (typeof createSupabaseBridge === 'function' ? createSupabaseBridge : window.createSupabaseBridge)({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY })
+            : null;
+        if (!bridge) return;
 
-    const badgeDash = document.getElementById('sidebar-badge-dashboard');
-    const badgeLeaves = document.getElementById('sidebar-badge-leaves');
+        // 1. Load or fetch data
+        const leavesData = (Array.isArray(optLeaves) && optLeaves.length) ? optLeaves : ((typeof tableCache !== 'undefined' && tableCache['Leave application']?.data) ? tableCache['Leave application'].data : null);
+        const budgetsData = (typeof tableCache !== 'undefined' && tableCache['Budget Request']?.data) ? tableCache['Budget Request'].data : null;
 
-    [badgeDash, badgeLeaves].forEach(badge => {
-        if (!badge) return;
-        if (pendingCount > 0) {
-            badge.innerText = pendingCount;
-            badge.classList.remove('hidden');
-        } else {
-            badge.classList.add('hidden');
+        const [leavesRes, budgetRes, fbBudgetRes] = await Promise.all([
+            leavesData ? Promise.resolve(leavesData) : bridge.getTableData('leave_applications', { select: '*' }).catch(() => []),
+            budgetsData ? Promise.resolve(budgetsData) : bridge.getTableData('budget_requests', { select: '*' }).catch(() => []),
+            bridge.getTableData('facebook_budget_requests', { select: '*' }).catch(() => [])
+        ]);
+
+        // 2. Count Pending Leaves
+        let pendingLeavesCount = 0;
+        let newPendingLeaves = [];
+        let notifiedLeaveStr = sessionStorage.getItem('hr_notified_leave_ids') || '';
+        let notifiedLeaveIds = new Set(notifiedLeaveStr ? notifiedLeaveStr.split(',') : []);
+
+        (leavesRes || []).forEach(r => {
+            let st = String(r.signature || r.Signature || r.status || r.Status || 'Pending').toLowerCase().trim();
+            let isApproved = st.includes('approve') || st.includes('hr') || st.includes('อนุมัติ') || st.includes('อนุญาต') || st.includes('dept head') || st.includes('ceo') || st.includes('coo') || st.includes('cfo');
+            let isRejected = st.includes('reject') || st.includes('ไม่อนุมัติ') || st.includes('ปฏิเสธ');
+            if (!isApproved && !isRejected) {
+                pendingLeavesCount++;
+                let rId = String(r.Id_Leave || r.id_leave || r.leave_id || r.id || r.__db_id || '');
+                if (rId && !notifiedLeaveIds.has(rId)) {
+                    newPendingLeaves.push(r);
+                    notifiedLeaveIds.add(rId);
+                }
+            }
+        });
+
+        // 3. Count Pending General Budget Requests
+        let pendingBudgetCount = 0;
+        let newPendingBudgets = [];
+        let notifiedBudgetStr = sessionStorage.getItem('hr_notified_budget_ids') || '';
+        let notifiedBudgetIds = new Set(notifiedBudgetStr ? notifiedBudgetStr.split(',') : []);
+
+        (budgetRes || []).forEach(r => {
+            let st = String(r.signature || r.Signature || r.status || r.Status || 'Pending').toLowerCase().trim();
+            let hasApprover = !!(r.approver_sign || r.Approver_Sign);
+            let isFinal = hasApprover || st === 'approved' || (st.includes('approve') && !st.includes('dept head') && !st.includes('checked'));
+            let isRejected = st.includes('reject') || st.includes('ไม่อนุมัติ') || st.includes('rejected');
+            if (!isFinal && !isRejected) {
+                pendingBudgetCount++;
+                const bId = String(r.budget_id || r.Id_Budget || r.id || '');
+                if (bId && !notifiedBudgetIds.has(bId)) {
+                    newPendingBudgets.push(r);
+                    notifiedBudgetIds.add(bId);
+                }
+            }
+        });
+
+        // 4. Count Pending Facebook Budget Requests
+        let pendingFbBudgetCount = 0;
+        let newPendingFbBudgets = [];
+        let notifiedFbStr = sessionStorage.getItem('hr_notified_fb_budget_ids') || '';
+        let notifiedFbIds = new Set(notifiedFbStr ? notifiedFbStr.split(',') : []);
+
+        (fbBudgetRes || []).forEach(r => {
+            let st = String(r.status || 'Pending').toLowerCase().trim();
+            let isApproved = st.includes('approved') || st.includes('อนุมัติ');
+            let isRejected = st.includes('reject') || st.includes('ไม่อนุมัติ');
+            if (!isApproved && !isRejected) {
+                pendingFbBudgetCount++;
+                const fbId = String(r.id || (r.member_id + '_' + r.amount) || '');
+                if (fbId && !notifiedFbIds.has(fbId)) {
+                    newPendingFbBudgets.push(r);
+                    notifiedFbIds.add(fbId);
+                }
+            }
+        });
+
+        // 5. Update DOM Badges
+        const badgeDash = document.getElementById('sidebar-badge-dashboard');
+        const badgeLeaves = document.getElementById('sidebar-badge-leaves');
+        const badgeBudget = document.getElementById('sidebar-badge-budget');
+        const badgeFbBudget = document.getElementById('sidebar-badge-fb-budget');
+
+        const totalPending = pendingLeavesCount + pendingBudgetCount + pendingFbBudgetCount;
+
+        function setBadge(el, count) {
+            if (!el) return;
+            if (count > 0) {
+                el.innerText = count;
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
         }
-    });
+
+        setBadge(badgeDash, totalPending);
+        setBadge(badgeLeaves, pendingLeavesCount);
+        setBadge(badgeBudget, pendingBudgetCount);
+        setBadge(badgeFbBudget, pendingFbBudgetCount);
+
+        // 6. Sound & Browser Desktop Notifications (Play chime & notification when new items arrive)
+        const hasNewLeaves = newPendingLeaves.length > 0;
+        const hasNewBudgets = newPendingBudgets.length > 0;
+        const hasNewFb = newPendingFbBudgets.length > 0;
+
+        if (hasNewLeaves || hasNewBudgets || hasNewFb) {
+            sessionStorage.setItem('hr_notified_leave_ids', Array.from(notifiedLeaveIds).join(','));
+            sessionStorage.setItem('hr_notified_budget_ids', Array.from(notifiedBudgetIds).join(','));
+            sessionStorage.setItem('hr_notified_fb_budget_ids', Array.from(notifiedFbIds).join(','));
+
+            playNotificationSound();
+
+            if (hasNewBudgets) {
+                const b = newPendingBudgets[0];
+                const amt = Number(b.amount || 0).toLocaleString();
+                const curr = b.currency || 'THB';
+                const requester = `${b.first_name || ''} ${b.last_name || ''}`.trim() || b.employee_id || 'พนักงาน';
+                sendBrowserNotification(
+                    '🔔 คำของบประมาณใหม่ (ໃບຮ້ອງຂໍງົບປະມານໃໝ່)',
+                    `คุณ ${requester} ขอเบิกงบ "${b.title || 'ของบประมาณ'}" ยอด ${amt} ${curr} รอการอนุมัติ`,
+                    `budget-${Date.now()}`
+                );
+                if (typeof showToast === 'function') {
+                    showToast(`🔔 มีคำของบประมาณใหม่: ${b.title || 'ของบประมาณ'} (${amt} ${curr})`, 'info');
+                }
+            } else if (hasNewFb) {
+                const fb = newPendingFbBudgets[0];
+                const amt = Number(fb.amount || 0).toLocaleString();
+                const curr = fb.currency || 'THB';
+                sendBrowserNotification(
+                    '🔔 คำขอเบิกงบ Facebook ใหม่',
+                    `สมาชิก ${fb.member_id || ''} ขอเบิกงบ ${fb.campaign_name || 'Facebook'} (${amt} ${curr}) รอการอนุมัติ`,
+                    `fbbudget-${Date.now()}`
+                );
+                if (typeof showToast === 'function') {
+                    showToast(`🔔 มีคำขอเบิกงบ Facebook ใหม่ (${amt} ${curr})`, 'info');
+                }
+            } else if (hasNewLeaves) {
+                const lv = newPendingLeaves[0];
+                const empName = getFuzzyValue(lv, ['name', 'full_name', 'first_name', 'employee_id']) || 'พนักงาน';
+                const leaveType = getFuzzyValue(lv, ['type', 'ประเภท', 'ประเภทการลา']) || 'ลาพัก';
+                sendBrowserNotification(
+                    '🔔 คำขอลาพักงานใหม่ (ໃບຮ້ອງຂໍລາພັກໃໝ່)',
+                    `คุณ ${empName} ขอลา ${leaveType} รอการอนุมัติ`,
+                    `leave-${Date.now()}`
+                );
+                if (typeof showToast === 'function') {
+                    showToast(`🔔 มีคำขอลาพักใหม่จากคุณ ${empName} รอการอนุมัติ`, 'info');
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[refreshAllPendingBadges] error:', err);
+    }
 }
 
 function initBrowserNotifications() {
@@ -1364,13 +1500,23 @@ function sendBrowserNotification(title, body, tag = '') {
             const notif = new Notification(title, {
                 body: body,
                 icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
-                tag: tag || ('leave-' + Date.now()),
+                tag: tag || ('hr-' + Date.now()),
                 requireInteraction: false
             });
 
             notif.onclick = function () {
                 window.focus();
-                if (typeof navigate === 'function') navigate('dashboard', 'Dashboard');
+                if (typeof navigate === 'function') {
+                    if (tag && tag.startsWith('budget-')) {
+                        navigate('table', 'Budget Requests', 'Budget Request');
+                    } else if (tag && tag.startsWith('fbbudget-')) {
+                        navigate('facebook-budget', 'Facebook Budget');
+                    } else if (tag && tag.startsWith('leave-')) {
+                        navigate('table', 'Leave Requests', 'Leave application');
+                    } else {
+                        navigate('dashboard', 'Dashboard');
+                    }
+                }
                 this.close();
             };
         } catch (e) {}
@@ -1378,97 +1524,42 @@ function sendBrowserNotification(title, body, tag = '') {
 }
 
 function checkAndNotifyPendingLeaves(leaveRows) {
-    if (!Array.isArray(leaveRows) || leaveRows.length === 0) return;
-
-    updateSidebarPendingBadges(leaveRows);
-
-    let notifiedStr = sessionStorage.getItem('hr_notified_leave_ids') || '';
-    let notifiedIds = new Set(notifiedStr ? notifiedStr.split(',') : []);
-
-    let newPending = [];
-    leaveRows.forEach(r => {
-        let rId = String(r.Id_Leave || r.id_leave || r.ID_LEAVE || r.leave_id || r.Id || r.id || r.__db_id || '');
-        if (!rId) return;
-
-        let rawStatus = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) || '').toLowerCase();
-        let isPending = rawStatus.includes('pending') || rawStatus.includes('รอ') || (!rawStatus.includes('approve') && !rawStatus.includes('reject') && !rawStatus.includes('ไม่อนุมัติ') && !rawStatus.includes('ปฏิเสธ'));
-
-        if (isPending && !notifiedIds.has(rId)) {
-            newPending.push(r);
-            notifiedIds.add(rId);
-        }
-    });
-
-    if (newPending.length > 0) {
-        sessionStorage.setItem('hr_notified_leave_ids', Array.from(notifiedIds).join(','));
-
-        // Play chime sound
-        playNotificationSound();
-
-        // Dispatch desktop notification
-        if (newPending.length === 1) {
-            let lv = newPending[0];
-            let empName = getFuzzyValue(lv, ['name', 'full_name', 'first_name', 'employee_id', 'emp_id']) || 'พนักงาน';
-            let leaveType = getFuzzyValue(lv, ['type', 'ประเภท', 'ประเภทการลา', 'Type ']) || 'ลาพัก';
-            let leaveStart = getFuzzyValue(lv, ['start_date', 'เริ่ม', 'วันที่เริ่ม']) || '';
-            let leaveEnd = getFuzzyValue(lv, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || '';
-
-            sendBrowserNotification(
-                '🔔 คำขอลาพักงานใหม่ (ໃບຮ້ອງຂໍລາພັກໃໝ່)',
-                `คุณ ${empName} ขอลา ${leaveType} (${leaveStart} – ${leaveEnd}) รอการอนุมัติ`,
-                `leave-${lv.Id_Leave || lv.id_leave || Date.now()}`
-            );
-            if (typeof showToast === 'function') {
-                showToast(`🔔 มีคำขอลาพักใหม่จากคุณ ${empName} รอการอนุมัติ`, 'info');
-            }
-        } else {
-            sendBrowserNotification(
-                '🔔 มีคำขอลาพักงานใหม่ (ໃບຮ້ອງຂໍລາພັກໃໝ່)',
-                `มีคำขอลาพักงานใหม่ ${newPending.length} รายการ รอการอนุมัติ`,
-                `leaves-batch-${Date.now()}`
-            );
-            if (typeof showToast === 'function') {
-                showToast(`🔔 มีคำขอลาพักงานใหม่ ${newPending.length} รายการ รอการอนุมัติ`, 'info');
-            }
-        }
+    if (typeof refreshAllPendingBadges === 'function') {
+        refreshAllPendingBadges(leaveRows);
     }
 }
 
 // Global exports
 window.directApproveLeave = directApproveLeave;
-window.updateSidebarPendingBadges = updateSidebarPendingBadges;
+window.updateSidebarPendingBadges = refreshAllPendingBadges;
+window.refreshAllPendingBadges = refreshAllPendingBadges;
 window.initBrowserNotifications = initBrowserNotifications;
 window.playNotificationSound = playNotificationSound;
 window.sendBrowserNotification = sendBrowserNotification;
 window.checkAndNotifyPendingLeaves = checkAndNotifyPendingLeaves;
 
-// Request notification permission on page load
+// Request notification permission and auto-start polling
 if (typeof window !== 'undefined') {
     window.addEventListener('DOMContentLoaded', () => {
         initBrowserNotifications();
+        setTimeout(() => {
+            if (typeof refreshAllPendingBadges === 'function') refreshAllPendingBadges();
+        }, 1500);
     });
-    // Auto-check for notification permission on first user click
+
     window.addEventListener('click', function initNotifOnClick() {
         initBrowserNotifications();
         window.removeEventListener('click', initNotifOnClick);
     }, { once: true });
 
-    // Periodic check for new leaves in background every 60s
+    // Periodic check for new leaves & budget requests every 40s
     setInterval(() => {
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-            google.script.run.withSuccessHandler(res => {
-                if (res && res.success && Array.isArray(res.data)) {
-                    tableCache['Leave application'] = {
-                        headers: (res.headers || []).map(String),
-                        data: res.data
-                    };
-                    checkAndNotifyPendingLeaves(res.data);
-                    renderDashMiniCalendar();
-                }
-            }).getSheetData('Leave application');
+        if (typeof refreshAllPendingBadges === 'function') {
+            refreshAllPendingBadges();
         }
-    }, 60000);
+    }, 40000);
 }
 
 // Initialize mini calendar
 renderDashMiniCalendar();
+

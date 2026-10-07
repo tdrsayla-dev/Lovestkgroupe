@@ -111,9 +111,10 @@ function initScanner() {
         try {
             if (!map) {
                 map = L.map('map').setView([BRANCHES[0].lat, BRANCHES[0].lng], 16);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
+                L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                    attribution: '&copy; Google Maps'
                 }).addTo(map);
 
                 let bounds = [];

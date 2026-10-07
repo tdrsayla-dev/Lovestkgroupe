@@ -1302,7 +1302,29 @@ function renderTable(data) {
         if (leaveTabsContainer) leaveTabsContainer.classList.add('hidden');
 
         const leaveDateFilterWrapper = document.getElementById('leave-date-filter-wrapper');
-        if (leaveDateFilterWrapper) leaveDateFilterWrapper.classList.add('hidden');
+        const isBudgetSheet = currentSheet === 'Budget Request' || currentSheet === 'Budget Requests' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget');
+
+        if (leaveDateFilterWrapper) {
+            if (isBudgetSheet) {
+                leaveDateFilterWrapper.classList.remove('hidden');
+
+                // Populate year dropdown for budget filter if empty
+                const ySelect = document.getElementById('leaveYearInput');
+                if (ySelect && ySelect.options.length === 0) {
+                    let yearsSet = new Set();
+                    yearsSet.add(new Date().getFullYear());
+                    (rawData || data || []).forEach(r => {
+                        let sStr = getFuzzyValue(r, ['request_date', 'created_at', 'date', 'start_date']);
+                        let d = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
+                        if (d && !isNaN(d.getFullYear())) yearsSet.add(d.getFullYear());
+                    });
+                    let sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
+                    ySelect.innerHTML = sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
+                }
+            } else {
+                leaveDateFilterWrapper.classList.add('hidden');
+            }
+        }
 
         tableWrapper.classList.remove('hidden');
         cardWrapper.classList.add('hidden');
@@ -1458,8 +1480,36 @@ function renderTable(data) {
                 }
             }
 
+            const isBudgetSheet = currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget');
+
+            if (isBudgetSheet && (lw === 'request_date' || lw === 'request date' || lw === 'date' || lw === 'requestdate')) {
+                const rawDt = row.created_at || row.Created_At || val;
+                if (rawDt) {
+                    try {
+                        const d = new Date(rawDt);
+                        if (!isNaN(d.getTime())) {
+                            const dStr = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+                            const hasTime = String(rawDt).includes('T') || String(rawDt).includes(':');
+                            if (hasTime) {
+                                const tStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+                                val = `<div class="font-bold text-gray-800">${dStr}</div><div class="text-[11px] text-gray-400 font-medium mt-0.5"><i class="fa-regular fa-clock text-[10px] mr-1 text-brandindigo"></i>${tStr} น.</div>`;
+                            } else {
+                                val = `<span class="font-bold text-gray-800">${dStr}</span>`;
+                            }
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            if (lw === 'amount' || lw.includes('amount') || lw === 'จำนวนเงิน' || lw === 'ຈຳນວນເງິນ') {
+                let cleanStr = String(val !== undefined && val !== null ? val : '').replace(/,/g, '').trim();
+                let num = parseFloat(cleanStr);
+                if (!isNaN(num) && cleanStr !== '' && cleanStr !== '-') {
+                    val = `<span class="font-bold text-gray-800">${num.toLocaleString('en-US')}</span>`;
+                }
+            }
+
             if (lw.includes('status') || lw === 'signature' || lw.includes('role')) {
-                const isBudgetSheet = currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget');
 
                 if (isBudgetSheet) {
                     const statusVal = String(val || row.Status || row.status || row.Signature || row.signature || '').trim();
