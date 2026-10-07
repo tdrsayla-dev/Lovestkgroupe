@@ -3279,9 +3279,9 @@
         </div>
     </div>
 
-    <div class="modal fade" id="addPatientModal" tabindex="-1" data-bs-backdrop="false">
+    <div class="modal fade" id="addPatientModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content" style="border-radius: 16px; border: none;">
+            <div class="modal-content shadow-lg" style="border-radius: 16px; border: none;">
                 <div class="modal-header bg-white">
                     <h4 class="modal-title fw-bold" id="addPatientModalTitle" data-i18n="reg_modal_title">
                         ເພີ່ມປະຫວັດຜູ້ປ່ວຍໃໝ່</h4>
@@ -3297,23 +3297,23 @@
                                 <input type="text" class="form-control custom-input" name="FullName" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_age">ອາຍຸ (ປີ)</label>
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_age">ອາຍຸ (ປີ)</span> <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control custom-input" name="Age" min="0" max="150"
-                                    placeholder="ອາຍຸ" data-i18n-placeholder="reg_modal_age_ph">
+                                    placeholder="ອາຍຸ" data-i18n-placeholder="reg_modal_age_ph" required>
                             </div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_province">ແຂວງ</label>
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_province">ແຂວງ</span> <span class="text-danger">*</span></label>
                                 <select class="form-select custom-input" name="Province" id="patientProvinceSelect"
-                                    onchange="onPatientProvinceChange()">
+                                    onchange="onPatientProvinceChange()" required>
                                     <option value="">-- ເລືອກແຂວງ --</option>
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_district">ເມືອງ</label>
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_district">ເມືອງ</span> <span class="text-danger">*</span></label>
                                 <select class="form-select custom-input" name="District" id="patientDistrictSelect"
-                                    disabled>
+                                    disabled required>
                                     <option value="">-- ກະລຸນາເລືອກແຂວງກ່ອນ --</option>
                                 </select>
                             </div>
@@ -3342,12 +3342,12 @@
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_disease">ພະຍາດປະຈຳຕົວ</label>
-                                <input type="text" class="form-control custom-input" name="PastHistory">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_disease">ພະຍາດປະຈຳຕົວ</span> <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" name="PastHistory" placeholder="ລະບຸ ຫຼື ໃສ່ ບໍ່ມີ" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_allergy">ປະຫວັດການແພ້ຢາ</label>
-                                <input type="text" class="form-control custom-input" name="Allergies">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_allergy">ປະຫວັດການແພ້ຢາ</span> <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" name="Allergies" placeholder="ລະບຸ ຫຼື ໃສ່ ບໍ່ມີ" required>
                             </div>
                         </div>
                         <div class="row mb-3">
@@ -3355,7 +3355,7 @@
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <label class="form-label fw-bold text-primary mb-0">
                                         <i class="ph ph-hand-coins me-1"></i><span
-                                            data-i18n="reg_modal_referrer">ຜູ້ແນະນຳຜູ້ປ່ວຍ (Referrer / Dividend)</span>
+                                            data-i18n="reg_modal_referrer">ຜູ້ແນະນຳຜູ້ປ່ວຍ (Referrer / Dividend)</span> <span class="text-danger">*</span>
                                     </label>
                                     <span id="patientRefLockHint"
                                         class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 small"
@@ -3363,18 +3363,46 @@
                                         <i class="ph ph-lock me-1"></i>ລັອກຕາມການນັດໝາຍລ່ວງໜ້າ (ບໍ່ສາມາດແກ້ໄຂໄດ້)
                                     </span>
                                 </div>
+                                <div class="position-relative" id="patientReferrerDropdownWrapper">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control custom-input bg-white"
+                                            id="patientReferredBySelect" name="ReferredBy"
+                                            data-i18n-placeholder="reg_modal_referrer_ph"
+                                            placeholder="ຄລິກເພື່ອຄົ້ນຫາ ແລະ ເລືອກຜູ້ແນະນຳ..."
+                                            autocomplete="off" readonly required
+                                            onclick="openPatientReferrerDropdown()"
+                                            style="cursor: pointer; border-radius: 10px 0 0 10px; border-right: none;">
+                                        <button class="btn btn-outline-secondary d-flex align-items-center justify-content-center px-3"
+                                            type="button" id="btnToggleRefDropdown"
+                                            onclick="openPatientReferrerDropdown()"
+                                            style="border-color: #cbd5e1; border-left: none; border-radius: 0 10px 10px 0; background: #fff;"
+                                            title="ເລືອກຜູ້ແນະນຳ">
+                                            <i class="ph ph-caret-down fs-6 text-muted"></i>
+                                        </button>
+                                    </div>
 
-
-
-
-
-
-
-                                <input type="text" class="form-select custom-input" list="referrerDatalist"
-                                    id="patientReferredBySelect" name="ReferredBy"
-                                    data-i18n-placeholder="reg_modal_referrer_ph"
-                                    placeholder="ພິມລະຫັດ/ຊື່ ພະນັກງານ ຫຼື ຄລິກເພື່ອເລືອກ..." autocomplete="off">
-                                <datalist id="referrerDatalist"></datalist>
+                                    <!-- Dropdown Menu / Search Panel -->
+                                    <div id="patientReferrerDropdownMenu" class="dropdown-menu shadow-lg p-2 w-100 border-0 rounded-3 mt-1"
+                                        style="display: none; position: absolute; top: 100%; left: 0; z-index: 1060; max-height: 330px; box-shadow: 0 12px 28px rgba(0,0,0,0.18) !important; background: #ffffff;">
+                                        <div class="p-1 mb-2 border-bottom pb-2">
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text bg-light border-0"><i class="ph ph-magnifying-glass"></i></span>
+                                                <input type="text" id="referrerSearchFilterInput" class="form-control form-control-sm border-0 bg-light"
+                                                    placeholder="ພິມລະຫັດ ຫຼື ຊື່ ເພື່ອຄົ້ນຫາ... (พิมพ์ค้นหา)"
+                                                    autocomplete="off"
+                                                    oninput="onPatientReferrerSearchInput(this.value)">
+                                                <button type="button" class="btn btn-sm btn-light border-0" id="btnClearRefSearch"
+                                                    onclick="clearPatientReferrerSearch()" title="ລ້າງການຄົ້ນຫາ" style="display: none;">
+                                                    <i class="ph ph-x"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="referrerOptionsList" class="overflow-y-auto" style="max-height: 230px;">
+                                            <!-- Dynamic items -->
+                                        </div>
+                                    </div>
+                                    <datalist id="referrerDatalist"></datalist>
+                                </div>
                             </div>
                         </div>
                         <input type="hidden" name="appointmentId" id="linkAppointmentId">
@@ -3701,42 +3729,55 @@
                 <div class="modal-body p-4 bg-white">
                     <input type="hidden" id="rxVisitId"><input type="hidden" id="rxHN"><input type="hidden"
                         id="rxPatientName">
-                    <div
-                        class="d-flex justify-content-between align-items-center mb-3 p-3 rounded-3 border bg-light flex-wrap gap-2 shadow-xs">
-                        <div class="d-flex flex-column gap-1">
-                            <div class="small text-muted d-flex align-items-center flex-wrap gap-2">
-                                <span>รหัส VISIT: <strong id="rxVisitIdDisplay" class="text-dark ms-1">-</strong></span>
-                                <span class="text-secondary opacity-50">|</span>
-                                <span>คนไข้: <strong id="rxPatientNameDisplay" class="text-dark ms-1">-</strong></span>
-                                <span style="display: none !important;"><strong
-                                        id="rxPatientPhoneDisplay">-</strong></span>
-                            </div>
-                            <!-- 🌟 สัญญาณชีพ/ข้อมูลคัดกรอง (Screening Vitals: BP, Temp, Pulse, Wt, Ht, BMI, SpO2) -->
-                            <div id="rxVitalsDisplay" class="d-flex align-items-center flex-wrap gap-1.5 mt-0.5"
-                                style="display: none;"></div>
-                            <div class="small text-muted d-flex align-items-center flex-wrap gap-2 mt-0.5">
-                                <span
-                                    class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 fw-semibold"
-                                    style="font-size: 0.82rem;">
-                                    <i class="bi bi-heart-pulse-fill me-1"></i>อาการเบื้องต้น: <span
-                                        id="rxPatientSymptomDisplay" class="fw-bold ms-1">-</span>
+                    <!-- 🌟 1. กล่องข้อมูลผู้ป่วย, สัญญาณชีพ และผลตรวจแล็บ (Modern Medical Profile Card) -->
+                    <div class="card border mb-3 shadow-xs" style="border-radius: 12px; background: #ffffff; border-color: #e2e8f0 !important; overflow: hidden;">
+                        <!-- ส่วนหัว: ข้อมูลคนไข้และอาการ -->
+                        <div class="px-3.5 py-2.5 bg-light border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge bg-primary px-2.5 py-1.5 rounded-2 fw-bold d-inline-flex align-items-center gap-1" style="font-size: 0.82rem; letter-spacing: 0.3px;">
+                                    <i class="bi bi-person-fill"></i> <span id="rxPatientNameDisplay">-</span>
                                 </span>
-                                <span
-                                    class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 fw-medium"
-                                    style="font-size: 0.82rem;">
-                                    <i class="ph ph-user-gear me-1"></i>ผู้ดูแล: <strong id="rxAssistantDisplay"
-                                        class="fw-bold ms-1">L03709 - MS CHERRY LOUANGPHAN</strong>
+                                <span class="badge bg-white text-dark border px-2.5 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
+                                    VISIT: <strong id="rxVisitIdDisplay" class="text-primary ms-0.5">-</strong>
+                                </span>
+                                <span class="badge bg-white text-dark border px-2.5 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
+                                    HN: <strong id="rxHnDisplay" class="text-secondary ms-0.5">-</strong>
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
+                                    <i class="bi bi-heart-pulse-fill me-1"></i>อาการ: <span id="rxPatientSymptomDisplay" class="fw-bold ms-0.5">-</span>
+                                </span>
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis border px-2.5 py-1.5 rounded-2 fw-medium" style="font-size: 0.78rem;">
+                                    <i class="ph ph-user-gear me-1"></i>ผู้ดูแล: <strong id="rxAssistantDisplay" class="ms-0.5">L03709 - MS CHERRY</strong>
                                 </span>
                             </div>
                         </div>
-                        <div id="rxLabButtonsContainer" class="d-flex gap-1 align-items-center flex-wrap">
-                            <button type="button" id="rxPdfBtn" class="btn btn-sm btn-danger px-3"><i
-                                    class="bi bi-file-pdf"></i> เปิดดูผล Lab</button>
+
+                        <!-- ส่วนที่ 2: สัญญาณชีพ (Vitals Mini Grid Cards) -->
+                        <div id="rxVitalsSection" class="p-3 border-bottom bg-white" style="display: none;">
+                            <div class="d-flex align-items-center gap-1.5 mb-2 text-muted" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <i class="bi bi-activity text-danger"></i> ສັນຍານຊີບ / สัญญาณชีพ (Vital Signs)
+                            </div>
+                            <div id="rxVitalsDisplay" class="row g-2"></div>
+                        </div>
+
+                        <!-- ส่วนที่ 3: แถบผลตรวจแล็บทั้งหมด (Lab Results & Attachments) -->
+                        <div class="px-3.5 py-2 bg-light d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-1.5 text-secondary fw-bold" style="font-size: 0.78rem;">
+                                <i class="bi bi-folder2-open text-primary fs-6"></i>
+                                <span>ເອກະສານ & ຜົນກວດທັງໝົດ (Lab Results):</span>
+                            </div>
+                            <div id="rxLabButtonsContainer" class="d-inline-flex gap-1.5 align-items-center flex-wrap">
+                                <button type="button" id="rxPdfBtn" class="btn btn-sm btn-outline-danger px-3 py-1 fw-semibold" style="font-size: 0.78rem; border-radius: 6px;">
+                                    <i class="bi bi-file-pdf me-1"></i> เปิดดูผล Lab
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <!-- กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
                     <div id="rxDoctorLabNoteBox"
-                        class="alert alert-warning py-2.5 px-3 mb-3 border-warning border d-flex align-items-start gap-2 shadow-xs rounded-3"
+                        class="alert alert-warning py-2.5 px-3 mb-3 border-warning border align-items-start gap-2 shadow-xs rounded-3"
                         style="display: none; font-size: 0.88rem; background-color: #fffbeb;">
                         <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
                         <div class="w-100">
@@ -4281,28 +4322,35 @@
                         <div id="histLabNoteContent" class="mt-2 pt-2 border-top" style="display: none;">
                             <small class="fw-bold text-muted d-block mb-1"><i
                                     class="bi bi-file-earmark-text me-1"></i>ผลตรวจ / หมายเหตุแพทย์:</small>
-                            <div id="histLabNoteText" class="p-2 rounded bg-white border text-dark text-break small">
+                            <div id="histLabNoteText" class="p-2 rounded bg-white border text-dark text-break small" style="white-space: pre-wrap;">
                             </div>
                         </div>
-                        <div id="histLabFilesContent" class="mt-2 pt-2 border-top" style="display: none;">
-                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                <div>
-                                    <small class="fw-bold text-muted d-block mb-1"><i
-                                            class="bi bi-paperclip me-1"></i>เอกสารผลตรวจทั้งหมด:</small>
-                                    <div id="histLabFilesButtons" class="d-inline-flex flex-wrap align-items-center">
-                                    </div>
+                        <div id="histLabFilesContent" class="mt-3 p-3 bg-white border rounded-3 shadow-xs" style="display: none;">
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="fw-bold text-dark small">
+                                        <i class="bi bi-file-earmark-medical-fill text-primary me-1"></i>เอกสารผลตรวจทางการแพทย์ (Medical Reports)
+                                    </span>
+                                    <span class="badge bg-light text-secondary border small fw-normal">
+                                        <i class="bi bi-eye me-1"></i>คลิกเพื่อเปิดอ่าน / พิมพ์
+                                    </span>
                                 </div>
+                                <div id="histLabFilesButtons" class="d-flex flex-wrap align-items-center gap-2">
+                                </div>
+                            </div>
+                            <div class="pt-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <span class="text-muted" style="font-size: 0.8rem;">
+                                    <i class="bi bi-gear-wide-connected me-1"></i>เครื่องมือจัดการผลตรวจ
+                                </span>
                                 <div class="d-flex align-items-center gap-2">
                                     <button type="button"
-                                        class="btn btn-sm btn-success fw-bold shadow-sm px-3 text-white"
-                                        id="btnHistRecoverLab" onclick="runRecoverLabFromHistory()"
-                                        style="border-radius: 8px;">
+                                        class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold shadow-xs"
+                                        id="btnHistRecoverLab" onclick="runRecoverLabFromHistory()">
                                         <i class="bi bi-patch-check me-1"></i> ແປງຜົນໃສ່ Frame (Recover Lab)
                                     </button>
                                     <button type="button"
-                                        class="btn btn-sm btn-outline-primary fw-semibold shadow-sm px-3"
-                                        id="btnHistAddLabResult" onclick="openLabUploadFromHistory()"
-                                        style="border-radius: 8px;">
+                                        class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs text-white"
+                                        id="btnHistAddLabResult" onclick="openLabUploadFromHistory()">
                                         <i class="bi bi-plus-circle me-1"></i> ເພີ່ມຜົນກວດ
                                     </button>
                                 </div>
@@ -5018,7 +5066,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.97"></script>
+    <script src="function.js?v=4.0.0"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.5"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->

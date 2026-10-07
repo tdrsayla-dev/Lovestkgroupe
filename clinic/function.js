@@ -4379,7 +4379,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
     // ดึงข้อมูล lab_note จาก visitRecord ของหน้านี้
     let labNote = visitRecord ? (visitRecord.lab_note || '') : '';
-    labNote = labNote.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').replace(/\[ผลตรวจ CBC\]/gi, '').replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]/gi, '').replace(/\[ผลตรวจ Urine\]/gi, '').replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').replace(/\[เอกสารแนบ[^\]]*\]/gi, '').replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
+    labNote = labNote.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').replace(/\[ผลตรวจ CBC\]/gi, '').replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]/gi, '').replace(/\[ผลตรวจ Urine\]/gi, '').replace(/\[ผลตรวจหลอดเลือด\][\s\S]*?(?=\n\n\[|$)/gi, '').replace(/\[ผลตรวจหลอดเลือด\][\s\S]*/gi, '').replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').replace(/\[เอกสารแนบ[^\]]*\]/gi, '').replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
 
     let noteHtml = '';
     if (labNote && labNote.trim() !== '') {
@@ -6554,6 +6554,57 @@ async function submitAppointment() {
 
 async function submitPatient() {
     const form = document.getElementById('patientForm');
+    if (!form) return;
+
+    // 🌟 ตรวจสอบเงื่อนไขฟิลด์บังคับ (Validation สำหรับฟิลด์ที่วงสีแดงและฟิลด์จำเป็น)
+    if (!form.FullName?.value?.trim()) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາປ້ອນຂໍ້ມູນ / กรุณากรอกข้อมูล', text: 'ກະລຸນາປ້ອນ ຊື່-ນາມສະກຸນ' });
+        form.FullName?.focus();
+        return;
+    }
+    if (!form.Age?.value?.toString()?.trim()) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາປ້ອນຂໍ້ມູນ / กรุณากรอกข้อมูล', text: 'ກະລຸນາປ້ອນ ອາຍຸ (ປີ) / กรุณากรอกอายุ' });
+        form.Age?.focus();
+        return;
+    }
+    const provVal = (document.getElementById('patientProvinceSelect')?.value || form.Province?.value || '').trim();
+    if (!provVal) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາເລືອກຂໍ້ມູນ / กรุณาเลือกข้อมูล', text: 'ກະລຸນາເລືອກ ແຂວງ / กรุณาเลือกแขวงหรือจังหวัด' });
+        document.getElementById('patientProvinceSelect')?.focus();
+        return;
+    }
+    const distVal = (document.getElementById('patientDistrictSelect')?.value || form.District?.value || '').trim();
+    if (!distVal) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາເລືອກຂໍ້ມູນ / กรุณาเลือกข้อมูล', text: 'ກະລຸນາເລືອກ ເມືອງ / กรุณาเลือกเมืองหรืออำเภอ' });
+        document.getElementById('patientDistrictSelect')?.focus();
+        return;
+    }
+    if (!form.Tel?.value?.trim()) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາປ້ອນຂໍ້ມູນ / กรุณากรอกข้อมูล', text: 'ກະລຸນາປ້ອນ ເບີໂທລະສັບ / กรุณากรอกเบอร์โทรศัพท์' });
+        form.Tel?.focus();
+        return;
+    }
+    if (!form.NextAppointmentDate?.value?.trim()) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາເລືອກຂໍ້ມູນ / กรุณาเลือกข้อมูล', text: 'ກະລຸນາເລືອກ ວັນທີນັດມາກວດ / กรุณาเลือกวันที่นัดตรวจ' });
+        form.NextAppointmentDate?.focus();
+        return;
+    }
+    if (!form.PastHistory?.value?.trim()) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາປ້ອນຂໍ້ມູນ / กรุณากรอกข้อมูล', text: 'ກະລຸນາປ້ອນ ພະຍາດປະຈຳຕົວ (ຖ້າບໍ່ມີໃຫ້ໃສ່ ບໍ່ມີ) / กรุณากรอกโรคประจำตัว (ถ้าไม่มีให้ใส่ ไม่มี)' });
+        form.PastHistory?.focus();
+        return;
+    }
+    if (!form.Allergies?.value?.trim()) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາປ້ອນຂໍ້ມູນ / กรุณากรอกข้อมูล', text: 'ກະລຸນາປ້ອນ ປະຫວັດການແພ້ຢາ (ຖ້າບໍ່ມີໃຫ້ໃສ່ ບໍ່ມີ) / กรุณากรอกประวัติการแพ้ยา (ถ้าไม่มีให้ใส่ ไม่มี)' });
+        form.Allergies?.focus();
+        return;
+    }
+    const refByInput = document.getElementById('patientReferredBySelect');
+    if (!refByInput || !refByInput.value.trim()) {
+        Swal.fire({ icon: 'warning', title: 'ກະລຸນາເລືອກຂໍ້ມູນ / กรุณาเลือกข้อมูล', text: 'ກະລຸນາເລືອກ ຫຼື ປ້ອນ ຜູ້ແນະນຳຜູ້ປ່ວຍ (Referrer) / กรุณาระบุผู้แนะนำผู้ป่วย' });
+        refByInput?.focus();
+        return;
+    }
     const editHn = document.getElementById('patientEditHn')?.value;
     const hn = editHn || ('HN-' + Math.floor(100000 + Math.random() * 900000));
     const linkApptId = document.getElementById('linkAppointmentId')?.value;
@@ -6667,7 +6718,7 @@ function openAddPatientModal() {
     const lockHint = document.getElementById('patientRefLockHint');
     if (patRefSelect) {
         patRefSelect.value = '';
-        patRefSelect.removeAttribute('readonly');
+        patRefSelect.setAttribute('readonly', 'readonly'); patRefSelect.style.cursor = 'pointer';
         patRefSelect.style.pointerEvents = 'auto';
         patRefSelect.classList.remove('bg-light');
 
@@ -6715,7 +6766,7 @@ function openAddPatientModal() {
             }
         });
         patModalEl.addEventListener('shown.bs.modal', function () {
-            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            // backdrop kept for dark overlay
             try {
                 const frame = document.getElementById('marketingFrame');
                 if (frame && frame.contentWindow) {
@@ -6739,7 +6790,7 @@ function openAddPatientModal() {
 
     if (patModalEl) {
         bootstrap.Modal.getOrCreateInstance(patModalEl).show();
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        // backdrop kept for dark overlay
     }
 }
 
@@ -6770,7 +6821,7 @@ function openRegisterFromAppointment(appId, name, phone) {
     } else if (patRefSelect) {
         // หากไม่มีผู้แนะนำจากการนัดหมาย -> สามารถกรอก/พิมพ์ค้นหาได้ตามปกติ
         patRefSelect.value = '';
-        patRefSelect.removeAttribute('readonly');
+        patRefSelect.setAttribute('readonly', 'readonly'); patRefSelect.style.cursor = 'pointer';
         patRefSelect.style.pointerEvents = 'auto';
         patRefSelect.classList.remove('bg-light');
         if (lockHint) lockHint.style.display = 'none';
@@ -6825,7 +6876,7 @@ function editPatient(hn) {
             patRefSelect.classList.add('bg-light');
             if (lockHint) lockHint.style.display = 'inline-block';
         } else {
-            patRefSelect.removeAttribute('readonly');
+            patRefSelect.setAttribute('readonly', 'readonly'); patRefSelect.style.cursor = 'pointer';
             patRefSelect.style.pointerEvents = 'auto';
             patRefSelect.classList.remove('bg-light');
             if (lockHint) lockHint.style.display = 'none';
@@ -9668,14 +9719,8 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
                     <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                         <span class="small text-muted"><i class="bi bi-person me-1"></i>${patientName || visitId}</span>
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-bold shadow-xs text-white" onclick="convertLabResultWithFrame('${visitId}', '${(patientName || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
-                                <i class="bi bi-patch-check me-1"></i> ແປງຜົນກວດໃສ່ Frame + ປະທັບຕາ
-                            </button>
                             <button type="button" onclick="openLabPdfDirect('${fileUrl}', 'lab_${visitId}.png')" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
                                 <i class="bi bi-box-arrow-up-right me-1"></i> เปิดดูรูปขนาดเต็ม / ดาวน์โหลด
-                            </button>
-                            <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold shadow-xs text-white" onclick="deleteLabFileFromPreview('${visitId}', '${(fileUrlOrId || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
-                                <i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້
                             </button>
                         </div>
                     </div>
@@ -9684,18 +9729,12 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
             `,
             width: '850px',
             showCloseButton: true,
-            showDenyButton: true,
+            showDenyButton: false,
             confirmButtonText: 'ປິດໜ້າຕ່າງ',
             confirmButtonColor: '#0b3c73',
-            denyButtonText: '<i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້ (Delete)',
-            denyButtonColor: '#dc2626',
             didClose: () => {
                 window._currentLabPdfBlobUrl = null;
                 window._currentLabPdfRawUrl = null;
-            }
-        }).then((res) => {
-            if (res && res.isDenied) {
-                deleteLabFileFromPreview(visitId, fileUrlOrId, categoryName);
             }
         });
     } else {
@@ -9720,14 +9759,8 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
                     <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                         <span class="small text-muted"><i class="bi bi-person me-1"></i>${patientName || visitId}</span>
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-bold shadow-xs text-white" onclick="convertLabResultWithFrame('${visitId}', '${(patientName || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
-                                <i class="bi bi-patch-check me-1"></i> ແປງຜົນກວດໃສ່ Frame + ປະທັບຕາ
-                            </button>
                             <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs" onclick="openLabPdfDirect(window._currentLabPdfBlobUrl || window._currentLabPdfRawUrl, 'lab_${visitId}.pdf')">
                                 <i class="bi bi-box-arrow-up-right me-1"></i> เปิดในแท็บใหม่ / ดาวน์โหลด PDF
-                            </button>
-                            <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold shadow-xs text-white" onclick="deleteLabFileFromPreview('${visitId}', '${(fileUrlOrId || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
-                                <i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້
                             </button>
                         </div>
                     </div>
@@ -9743,18 +9776,12 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
             `,
             width: '950px',
             showCloseButton: true,
-            showDenyButton: true,
+            showDenyButton: false,
             confirmButtonText: 'ປິດໜ້າຕ່າງ',
             confirmButtonColor: '#0b3c73',
-            denyButtonText: '<i class="bi bi-trash-fill me-1"></i> ລຶບໄຟລ໌ນີ້ (Delete)',
-            denyButtonColor: '#dc2626',
             didClose: () => {
                 window._currentLabPdfBlobUrl = null;
                 window._currentLabPdfRawUrl = null;
-            }
-        }).then((res) => {
-            if (res && res.isDenied) {
-                deleteLabFileFromPreview(visitId, fileUrlOrId, categoryName);
             }
         });
     }
@@ -10528,6 +10555,8 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     const batchBadge = refillBatchTag ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning ms-2"><i class="bi bi-arrow-repeat me-1"></i>ต่อยา - ${refillBatchTag}</span>` : '';
     document.getElementById('rxVisitIdDisplay').innerHTML = (visitId || '-') + batchBadge;
     document.getElementById('rxPatientNameDisplay').innerText = patientName || '-';
+    const rxHnDisplay = document.getElementById('rxHnDisplay');
+    if (rxHnDisplay) rxHnDisplay.innerText = hn || (visitRow && visitRow.hn) || '-';
 
     // 1. ดึงข้อมูลเบอร์โทรศัพท์ และ อาการเบื้องต้น (Symptom & Vitals)
     let patientPhone = '-';
@@ -10561,9 +10590,24 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
 
     // 🌟 ดึงและแสดงข้อมูลจุดคัดกรอง / สัญญาณชีพ (Screening Vitals: BP, Temp, Pulse, Weight, Height, BMI, SpO2)
     const vitalsEl = document.getElementById('rxVitalsDisplay');
+    const vitalsSectionEl = document.getElementById('rxVitalsSection');
     if (vitalsEl) {
         let vitalsBadges = [];
+        let hasAnyVital = false;
+        let bpVal = '-', tempVal = '-', pulseVal = '-', spo2Val = '-', wtVal = '-', htVal = '-', bmiVal = '-';
+        let isBpHigh = false, isTempHigh = false, isSpo2Low = false;
         if (visitRow) {
+            if (visitRow.bp && visitRow.bp.trim() !== '' && visitRow.bp.trim() !== '-') { bpVal = visitRow.bp.trim(); hasAnyVital = true; }
+            if (visitRow.temp && String(visitRow.temp).trim() !== '' && String(visitRow.temp).trim() !== '-') { tempVal = `${String(visitRow.temp).trim()} °C`; hasAnyVital = true; }
+            if (visitRow.pulse && String(visitRow.pulse).trim() !== '' && String(visitRow.pulse).trim() !== '-') { pulseVal = `${String(visitRow.pulse).trim()} bpm`; hasAnyVital = true; }
+            if (visitRow.spo2 && String(visitRow.spo2).trim() !== '' && String(visitRow.spo2).trim() !== '-') { spo2Val = `${String(visitRow.spo2).trim()}%`; hasAnyVital = true; }
+            if (visitRow.weight && String(visitRow.weight).trim() !== '' && String(visitRow.weight).trim() !== '-') { wtVal = `${String(visitRow.weight).trim()} kg`; hasAnyVital = true; }
+            if (visitRow.height && String(visitRow.height).trim() !== '' && String(visitRow.height).trim() !== '-') { htVal = `${String(visitRow.height).trim()} cm`; hasAnyVital = true; }
+            if (visitRow.bmi && String(visitRow.bmi).trim() !== '' && String(visitRow.bmi).trim() !== '-') { bmiVal = String(visitRow.bmi).trim(); hasAnyVital = true; }
+
+            isBpHigh = bpVal !== '-' && (parseInt(bpVal) >= 140 || (bpVal.includes('/') && parseInt(bpVal.split('/')[1]) >= 90));
+            isTempHigh = tempVal !== '-' && parseFloat(visitRow.temp) >= 37.5;
+            isSpo2Low = spo2Val !== '-' && parseFloat(visitRow.spo2) < 95;
             if (visitRow.bp) {
                 vitalsBadges.push(`<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="ความดันโลหิต"><i class="bi bi-activity me-1"></i>ความดัน: <strong class="ms-0.5">${visitRow.bp}</strong> mmHg</span>`);
             }
@@ -10586,8 +10630,46 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
                 vitalsBadges.push(`<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="ออกซิเจนในเลือด SpO2"><i class="bi bi-lungs me-1"></i>SpO2: <strong class="ms-0.5">${visitRow.spo2}</strong>%</span>`);
             }
         }
-        if (vitalsBadges.length > 0) {
-            vitalsEl.innerHTML = vitalsBadges.join(' ');
+        if (hasAnyVital) {
+            vitalsEl.innerHTML = `
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="p-2 rounded-2 border text-center ${isBpHigh ? 'bg-danger-subtle border-danger-subtle' : 'bg-light'}" style="height: 100%;">
+                        <div class="text-muted text-truncate" style="font-size: 0.68rem; font-weight: 600;"><i class="bi bi-activity ${isBpHigh ? 'text-danger' : 'text-primary'} me-1"></i>ความดัน (BP)</div>
+                        <div class="fw-bold ${isBpHigh ? 'text-danger' : 'text-dark'} mt-0.5" style="font-size: 0.82rem; font-family: monospace;">${bpVal}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="p-2 rounded-2 border text-center ${isTempHigh ? 'bg-warning-subtle border-warning-subtle' : 'bg-light'}" style="height: 100%;">
+                        <div class="text-muted text-truncate" style="font-size: 0.68rem; font-weight: 600;"><i class="bi bi-thermometer-half ${isTempHigh ? 'text-warning-emphasis' : 'text-primary'} me-1"></i>อุณหภูมิ (T)</div>
+                        <div class="fw-bold ${isTempHigh ? 'text-warning-emphasis' : 'text-dark'} mt-0.5" style="font-size: 0.82rem; font-family: monospace;">${tempVal}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="p-2 rounded-2 border text-center bg-light" style="height: 100%;">
+                        <div class="text-muted text-truncate" style="font-size: 0.68rem; font-weight: 600;"><i class="bi bi-heart-fill text-danger me-1"></i>ชีพจร (PR)</div>
+                        <div class="fw-bold text-dark mt-0.5" style="font-size: 0.82rem; font-family: monospace;">${pulseVal}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="p-2 rounded-2 border text-center ${isSpo2Low ? 'bg-warning-subtle border-warning-subtle' : 'bg-light'}" style="height: 100%;">
+                        <div class="text-muted text-truncate" style="font-size: 0.68rem; font-weight: 600;"><i class="bi bi-lungs text-info me-1"></i>ออกซิเจน (SpO2)</div>
+                        <div class="fw-bold ${isSpo2Low ? 'text-warning-emphasis' : 'text-dark'} mt-0.5" style="font-size: 0.82rem; font-family: monospace;">${spo2Val}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="p-2 rounded-2 border text-center bg-light" style="height: 100%;">
+                        <div class="text-muted text-truncate" style="font-size: 0.68rem; font-weight: 600;"><i class="bi bi-person-lines-fill text-secondary me-1"></i>นน. / สส.</div>
+                        <div class="fw-bold text-dark mt-0.5" style="font-size: 0.82rem; font-family: monospace;">${wtVal !== '-' ? wtVal : '-'} / ${htVal !== '-' ? htVal : '-'}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="p-2 rounded-2 border text-center bg-light" style="height: 100%;">
+                        <div class="text-muted text-truncate" style="font-size: 0.68rem; font-weight: 600;"><i class="bi bi-calculator text-primary me-1"></i>ดัชนี BMI</div>
+                        <div class="fw-bold text-dark mt-0.5" style="font-size: 0.82rem; font-family: monospace;">${bmiVal}</div>
+                    </div>
+                </div>
+            `;
+            if (vitalsSectionEl) vitalsSectionEl.style.display = 'block';
             vitalsEl.style.display = 'flex';
         } else {
             vitalsEl.innerHTML = '';
@@ -10605,6 +10687,28 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
                 if (phoneEl) phoneEl.innerText = pData.phone || pData.emergency_tel;
             }
         }).catch(() => { });
+    }
+
+    // 🌟 ดึงและแสดงหมายเหตุ/คำแนะนำจากแล็บ (Lab Note)
+    let noteContentText = (visitRow && visitRow.lab_note ? visitRow.lab_note : '').trim();
+    noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[ผลตรวจ Urine\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[ผลตรวจหลอดเลือด\][\s\S]*?(?=\n\n\[|$)/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[ผลตรวจหลอดเลือด\][\s\S]*/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[เอกสารแนบ[^\]]*\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
+
+    const rxNoteBoxEl = document.getElementById('rxDoctorLabNoteBox');
+    const rxNoteTextEl = document.getElementById('rxDoctorLabNoteText');
+    if (noteContentText && noteContentText !== '-' && noteContentText !== 'null' && noteContentText !== 'undefined') {
+        if (rxNoteTextEl) rxNoteTextEl.innerText = noteContentText;
+        if (rxNoteBoxEl) rxNoteBoxEl.style.setProperty('display', 'flex', 'important');
+    } else {
+        if (rxNoteTextEl) rxNoteTextEl.innerText = '-';
+        if (rxNoteBoxEl) rxNoteBoxEl.style.setProperty('display', 'none', 'important');
     }
 
     // 2. โหลดข้อมูลตะกร้ายาทันที (Instant Cart Pre-fill)
@@ -14287,7 +14391,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
 
 
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
+            <button type="button" class="btn btn-sm ${btnClass} rounded-pill px-3 py-1 shadow-2xs fw-semibold" onclick="${btnOnClick}">
                 <i class="bi ${btnIcon} me-1"></i> ${btnLabel}
             </button>
         `);
@@ -14296,7 +14400,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
     // 4. ถ้ามีผลวินิจฉัยตรวจหลอดเลือด ให้ใส่ปุ่ม "ผลวินิจฉัย"
     if (vascText) {
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
+            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1 shadow-2xs fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
                 <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
             </button>
         `);
@@ -14312,7 +14416,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
     const hasCbcHistNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ CBC]'));
     if (!hasCbcInHistFiles && (cachedCbcHist || hasCbcHistNote)) {
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')">
+            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1 shadow-2xs fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')">
                 <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
             </button>
         `);
@@ -14323,7 +14427,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
     const hasUrineHistNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ Urine]'));
     if (!hasUrineInHistFiles && hasUrineHistNote) {
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm btn-outline-warning text-dark me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ Urine" onclick="openUrinePage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')">
+            <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 py-1 shadow-2xs fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ Urine" onclick="openUrinePage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')">
                 <i class="bi bi-eyedropper me-1"></i> Urine (PDF)
             </button>
         `);
@@ -14373,7 +14477,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
 
             const safeCat = catName.replace(/'/g, "\\'");
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
+                <button type="button" class="btn btn-sm ${btnClass} rounded-pill px-3 py-1 shadow-2xs fw-semibold" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
                     <i class="bi ${btnIcon} me-1"></i> ${catName}
                 </button>
             `);
@@ -14394,7 +14498,9 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         setSafeDisplay('histLabContainer', true);
         setSafeText('histLabTests', row.lab_tests || 'ไม่ได้ระบุชื่อรายการส่งแล็บ');
 
-        let noteContentText = (row.lab_note || vascText || '').trim();
+        let noteContentText = (row.lab_note || '').trim();
+        noteContentText = noteContentText.replace(/\[ผลตรวจหลอดเลือด\][\s\S]*?(?=\n\n\[|$)/gi, '').trim();
+        noteContentText = noteContentText.replace(/\[ผลตรวจหลอดเลือด\][\s\S]*/gi, '').trim();
         noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[ผลตรวจ Urine\][\s\S]*?\[\/ผลตรวจ Urine\]/gi, '').trim();
@@ -26270,7 +26376,7 @@ function openUrinePage(targetVisitId, mode, targetHn, targetPatientName) {
         mode: effectiveMode
     });
 
-    const targetUrl = `urine.html?${query.toString()}`;
+    const targetUrl = `urine.html?${query.toString()}&v=3.1`;
     window._currentUrineUrl = targetUrl;
 
     // ซ่อน Modal อัปโหลดไฟล์แล็บ (ถ้าเปิดอยู่) เพื่อไม่ให้ค้างอยู่เบื้องหลัง
@@ -28982,6 +29088,150 @@ window.populateReferrerDropdowns = async function () {
         console.error('Error loading stk_members for referrers:', err);
     }
 };
+
+// ========================================================
+// 🌟 Custom Searchable Dropdown for Patient Referrer
+// ========================================================
+function getAllReferrerOptionsList() {
+    const list = [];
+    const seen = new Set();
+
+    // 1. From stk_members (MLM database)
+    if (Array.isArray(window.allMlmMembers) && window.allMlmMembers.length > 0) {
+        window.allMlmMembers.forEach(m => {
+            const code = (m.user_id || m.username || '').trim();
+            const name = (m.name || '').trim();
+            if (code || name) {
+                const label = `${code} - ${name}`;
+                if (!seen.has(label)) {
+                    seen.add(label);
+                    list.push({ code, name, label });
+                }
+            }
+        });
+    }
+
+    // 2. From allEmployeesData / Staff users
+    const allEmp = window.allEmployeesData || [];
+    if (Array.isArray(allEmp) && allEmp.length > 0) {
+        allEmp.forEach(e => {
+            const code = (e.emp_code || e.id || '').trim();
+            const name = (e.full_name || e.name || '').trim();
+            if (code || name) {
+                const label = `${code} - ${name}`;
+                if (!seen.has(label)) {
+                    seen.add(label);
+                    list.push({ code, name, label });
+                }
+            }
+        });
+    }
+
+    return list;
+}
+
+window.openPatientReferrerDropdown = function () {
+    const patRefSelect = document.getElementById('patientReferredBySelect');
+    if (!patRefSelect) return;
+    if (patRefSelect.style.pointerEvents === 'none') return; // Locked by appointment
+
+    const menu = document.getElementById('patientReferrerDropdownMenu');
+    if (!menu) return;
+
+    if (menu.style.display === 'block') {
+        window.closePatientReferrerDropdown();
+        return;
+    }
+
+    menu.style.display = 'block';
+    const filterInput = document.getElementById('referrerSearchFilterInput');
+    if (filterInput) {
+        filterInput.value = '';
+        setTimeout(() => filterInput.focus(), 80);
+    }
+    window.renderPatientReferrerOptions('');
+};
+
+window.closePatientReferrerDropdown = function () {
+    const menu = document.getElementById('patientReferrerDropdownMenu');
+    if (menu) menu.style.display = 'none';
+};
+
+window.renderPatientReferrerOptions = function (keyword = '') {
+    const listContainer = document.getElementById('referrerOptionsList');
+    if (!listContainer) return;
+
+    const allOptions = getAllReferrerOptionsList();
+    const kw = (keyword || '').toLowerCase().trim();
+
+    const filtered = kw
+        ? allOptions.filter(o => o.code.toLowerCase().includes(kw) || o.name.toLowerCase().includes(kw) || o.label.toLowerCase().includes(kw))
+        : allOptions;
+
+    const clearBtn = document.getElementById('btnClearRefSearch');
+    if (clearBtn) clearBtn.style.display = kw ? 'inline-block' : 'none';
+
+    if (filtered.length === 0) {
+        listContainer.innerHTML = `
+            <div class="text-center text-muted py-3 small">
+                <i class="ph ph-magnifying-glass me-1"></i>ບໍ່ພົບຜູ້ແນະນຳທີ່ຄົ້ນຫາ "${keyword}"
+            </div>
+        `;
+        return;
+    }
+
+    const curVal = (document.getElementById('patientReferredBySelect')?.value || '').trim();
+
+    let html = '<div class="list-group list-group-flush">';
+
+    filtered.forEach(item => {
+        const isSelected = (curVal === item.label);
+        const activeClass = isSelected ? 'bg-primary-subtle text-primary fw-bold' : '';
+        const checkIcon = isSelected ? '<i class="ph ph-check-circle-fill text-primary ms-auto"></i>' : '';
+        const safeLabel = item.label.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+        html += `
+            <button type="button" class="list-group-item list-group-item-action border-0 rounded-2 py-2 px-3 small d-flex align-items-center justify-content-between mb-1 ${activeClass}"
+                onclick="window.selectPatientReferrerOption('${safeLabel}')"
+                style="cursor: pointer; transition: all 0.15s ease;">
+                <span class="text-truncate me-2">${item.label}</span>
+                ${checkIcon}
+            </button>
+        `;
+    });
+
+    html += '</div>';
+    listContainer.innerHTML = html;
+};
+
+window.selectPatientReferrerOption = function (val) {
+    const patRefSelect = document.getElementById('patientReferredBySelect');
+    if (patRefSelect) {
+        patRefSelect.value = val;
+        patRefSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    window.closePatientReferrerDropdown();
+};
+
+window.onPatientReferrerSearchInput = function (val) {
+    window.renderPatientReferrerOptions(val);
+};
+
+window.clearPatientReferrerSearch = function () {
+    const filterInput = document.getElementById('referrerSearchFilterInput');
+    if (filterInput) {
+        filterInput.value = '';
+        filterInput.focus();
+    }
+    window.renderPatientReferrerOptions('');
+};
+
+document.addEventListener('click', function (e) {
+    const wrapper = document.getElementById('patientReferrerDropdownWrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        window.closePatientReferrerDropdown();
+    }
+});
 
 // =====================================
 // ระบบจัดการค้นหาพนักงาน (Staff Search)

@@ -634,6 +634,110 @@ function matchDoctorFromStaff(candidate) {
   return null;
 }
 
+// Helper: Normalize ID for fuzzy comparison (handles numeric, string, VIS-, ORD- prefixes)
+function normalizeIdStr(id) {
+  if (id === undefined || id === null || id === '' || id === '-') return '';
+  return String(id).trim().toLowerCase();
+}
+
+// 👨‍⚕️ Comprehensive & Unified Doctor Resolver for Orders, Visits & Bills
+function resolveDoctorForRecord(record, visitsList, ordersList, billsList) {
+  if (!record) return null;
+
+  // 1. Direct doctor match on candidate fields
+  let doc = matchDoctorFromStaff(record.closer_dr || record.doctor || record.doctor_name);
+  if (doc) return doc;
+
+  const currentVisits = visitsList || state.visits || [];
+  const currentOrders = ordersList || state.nutrientOrders || [];
+  const currentBills = billsList || state.bills || [];
+
+  const recVid = normalizeIdStr(record.visit_id);
+  const recOid = normalizeIdStr(record.order_id || record.id);
+
+  // 2. Cross-reference with visits (by visit_id or order_id)
+  if (recVid || recOid) {
+    const vMatch = currentVisits.find(v => {
+      if (!v) return false;
+      const vVid = normalizeIdStr(v.visit_id);
+      const vOid = normalizeIdStr(v.order_id);
+      return (recVid && (vVid === recVid || vOid === recVid)) ||
+             (recOid && (vVid === recOid || vOid === recOid));
+    });
+    if (vMatch) {
+      doc = matchDoctorFromStaff(vMatch.doctor || vMatch.doctor_name || vMatch.closer_dr);
+      if (doc) return doc;
+    }
+  }
+
+  // 3. Cross-reference with nutrient orders (if record is a visit)
+  if (recVid || recOid) {
+    const oMatch = currentOrders.find(o => {
+      if (!o) return false;
+      const oVid = normalizeIdStr(o.visit_id);
+      const oOid = normalizeIdStr(o.order_id || o.id);
+      return (recVid && (oVid === recVid || oOid === recVid)) ||
+             (recOid && (oVid === recOid || oOid === recOid));
+    });
+    if (oMatch) {
+      doc = matchDoctorFromStaff(oMatch.doctor || oMatch.closer_dr || oMatch.doctor_name);
+      if (doc) return doc;
+    }
+  }
+
+  // 4. Cross-reference with bills (by visit_id or order_id)
+  if (recVid || recOid) {
+    const bMatch = currentBills.find(b => {
+      if (!b) return false;
+      const bVid = normalizeIdStr(b.visit_id);
+      const bOid = normalizeIdStr(b.order_id);
+      return (recVid && (bVid === recVid || bOid === recVid)) ||
+             (recOid && (bVid === recOid || bOid === recOid));
+    });
+    if (bMatch) {
+      doc = matchDoctorFromStaff(bMatch.doctor || bMatch.doctor_name || bMatch.created_by);
+      if (doc) return doc;
+    }
+  }
+
+  // 5. Match by same patient HN on the same date (handles app orders or visit without doctor)
+  const recHn = (record.hn && record.hn !== '-') ? String(record.hn).trim() : '';
+  const recDate = toLocalDateStr(record.date || record.created_at);
+  if (recHn) {
+    // Check visits for same HN and date
+    const vSameHn = currentVisits.find(v => {
+      if (!v || String(v.hn).trim() !== recHn) return false;
+      if (recDate && toLocalDateStr(v.created_at) !== recDate) return false;
+      const vDoc = matchDoctorFromStaff(v.doctor || v.doctor_name || v.closer_dr);
+      return !!vDoc;
+    });
+    if (vSameHn) {
+      doc = matchDoctorFromStaff(vSameHn.doctor || vSameHn.doctor_name || vSameHn.closer_dr);
+      if (doc) return doc;
+    }
+
+    // Check orders for same HN and date
+    const oSameHn = currentOrders.find(o => {
+      if (!o || String(o.hn).trim() !== recHn) return false;
+      if (recDate && toLocalDateStr(o.date || o.created_at) !== recDate) return false;
+      const oDoc = matchDoctorFromStaff(o.doctor || o.closer_dr || o.doctor_name);
+      return !!oDoc;
+    });
+    if (oSameHn) {
+      doc = matchDoctorFromStaff(oSameHn.doctor || oSameHn.closer_dr || oSameHn.doctor_name);
+      if (doc) return doc;
+    }
+  }
+
+  // 6. Check recorded_by if it's a doctor
+  if (record.recorded_by) {
+    doc = matchDoctorFromStaff(record.recorded_by);
+    if (doc) return doc;
+  }
+
+  return null;
+}
+
 // Fetch Raw Nutrient Orders with Parallel Execution & Timeout Guard
 async function fetchRawNutrientOrders(startUtcISO, endUtcISO) {
   const fetchMlm = async () => {
@@ -744,10 +848,14 @@ function processNutrientOrders(rawOrders, visitsList) {
   });
 
   const handledVisitIds = new Set();
+  const handledOrderIds = new Set();
   const unified = [];
 
   filteredNutrients.forEach(o => {
-    if (o.visit_id && o.visit_id !== '-') handledVisitIds.add(o.visit_id);
+    const vid = normalizeIdStr(o.visit_id);
+    const oid = normalizeIdStr(o.order_id || o.id);
+    if (vid) handledVisitIds.add(vid);
+    if (oid) handledOrderIds.add(oid);
 
     let items = o.items_json || o.items || [];
     if (typeof items === 'string') {
@@ -772,27 +880,43 @@ function processNutrientOrders(rawOrders, visitsList) {
       });
     }
 
-    const totalQty = cleanItems.reduce((sum, it) => sum + it.qty, 0);
-    const totalAmount = cleanItems.reduce((sum, it) => sum + it.total_price, 0);
-
-    // Resolve Doctor / Prescriber: Match strictly against staff_users (role = 'doctor')
-    let resolvedDoc = matchDoctorFromStaff(o.closer_dr);
-    if (!resolvedDoc) {
-      let vId = o.visit_id;
-      if (!vId && o.order_id && o.order_id.includes('VIS-')) {
-        vId = 'VIS-' + o.order_id.split('VIS-')[1];
-      }
-      if (vId && currentVisits) {
-        const v = currentVisits.find(x => x.visit_id === vId);
-        if (v) {
-          resolvedDoc = matchDoctorFromStaff(v.doctor || v.doctor_name || v.closer_dr);
+    // Fallback: If order items are empty, try extracting meds from matching visit
+    if (cleanItems.length === 0 && (vid || oid) && currentVisits) {
+      const vMatch = currentVisits.find(x => {
+        if (!x) return false;
+        const xVid = normalizeIdStr(x.visit_id);
+        const xOid = normalizeIdStr(x.order_id);
+        return (vid && (xVid === vid || xOid === vid)) || (oid && (xVid === oid || xOid === oid));
+      });
+      if (vMatch && vMatch.meds) {
+        let vParsed = [];
+        try { vParsed = typeof vMatch.meds === 'string' ? JSON.parse(vMatch.meds) : vMatch.meds; } catch (e) {}
+        if (Array.isArray(vParsed)) {
+          vParsed.forEach(it => {
+            const rawName = it.name || it.item_name || it.medicine_name || 'ຢາປິ່ນປົວ';
+            const qty = Number(it.quantity || it.qty || 1);
+            const unitPrice = getProductPrice(rawName, it.price || it.unit_price);
+            const explicitTier = it.tier || it.type || it.priceType || it.price_type || it.tierName;
+            const parsed = parseProductTierAndName(rawName, explicitTier, unitPrice);
+            cleanItems.push({
+              name: rawName,
+              clean_name: parsed.cleanName,
+              tier: parsed.tier,
+              qty: qty,
+              unit_price: unitPrice,
+              total_price: qty * unitPrice
+            });
+          });
         }
       }
     }
-    if (!resolvedDoc && o.recorded_by) {
-      resolvedDoc = matchDoctorFromStaff(o.recorded_by);
-    }
-    const doctor = resolvedDoc || null;
+
+    const totalQty = cleanItems.reduce((sum, it) => sum + it.qty, 0);
+    const totalAmount = cleanItems.reduce((sum, it) => sum + it.total_price, 0);
+
+    // 👨‍⚕️ Unified Doctor Resolution for order
+    const doctor = resolveDoctorForRecord(o, currentVisits, rawOrders, state.bills);
+
     let vId = o.visit_id;
     if (!vId && o.order_id && o.order_id.includes('VIS-')) {
       vId = 'VIS-' + o.order_id.split('VIS-')[1];
@@ -811,13 +935,18 @@ function processNutrientOrders(rawOrders, visitsList) {
       total_qty: totalQty,
       total_price: totalAmount,
       status: o.status || 'ລໍຖ້າຈັດຢາ',
+      symptom: o.symptom || o.symptoms || '',
       recorded_by: o.recorded_by || '-'
     });
   });
 
   // Also include visits in the date range that have prescribed meds
   currentVisits.forEach(v => {
-    if (handledVisitIds.has(v.visit_id)) return;
+    const vVid = normalizeIdStr(v.visit_id);
+    const vOid = normalizeIdStr(v.order_id);
+    if (vVid && handledVisitIds.has(vVid)) return;
+    if (vOid && (handledOrderIds.has(vOid) || handledVisitIds.has(vOid))) return;
+
     if (v.status) {
       const vSt = String(v.status).toLowerCase();
       if (vSt.includes('cancel') || vSt.includes('ຍົກເລີກ') || vSt.includes('ยกเลิก') || vSt.includes('deleted')) {
@@ -867,10 +996,11 @@ function processNutrientOrders(rawOrders, visitsList) {
     if (items.length > 0) {
       const totalQty = items.reduce((sum, it) => sum + it.qty, 0);
       const totalAmount = items.reduce((sum, it) => sum + it.total_price, 0);
-      const resolvedDoc = matchDoctorFromStaff(v.doctor_name || v.doctor || v.closer_dr);
-      const doctor = resolvedDoc || null;
+      const doctor = resolveDoctorForRecord(v, currentVisits, rawOrders, state.bills);
       unified.push({
         id: v.visit_id || '-',
+        order_id: v.order_id || '-',
+        visit_id: v.visit_id || '-',
         date: v.created_at,
         doctor: doctor,
         patient_name: v.patient_name || 'ຄົນເຈັບ',
@@ -880,6 +1010,7 @@ function processNutrientOrders(rawOrders, visitsList) {
         total_qty: totalQty,
         total_price: totalAmount,
         status: v.status || 'ລໍຖ້າຈັດຢາ',
+        symptom: v.symptoms || v.symptom || '',
         recorded_by: '-'
       });
     }
@@ -1656,41 +1787,7 @@ function renderDoctorStatsCards(doctorList) {
 
 // Resolve Doctor for clinical visits (checks strictly against staff_users with role = 'doctor')
 function resolveVisitDoctor(v, visitNutrientMap) {
-  let doc = matchDoctorFromStaff(v.doctor || v.doctor_name || v.closer_dr);
-  if (doc) return doc;
-
-  // Check from nutrient orders linked to this visit_id
-  if (v.visit_id && visitNutrientMap && visitNutrientMap[v.visit_id]) {
-    const nDoc = matchDoctorFromStaff(visitNutrientMap[v.visit_id].doctor);
-    if (nDoc) return nDoc;
-  }
-
-  // Check from bills by visit_id
-  if (v.visit_id && state.bills) {
-    const b = state.bills.find(x => x.visit_id === v.visit_id);
-    if (b) {
-      doc = matchDoctorFromStaff(b.doctor || b.doctor_name);
-      if (doc) return doc;
-    }
-  }
-
-  // Match by patient HN and same day
-  const vDate = toLocalDateStr(v.created_at);
-  if (v.hn && state.nutrientOrders) {
-    const nOrder = state.nutrientOrders.find(o => o.hn === v.hn && toLocalDateStr(o.date || o.created_at) === vDate);
-    if (nOrder && nOrder.doctor) {
-      doc = matchDoctorFromStaff(nOrder.doctor);
-      if (doc) return doc;
-    }
-  }
-
-  // Fallback: check recorded_by if it's a doctor
-  if (v.recorded_by) {
-    doc = matchDoctorFromStaff(v.recorded_by);
-    if (doc) return doc;
-  }
-
-  return null;
+  return resolveDoctorForRecord(v, state.visits, state.nutrientOrders, state.bills);
 }
 
 // Check if patient is New (ຜູ້ປ່ວຍໃໝ່) or Old/Returning (ຜູ້ປ່ວຍເກົ່າ)
@@ -1753,16 +1850,26 @@ function renderPatientsTab() {
 
   const visitNutrientMap = {};
   (state.nutrientOrders || []).forEach(o => {
-    if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
-    if (o.order_id && o.order_id !== '-') visitNutrientMap[o.order_id] = o;
-    if (o.visit_id && o.visit_id !== '-') visitNutrientMap[o.visit_id] = o;
+    const rawOid = o.order_id || o.id;
+    const rawVid = o.visit_id;
+    if (rawOid && rawOid !== '-') {
+      visitNutrientMap[rawOid] = o;
+      visitNutrientMap[normalizeIdStr(rawOid)] = o;
+    }
+    if (rawVid && rawVid !== '-') {
+      visitNutrientMap[rawVid] = o;
+      visitNutrientMap[normalizeIdStr(rawVid)] = o;
+    }
   });
 
   // Set of all handled visit IDs and order IDs from visits
   const handledVisitIds = new Set();
+  const handledOrderIds = new Set();
   visits.forEach(v => {
-    if (v.visit_id) handledVisitIds.add(String(v.visit_id));
-    if (v.order_id) handledVisitIds.add(String(v.order_id));
+    const vVid = normalizeIdStr(v.visit_id);
+    const vOid = normalizeIdStr(v.order_id);
+    if (vVid) handledVisitIds.add(vVid);
+    if (vOid) handledOrderIds.add(vOid);
   });
 
   // Also collect existing order visits by HN + Date to prevent duplicate standalone orders
@@ -1776,31 +1883,31 @@ function renderPatientsTab() {
 
   // Also incorporate patient prescriptions from nutrientOrders ONLY if not already in visits
   (state.nutrientOrders || []).forEach(o => {
-    const oVid = (o.visit_id && o.visit_id !== '-') ? String(o.visit_id) : '';
-    const oId = (o.id && o.id !== '-') ? String(o.id) : (o.order_id || '');
+    const oVid = normalizeIdStr(o.visit_id);
+    const oId = normalizeIdStr(o.order_id || o.id);
     const oDate = toLocalDateStr(o.date || o.created_at);
-    const oHn = (o.hn && o.hn !== '-') ? String(o.hn) : '';
+    const oHn = (o.hn && o.hn !== '-') ? String(o.hn).trim() : '';
 
     // 1. Check if visit_id or order_id matches an existing visit in visits table
     if (oVid && handledVisitIds.has(oVid)) return;
-    if (oId && handledVisitIds.has(oId)) return;
+    if (oId && (handledOrderIds.has(oId) || handledVisitIds.has(oId))) return;
 
     // 2. Check if this HN already has an Order visit on the same date
     if (oHn && oDate && existingOrderHnDateSet.has(`${oHn}_${oDate}`)) return;
 
     // If not matched, register and push standalone order
     if (oVid) handledVisitIds.add(oVid);
-    if (oId) handledVisitIds.add(oId);
+    if (oId) handledOrderIds.add(oId);
     if (oHn && oDate) existingOrderHnDateSet.add(`${oHn}_${oDate}`);
 
     visits.push({
-      visit_id: oVid || oId || `ORD-${Math.random()}`,
-      order_id: oId,
-      hn: oHn,
+      visit_id: o.visit_id || o.order_id || o.id || `ORD-${Math.random()}`,
+      order_id: o.order_id || o.id || '',
+      hn: o.hn || '',
       patient_name: o.patient_name || 'ຄົນເຈັບ',
       doctor: o.doctor,
       doctor_name: o.doctor,
-      symptoms: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ (Order)',
+      symptoms: o.symptom || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ (Order)',
       status: o.status,
       created_at: o.date || o.created_at,
       meds: JSON.stringify(o.items || []),
@@ -2076,8 +2183,15 @@ function renderDoctorPatientCards(doctorList) {
       let parsedItems = [];
 
       let rawMeds = v.meds;
-      if ((!rawMeds || rawMeds === '[]' || rawMeds === '') && v.visit_id && visitNutrientMap[v.visit_id]) {
-        rawMeds = visitNutrientMap[v.visit_id].items;
+      const vVid = normalizeIdStr(v.visit_id);
+      const vOid = normalizeIdStr(v.order_id);
+      const linkedOrder = (v.visit_id && visitNutrientMap[v.visit_id]) ||
+                          (v.order_id && visitNutrientMap[v.order_id]) ||
+                          (vVid && visitNutrientMap[vVid]) ||
+                          (vOid && visitNutrientMap[vOid]);
+
+      if ((!rawMeds || rawMeds === '[]' || rawMeds === '') && linkedOrder) {
+        rawMeds = linkedOrder.items;
       }
 
       if (rawMeds) {
