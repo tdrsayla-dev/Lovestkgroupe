@@ -10,6 +10,25 @@
     <meta http-equiv="Expires" content="0">
     <title>HR Management System</title>
 
+    <!-- 📌 สคริปต์ตรวจจับ Version และ Clear Cache อัตโนมัติสำหรับ User ทุกคน -->
+    <script>
+        (function () {
+            const APP_VERSION = '2026.10.07.v12';
+            const savedVer = localStorage.getItem('hr_app_version');
+            if (savedVer !== APP_VERSION) {
+                localStorage.setItem('hr_app_version', APP_VERSION);
+                if ('caches' in window) {
+                    caches.keys().then(names => {
+                        names.forEach(name => caches.delete(name));
+                    });
+                }
+                if (savedVer) {
+                    window.location.reload(true);
+                }
+            }
+        })();
+    </script>
+
     <!-- 📌 ตัวดักจับ Error -->
     <script>
         function showErrorOverlay(msg, line, col, err) {
@@ -77,8 +96,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Load Configuration -->
-    <script src="config.js?v=20260824_06"></script>
-    <link rel="stylesheet" href="style.css">
+    <script src="config.js?v=20261003_01"></script>
+    <link rel="stylesheet" href="style.css?v=20261003_01">
     <script>
         function createSupabaseBridge({ url, anonKey, accessToken = null }) {
             const base = String(url || '').replace(/\/$/, '');
@@ -199,6 +218,7 @@
                 },
             };
         }
+        window.createSupabaseBridge = createSupabaseBridge;
 
         const TABLE_MAP = {
             'staff': 'staff',
@@ -335,6 +355,7 @@
             });
 
             if (row?.id || row?.budget_id) out.__db_id = row.id || row.budget_id;
+            if (row?.created_at) out.created_at = row.created_at;
 
             // Persistent local signature & approval fallback merge for budget_requests
             if (table === 'budget_requests') {
@@ -344,7 +365,7 @@
                     if (savedLocalSig) {
                         try {
                             const parsed = JSON.parse(savedLocalSig);
-                            if (parsed.signature) {
+                            if (parsed.signature && parsed.signature !== 'Pending') {
                                 out.Signature = parsed.signature;
                                 out.signature = parsed.signature;
                                 out.Status = parsed.signature;
@@ -358,11 +379,27 @@
                     }
                 }
                 // Ensure Status and Signature sync with row values if present
-                const sigVal = row.signature || row.Signature || out.Signature || out.Status || 'Pending';
+                let sigVal = row.signature || row.Signature;
+                if ((!sigVal || sigVal === 'Pending') && out.Signature && out.Signature !== 'Pending') {
+                    sigVal = out.Signature;
+                }
+                if ((!sigVal || sigVal === 'Pending') && (out.Dept_Head_Sign || out.dept_head_sign || row.dept_head_sign)) {
+                    sigVal = 'Dept Head Checked';
+                }
+                if (!sigVal) sigVal = 'Pending';
+
                 out.Status = sigVal;
                 out.status = sigVal;
                 out.Signature = sigVal;
                 out.signature = sigVal;
+                out.dept_head_sign = out.Dept_Head_Sign || row.dept_head_sign || '';
+                out.Dept_Head_Sign = out.dept_head_sign;
+                out.approver_sign = out.Approver_Sign || row.approver_sign || '';
+                out.Approver_Sign = out.approver_sign;
+                out.dept_head_img = out.Dept_Head_Img || row.dept_head_img || '';
+                out.Dept_Head_Img = out.dept_head_img;
+                out.approver_img = out.Approver_Img || row.approver_img || '';
+                out.Approver_Img = out.approver_img;
             }
 
             return out;
@@ -500,8 +537,7 @@
                                 // ตรวจสอบการเรียกข้อมูลตารางจาก Cache เพื่อหลีกเลี่ยงการเชื่อมต่อเน็ตบ่อยครั้ง
                                 if (prop === 'getSheetData') {
                                     const sheetName = String(args[0] || '');
-                                    const isAttendance = (sheetName === 'Fingerprint_Logs' || sheetName === 'fingerprint_logs');
-                                    const force = args[1] === true || isAttendance;
+                                    const force = args[1] === true;
                                     if (window.tableCache && window.tableCache[sheetName] && !force) {
                                         const cached = window.tableCache[sheetName];
                                         const res = { success: true, headers: cached.headers, data: cached.data };
@@ -713,8 +749,7 @@
             if (method === 'getSheetData') {
                 const sheetName = String(args[0] || '');
                 const table = TABLE_MAP[sheetName] || TABLE_MAP[sheetName.trim()] || sheetName;
-                const isAttendance = (sheetName === 'Fingerprint_Logs' || sheetName === 'fingerprint_logs' || table === 'fingerprint_logs');
-                const forceRefresh = args[1] === true || isAttendance;
+                const forceRefresh = args[1] === true;
 
                 if (window.tableQueryCache && window.tableQueryCache[table] && !forceRefresh) {
                     return window.tableQueryCache[table];
@@ -1962,13 +1997,15 @@
                         Tracking</span>
                 </button>
                 <button onclick="navigate('facebook-budget', 'Facebook Budget')" title="Facebook Budget"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all font-medium overflow-hidden group"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all font-medium overflow-hidden group relative"
                     data-page="facebook-budget">
                     <i
                         class="fa-brands fa-facebook w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
                     <span
                         class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium">FB
                         Budget</span>
+                    <span id="sidebar-badge-fb-budget"
+                        class="sidebar-badge hidden ml-auto bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm shadow-rose-300 animate-pulse tracking-tight">0</span>
                 </button>
 
                 <p class="sidebar-text text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-4 mb-2 px-2 admin-only hidden"
@@ -1988,7 +2025,7 @@
                         class="sidebar-badge hidden ml-auto bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm shadow-rose-300 animate-pulse tracking-tight">0</span>
                 </button>
                 <button onclick="navigate('table', 'Budget Requests', 'Budget Request')" title="Budget Requests"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group relative"
                     data-page="Budget Request">
                     <i
                         class="fa-solid fa-file-invoice-dollar w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
@@ -1996,6 +2033,8 @@
                         class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
                         data-i18n="menu_budget_requests">Budget
                         Requests</span>
+                    <span id="sidebar-badge-budget"
+                        class="sidebar-badge hidden ml-auto bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm shadow-rose-300 animate-pulse tracking-tight">0</span>
                 </button>
                 <button onclick="navigate('table', 'Attendance Logs', 'Fingerprint_Logs')" title="Attendance Logs"
                     class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group"
@@ -2287,51 +2326,70 @@
                     <!-- 📌 ส่วนของปฏิทินการเข้างานของฉัน (My Attendance Calendar) -->
                     <div class="bg-white rounded-3xl p-6 lg:p-8 shadow-sm border border-gray-100 space-y-6">
                         <!-- Header Row: Title, Month Controls, Quick Stats -->
-                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-gray-100">
+                        <div
+                            class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-gray-100">
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-brandindigo flex items-center justify-center text-lg shrink-0">
+                                <div
+                                    class="w-10 h-10 rounded-xl bg-indigo-50 text-brandindigo flex items-center justify-center text-lg shrink-0">
                                     <i class="fa-regular fa-calendar-days"></i>
                                 </div>
                                 <div>
                                     <h3 class="font-extrabold text-gray-900 text-base flex items-center gap-2">
                                         <span data-i18n="attendance_calendar">ปฏิทินการเข้างาน</span>
                                     </h3>
-                                    <p class="text-xs text-gray-400 font-medium" id="staff-cal-emp-info">ประวัติการลงเวลาทำงานของคุณ</p>
+                                    <p class="text-xs text-gray-400 font-medium" id="staff-cal-emp-info">
+                                        ประวัติการลงเวลาทำงานของคุณ</p>
                                 </div>
                             </div>
 
                             <!-- Month Picker & Navigation -->
                             <div class="flex flex-wrap items-center gap-2.5">
-                                <div class="flex items-center bg-gray-50 border border-gray-200 rounded-xl p-1 shadow-sm">
-                                    <button type="button" onclick="changeStaffCalMonth(-1)" class="w-8 h-8 rounded-lg hover:bg-white text-gray-600 hover:text-brandindigo flex items-center justify-center transition-all" title="เดือนก่อนหน้า">
+                                <div
+                                    class="flex items-center bg-gray-50 border border-gray-200 rounded-xl p-1 shadow-sm">
+                                    <button type="button" onclick="changeStaffCalMonth(-1)"
+                                        class="w-8 h-8 rounded-lg hover:bg-white text-gray-600 hover:text-brandindigo flex items-center justify-center transition-all"
+                                        title="เดือนก่อนหน้า">
                                         <i class="fa-solid fa-chevron-left text-xs"></i>
                                     </button>
-                                    <input type="month" id="staffCalendarMonth" onchange="onStaffCalendarMonthChange(this.value)" class="bg-transparent border-0 text-gray-800 text-xs font-bold px-2 py-1 focus:ring-0 cursor-pointer">
-                                    <button type="button" onclick="changeStaffCalMonth(1)" class="w-8 h-8 rounded-lg hover:bg-white text-gray-600 hover:text-brandindigo flex items-center justify-center transition-all" title="เดือนถัดไป">
+                                    <input type="month" id="staffCalendarMonth"
+                                        onchange="onStaffCalendarMonthChange(this.value)"
+                                        class="bg-transparent border-0 text-gray-800 text-xs font-bold px-2 py-1 focus:ring-0 cursor-pointer">
+                                    <button type="button" onclick="changeStaffCalMonth(1)"
+                                        class="w-8 h-8 rounded-lg hover:bg-white text-gray-600 hover:text-brandindigo flex items-center justify-center transition-all"
+                                        title="เดือนถัดไป">
                                         <i class="fa-solid fa-chevron-right text-xs"></i>
                                     </button>
                                 </div>
 
                                 <!-- Quick Monthly Stat Badges -->
                                 <div class="flex items-center gap-1.5 flex-wrap text-[11px] font-bold">
-                                    <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
-                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> มาทำงาน: <b id="staff-cal-present-count">0</b> วัน
+                                    <span
+                                        class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> มาทำงาน: <b
+                                            id="staff-cal-present-count">0</b> วัน
                                     </span>
-                                    <span class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
-                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span> ขาด: <b id="staff-cal-absent-count">0</b> วัน
+                                    <span
+                                        class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span> ขาด: <b
+                                            id="staff-cal-absent-count">0</b> วัน
                                     </span>
-                                    <span class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
-                                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> ลา: <b id="staff-cal-leave-count">0</b> วัน
+                                    <span
+                                        class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> ลา: <b
+                                            id="staff-cal-leave-count">0</b> วัน
                                     </span>
-                                    <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
-                                        <i class="fa-regular fa-clock text-[10px]"></i> สาย: <b id="staff-cal-late-mins">0</b> นาที
+                                    <span
+                                        class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
+                                        <i class="fa-regular fa-clock text-[10px]"></i> สาย: <b
+                                            id="staff-cal-late-mins">0</b> นาที
                                     </span>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Days of Week Header -->
-                        <div class="grid grid-cols-7 text-center font-bold text-xs text-gray-500 uppercase tracking-wider py-1">
+                        <div
+                            class="grid grid-cols-7 text-center font-bold text-xs text-gray-500 uppercase tracking-wider py-1">
                             <div class="text-rose-500" data-i18n="sun">อาทิตย์</div>
                             <div data-i18n="mon">จันทร์</div>
                             <div data-i18n="tue">อังคาร</div>
@@ -2343,21 +2401,26 @@
 
                         <!-- Monthly Calendar Grid -->
                         <div id="staff-attendance-calendar-grid" class="grid grid-cols-7 gap-2 md:gap-3">
-                            <div class="col-span-7 py-12 text-center text-gray-400 text-sm font-medium">กำลังโหลดปฏิทิน...</div>
+                            <div class="col-span-7 py-12 text-center text-gray-400 text-sm font-medium">
+                                กำลังโหลดปฏิทิน...</div>
                         </div>
 
                         <!-- Calendar Legend -->
-                        <div class="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-600 font-bold">
+                        <div
+                            class="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-600 font-bold">
                             <div class="flex items-center gap-2">
-                                <span class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
+                                <span
+                                    class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
                                 <span data-i18n="status_present">มาทำงาน (Present)</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"></span>
+                                <span
+                                    class="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"></span>
                                 <span data-i18n="status_absent">ขาดงาน (Absent)</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]"></span>
+                                <span
+                                    class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]"></span>
                                 <span data-i18n="status_absent_leave">ลางาน/ลาพัก (On Leave)</span>
                             </div>
                             <div class="flex items-center gap-2">
@@ -2495,7 +2558,8 @@
                                         class="ml-auto text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">0
                                         ຄົນ</span>
                                 </h3>
-                                <ul id="dash-present-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1.5">
+                                <ul id="dash-present-list"
+                                    class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1.5">
                                 </ul>
                             </div>
 
@@ -2510,7 +2574,8 @@
                                         class="ml-auto text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-0.5 rounded-full font-bold">0
                                         ຄົນ</span>
                                 </h3>
-                                <ul id="dash-absent-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                                <ul id="dash-absent-list"
+                                    class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
                                 </ul>
                             </div>
 
@@ -2687,7 +2752,8 @@
                                         <i class="fa-solid fa-laptop"></i>
                                     </div>
                                     <h4 class="text-2xl font-black text-gray-900" id="dash-assets">-</h4>
-                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1" data-i18n="dash_assets">Assets</p>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1"
+                                        data-i18n="dash_assets">Assets</p>
                                 </div>
                             </div>
 
@@ -2698,7 +2764,8 @@
                                         <i class="fa-regular fa-clock text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_late_hrs">Late
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest"
+                                            data-i18n="dash_late_hrs">Late
                                             (Hrs)</p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-late">0</h3>
                                     </div>
@@ -2709,7 +2776,8 @@
                                         <i class="fa-solid fa-user-xmark text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_absent_stat">Absent
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest"
+                                            data-i18n="dash_absent_stat">Absent
                                         </p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-absent">0</h3>
                                     </div>
@@ -2720,7 +2788,8 @@
                                         <i class="fa-solid fa-person-running text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_early_leave_hrs">Early
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest"
+                                            data-i18n="dash_early_leave_hrs">Early
                                             Leave (Hrs)</p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-early">0</h3>
                                     </div>
@@ -2731,7 +2800,8 @@
                                         <i class="fa-solid fa-sack-dollar text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_ot_amount_stat">OT
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest"
+                                            data-i18n="dash_ot_amount_stat">OT
                                             Amount</p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-ot">0</h3>
                                     </div>
@@ -3097,28 +3167,42 @@
                                 <!-- 📌 Date Filter Toolbar เฉพาะหน้า Leave Requests เท่านั้น -->
                                 <div id="leave-date-filter-wrapper" class="hidden flex flex-wrap items-center gap-2">
                                     <!-- Mode Toggle: All / Month / Range / Year -->
-                                    <div class="flex bg-gray-100/90 rounded-xl p-1 shadow-inner border border-gray-200 gap-1">
-                                        <button type="button" id="btn-leave-period-all" onclick="setLeavePeriodMode('all')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-brandindigo shadow-sm">ທັງໝົດ</button>
-                                        <button type="button" id="btn-leave-period-month" onclick="setLeavePeriodMode('month')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ລາຍເດືອນ</button>
-                                        <button type="button" id="btn-leave-period-range" onclick="setLeavePeriodMode('range')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ຊ່ວງວັນທີ</button>
-                                        <button type="button" id="btn-leave-period-year" onclick="setLeavePeriodMode('year')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ລາຍປີ</button>
+                                    <div
+                                        class="flex bg-gray-100/90 rounded-xl p-1 shadow-inner border border-gray-200 gap-1">
+                                        <button type="button" id="btn-leave-period-all"
+                                            onclick="setLeavePeriodMode('all')"
+                                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-brandindigo shadow-sm">ທັງໝົດ</button>
+                                        <button type="button" id="btn-leave-period-month"
+                                            onclick="setLeavePeriodMode('month')"
+                                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ລາຍເດືອນ</button>
+                                        <button type="button" id="btn-leave-period-range"
+                                            onclick="setLeavePeriodMode('range')"
+                                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ຊ່ວງວັນທີ</button>
+                                        <button type="button" id="btn-leave-period-year"
+                                            onclick="setLeavePeriodMode('year')"
+                                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ລາຍປີ</button>
                                     </div>
 
                                     <!-- Month Picker -->
                                     <div id="leave-picker-month" class="hidden flex items-center gap-1.5">
-                                        <input type="month" id="leaveMonthInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-bold text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
+                                        <input type="month" id="leaveMonthInput" onchange="filterData()"
+                                            class="bg-white border border-gray-300 text-gray-800 font-bold text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
                                     </div>
 
                                     <!-- Date Range Picker -->
-                                    <div id="leave-picker-range" class="hidden flex items-center gap-1.5 text-xs text-gray-500 font-bold">
-                                        <input type="date" id="leaveStartDateInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-medium text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
+                                    <div id="leave-picker-range"
+                                        class="hidden flex items-center gap-1.5 text-xs text-gray-500 font-bold">
+                                        <input type="date" id="leaveStartDateInput" onchange="filterData()"
+                                            class="bg-white border border-gray-300 text-gray-800 font-medium text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
                                         <span>➔</span>
-                                        <input type="date" id="leaveEndDateInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-medium text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
+                                        <input type="date" id="leaveEndDateInput" onchange="filterData()"
+                                            class="bg-white border border-gray-300 text-gray-800 font-medium text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
                                     </div>
 
                                     <!-- Year Picker -->
                                     <div id="leave-picker-year" class="hidden flex items-center gap-1.5">
-                                        <select id="leaveYearInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-bold text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none cursor-pointer">
+                                        <select id="leaveYearInput" onchange="filterData()"
+                                            class="bg-white border border-gray-300 text-gray-800 font-bold text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none cursor-pointer">
                                         </select>
                                     </div>
                                 </div>
@@ -3136,15 +3220,19 @@
                     </div>
 
                     <!-- 🏢 Attendance Department Navigation Bar (Top Hero Bar) -->
-                    <div id="attendance-dept-banner" class="hidden mb-5 bg-white/90 backdrop-blur-md border border-indigo-100/90 rounded-2xl p-3.5 shadow-sm shadow-indigo-100/50">
+                    <div id="attendance-dept-banner"
+                        class="hidden mb-5 bg-white/90 backdrop-blur-md border border-indigo-100/90 rounded-2xl p-3.5 shadow-sm shadow-indigo-100/50">
                         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                             <div class="flex items-center gap-2.5 px-1 text-gray-800 font-black text-xs shrink-0">
-                                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-brandindigo to-brandpurple text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                                <div
+                                    class="w-8 h-8 rounded-xl bg-gradient-to-tr from-brandindigo to-brandpurple text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
                                     <i class="fa-solid fa-building-user text-sm"></i>
                                 </div>
                                 <div>
-                                    <div class="text-[13px] font-black text-gray-900 tracking-tight" data-i18n="dept_tab_title">แผนก (Department)</div>
-                                    <div class="text-[10px] font-semibold text-gray-400">เลือกแผนกเพื่อกรองข้อมูลและพิมพ์รายงาน</div>
+                                    <div class="text-[13px] font-black text-gray-900 tracking-tight"
+                                        data-i18n="dept_tab_title">แผนก (Department)</div>
+                                    <div class="text-[10px] font-semibold text-gray-400">
+                                        เลือกแผนกเพื่อกรองข้อมูลและพิมพ์รายงาน</div>
                                 </div>
                             </div>
                             <div id="attendance-dept-tabs-container"
@@ -3160,8 +3248,8 @@
                             <div
                                 class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 pb-3 border-b border-gray-100">
                                 <div class="flex items-center gap-3 shrink-0">
-                                    <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
-                                            class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span
+                                    <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide">
+                                        <i class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span
                                             data-i18n="attendance_calendar">Attendance Calendar</span></h3>
                                 </div>
 
@@ -3369,24 +3457,32 @@
 
                     <!-- 📌 แถบ Filter สถานะการอนุมัติสำหรับหน้า Leave Requests (แท็บ: ทั้งหมด / รออนุมัติ / อนุมัติแล้ว / ปฏิเสธ) -->
                     <div id="leave-status-tabs-container" class="hidden mb-4 flex flex-wrap items-center gap-2">
-                        <button type="button" onclick="setLeaveStatusFilter('all')" id="leave-tab-all" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-brandindigo text-white shadow-md">
+                        <button type="button" onclick="setLeaveStatusFilter('all')" id="leave-tab-all"
+                            class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-brandindigo text-white shadow-md">
                             <span>ທັງໝົດ (All)</span>
-                            <span id="leave-badge-all" class="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                            <span id="leave-badge-all"
+                                class="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
                         </button>
-                        <button type="button" onclick="setLeaveStatusFilter('pending')" id="leave-tab-pending" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-amber-50 hover:text-amber-600 border border-gray-200 shadow-2xs">
+                        <button type="button" onclick="setLeaveStatusFilter('pending')" id="leave-tab-pending"
+                            class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-amber-50 hover:text-amber-600 border border-gray-200 shadow-2xs">
                             <i class="fa-solid fa-clock text-amber-500"></i>
                             <span>ລໍຖ້າອະນຸມັດ (Pending)</span>
-                            <span id="leave-badge-pending" class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                            <span id="leave-badge-pending"
+                                class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
                         </button>
-                        <button type="button" onclick="setLeaveStatusFilter('approved')" id="leave-tab-approved" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 border border-gray-200 shadow-2xs">
+                        <button type="button" onclick="setLeaveStatusFilter('approved')" id="leave-tab-approved"
+                            class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 border border-gray-200 shadow-2xs">
                             <i class="fa-solid fa-circle-check text-emerald-500"></i>
                             <span>ອະນຸມັດແລ້ວ (Approved)</span>
-                            <span id="leave-badge-approved" class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                            <span id="leave-badge-approved"
+                                class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
                         </button>
-                        <button type="button" onclick="setLeaveStatusFilter('rejected')" id="leave-tab-rejected" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-200 shadow-2xs">
+                        <button type="button" onclick="setLeaveStatusFilter('rejected')" id="leave-tab-rejected"
+                            class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-200 shadow-2xs">
                             <i class="fa-solid fa-circle-xmark text-red-500"></i>
                             <span>ປະຕິເສດ (Rejected)</span>
-                            <span id="leave-badge-rejected" class="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                            <span id="leave-badge-rejected"
+                                class="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
                         </button>
                     </div>
 
@@ -3489,14 +3585,16 @@
                         <form id="fbBudgetForm" onsubmit="submitFacebookBudget(event)" class="space-y-4">
                             <div>
                                 <div class="flex items-center justify-between mb-1">
-                                    <label class="block text-sm font-medium text-gray-700">รหัสสมาชิก / รหัสพนักงาน (Member ID)</label>
-                                    <span id="fb_member_mlm_status_badge" class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 transition-all">
+                                    <label class="block text-sm font-medium text-gray-700">รหัสสมาชิก / รหัสพนักงาน
+                                        (Member ID)</label>
+                                    <span id="fb_member_mlm_status_badge"
+                                        class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 transition-all">
                                         <i class="fa-solid fa-circle-nodes me-1"></i>ระบบ MLM
                                     </span>
                                 </div>
                                 <div class="relative">
-                                    <input type="text" id="fb_member_id" list="fb_mlm_members_datalist" required autocomplete="off"
-                                        oninput="handleFbMemberIdInput(this.value)"
+                                    <input type="text" id="fb_member_id" list="fb_mlm_members_datalist" required
+                                        autocomplete="off" oninput="handleFbMemberIdInput(this.value)"
                                         onchange="handleFbMemberIdChange(this.value)"
                                         class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
                                         placeholder="พิมพ์ค้นหารหัส เช่น L02815 หรือชื่อสมาชิก...">
@@ -3504,31 +3602,45 @@
                                 </div>
 
                                 <!-- กล่องพรีวิวข้อมูลสมาชิกจากระบบ MLM -->
-                                <div id="fb_member_info_preview" class="mt-2.5 p-3.5 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-purple-50/50 hidden transition-all duration-300">
+                                <div id="fb_member_info_preview"
+                                    class="mt-2.5 p-3.5 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-purple-50/50 hidden transition-all duration-300">
                                     <div class="flex items-start justify-between gap-2">
                                         <div class="flex items-center gap-3">
-                                            <div id="fb_preview_avatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                                            <div id="fb_preview_avatar"
+                                                class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
                                                 <i class="fa-solid fa-user"></i>
                                             </div>
                                             <div>
-                                                <div id="fb_preview_name" class="text-sm font-bold text-gray-900 flex items-center gap-1.5 flex-wrap">
+                                                <div id="fb_preview_name"
+                                                    class="text-sm font-bold text-gray-900 flex items-center gap-1.5 flex-wrap">
                                                     <span>-</span>
                                                 </div>
-                                                <div class="text-xs text-gray-600 flex flex-wrap items-center gap-2 mt-0.5">
-                                                    <span id="fb_preview_team" class="inline-flex items-center gap-1"><i class="fa-solid fa-users text-indigo-600"></i> สายงาน: <b>-</b></span>
+                                                <div
+                                                    class="text-xs text-gray-600 flex flex-wrap items-center gap-2 mt-0.5">
+                                                    <span id="fb_preview_team" class="inline-flex items-center gap-1"><i
+                                                            class="fa-solid fa-users text-indigo-600"></i> สายงาน:
+                                                        <b>-</b></span>
                                                     <span>•</span>
-                                                    <span id="fb_preview_role" class="inline-flex items-center gap-1"><i class="fa-solid fa-id-badge text-amber-600"></i> ตำแหน่ง: <b>-</b></span>
+                                                    <span id="fb_preview_role" class="inline-flex items-center gap-1"><i
+                                                            class="fa-solid fa-id-badge text-amber-600"></i> ตำแหน่ง:
+                                                        <b>-</b></span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <span id="fb_preview_badge" class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full flex-shrink-0">
+                                        <span id="fb_preview_badge"
+                                            class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full flex-shrink-0">
                                             <i class="fa-solid fa-circle-check"></i> ข้อมูล MLM
                                         </span>
                                     </div>
-                                    <div id="fb_preview_extra" class="mt-2.5 pt-2 border-t border-indigo-100/80 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
-                                        <span id="fb_preview_phone"><i class="fa-solid fa-phone text-emerald-600 me-1"></i> -</span>
-                                        <span id="fb_preview_email"><i class="fa-solid fa-envelope text-blue-600 me-1"></i> -</span>
-                                        <span id="fb_preview_sponsor"><i class="fa-solid fa-user-tie text-purple-600 me-1"></i> ผู้แนะนำ: -</span>
+                                    <div id="fb_preview_extra"
+                                        class="mt-2.5 pt-2 border-t border-indigo-100/80 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                                        <span id="fb_preview_phone"><i
+                                                class="fa-solid fa-phone text-emerald-600 me-1"></i> -</span>
+                                        <span id="fb_preview_email"><i
+                                                class="fa-solid fa-envelope text-blue-600 me-1"></i> -</span>
+                                        <span id="fb_preview_sponsor"><i
+                                                class="fa-solid fa-user-tie text-purple-600 me-1"></i> ผู้แนะนำ:
+                                            -</span>
                                     </div>
                                 </div>
                             </div>
@@ -3963,7 +4075,11 @@
                         const applyFilterToTbody = (tbodyId) => {
                             const tbody = document.getElementById(tbodyId);
                             if (!tbody) return;
-                            const rows = tbody.querySelectorAll('tr');
+                            const emptyRow = document.getElementById(tbodyId + '-empty-filter');
+                            if (emptyRow) emptyRow.remove();
+
+                            const rows = Array.from(tbody.querySelectorAll('tr')).filter(tr => !tr.id.includes('-empty'));
+                            let visibleCount = 0;
                             rows.forEach(tr => {
                                 if (tr.innerText.includes('ไม่พบข้อมูล') || tr.innerText.includes('กำลังโหลด')) return;
                                 const text = tr.innerText.toLowerCase();
@@ -3976,8 +4092,17 @@
                                 }
 
                                 const matchKw = !kw || text.includes(kw);
-                                tr.style.display = (matchDate && matchKw) ? '' : 'none';
+                                const isShow = matchDate && matchKw;
+                                tr.style.display = isShow ? '' : 'none';
+                                if (isShow) visibleCount++;
                             });
+
+                            if (visibleCount === 0 && rows.length > 0) {
+                                const tr = document.createElement('tr');
+                                tr.id = tbodyId + '-empty-filter';
+                                tr.innerHTML = `<td colspan="9" class="text-center py-8 text-gray-400 font-medium"><i class="fa-regular fa-calendar-xmark text-2xl mb-1.5 block text-gray-300"></i>ไม่พบรายการในวันที่เลือก (เลือกช่วงวันที่อื่นด้านบนเพื่อดูย้อนหลัง)</td>`;
+                                tbody.appendChild(tr);
+                            }
                         };
 
                         applyFilterToTbody('fb-dashboard-body');
@@ -4274,23 +4399,36 @@
                         const sInput = document.getElementById('fb_start_date');
                         const eInput = document.getElementById('fb_end_date');
                         const todayISO = getLocalDateISO();
-                        const now = new Date();
-                        const firstDayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-                        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-                        const lastDayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-                        if (sInput && !sInput.value) sInput.value = firstDayISO;
-                        if (eInput && !eInput.value) eInput.value = lastDayISO;
+                        // 📌 โหลดเฉพาะวันปัจจุบันเป็นค่าเริ่มต้น หากต้องการดูย้อนหลังให้ผู้ใช้เลือกวันที่
+                        if (sInput && !sInput.value) sInput.value = todayISO;
+                        if (eInput && !eInput.value) eInput.value = todayISO;
+
+                        let filterStart = sInput ? sInput.value : todayISO;
+                        let filterEnd = eInput ? eInput.value : todayISO;
+                        if (filterStart && filterEnd && filterEnd < filterStart) {
+                            filterEnd = filterStart;
+                            if (eInput) eInput.value = filterEnd;
+                        }
 
                         try {
                             const hrBridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
                             if (!hrBridge) throw new Error("HR Supabase is not configured.");
 
-                            // 1. ดึงข้อมูลเบิกงบฝั่ง HR และข้อมูลพนักงาน
-                            let [budgets, staffRows] = await Promise.all([
+                            // 1. ดึงข้อมูลเบิกงบฝั่ง HR และข้อมูลพนักงาน (ใช้ Cache พนักงานหากมีเพื่อความรวดเร็ว)
+                            let staffRows = (typeof tableCache !== 'undefined' && tableCache['Staff']?.data && tableCache['Staff'].data.length)
+                                ? tableCache['Staff'].data
+                                : (window._cachedStaffRows || null);
+
+                            let [budgets, fetchedStaff] = await Promise.all([
                                 hrBridge.getTableData('facebook_budget_requests', { select: '*' }).catch(() => []),
-                                hrBridge.getTableData('staff', { select: '*' }).catch(() => [])
+                                staffRows ? Promise.resolve(staffRows) : hrBridge.getTableData('staff', { select: '*' }).catch(() => [])
                             ]);
+
+                            if (!staffRows && fetchedStaff && fetchedStaff.length) {
+                                staffRows = fetchedStaff;
+                                window._cachedStaffRows = fetchedStaff;
+                            }
 
                             if (loadId !== window.currentFbLoadId) return;
 
@@ -4351,15 +4489,44 @@
 
                             try {
                                 const headers = { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` };
-                                const [stkSalesRes, memRes] = await Promise.all([
-                                    fetch(`${mlmUrl}/rest/v1/stk_sales?select=*`, { headers }).catch(() => null),
-                                    fetch(`${mlmUrl}/rest/v1/stk_members?select=*`, { headers }).catch(() => null)
-                                ]);
+
+                                // ⚡ ส่ง Query กรองช่วงวันที่ไปยัง Supabase เพื่อลดปริมาณเน็ตเวิร์กที่โหลด
+                                let stkSalesUrl = `${mlmUrl}/rest/v1/stk_sales?select=*`;
+                                if (filterStart && filterEnd) {
+                                    stkSalesUrl += `&date=gte.${filterStart}&date=lte.${filterEnd}`;
+                                } else if (filterStart) {
+                                    stkSalesUrl += `&date=gte.${filterStart}`;
+                                } else if (filterEnd) {
+                                    stkSalesUrl += `&date=lte.${filterEnd}`;
+                                }
+
+                                // ⚡ แคชรายชื่อสมาชิก MLM และข้อมูลสินค้า เพื่อไม่ต้องโหลดใหม่ทุกครั้งที่สลับแท็บ
+                                let membersList = window._cachedMlmMembers || null;
+                                let productsList = window._cachedMlmProducts || null;
+                                let sales = [];
+
+                                if (membersList && membersList.length > 0 && productsList && productsList.length > 0) {
+                                    const stkSalesRes = await fetch(stkSalesUrl, { headers }).catch(() => null);
+                                    sales = stkSalesRes && stkSalesRes.ok ? await stkSalesRes.json() : [];
+                                } else {
+                                    const [stkSalesRes, memRes, prodRes] = await Promise.all([
+                                        fetch(stkSalesUrl, { headers }).catch(() => null),
+                                        fetch(`${mlmUrl}/rest/v1/stk_members?select=*`, { headers }).catch(() => null),
+                                        fetch(`${mlmUrl}/rest/v1/stk_products?select=*`, { headers }).catch(() => null)
+                                    ]);
+                                    sales = stkSalesRes && stkSalesRes.ok ? await stkSalesRes.json() : [];
+                                    membersList = memRes && memRes.ok ? await memRes.json() : [];
+                                    productsList = prodRes && prodRes.ok ? await prodRes.json() : [];
+                                    if (membersList && membersList.length > 0) {
+                                        window._cachedMlmMembers = membersList;
+                                    }
+                                    if (productsList && productsList.length > 0) {
+                                        window._cachedMlmProducts = productsList;
+                                    }
+                                }
 
                                 if (loadId !== window.currentFbLoadId) return;
 
-                                let sales = stkSalesRes && stkSalesRes.ok ? await stkSalesRes.json() : [];
-                                const membersList = memRes && memRes.ok ? await memRes.json() : [];
                                 window.allMlmMembersList = membersList || [];
                                 populateFbMlmDatalist(window.allMlmMembersList);
 
@@ -4401,77 +4568,71 @@
                                     window.currentStaffPreferredMemberId = primaryMlmId;
                                 }
 
-                                // Build downline team structure (Parent -> Children -> Downlines)
-                                const getDirectChildren = (parentId) => {
-                                    const pId = String(parentId || '').trim().toUpperCase();
-                                    if (!pId) return [];
-                                    return (membersList || []).filter(m => {
-                                        const ref = String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim().toUpperCase();
-                                        const mid = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
-                                        return ref === pId && ref !== mid;
-                                    });
-                                };
-
-                                const getDownlineIdsSet = (parentId) => {
-                                    const visited = new Set();
-                                    const queue = [String(parentId || '').trim().toUpperCase()];
-                                    const result = new Set();
-                                    while (queue.length > 0) {
-                                        const current = queue.shift();
-                                        if (!current || visited.has(current)) continue;
-                                        visited.add(current);
-                                        if (current !== parentId) result.add(current);
-                                        const children = getDirectChildren(current);
-                                        children.forEach(c => {
-                                            const cid = String(c.id || c.user_id || c.User_ID || '').trim().toUpperCase();
-                                            if (cid) queue.push(cid);
-                                        });
-                                    }
-                                    return result;
-                                };
-
-                                const downlineMap = {};
+                                // ⚡ โครงสร้างสายงาน Fast O(N) Sponsor Map + O(1) Memoized Uplines Chain
+                                const directSponsorMap = {};
                                 (membersList || []).forEach(m => {
-                                    const uid = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
-                                    if (uid) downlineMap[uid] = getDownlineIdsSet(uid);
+                                    const mid = String(m.id || m.user_id || m.User_ID || m.username || '').trim().toUpperCase();
+                                    const ref = String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim().toUpperCase();
+                                    if (mid && ref && ref !== mid) {
+                                        const canonMid = memberAliasToUid[mid] || mid;
+                                        const canonRef = memberAliasToUid[ref] || ref;
+                                        if (canonMid && canonRef && canonMid !== canonRef) {
+                                            directSponsorMap[canonMid] = canonRef;
+                                        }
+                                    }
                                 });
+
+                                const uplineChainCache = {};
+                                const getUplineChain = (sellerId) => {
+                                    const sId = memberAliasToUid[sellerId] || sellerId;
+                                    if (!sId) return [];
+                                    if (uplineChainCache[sId]) return uplineChainCache[sId];
+                                    const chain = [];
+                                    const visited = new Set([sId]);
+                                    let curr = directSponsorMap[sId];
+                                    while (curr && !visited.has(curr)) {
+                                        visited.add(curr);
+                                        chain.push(curr);
+                                        curr = directSponsorMap[curr];
+                                    }
+                                    uplineChainCache[sId] = chain;
+                                    return chain;
+                                };
 
                                 const getProductCategoryAndRate = (prodName, dbProductsList) => {
                                     const cleanName = String(prodName || '').trim().toUpperCase();
 
-                                    if (Array.isArray(dbProductsList) && dbProductsList.length > 0) {
-                                        const found = dbProductsList.find(p => 
-                                            String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName ||
-                                            String(p.category || '').trim().toUpperCase() === cleanName
-                                        );
+                                    let defaultCat = { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
+                                    if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
+                                        defaultCat = { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000, full_margin_amount: 0 };
+                                    } else if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE')) {
+                                        defaultCat = { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, full_margin_amount: 0 };
+                                    } else if (cleanName.includes('GLUTA') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ZINC')) {
+                                        defaultCat = { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, full_margin_amount: 0 };
+                                    }
+
+                                    const pList = (Array.isArray(dbProductsList) && dbProductsList.length > 0) ? dbProductsList : (window._cachedMlmProducts || []);
+                                    if (Array.isArray(pList) && pList.length > 0) {
+                                        const found = pList.find(p => {
+                                            const pId = String(p.product_id || p.id || '').trim().toUpperCase();
+                                            const pName = String(p.name || p.product_name || '').trim().toUpperCase();
+                                            const pCat = String(p.category || '').trim().toUpperCase();
+                                            if (pId && (pId === cleanName || cleanName.startsWith(pId + ':') || cleanName.startsWith(pId + ' ') || cleanName.startsWith(pId + '-'))) return true;
+                                            if (pName && (pName === cleanName || cleanName.includes(pName) || pName.includes(cleanName))) return true;
+                                            if (pCat && pCat === cleanName) return true;
+                                            return false;
+                                        });
                                         if (found) {
-                                            const cat = String(found.category || '').trim();
-                                            const selfFee = Number(found.self_fee ?? found.selfFee ?? 250000);
-                                            const l1Fee = Number(found.level_1_fee ?? found.level1Fee ?? 200000);
+                                            const cat = String(found.category || defaultCat.categoryKey).trim();
+                                            const selfFee = Number(found.self_fee || found.selfFee || defaultCat.rate);
+                                            const l1Fee = Number(found.level_1_fee || found.level1Fee || defaultCat.l1Rate);
                                             const margin = Number(found.full_margin_amount ?? found.fullMarginAmount ?? 0);
-                                            return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
+                                            return { categoryKey: cat || defaultCat.categoryKey, categoryName: `หมวด ${cat || defaultCat.categoryKey}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
                                         }
                                     }
 
-                                    if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
-                                        return { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000, full_margin_amount: 0 };
-                                    }
-                                    if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE') || cleanName.includes('ZINC')) {
-                                        return { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, full_margin_amount: 0 };
-                                    }
-                                    if (cleanName.includes('GLUTA') || cleanName.includes('COLLAGEN') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ORYZA')) {
-                                        return { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, full_margin_amount: 0 };
-                                    }
-                                    return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
+                                    return defaultCat;
                                 };
-
-                                let filterStart = sInput ? sInput.value : '';
-                                let filterEnd = eInput ? eInput.value : '';
-
-                                // Auto-fix invalid date filter range (e.g., if end date is earlier than start date)
-                                if (filterStart && filterEnd && filterEnd < filterStart) {
-                                    filterEnd = filterStart.slice(0, 7) + '-31';
-                                }
 
                                 const periodSales = (sales || []).filter(s => {
                                     let sDate = String(s.date || s.sale_date || s.created_at || '').split('T')[0].slice(0, 10);
@@ -4492,27 +4653,44 @@
                                         try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch (e) { }
                                     }
 
+                                    // ดึงรายการสินค้าแบบ dynamic columns หาก items_json ไม่มี
+                                    if (!Array.isArray(itemsList) || itemsList.length === 0) {
+                                        Object.entries(s || {}).forEach(([key, value]) => {
+                                            if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
+                                                const q = parseInt(value, 10);
+                                                if (!isNaN(q) && q > 0) {
+                                                    const lastUnderscore = key.lastIndexOf('_');
+                                                    const pName = key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim();
+                                                    const pType = key.substring(lastUnderscore + 1);
+                                                    itemsList.push({ prod: pName, qty: q, type: pType });
+                                                }
+                                            }
+                                        });
+                                    }
+
+                                    const uplineChain = getUplineChain(sellerId);
+
                                     if (Array.isArray(itemsList) && itemsList.length > 0) {
                                         itemsList.forEach(it => {
                                             const q = Number(it.qty || it.quantity || 1);
                                             const typeStr = String(it.type || '').trim();
-                                            const pName = String(it.prod || it.productName || it.name || '').trim();
+                                            const typeLower = typeStr.toLowerCase();
+                                            const isNotPromoOrZero = !typeLower.includes('โปร') && !typeLower.includes('ศูนย์') && !typeLower.includes('zero') && !typeLower.includes('promo') && !typeLower.includes('free');
 
                                             // กรองเอาเฉพาะ "ราคาเต็ม" และ "ราคาสมาชิก" เท่านั้น (ตัดราคาโปร / ราคาศูนย์ ทิ้งตามระบบ MLM)
-                                            if (typeStr !== 'ราคาเต็ม' && typeStr !== 'ราคาสมาชิก' && typeStr !== '') {
+                                            if (typeStr !== 'ราคาเต็ม' && typeStr !== 'ราคาสมาชิก' && (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น' || typeStr === 'ราคาศูนย์' || typeStr === 'ราคาฟรี' || !isNotPromoOrZero)) {
                                                 return;
                                             }
 
-                                            const catInfo = getProductCategoryAndRate(pName, products);
+                                            const pName = String(it.prod || it.productName || it.name || '').trim();
+                                            const catInfo = getProductCategoryAndRate(pName, productsList || window._cachedMlmProducts);
 
                                             // 1. Personal Sales LAK
                                             salesMap[sellerId] = (salesMap[sellerId] || 0) + (q * catInfo.rate);
 
-                                            // 2. Downline Team Sales LAK to Uplines
-                                            Object.keys(downlineMap).forEach(uplineId => {
-                                                if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
-                                                    salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * catInfo.l1Rate);
-                                                }
+                                            // 2. Downline Team Sales LAK to Uplines (เข้า Upline สายตรงทันทีใน O(1))
+                                            uplineChain.forEach(uplineId => {
+                                                salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * catInfo.l1Rate);
                                             });
                                         });
                                     } else {
@@ -4525,10 +4703,8 @@
 
                                         if (validQty > 0) {
                                             salesMap[sellerId] = (salesMap[sellerId] || 0) + (validQty * 250000);
-                                            Object.keys(downlineMap).forEach(uplineId => {
-                                                if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
-                                                    salesMap[uplineId] = (salesMap[uplineId] || 0) + (validQty * 200000);
-                                                }
+                                            uplineChain.forEach(uplineId => {
+                                                salesMap[uplineId] = (salesMap[uplineId] || 0) + (validQty * 200000);
                                             });
                                         }
                                     }
@@ -4565,28 +4741,53 @@
                                 return true;
                             });
 
-                            if (!budgets || budgets.length === 0) {
-                                if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-gray-500">ไม่พบข้อมูลคำขอเบิกงบประมาณ</td></tr>`;
+                            // 📌 ฟังก์ชันแยกวันที่ ISO (YYYY-MM-DD) ที่รองรับทั้งแบบ / และ -
+                            const parseRowIsoDate = (val) => {
+                                if (!val) return '';
+                                const s = String(val).trim();
+                                if (s.includes('/')) {
+                                    const p = s.split('/');
+                                    if (p.length === 3) {
+                                        if (p[0].length === 4) return `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`;
+                                        if (p[2].length === 4) return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+                                    }
+                                }
+                                const t = s.split('T')[0].slice(0, 10);
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+                                return '';
+                            };
+
+                            // 📌 กรองเฉพาะคำขอเบิกที่อยู่ในช่วงวันที่เลือก (แบบ B: ทั้งยอดขายและใบเบิกอยู่ในช่วงเวลาเดียวกัน)
+                            const periodBudgets = budgets.filter(b => {
+                                let bDate = parseRowIsoDate(b.request_date || b.created_at || '');
+                                if (!bDate) return true;
+                                if (filterStart && bDate < filterStart) return false;
+                                if (filterEnd && bDate > filterEnd) return false;
+                                return true;
+                            });
+
+                            if (!periodBudgets || periodBudgets.length === 0) {
+                                if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-gray-400 font-medium"><i class="fa-regular fa-calendar-xmark text-2xl mb-1.5 block text-gray-300"></i>ไม่พบรายการในวันที่เลือก (เลือกช่วงวันที่อื่นด้านบนเพื่อดูย้อนหลัง)</td></tr>`;
                                 if (reportTbody) reportTbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-500">ไม่พบข้อมูลรายงาน</td></tr>`;
                             } else {
-                                // 1. เรียงลำดับคำขอเบิกตามวันที่/เวลา จากเก่าไปใหม่ (ASC) เพื่อคำนวณยอดยกมาสะสม
-                                budgets.sort((a, b) => {
+                                // 1. เรียงลำดับคำขอเบิกตามวันที่/เวลา จากเก่าไปใหม่ (ASC) เพื่อคำนวณยอดยกมาสะสมในช่วงเวลานี้
+                                periodBudgets.sort((a, b) => {
                                     const tA = new Date(a.request_date || a.created_at || 0).getTime();
                                     const tB = new Date(b.request_date || b.created_at || 0).getTime();
                                     return tA - tB;
                                 });
 
-                                // 2. คำนวณ Running Balance ฝั่ง LAK แยกตามแต่ละคน
+                                // 2. คำนวณ Running Balance ฝั่ง LAK แยกตามแต่ละคน ในช่วงวันที่เลือก
                                 const runningBalLAKMap = {};
 
-                                budgets.forEach(b => {
+                                periodBudgets.forEach(b => {
                                     const mId = String(b.member_id || b.Employee_ID || b.empId || b.employee_id || b.user_id || '').trim().toUpperCase();
                                     const canonicalMId = memberAliasToUid[mId] || mId;
                                     const salesLAK = salesMap[canonicalMId] || salesMap[mId] || 0;
                                     const clinicFeeLAK = Number(b.clinic_fee || 0);
 
                                     if (runningBalLAKMap[mId] === undefined) {
-                                        runningBalLAKMap[mId] = salesLAK; // Initialize with total sales only
+                                        runningBalLAKMap[mId] = salesLAK; // Initialize with total sales for this period only
                                     }
 
                                     const amt = Number(b.amount || 0);
@@ -4615,7 +4816,7 @@
 
                                 // 1. กรองเฉพาะของตนเองถ้าเป็น Staff (ไม่ใช่ Admin / ผู้จัดการ)
                                 const hasListPerm = userRole === 'Admin' || userRole === 'Manager' || userRole === 'HR Admin' || userRole === 'HR Manager' || userRole === 'CEO' || userRole === 'COO' || userRole === 'CFO' || (Array.isArray(userPerms) && (userPerms.includes('all') || userPerms.some(p => String(p).toLowerCase().includes('fb_budget') || String(p).toLowerCase().includes('facebook-budget'))));
-                                let displayBudgets = [...budgets];
+                                let displayBudgets = [...periodBudgets];
                                 if (!hasListPerm && userAllowedIds && userAllowedIds.size > 0) {
                                     const filtered = displayBudgets.filter(b => {
                                         const mId = String(b.member_id || b.Employee_ID || '').trim().toUpperCase();
@@ -4651,16 +4852,23 @@
 
                                     // Extract exact YYYY-MM-DD
                                     let rawDateVal = b.request_date || b.created_at || '';
-                                    let isoDateStr = '';
-                                    if (rawDateVal) {
-                                        isoDateStr = String(rawDateVal).split('T')[0].slice(0, 10);
-                                    }
-                                    if (!isoDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(isoDateStr)) {
-                                        isoDateStr = todayISO;
-                                    }
+                                    let isoDateStr = parseRowIsoDate(rawDateVal) || todayISO;
 
                                     const [yStr, mStr, dStr] = isoDateStr.split('-');
                                     const dateStr = `${dStr}/${mStr}/${yStr}`;
+
+                                    let timeStr = '';
+                                    const rawCreated = b.created_at || b.Created_At || rawDateVal;
+                                    if (rawCreated) {
+                                        try {
+                                            const dt = new Date(rawCreated);
+                                            if (!isNaN(dt.getTime()) && (String(rawCreated).includes('T') || String(rawCreated).includes(':'))) {
+                                                const hh = String(dt.getHours()).padStart(2, '0');
+                                                const mm = String(dt.getMinutes()).padStart(2, '0');
+                                                timeStr = `${hh}:${mm}`;
+                                            }
+                                        } catch (e) { }
+                                    }
 
                                     const salesLAK = salesMap[canonicalMId] || salesMap[mId] || 0;
                                     const clinicFee = Number(b.clinic_fee || 0);
@@ -4700,6 +4908,7 @@
                                         Id_Budget: statusInfo.primaryId,
                                         __db_id: b.id,
                                         Request_Date: isoDateStr,
+                                        created_at: b.created_at || rawDateVal,
                                         Employee_ID: mId,
                                         First_Name: sInfo.name,
                                         Last_Name: '',
@@ -4737,7 +4946,10 @@
                                         <tr data-date="${isoDateStr}" class="hover:bg-gray-50 transition-colors border-b border-gray-100">
                                             <td class="p-4 font-bold text-gray-800">${mId}</td>
                                             <td class="p-4 font-semibold text-gray-700">${sInfo.name}</td>
-                                            <td class="p-4 text-gray-500">${dateStr}</td>
+                                            <td class="p-4 text-gray-500 whitespace-nowrap">
+                                                <div class="font-bold text-gray-800">${dateStr}</div>
+                                                ${timeStr ? `<div class="text-[11px] text-gray-400 font-medium mt-0.5"><i class="fa-regular fa-clock text-[10px] mr-1 text-brandindigo"></i>${timeStr} น.</div>` : ''}
+                                            </td>
                                             <td class="p-4 text-right text-emerald-600 font-bold">${salesLAK.toLocaleString()} LAK</td>
                                             <td class="p-4 text-right text-purple-600 font-bold">${clinicDisplayStr}</td>
                                             <td class="p-4 text-right text-rose-600 font-bold">${budgetDisplayStr}</td>
@@ -4771,7 +4983,7 @@
                                 // 📌 Build Aggregated Summary Rows for Report Tab (1 Row per Employee)
                                 const reportMap = {};
 
-                                budgets.forEach(b => {
+                                periodBudgets.forEach(b => {
                                     const mId = String(b.member_id || '').trim().toUpperCase();
                                     const amt = Number(b.amount || 0);
                                     const curr = String(b.currency || 'LAK').toUpperCase().trim();
@@ -4784,13 +4996,7 @@
                                     }
 
                                     let rawDateVal = b.request_date || b.created_at || '';
-                                    let isoDateStr = '';
-                                    if (rawDateVal) {
-                                        isoDateStr = String(rawDateVal).split('T')[0].slice(0, 10);
-                                    }
-                                    if (!isoDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(isoDateStr)) {
-                                        isoDateStr = todayISO;
-                                    }
+                                    let isoDateStr = parseRowIsoDate(rawDateVal) || todayISO;
 
                                     if (!reportMap[mId]) {
                                         reportMap[mId] = {
@@ -5013,15 +5219,18 @@
                                     <div class="pl-4 pr-3 flex items-center text-brandindigo">
                                         <i class="fa-regular fa-id-card text-lg"></i>
                                     </div>
-                                    <div id="scan-emp-display-wrapper" class="flex-1 flex items-center px-1 overflow-hidden min-w-0">
+                                    <div id="scan-emp-display-wrapper"
+                                        class="flex-1 flex items-center px-1 overflow-hidden min-w-0">
                                         <!-- Non-Super Admin: Plain Text Display (Not Editable) -->
-                                        <div id="scan-emp-text-display" class="font-bold text-gray-800 text-xs md:text-sm tracking-wide select-none truncate py-2">
-                                            <span id="scan-emp-id-label" class="text-brandindigo mr-1.5 font-black uppercase">ID</span>
+                                        <div id="scan-emp-text-display"
+                                            class="font-bold text-gray-800 text-xs md:text-sm tracking-wide select-none truncate py-2">
+                                            <span id="scan-emp-id-label"
+                                                class="text-brandindigo mr-1.5 font-black uppercase">ID</span>
                                             <span id="scan-emp-name-label" class="text-gray-700 font-semibold"></span>
                                         </div>
                                         <!-- Super Admin: Editable Input Box -->
-                                        <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
-                                            oninput="loadTodayAttendance()" onchange="loadTodayAttendance()"
+                                        <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)"
+                                            required oninput="loadTodayAttendance()" onchange="loadTodayAttendance()"
                                             class="hidden border-0 bg-transparent text-gray-900 focus:ring-0 w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
                                     </div>
                                     <button type="submit" id="scan-submit-btn"
@@ -5739,8 +5948,8 @@
                         <div class="text-left">
                             <div class="text-xs text-gray-500 font-medium mb-1">เลขที่เอกสาร: <span id="bill-modal-id"
                                     class="font-bold text-gray-800">-</span></div>
-                            <div class="text-xs text-gray-500 font-medium">วันที่ขออนุมัติ: <span id="bill-modal-date"
-                                    class="font-bold text-gray-800">-</span></div>
+                            <div class="text-xs text-gray-500 font-medium">วัน-เวลาที่ขออนุมัติ: <span
+                                    id="bill-modal-date" class="font-bold text-gray-800">-</span></div>
                         </div>
                         <div class="text-right">
                             <span
@@ -7236,22 +7445,29 @@
     <!-- /Shift Settings Modal -->
 
     <!-- ⚙️ OT Settings Modal (ตั้งค่าเงื่อนไขการให้ OT) -->
-    <div id="ot-settings-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm"
+    <div id="ot-settings-modal"
+        class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm"
         style="z-index:9999;" onclick="if(event.target === this) closeOtSettingsModal()">
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden animate-fadeInUp border border-gray-100">
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden animate-fadeInUp border border-gray-100">
 
             <!-- Header -->
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500">
+            <div
+                class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white text-lg shadow-inner">
+                    <div
+                        class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white text-lg shadow-inner">
                         <i class="fa-solid fa-business-time"></i>
                     </div>
                     <div>
-                        <h3 class="font-extrabold text-white text-base tracking-wide" data-i18n="ot_settings_title">ตั้งค่าเงื่อนไขการให้ OT</h3>
-                        <p class="text-amber-100 text-xs mt-0.5" data-i18n="ot_settings_desc">กำหนดเงื่อนไข OT วันอาทิตย์ และการคำนวณล่วงเวลา</p>
+                        <h3 class="font-extrabold text-white text-base tracking-wide" data-i18n="ot_settings_title">
+                            ตั้งค่าเงื่อนไขการให้ OT</h3>
+                        <p class="text-amber-100 text-xs mt-0.5" data-i18n="ot_settings_desc">กำหนดเงื่อนไข OT
+                            วันอาทิตย์ และการคำนวณล่วงเวลา</p>
                     </div>
                 </div>
-                <button onclick="closeOtSettingsModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all">
+                <button onclick="closeOtSettingsModal()"
+                    class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all">
                     <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
@@ -7263,44 +7479,56 @@
                 <div class="bg-amber-50/60 rounded-2xl p-5 border border-amber-200/80 space-y-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm font-black shadow-sm">
+                            <div
+                                class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm font-black shadow-sm">
                                 <i class="fa-solid fa-sun"></i>
                             </div>
                             <div>
-                                <h4 class="font-extrabold text-gray-900 text-sm" data-i18n="sunday_ot_rule">เงื่อนไข OT วันอาทิตย์ (Sunday OT)</h4>
+                                <h4 class="font-extrabold text-gray-900 text-sm" data-i18n="sunday_ot_rule">เงื่อนไข OT
+                                    วันอาทิตย์ (Sunday OT)</h4>
                                 <p class="text-xs text-gray-500">เมื่อพนักงานมีการสแกนเข้างานในวันอาทิตย์</p>
                             </div>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="ot-sunday-enable" class="sr-only peer" checked onchange="toggleSundayOtFields()">
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                            <input type="checkbox" id="ot-sunday-enable" class="sr-only peer" checked
+                                onchange="toggleSundayOtFields()">
+                            <div
+                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500">
+                            </div>
                         </label>
                     </div>
 
                     <div id="ot-sunday-fields" class="space-y-4 pt-2 border-t border-amber-200/60">
                         <!-- เลือกรูปแบบการคำนวณ -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1.5">รูปแบบการคำนวณค่า OT วันอาทิตย์</label>
-                            <select id="ot-sunday-mode" onchange="onSundayModeChange()" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm">
-                                <option value="hourly_multiplier">1. คำนวณตามชั่วโมงทำงาน x อัตราค่าจ้าง x ตัวคูณ (แนะนำ)</option>
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">รูปแบบการคำนวณค่า OT
+                                วันอาทิตย์</label>
+                            <select id="ot-sunday-mode" onchange="onSundayModeChange()"
+                                class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm">
+                                <option value="hourly_multiplier">1. คำนวณตามชั่วโมงทำงาน x อัตราค่าจ้าง x ตัวคูณ
+                                    (แนะนำ)</option>
                                 <option value="flat_per_day">2. เหมาจ่ายอัตราคงที่ต่อวัน (Flat Rate / Day)</option>
-                                <option value="flat_per_hour">3. เหมาจ่ายอัตราคงที่ต่อชั่วโมง (Flat Rate / Hour)</option>
+                                <option value="flat_per_hour">3. เหมาจ่ายอัตราคงที่ต่อชั่วโมง (Flat Rate / Hour)
+                                </option>
                             </select>
                         </div>
 
                         <!-- Mode 1: Multiplier -->
                         <div id="ot-field-multiplier" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">ตัวคูณค่าล่วงเวลา (OT Multiplier)</label>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">ตัวคูณค่าล่วงเวลา (OT
+                                    Multiplier)</label>
                                 <div class="relative">
-                                    <input type="number" step="0.1" id="ot-sunday-multiplier" value="2.0" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-8 focus:ring-2 focus:ring-amber-500">
+                                    <input type="number" step="0.1" id="ot-sunday-multiplier" value="2.0"
+                                        class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-8 focus:ring-2 focus:ring-amber-500">
                                     <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">เท่า</span>
                                 </div>
                                 <p class="text-[10px] text-gray-500 mt-1">เช่น 1.5x หรือ 2.0x ของค่าจ้างรายชั่วโมง</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">การนับชั่วโมงทำงาน</label>
-                                <select id="ot-sunday-hours-source" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+                                <select id="ot-sunday-hours-source"
+                                    class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
                                     <option value="actual_worked">นับตามเวลาที่สแกนจริง (In-Out)</option>
                                     <option value="shift_hours">นับเต็มกะเวลา (8 ชั่วโมง)</option>
                                 </select>
@@ -7309,18 +7537,22 @@
 
                         <!-- Mode 2: Flat per Day -->
                         <div id="ot-field-flat-day" class="hidden">
-                            <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงินเหมาจ่ายต่อวันอาทิตย์ (จำนวนเงิน/วัน)</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงินเหมาจ่ายต่อวันอาทิตย์
+                                (จำนวนเงิน/วัน)</label>
                             <div class="relative">
-                                <input type="number" id="ot-sunday-flat-day" value="100000" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-14 focus:ring-2 focus:ring-amber-500">
+                                <input type="number" id="ot-sunday-flat-day" value="100000"
+                                    class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-14 focus:ring-2 focus:ring-amber-500">
                                 <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">กีบ/บาท</span>
                             </div>
                         </div>
 
                         <!-- Mode 3: Flat per Hour -->
                         <div id="ot-field-flat-hour" class="hidden">
-                            <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงินเหมาจ่ายต่อชั่วโมง (จำนวนเงิน/ชั่วโมง)</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงินเหมาจ่ายต่อชั่วโมง
+                                (จำนวนเงิน/ชั่วโมง)</label>
                             <div class="relative">
-                                <input type="number" id="ot-sunday-flat-hour" value="20000" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-14 focus:ring-2 focus:ring-amber-500">
+                                <input type="number" id="ot-sunday-flat-hour" value="20000"
+                                    class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-14 focus:ring-2 focus:ring-amber-500">
                                 <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">กีบ/บาท</span>
                             </div>
                         </div>
@@ -7328,15 +7560,19 @@
                         <!-- เงื่อนไขทำงานขั้นต่ำ -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">เวลาทำงานขั้นต่ำในวันอาทิตย์</label>
+                                <label
+                                    class="block text-xs font-bold text-gray-700 mb-1">เวลาทำงานขั้นต่ำในวันอาทิตย์</label>
                                 <div class="relative">
-                                    <input type="number" id="ot-sunday-min-mins" value="60" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-12 focus:ring-2 focus:ring-amber-500">
+                                    <input type="number" id="ot-sunday-min-mins" value="60"
+                                        class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-12 focus:ring-2 focus:ring-amber-500">
                                     <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">นาที</span>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">หากไม่มีเวลาสแกนออก (Check-Out)</label>
-                                <select id="ot-sunday-no-checkout" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+                                <label class="block text-xs font-bold text-gray-700 mb-1">หากไม่มีเวลาสแกนออก
+                                    (Check-Out)</label>
+                                <select id="ot-sunday-no-checkout"
+                                    class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
                                     <option value="shift_hours">คิดให้ตามเวลากะ (8 ชั่วโมง)</option>
                                     <option value="zero">ไม่คิด OT (ต้องสแกนออก)</option>
                                     <option value="half_day">คิดให้ครึ่งวัน (4 ชั่วโมง)</option>
@@ -7350,30 +7586,39 @@
                 <div class="bg-gray-50 rounded-2xl p-5 border border-gray-200 space-y-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black shadow-sm">
+                            <div
+                                class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black shadow-sm">
                                 <i class="fa-solid fa-clock"></i>
                             </div>
                             <div>
-                                <h4 class="font-extrabold text-gray-900 text-sm">เงื่อนไข OT วันทำงานปกติ (Weekday Overtime)</h4>
+                                <h4 class="font-extrabold text-gray-900 text-sm">เงื่อนไข OT วันทำงานปกติ (Weekday
+                                    Overtime)</h4>
                                 <p class="text-xs text-gray-500">คำนวณจากเวลาทำงานต่อหลังเลิกงานปกติ (Late Out)</p>
                             </div>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="ot-weekday-enable" class="sr-only peer" onchange="toggleWeekdayOtFields()">
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <input type="checkbox" id="ot-weekday-enable" class="sr-only peer"
+                                onchange="toggleWeekdayOtFields()">
+                            <div
+                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600">
+                            </div>
                         </label>
                     </div>
 
                     <div id="ot-weekday-fields" class="hidden space-y-3 pt-2 border-t border-gray-200">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">ตัวคูณ OT วันปกติ (เช่น 1.5x)</label>
-                                <input type="number" step="0.1" id="ot-weekday-multiplier" value="1.5" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-indigo-500">
+                                <label class="block text-xs font-bold text-gray-700 mb-1">ตัวคูณ OT วันปกติ (เช่น
+                                    1.5x)</label>
+                                <input type="number" step="0.1" id="ot-weekday-multiplier" value="1.5"
+                                    class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-indigo-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">เริ่มคิด OT เมื่ออยู่ต่อเกิน</label>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">เริ่มคิด OT
+                                    เมื่ออยู่ต่อเกิน</label>
                                 <div class="relative">
-                                    <input type="number" id="ot-weekday-min-mins" value="30" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-12 focus:ring-2 focus:ring-indigo-500">
+                                    <input type="number" id="ot-weekday-min-mins" value="30"
+                                        class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-12 focus:ring-2 focus:ring-indigo-500">
                                     <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">นาที</span>
                                 </div>
                             </div>
@@ -7385,10 +7630,12 @@
 
             <!-- Footer -->
             <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
-                <button type="button" onclick="closeOtSettingsModal()" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-100 transition-all">
+                <button type="button" onclick="closeOtSettingsModal()"
+                    class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-100 transition-all">
                     ยกเลิก
                 </button>
-                <button type="button" onclick="saveOtSettings()" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
+                <button type="button" onclick="saveOtSettings()"
+                    class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
                     <i class="fa-solid fa-check"></i> บันทึกเงื่อนไข OT
                 </button>
             </div>
@@ -7402,159 +7649,159 @@
     <script src="js/utils.js?v=20260903_v102"></script>
     <script src="js/auth.js?v=20260903_v102"></script>
     <script src="js/navigation.js?v=20260903_v102"></script>
-    <script src="js/api.js?v=20260903_v102"></script>
-    <script src="js/dashboard.js?v=20260903_v102"></script>
+    <script src="js/api.js?v=20261007_v103"></script>
+    <script src="js/dashboard.js?v=20261007_v104"></script>
     <script src="js/organization.js?v=20260903_v102"></script>
     <script src="js/employees.js?v=20260903_v102"></script>
-    <script src="js/tables.js?v=20260903_v102"></script>
-    <script src="js/forms.js?v=20260903_v102"></script>
+    <script src="js/tables.js?v=20261007_v106"></script>
+    <script src="js/forms.js?v=20261007_v104"></script>
     <script src="js/features.js?v=20260903_v102"></script>
     <script src="js/accounting.js?v=20260903_v102"></script>
     <script src="js/payroll.js?v=20260903_v102"></script>
 
     <!-- 🛑 MANDATORY INLINE OVERRIDE: GEOFENCE RESTRICTION (GUARANTEED NO CACHE ISSUE) -->
     <script>
-    (function() {
-        window.processAttendance = function(empId, scannedText) {
-            const cleanEmpId = String(empId || '').trim().toUpperCase();
-            if (!cleanEmpId) {
-                if (typeof showToast === 'function') showToast("Please specify Employee ID", "error");
-                if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
-                return;
-            }
+        (function () {
+            window.processAttendance = function (empId, scannedText) {
+                const cleanEmpId = String(empId || '').trim().toUpperCase();
+                if (!cleanEmpId) {
+                    if (typeof showToast === 'function') showToast("Please specify Employee ID", "error");
+                    if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
+                    return;
+                }
 
-            const scanTypeRadio = document.querySelector('input[name="scanType"]:checked');
-            const scanType = scanTypeRadio ? scanTypeRadio.value : 'IN';
-            let locationText = "Unknown Location";
+                const scanTypeRadio = document.querySelector('input[name="scanType"]:checked');
+                const scanType = scanTypeRadio ? scanTypeRadio.value : 'IN';
+                let locationText = "Unknown Location";
 
-            if (scannedText && scannedText !== 'Manual Entry by Admin') {
-                let foundBranch = (typeof BRANCHES !== 'undefined') ? BRANCHES.find(b => b.id === scannedText || b.name === scannedText) : null;
-                locationText = foundBranch ? foundBranch.name : scannedText;
-            } else if (scannedText === 'Manual Entry by Admin') {
-                locationText = scannedText;
-            }
+                if (scannedText && scannedText !== 'Manual Entry by Admin') {
+                    let foundBranch = (typeof BRANCHES !== 'undefined') ? BRANCHES.find(b => b.id === scannedText || b.name === scannedText) : null;
+                    locationText = foundBranch ? foundBranch.name : scannedText;
+                } else if (scannedText === 'Manual Entry by Admin') {
+                    locationText = scannedText;
+                }
 
-            const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-            let role = 'Staff';
-            if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
+                const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                let role = 'Staff';
+                if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
 
-            const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+                const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
 
-            const executeRecord = (lat, lng, locStr) => {
-                if (typeof toggleLoading === 'function') toggleLoading(true, `SAVING RECORD...`);
-                google.script.run
-                    .withSuccessHandler(res => {
-                        if (typeof toggleLoading === 'function') toggleLoading(false);
-                        if (res && res.success) {
-                            if (typeof tableCache !== 'undefined') {
-                                delete tableCache['Fingerprint_Logs'];
-                                delete tableCache['fingerprint_logs'];
+                const executeRecord = (lat, lng, locStr) => {
+                    if (typeof toggleLoading === 'function') toggleLoading(true, `SAVING RECORD...`);
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            if (typeof toggleLoading === 'function') toggleLoading(false);
+                            if (res && res.success) {
+                                if (typeof tableCache !== 'undefined') {
+                                    delete tableCache['Fingerprint_Logs'];
+                                    delete tableCache['fingerprint_logs'];
+                                }
+                                if (window.tableCache) {
+                                    delete window.tableCache['Fingerprint_Logs'];
+                                    delete window.tableCache['fingerprint_logs'];
+                                }
+                                if (window.tableQueryCache) {
+                                    delete window.tableQueryCache['Fingerprint_Logs'];
+                                    delete window.tableQueryCache['fingerprint_logs'];
+                                }
+                                if (typeof showSuccessModal === 'function') {
+                                    showSuccessModal("Scan Successful!", `Your attendance has been recorded.<br><span class="text-xs text-gray-500 mt-3 block font-medium">Loc: ${locStr}</span>`);
+                                }
+                                if (typeof loadTodayAttendance === 'function') loadTodayAttendance();
+                                if (role !== 'Staff') {
+                                    const input = document.getElementById('manualEmpId');
+                                    if (input) input.value = '';
+                                }
+                            } else {
+                                if (typeof showToast === 'function') showToast((res && res.message) || 'Failed to record attendance', 'error');
                             }
-                            if (window.tableCache) {
-                                delete window.tableCache['Fingerprint_Logs'];
-                                delete window.tableCache['fingerprint_logs'];
-                            }
-                            if (window.tableQueryCache) {
-                                delete window.tableQueryCache['Fingerprint_Logs'];
-                                delete window.tableQueryCache['fingerprint_logs'];
-                            }
-                            if (typeof showSuccessModal === 'function') {
-                                showSuccessModal("Scan Successful!", `Your attendance has been recorded.<br><span class="text-xs text-gray-500 mt-3 block font-medium">Loc: ${locStr}</span>`);
-                            }
-                            if (typeof loadTodayAttendance === 'function') loadTodayAttendance();
-                            if (role !== 'Staff') {
-                                const input = document.getElementById('manualEmpId');
-                                if (input) input.value = '';
-                            }
-                        } else {
-                            if (typeof showToast === 'function') showToast((res && res.message) || 'Failed to record attendance', 'error');
+                            setTimeout(() => { if (typeof isProcessingScan !== 'undefined') isProcessingScan = false; }, 2000);
+                        })
+                        .withFailureHandler(err => {
+                            if (typeof showToast === 'function') showToast('Connection failed: ' + (err.message || err), 'error');
+                            if (typeof toggleLoading === 'function') toggleLoading(false);
+                            setTimeout(() => { if (typeof isProcessingScan !== 'undefined') isProcessingScan = false; }, 2000);
+                        })
+                        .recordAttendance(cleanEmpId, scanType, lat, lng, locStr);
+                };
+
+                if (typeof toggleLoading === 'function') toggleLoading(true, `CHECKING GPS...`);
+
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+
+                        let currentBranch = null;
+                        let minDistance = Infinity;
+                        let nearestBranch = (typeof BRANCHES !== 'undefined') ? BRANCHES[0] : null;
+
+                        if (typeof BRANCHES !== 'undefined' && typeof calculateDistance === 'function') {
+                            BRANCHES.forEach(branch => {
+                                let dist = calculateDistance(lat, lng, branch.lat, branch.lng);
+                                if (dist <= branch.radius && dist < minDistance) {
+                                    minDistance = dist;
+                                    currentBranch = branch;
+                                } else if (dist < minDistance) {
+                                    minDistance = dist;
+                                    nearestBranch = branch;
+                                }
+                            });
                         }
-                        setTimeout(() => { if (typeof isProcessingScan !== 'undefined') isProcessingScan = false; }, 2000);
-                    })
-                    .withFailureHandler(err => {
-                        if (typeof showToast === 'function') showToast('Connection failed: ' + (err.message || err), 'error');
-                        if (typeof toggleLoading === 'function') toggleLoading(false);
-                        setTimeout(() => { if (typeof isProcessingScan !== 'undefined') isProcessingScan = false; }, 2000);
-                    })
-                    .recordAttendance(cleanEmpId, scanType, lat, lng, locStr);
-            };
 
-            if (typeof toggleLoading === 'function') toggleLoading(true, `CHECKING GPS...`);
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-
-                    let currentBranch = null;
-                    let minDistance = Infinity;
-                    let nearestBranch = (typeof BRANCHES !== 'undefined') ? BRANCHES[0] : null;
-
-                    if (typeof BRANCHES !== 'undefined' && typeof calculateDistance === 'function') {
-                        BRANCHES.forEach(branch => {
-                            let dist = calculateDistance(lat, lng, branch.lat, branch.lng);
-                            if (dist <= branch.radius && dist < minDistance) {
-                                minDistance = dist;
-                                currentBranch = branch;
-                            } else if (dist < minDistance) {
-                                minDistance = dist;
-                                nearestBranch = branch;
-                            }
-                        });
-                    }
-
-                    // ❌ STRICT GEOFENCE ENFORCEMENT: Block ALL non-SuperAdmin users outside branch circle radius!
-                    if (!currentBranch && !isSuperAdmin) {
-                        if (typeof toggleLoading === 'function') toggleLoading(false);
-                        if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
-                        const distMsg = minDistance !== Infinity ? ` (ห่าง ${Math.round(minDistance)} ม.)` : '';
-                        if (typeof showToast === 'function') showToast(`❌ ไม่อนุญาตให้ลงเวลา: คุณอยู่นอกพื้นที่ที่กำหนด${distMsg}`, "error");
-                        if (typeof showConfirmModal === 'function') {
-                            showConfirmModal(
-                                "❌ ไม่อนุญาตให้ลงเวลาทำงาน",
-                                `<div class="text-left space-y-2">
+                        // ❌ STRICT GEOFENCE ENFORCEMENT: Block ALL non-SuperAdmin users outside branch circle radius!
+                        if (!currentBranch && !isSuperAdmin) {
+                            if (typeof toggleLoading === 'function') toggleLoading(false);
+                            if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
+                            const distMsg = minDistance !== Infinity ? ` (ห่าง ${Math.round(minDistance)} ม.)` : '';
+                            if (typeof showToast === 'function') showToast(`❌ ไม่อนุญาตให้ลงเวลา: คุณอยู่นอกพื้นที่ที่กำหนด${distMsg}`, "error");
+                            if (typeof showConfirmModal === 'function') {
+                                showConfirmModal(
+                                    "❌ ไม่อนุญาตให้ลงเวลาทำงาน",
+                                    `<div class="text-left space-y-2">
                                     <p class="font-bold text-red-600">คุณอยู่นอกวงรัศมีที่กำหนดให้เช็คอิน-เช็คเอาท์!</p>
                                     <p class="text-xs text-gray-600">ตำแหน่งปัจจุบันของคุณอยู่ห่างจาก <b>${nearestBranch ? nearestBranch.name : 'สาขา'}</b> ประมาณ <b>${minDistance !== Infinity ? Math.round(minDistance) : '-'} เมตร</b> (รัศมีที่อนุญาต: <b>${nearestBranch ? nearestBranch.radius : 20} เมตร</b>)</p>
                                     <p class="text-xs text-red-500 font-bold mt-2">⛔ ระบบจะล็อกไม่ให้ลงเวลาจนกว่าคุณจะเข้าสู่พื้นที่สาขาที่กำหนด</p>
                                 </div>`,
-                                null, null, true, "เข้าใจแล้ว", ""
-                            );
+                                    null, null, true, "เข้าใจแล้ว", ""
+                                );
+                            }
+                            return;
                         }
-                        return;
-                    }
 
-                    let finalLocation = currentBranch ? currentBranch.name : `${locationText} (SuperAdmin Override/GPS)`;
-                    executeRecord(lat, lng, finalLocation);
-                }, err => {
-                    console.warn("GPS lookup failed/unavailable:", err);
+                        let finalLocation = currentBranch ? currentBranch.name : `${locationText} (SuperAdmin Override/GPS)`;
+                        executeRecord(lat, lng, finalLocation);
+                    }, err => {
+                        console.warn("GPS lookup failed/unavailable:", err);
+                        if (!isSuperAdmin) {
+                            if (typeof toggleLoading === 'function') toggleLoading(false);
+                            if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
+                            if (typeof showToast === 'function') showToast("❌ ไม่สามารถตรวจสอบตำแหน่ง GPS ได้ กรุณาเปิดระบบระบุตำแหน่ง", "error");
+                            if (typeof showConfirmModal === 'function') {
+                                showConfirmModal(
+                                    "❌ ไม่สามารถระบุตำแหน่ง GPS",
+                                    "ระบบต้องการตำแหน่ง GPS เพื่อตรวจสอบว่าคุณอยู่ในพื้นที่เช็คอิน-เช็คเอาท์ที่กำหนดไว้ กรุณาเปิด GPS และลองใหม่อีกครั้ง",
+                                    null, null, true, "เข้าใจแล้ว", ""
+                                );
+                            }
+                            return;
+                        }
+                        let finalLocation = `${locationText} (Manual)`;
+                        executeRecord(null, null, finalLocation);
+                    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+                } else {
                     if (!isSuperAdmin) {
                         if (typeof toggleLoading === 'function') toggleLoading(false);
                         if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
-                        if (typeof showToast === 'function') showToast("❌ ไม่สามารถตรวจสอบตำแหน่ง GPS ได้ กรุณาเปิดระบบระบุตำแหน่ง", "error");
-                        if (typeof showConfirmModal === 'function') {
-                            showConfirmModal(
-                                "❌ ไม่สามารถระบุตำแหน่ง GPS",
-                                "ระบบต้องการตำแหน่ง GPS เพื่อตรวจสอบว่าคุณอยู่ในพื้นที่เช็คอิน-เช็คเอาท์ที่กำหนดไว้ กรุณาเปิด GPS และลองใหม่อีกครั้ง",
-                                null, null, true, "เข้าใจแล้ว", ""
-                            );
-                        }
+                        if (typeof showToast === 'function') showToast("❌ อุปกรณ์นี้ไม่รองรับระบบระบุตำแหน่ง GPS", "error");
                         return;
                     }
                     let finalLocation = `${locationText} (Manual)`;
                     executeRecord(null, null, finalLocation);
-                }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
-            } else {
-                if (!isSuperAdmin) {
-                    if (typeof toggleLoading === 'function') toggleLoading(false);
-                    if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
-                    if (typeof showToast === 'function') showToast("❌ อุปกรณ์นี้ไม่รองรับระบบระบุตำแหน่ง GPS", "error");
-                    return;
                 }
-                let finalLocation = `${locationText} (Manual)`;
-                executeRecord(null, null, finalLocation);
-            }
-        };
-    })();
+            };
+        })();
     </script>
 
 </body>
