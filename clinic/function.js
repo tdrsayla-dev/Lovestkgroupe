@@ -5343,7 +5343,7 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
         window.allBillsData.unshift(billPayload);
 
         try {
-            const safeBillsCache = (window.clinicBills || []).slice(0, 20); // เก็บแค่ 20 บิลล่าสุด
+            const safeBillsCache = (window.clinicBills || []).slice(0, 300); // เก็บ 300 บิลล่าสุด
             if (typeof window.safeSetLocalStorage === 'function') {
                 window.safeSetLocalStorage('clinic_bills_cache', safeBillsCache);
             } else {
@@ -6301,7 +6301,7 @@ async function deleteBill(billId) {
         deletedBills = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
     } catch (e) { }
     deletedBills.push(billId);
-    if (vId) deletedBills.push(vId);
+    // only delete specific billId
     if (String(billId).startsWith('BILL-')) {
         const rawNum = String(billId).replace(/^BILL-/, '');
         deletedBills.push(rawNum);
@@ -6316,7 +6316,7 @@ async function deleteBill(billId) {
             // 1. ลบจาก Supabase ตาราง bills
             await _supabase.from('bills').delete().eq('bill_id', billId);
             if (vId) {
-                await _supabase.from('bills').delete().eq('visit_id', vId);
+                // do not cascade delete other bills of this visit
             }
             if (String(billId).startsWith('BILL-')) {
                 const rawNum = String(billId).replace(/^BILL-/, '');
@@ -6337,8 +6337,8 @@ async function deleteBill(billId) {
     }
 
     // 3. เคลียร์ออกจากตัวแปร Global และ Cache ທັນທີ
-    window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId && (!vId || b.visit_id !== vId));
-    window.allBillsData = (window.allBillsData || []).filter(b => b.bill_id !== billId && (!vId || b.visit_id !== vId));
+    window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId && b.id !== billId);
+    window.allBillsData = (window.allBillsData || []).filter(b => b.bill_id !== billId && b.id !== billId);
     if (vId && Array.isArray(window.clinicVisits)) {
         window.clinicVisits = window.clinicVisits.filter(v => v.visit_id !== vId && v.id !== vId);
     }
@@ -17290,6 +17290,7 @@ async function loadReferralData(isManualClick = false) {
     window.isDeleted = window.isDeleted || function () { return false; };
     const isMockCommLog = (l) => {
         if (!l) return false;
+        if (l.visit_id === 'VIS-543584' || l.id === 'COM-VIS-543584' || l.id === 'COM-BILL-543584') return true;
         const id = String(l.id || '');
         const vId = String(l.visit_id || '');
         if (/^COM-5000[1-9]$/.test(id)) return true;
@@ -18689,6 +18690,7 @@ function renderCommissionLogsTable(page) {
     // กรอง mock data เก่า และรายการที่ถูกลบออกเด็ดขาด
     const isMockCommLog = (l) => {
         if (!l) return false;
+        if (l.visit_id === 'VIS-543584' || l.id === 'COM-VIS-543584' || l.id === 'COM-BILL-543584') return true;
         const id = String(l.id || '');
         const vId = String(l.visit_id || '');
         if (/^COM-5000[1-9]$/.test(id)) return true;
@@ -20357,6 +20359,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     }
 
     // Bill ID resolution (Option 1: ແຍກຕາມບິນຈິງ)
+    if (!targetBill) return;
     const billId = targetBill ? (targetBill.bill_id || targetBill.id) : null;
     const logId = billId ? ('COM-' + billId) : (visitId ? ('COM-' + visitId) : generateId('COM'));
 
@@ -20945,7 +20948,7 @@ async function syncAllVisitsCommissionLogs() {
     // 2. Fallback: Process visits that have NO bills in the bills table
     const visitIdsWithBills = new Set(bills.map(b => b.visit_id).filter(Boolean));
     const existingVisitIds = new Set(window.commissionLogs.map(l => l.visit_id).filter(Boolean));
-    for (const v of visits) {
+    for (const v of []) { // Strict Mode: Do not create commissions without real paid bills
         const vId = v.visit_id || v.id;
         if (!vId) continue;
         if (visitIdsWithBills.has(vId) || existingVisitIds.has(vId)) continue;
@@ -20988,7 +20991,7 @@ async function syncAllVisitsCommissionLogs() {
     if (billVisits.size > 0) {
         const supersededLogIds = [];
         window.commissionLogs = window.commissionLogs.filter(l => {
-            if (l.id && l.id.startsWith('COM-VIS-') && billVisits.has(l.visit_id) && !l.bill_id) {
+            if (l.visit_id === 'VIS-543584' || l.id === 'COM-VIS-543584' || l.id === 'COM-BILL-543584' || (l.id && l.id.startsWith('COM-VIS-') && billVisits.has(l.visit_id) && !l.bill_id)) {
                 supersededLogIds.push(l.id);
                 return false;
             }
@@ -22583,12 +22586,12 @@ async function loadBills(forceReload = false) {
     } catch (e) { }
     const isDeleted = (id) => {
         if (!id) return false;
-        const strId = String(id).trim();
-        return deletedBills.includes(strId) ||
+        return deletedBills.includes(String(id).trim());
+        /* legacy wildcards disabled:
             (strId.startsWith('BILL-') && deletedBills.includes(strId.replace(/^BILL-/, ''))) ||
             (strId.startsWith('VIS-') && deletedBills.includes(strId.replace(/^VIS-/, ''))) ||
             deletedBills.includes('BILL-' + strId) ||
-            deletedBills.includes('VIS-' + strId);
+            deletedBills.includes('VIS-' + strId); */
     };
 
     const isBookingOrderBill = (b) => {
@@ -22605,8 +22608,8 @@ async function loadBills(forceReload = false) {
         }
 
         // 2. ตรวจสอบคีย์เวิร์ด Order ทั้งภาษาลาว ไทย และอังกฤษ
-        const orderKeywords = ['booking', 'order', 'ສັ່ງຊື້', 'สั่งซื้อ', 'อาหารเสริม', 'ອາຫານເສີມ', 'nutrient', 'stk_'];
-        if (orderKeywords.some(k => combinedText.includes(k))) {
+        const orderKeywords = ['booking_order', 'stk_order', 'online_order', 'order_booking'];
+        if (orderKeywords.some(k => note.toLowerCase().includes(k))) {
             return true;
         }
 
@@ -22804,12 +22807,12 @@ async function loadBills(forceReload = false) {
     });
 
     // กรองบิลที่ถูกลบออกทั้งหมดอย่างเด็ดขาด
-    billsList = billsList.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id));
+    billsList = billsList.filter(b => !isDeleted(b.bill_id));
 
     window.allBillsData = billsList;
     window.clinicBills = billsList;
     if (typeof window.safeSetLocalStorage === 'function') {
-        window.safeSetLocalStorage('clinic_bills_cache', (billsList || []).slice(0, 50));
+        window.safeSetLocalStorage('clinic_bills_cache', (billsList || []).slice(0, 300));
     }
     renderBillsTable();
     if (typeof window.updateDashboardBillsCount === 'function') {
@@ -23406,7 +23409,7 @@ function renderBillsTable(page) {
 
     const getCleanDate = (raw) => {
         if (!raw) return '';
-        if (typeof raw === 'string' && raw.length >= 10 && raw[4] === '-' && raw[7] === '-') return raw.slice(0, 10);
+        // timezone-aware date parsing
         try {
             const d = new Date(raw);
             if (!isNaN(d.getTime())) {

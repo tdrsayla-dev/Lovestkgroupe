@@ -32,9 +32,10 @@
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
-        // ป้องกัน Uncaught (in promise) AbortError เมื่อเบราว์เซอร์หรือ Extension เรียก play() แล้วโดน pause() ขัดจังหวะ
+        // ป้องกัน Uncaught (in promise) AbortError หรือ network change drop
         window.addEventListener('unhandledrejection', function (e) {
-            if (e.reason && (e.reason.name === 'AbortError' || (e.reason.message && e.reason.message.includes('interrupted by a call to pause')))) {
+            const msg = String(e.reason?.message || e.reason || '');
+            if (e.reason && (e.reason.name === 'AbortError' || msg.includes('interrupted by a call to pause') || msg.includes('NETWORK_CHANGED') || msg.includes('Failed to fetch'))) {
                 e.preventDefault();
             }
         });
@@ -3076,7 +3077,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" data-src="report.html?v=5.0" src="" loading="lazy"
+            <iframe id="doctorReportFrame" data-src="report.html?v=5.2" src="" loading="lazy"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -5066,7 +5067,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=4.0.0"></script>
+    <script src="function.js?v=5.4"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.5"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
