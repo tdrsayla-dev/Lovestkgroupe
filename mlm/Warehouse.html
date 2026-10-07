@@ -334,7 +334,12 @@
           const fetchMovementsPromise = (async () => {
             if (typeof window.supabaseSelect === 'function') {
               try {
-                return await window.supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=300' + cacheParam);
+                // อัปเดต: ใส่ select เพื่อดึงเฉพาะคอลัมน์ที่มีในฐานข้อมูลจริง (ตัด warehouse_id ทิ้ง) 
+                // และปรับ limit เป็น 2000 เพื่อดึงประวัติย้อนหลังมาหักสต๊อกหน้าร้านให้ถูกต้องครบถ้วน
+                return await window.supabaseSelect(
+                  'stk_stock_movements', 
+                  'select=product_id,type,sub_type,quantity,date,created_at,notes,created_by&order=created_at.desc&limit=2000' + cacheParam
+                );
               } catch(e) {
                 console.warn('fetchMovements error:', e);
               }
@@ -378,7 +383,7 @@
           const fetchSalesPromise = (async () => {
             if (auditDate && typeof window.supabaseSelect === 'function') {
               try {
-                return await window.supabaseSelect('stk_sales', `date=eq.${auditDate}&limit=1000` + cacheParam);
+                return await window.supabaseSelect('stk_stock_movements', 'select=product_id,type,sub_type,quantity,date,created_at,notes&order=created_at.desc&limit=2000' + cacheParam);
               } catch(e) {
                 console.warn('fetchSales error:', e);
               }
@@ -829,11 +834,24 @@
           const q = Number(m.quantity || 0);
           if (q <= 0) return;
 
-          const subType = String(m.sub_type || '');
+          const subType = String(m.sub_type || '').toLowerCase();
+          const notesStr = String(m.notes || '').toLowerCase();
           const mTime = m.created_at || (m.date ? m.date + 'T00:00:00Z' : '') || '';
+          const whId = String(m.warehouse_id || '').toUpperCase();
+
+          // ข้ามบิลที่ระบุชัดเจนว่าตัดจากคลังใหญ่ (ไม่นำมาหักสต๊อกหน้าร้าน)
+          const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
+
+          const isSaleOut = m.type === 'OUT' && 
+                            (subType.includes('ขาย') || subType.includes('ตัดสต๊อก') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale')) && 
+                            !subType.includes('เบิกย้าย') && !notesStr.includes('เบิกย้าย') && !isMainWh;
+
+          const isSaleReturn = m.type === 'IN' && 
+                               (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && 
+                               !isMainWh;
 
           // การตัดสต๊อกขายออกจากหน้าร้าน (ไม่นับการเบิกย้าย TRF)
-          if (m.type === 'OUT' && (subType.includes('ขาย') || subType.includes('ตัดสต๊อก')) && !subType.includes('เบิกย้าย')) {
+          if (isSaleOut) {
             if (!map[pid].frontEvents) map[pid].frontEvents = [];
             map[pid].frontEvents.push({
               type: 'SALE_OUT',
@@ -842,7 +860,7 @@
             });
           }
           // การคืนสต๊อกเข้าหน้าร้านจากการลบบิล / ยกเลิกบิล
-          else if (m.type === 'IN' && (subType.includes('คืนสต๊อก') || subType.includes('ยกเลิก'))) {
+          else if (isSaleReturn) {
             if (!map[pid].frontEvents) map[pid].frontEvents = [];
             map[pid].frontEvents.push({
               type: 'SALE_RETURN',
