@@ -2360,7 +2360,7 @@
                         members: formattedMembers,
                         customers: formattedCustomers.slice(0, 1000).map(c => ({ id: c.id, name: c.name, type: c.type, closer: c.closer, memberId: c.memberId })),
                         businessTeams: formattedTeams,
-                        sales: processedSales.slice(0, 1000)
+                        sales: processedSales
                     };
                     localStorage.setItem('stk_reports_cache_data', JSON.stringify(cachePayload));
                     localStorage.setItem('stk_app_cache_data', JSON.stringify(cachePayload));

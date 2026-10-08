@@ -102,8 +102,9 @@
     }) {
         let items = [];
         const dateFilteredSales = (sales || []).filter(s => {
-            const sDate = s.date || s.sale_date || '';
-            if (!s || sDate < startDate || sDate > endDate) return false;
+            const rawD = String(s.date || s.sale_date || '').trim();
+            const sDate = rawD.includes('T') ? rawD.split('T')[0] : (rawD.includes(' ') ? rawD.split(' ')[0] : rawD);
+            if (!s || (startDate && sDate < startDate) || (endDate && sDate > endDate)) return false;
             const sMemId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
             if (permittedMemberSet !== null) return permittedMemberSet.has(sMemId);
             return true;

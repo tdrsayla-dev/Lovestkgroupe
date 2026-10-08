@@ -147,7 +147,25 @@
     }));
   };
 
-   // ─── 2.5 Auto-Correct Classification Helper ──────────────────────
+    // ─── 2.4 Commission Eligibility Helper ───────────────────────────
+  function isProductEligibleForReferral(prodConfig) {
+      if (!prodConfig) return false;
+      const givePv = Number(prodConfig.givePv ?? prodConfig.give_pv ?? prodConfig.b2n_give_pv ?? 0);
+      const selfFee = Number(prodConfig.selfFee ?? prodConfig.self_fee ?? prodConfig.directFee ?? prodConfig.level0Fee ?? 0);
+      const l1Fee = Number(prodConfig.level1Fee ?? prodConfig.level_1_fee ?? prodConfig.uplineFee ?? prodConfig.l1Rate ?? 0);
+      const selfPctFull = Number(prodConfig.selfPercentFull ?? prodConfig.self_percent_full ?? prodConfig.selfPercent ?? 0);
+      const selfPctMem = Number(prodConfig.selfPercentMember ?? prodConfig.self_percent_member ?? 0);
+      
+      if (givePv > 0 || selfFee > 0 || l1Fee > 0 || selfPctFull > 0 || selfPctMem > 0) return true;
+      for (let l = 2; l <= 10; l++) {
+          if (Number(prodConfig[`level${l}Fee`] ?? prodConfig[`level_${l}_fee`] ?? 0) > 0) return true;
+          if (Number(prodConfig[`level${l}PercentFull`] ?? prodConfig[`level_${l}_percent_full`] ?? 0) > 0) return true;
+          if (Number(prodConfig[`level${l}PercentMember`] ?? prodConfig[`level_${l}_percent_member`] ?? 0) > 0) return true;
+      }
+      return false;
+  }
+
+  // ─── 2.5 Auto-Correct Classification Helper ──────────────────────
   function classifyOrderItem(it, prodMapObj = {}) {
       const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
           ? Number(it.price)
@@ -187,13 +205,19 @@
       // 3. ตรวจสอบจากช่องประเภท (Type)
       let pType = 'ราคาเต็ม';
       if (typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('ຟຣີ') || typeStr.includes('ແຖມ') || typeStr === 'zero' || typeStr === 'free') pType = 'ราคาศูนย์';
-      else if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສດ')) pType = 'ราคาโปร';
+      else if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສด')) pType = 'ราคาโปร';
       else if (typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ')) pType = 'ราคาสมาชิก';
       else if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ') || typeStr.includes('ເຕັມ')) pType = 'ราคาเต็ม';
 
-      // 4. AUTO-CORRECT
+      // 4. AUTO-CORRECT & ตรวจสอบสิทธิ์คิดคอมมิชชั่น (Commission Eligibility)
       const hasProductData = !!(pObj.id || pObj.product_id);
       if (hasProductData) {
+          // หากสินค้านี้ไม่มีการตั้งค่าคอมมิชชั่นและไม่มีแต้ม PV (เช่น ยาแก้คัน, สินค้าตัวอย่าง, กาแฟเรท 0)
+          // ให้ตัดออกจากการนับ "ราคาเต็ม" หรือ "ราคาสมาชิก" เพื่อไม่ให้ยอดกล่องคิดเงินในรีพอร์ตกับแดชบอร์ดเพี้ยนกัน
+          if (!isProductEligibleForReferral(pObj) && pType !== 'ราคาโปร') {
+              return 'ราคาศูนย์';
+          }
+
           if (pType === 'ราคาโปร' && pPromo === 0) {
               return pMember > 0 ? 'ราคาสมาชิก' : 'ราคาเต็ม';
           }
@@ -401,7 +425,7 @@
     return { teamsList, memberTargetData: Object.values(mTargetData).sort((a, b) => b.actual - a.actual) };
   };
 
-  const calcTeamTopStats = ({ sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate }) => {
+  const calcTeamTopStats = ({ sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate, products = [] }) => {
     const map = {};
     (activeBusinessTeams || []).forEach(t => {
       map[t.id] = { 
@@ -411,6 +435,15 @@
         newCustSet: new Set(), totalCheckups: 0
       };
     });
+
+    const prodMap = {};
+    (products || []).forEach(p => {
+      if (p.id) prodMap[safeUpper(p.id)] = p;
+      if (p.product_id) prodMap[safeUpper(p.product_id)] = p;
+      if (p.name) prodMap[safeUpper(p.name)] = p;
+      if (p.name) prodMap[safeUpper(p.name.replace(/\(.*?\)/g, '').trim())] = p;
+    });
+    const hasProdMap = Object.keys(prodMap).length > 0;
 
     const filteredSales = (sales || []).filter(s => {
       if (!s) return false;
@@ -442,19 +475,37 @@
       });
 
       if (targetTeamId && map[targetTeamId]) {
-        let fQty = s?.['รวมชิ้นราคาเต็ม'] !== undefined ? Number(s['รวมชิ้นราคาเต็ม']) : Number(s?.fullQty || s?.full_qty || s?.full_boxes || 0);
-        let mQty = s?.['รวมชิ้นราคาสมาชิก'] !== undefined ? Number(s['รวมชิ้นราคาสมาชิก']) : Number(s?.memberQty || s?.member_qty || s?.member_boxes || 0);
-        let pQty = s?.['รวมชิ้นราคาโปร'] !== undefined ? Number(s['รวมชิ้นราคาโปร']) : Number(s?.promoQty || s?.promo_qty || s?.promo_boxes || 0);
-        let zQty = s?.['รวมชิ้นราคาศูนย์'] !== undefined ? Number(s['รวมชิ้นราคาศูนย์']) : Number(s?.zeroQty || s?.zero_qty || s?.zero_boxes || 0);
+        let fQty = 0, mQty = 0, pQty = 0, zQty = 0;
+        let itemsList = [];
+        if (s.items_json) {
+          try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+        }
+
+        if (Array.isArray(itemsList) && itemsList.length > 0 && hasProdMap) {
+          itemsList.forEach(it => {
+            const typeStr = classifyOrderItem(it, prodMap);
+            const qtyNum = Number(it.qty || it.quantity || 1);
+            if (typeStr === 'ราคาเต็ม') fQty += qtyNum;
+            else if (typeStr === 'ราคาสมาชิก') mQty += qtyNum;
+            else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') pQty += qtyNum;
+            else zQty += qtyNum;
+          });
+        } else {
+          fQty = s?.['รวมชิ้นราคาเต็ม'] !== undefined ? Number(s['รวมชิ้นราคาเต็ม']) : Number(s?.fullQty || s?.full_qty || s?.full_boxes || 0);
+          mQty = s?.['รวมชิ้นราคาสมาชิก'] !== undefined ? Number(s['รวมชิ้นราคาสมาชิก']) : Number(s?.memberQty || s?.member_qty || s?.member_boxes || 0);
+          pQty = s?.['รวมชิ้นราคาโปร'] !== undefined ? Number(s['รวมชิ้นราคาโปร']) : Number(s?.promoQty || s?.promo_qty || s?.promo_boxes || 0);
+          zQty = s?.['รวมชิ้นราคาศูนย์'] !== undefined ? Number(s['รวมชิ้นราคาศูนย์']) : Number(s?.zeroQty || s?.zero_qty || s?.zero_boxes || 0);
+        }
 
         if (fQty === 0 && mQty === 0 && pQty === 0 && zQty === 0) {
           const totalBoxes = parseSaleBoxes(s);
           if (totalBoxes > 0) mQty = totalBoxes;
         }
 
+        // ยอดขายกล่องทั้งหมดของทีม = ราคาเต็ม + ราคาสมาชิก + โปรโมชั่น
         const sumBoxes = fQty + mQty + pQty;
 
-        if (sumBoxes > 0) {
+        if (fQty > 0 || mQty > 0 || pQty > 0 || zQty > 0) {
           map[targetTeamId].full += fQty;
           map[targetTeamId].mem += mQty;
           map[targetTeamId].promo += pQty;
@@ -874,7 +925,9 @@
     calcDailyTopSales,
     calcZeroSalesData,
     calcSalesByCustomerTypeData,
-    filterTargetHistory
+    filterTargetHistory,
+    classifyOrderItem,
+    isProductEligibleForReferral
   };
 
   console.log('%c📊 MlmLogic Engine loaded successfully', 'color:#10b981;font-weight:bold');

@@ -150,7 +150,7 @@
     // ==========================================
     // 📌 Dashboard View Component
     // ==========================================
-    const DashboardView = ({ sales, members, customers, isAdmin, activeCustomerTypes, businessTeams, initialTargetHistory, fetchSalesForPeriod, fetchFreshData, isSyncing }) => {
+    const DashboardView = ({ sales, members, customers, products, isAdmin, activeCustomerTypes, businessTeams, initialTargetHistory, fetchSalesForPeriod, fetchFreshData, isSyncing }) => {
         const todayStr = getLocalISODate();
         const firstDayOfMonthStr = `${todayStr.substring(0, 7)}-01`;
         const defaultRange = window.MlmLogic ? window.MlmLogic.getDefaultMonthRange() : { start: `${new Date().getFullYear()}-01-01`, end: `${new Date().getFullYear()}-12-31` };
@@ -390,9 +390,9 @@
         const teamTopStats = useMemo(() => {
             if (!window.MlmLogic) return [];
             return window.MlmLogic.calcTeamTopStats({
-                sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate
+                sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate, products
             });
-        }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customers]);
+        }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customers, products]);
 
         const topPerformanceData = useMemo(() => {
             if (!window.MlmLogic) return [];
@@ -2131,6 +2131,7 @@
 
                       <DashboardView 
                         sales={sales} 
+                        products={products}
                         fetchFreshData={fetchFreshData}
                         fetchSalesForPeriod={fetchSalesForPeriod}
                         members={members} 
