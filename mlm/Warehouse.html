@@ -1706,11 +1706,40 @@
           } else {
             // Fallback: Net movements (OUT sales minus IN returns)
             const salesOut = movements
-              .filter(m => (m.date === auditDate || (m.created_at && m.created_at.slice(0, 10) === auditDate)) && m.product_id === pid && m.type === 'OUT' && (String(m.sub_type || '').includes('ขาย') || String(m.notes || '').includes('บิล')))
+              .filter(m => {
+                const isToday = (m.date === auditDate || (m.created_at && m.created_at.slice(0, 10) === auditDate));
+                if (!isToday || m.product_id !== pid || m.type !== 'OUT') return false;
+                
+                const subType = String(m.sub_type || '').toLowerCase();
+                const notesStr = String(m.notes || '').toLowerCase();
+                const whId = String(m.warehouse_id || '').toUpperCase();
+                
+                // ดักจับ: ต้องไม่ใช่คลังใหญ่ และต้องไม่ใช่ใบเบิก หรือใบรับเข้า
+                const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
+                const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+
+                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale')) && !isTransfer && !isGrn && !isMainWh;
+              })
               .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
+
             const salesReturn = movements
-              .filter(m => (m.date === auditDate || (m.created_at && m.created_at.slice(0, 10) === auditDate)) && m.product_id === pid && m.type === 'IN' && (String(m.sub_type || '').includes('คืน') || String(m.sub_type || '').includes('ยกเลิก') || String(m.notes || '').includes('คืน') || String(m.notes || '').includes('Cancel')))
+              .filter(m => {
+                const isToday = (m.date === auditDate || (m.created_at && m.created_at.slice(0, 10) === auditDate));
+                if (!isToday || m.product_id !== pid || m.type !== 'IN') return false;
+                
+                const subType = String(m.sub_type || '').toLowerCase();
+                const notesStr = String(m.notes || '').toLowerCase();
+                const whId = String(m.warehouse_id || '').toUpperCase();
+                
+                const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
+                const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+
+                return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMainWh;
+              })
               .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
+
             dateSales = Math.max(0, salesOut - salesReturn);
           }
 
