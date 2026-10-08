@@ -886,10 +886,19 @@
         // 1. ดึงจาก Supabase
         if (typeof window.supabaseSelect === 'function') {
             try {
-                let query = `transfer_id=ilike.GRN*%26order=created_at.desc&limit=100`;
-                if (domainType) query = `domain_type=eq.${encodeURIComponent(domainType)}&` + query;
+                let query = 'order=created_at.desc&limit=200';
+                if (domainType) {
+                    query = `domain_type=eq.${encodeURIComponent(domainType)}&` + query;
+                }
                 const res = await window.supabaseSelect('stk_warehouse_transfers', query);
-                if (Array.isArray(res)) list = res;
+                if (Array.isArray(res)) {
+                    list = res.filter(r => {
+                        const tid = String(r.transfer_id || '').toUpperCase();
+                        const fromWh = String(r.from_warehouse || '').toUpperCase();
+                        const notes = String(r.notes || '').toUpperCase();
+                        return tid.startsWith('GRN') || tid.includes('GRN') || fromWh === 'SUPPLIER' || notes.includes('GRN') || notes.includes('ใบรับ');
+                    });
+                }
             } catch(e) {
                 console.warn('fetchGrnHistory Supabase fallback:', e);
             }
@@ -903,15 +912,16 @@
                 list.forEach(item => { if (item.transfer_id) map[item.transfer_id] = item; });
                 local.forEach(item => {
                     if (item.transfer_id && !map[item.transfer_id]) {
-                        if (!domainType || item.domain_type === domainType) {
+                        if (!domainType || !item.domain_type || item.domain_type === domainType) {
                             list.push(item);
+                            map[item.transfer_id] = item;
                         }
                     }
                 });
             }
         } catch(e) {}
 
-        return list.sort((a, b) => (b.transfer_date || '').localeCompare(a.transfer_date || ''));
+        return list.sort((a, b) => (b.created_at || b.transfer_date || '').localeCompare(a.created_at || a.transfer_date || ''));
     }
 
     /**

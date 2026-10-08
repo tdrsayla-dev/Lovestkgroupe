@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -332,38 +332,14 @@
             // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก
             const [data, salesRes, custRes, membersRes, clinicPatientsRes] = await Promise.all([
               window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
-              window.supabaseSelect('stk_sales', 'select=order_id,payment_note&order=created_at.desc&limit=300' + cacheParam).catch(() => []),
+              window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id').catch(() => []),
               window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by') : Promise.resolve([])).catch(() => [])
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone_number') : Promise.resolve([])).catch(() => [])
             ]);
 
             if (Array.isArray(membersRes) && membersRes.length > 0) {
               setMembersList(membersRes);
-            }
-
-            // Map ผู้แนะนำตัวจริงจากคลินิก (ตาราง patients)
-            const patientRefMap = new Map();
-            if (Array.isArray(clinicPatientsRes)) {
-              clinicPatientsRes.forEach(p => {
-                if (p && p.hn && p.referred_by) {
-                  patientRefMap.set(String(p.hn).trim().toUpperCase(), String(p.referred_by).trim());
-                }
-              });
-            }
-
-            // Map ผู้ดูแลลูกค้าเดิมจาก stk_customers
-            const custOwnerMap = new Map();
-            if (Array.isArray(custRes)) {
-              custRes.forEach(c => {
-                const owner = c.owner_member_id ? String(c.owner_member_id).trim() : '';
-                if (!owner) return;
-                if (c.customer_id) custOwnerMap.set(String(c.customer_id).trim().toUpperCase(), owner);
-                const clP = String(c.phone || '').replace(/[^0-9]/g, '');
-                if (clP.length >= 7) custOwnerMap.set(clP, owner);
-                const clN = String(c.name || '').trim().toLowerCase();
-                if (clN && clN !== '-' && clN !== '--') custOwnerMap.set(clN, owner);
-              });
             }
 
             // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales
@@ -378,27 +354,59 @@
               });
             }
 
-            // สร้าง Set ของลูกค้าเดิมในระบบเพื่อตรวจสอบความมีอยู่จริง
+            // ⚡ สร้าง Set ของลูกค้าเดิมในระบบเพื่อตรวจสอบความมีอยู่จริง (รองรับ HN ทุกรูปแบบ)
             const hnSet = new Set();
             const phoneSet = new Set();
             const nameSet = new Set();
+
+            const registerHnCandidates = (rawHn) => {
+              if (!rawHn) return;
+              const list = (typeof window.normalizeHnCandidates === 'function')
+                ? window.normalizeHnCandidates(rawHn)
+                : [String(rawHn).trim().toUpperCase()];
+              list.forEach(item => {
+                if (item && item !== '-' && item !== '--') hnSet.add(item);
+              });
+            };
+
+            // 1. จากตาราง stk_customers
             if (Array.isArray(custRes)) {
               custRes.forEach(c => {
-                if (c.customer_id) hnSet.add(String(c.customer_id).trim().toUpperCase());
+                if (c.customer_id) registerHnCandidates(c.customer_id);
                 const clP = String(c.phone || '').replace(/[^0-9]/g, '');
                 if (clP.length >= 7) phoneSet.add(clP);
                 const clN = String(c.name || '').trim().toLowerCase();
                 if (clN && clN !== '-' && clN !== '--') nameSet.add(clN);
               });
             }
+
+            // 2. จากตาราง patients ของระบบคลินิก
+            if (Array.isArray(clinicPatientsRes)) {
+              clinicPatientsRes.forEach(p => {
+                if (p && p.hn) registerHnCandidates(p.hn);
+                const pPhone = String(p.phone_number || p.phone || '').replace(/[^0-9]/g, '');
+                if (pPhone.length >= 7) phoneSet.add(pPhone);
+              });
+            }
+
+            // 3. จากประวัติการขายเดิมใน stk_sales
+            if (Array.isArray(salesRes)) {
+              salesRes.forEach(s => {
+                if (s && s.customer_id) registerHnCandidates(s.customer_id);
+              });
+            }
+
             setExistingCustomersData({ hns: hnSet, phones: phoneSet, names: nameSet });
 
             const checkCustomerExists = (hn, phone, name) => {
-              const h = String(hn || '').trim().toUpperCase();
+              const hCandidates = (typeof window.normalizeHnCandidates === 'function')
+                ? window.normalizeHnCandidates(hn)
+                : [String(hn || '').trim().toUpperCase()].filter(Boolean);
+              const hasHn = hCandidates.some(c => c && c !== '-' && hnSet.has(c));
               const p = String(phone || '').replace(/[^0-9]/g, '');
               const n = String(name || '').trim().toLowerCase();
               return Boolean(
-                (h && h !== '-' && hnSet.has(h)) ||
+                hasHn ||
                 (p && p.length >= 7 && phoneSet.has(p)) ||
                 (n && n !== '-' && nameSet.has(n))
               );
@@ -432,21 +440,7 @@
                     }).name
                   : (explicit || 'ลูกค้าใหม่มาตรวจ');
 
-                // 🛡️ Resolve ผู้แนะนำ (การตลาด) ตัวจริง ป้องกันกรณีคลินิกส่ง user ประจำจุดมาทับ
-                const hnUp = String(item.hn || item.customer_id || '').trim().toUpperCase();
-                const pClean = String(item.phone || item.customer_phone || '').replace(/[^0-9]/g, '');
-                const nClean = String(item.customer_name || item.customerName || '').trim().toLowerCase();
-                const clinicReferrer = (hnUp && hnUp !== '-') ? patientRefMap.get(hnUp) : null;
-                const custOwner = (hnUp && hnUp !== '-') ? custOwnerMap.get(hnUp) : (pClean ? custOwnerMap.get(pClean) : custOwnerMap.get(nClean));
-
-                let resolvedRecordedBy = item.recorded_by || '-';
-                if (clinicReferrer && clinicReferrer.trim() && clinicReferrer !== '-') {
-                  resolvedRecordedBy = clinicReferrer.trim();
-                } else if (custOwner && (!resolvedRecordedBy || resolvedRecordedBy === '-' || resolvedRecordedBy.toLowerCase().includes('admin'))) {
-                  const mObj = Array.isArray(membersRes) ? membersRes.find(m => m && (m.user_id === custOwner || m.id === custOwner)) : null;
-                  resolvedRecordedBy = mObj ? `${mObj.user_id || mObj.id} - ${mObj.name}` : custOwner;
-                }
-
+                const resolvedRecordedBy = item.recorded_by || item.seller_id || item.seller || item.salesperson || '-';
                 return {
                   id: item.order_id || String(item.id),
                   visit_id: item.visit_id || '-',
@@ -519,11 +513,19 @@
               total: Number(it.total || (it.price * it.qty) || 0)
             })) : [];
 
-            const isExistingLocal = Boolean(
-              (item.hn && item.hn !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(String(item.hn).trim().toUpperCase())) ||
-              (item.phone && existingCustomersData.phones && existingCustomersData.phones.has(String(item.phone).replace(/[^0-9]/g, ''))) ||
-              (item.customer_name && existingCustomersData.names && existingCustomersData.names.has(String(item.customer_name).trim().toLowerCase()))
-            );
+            const isExistingLocal = (() => {
+              if (existingCustomersData && existingCustomersData.hns) {
+                const candidates = (typeof window.normalizeHnCandidates === 'function')
+                  ? window.normalizeHnCandidates(item.hn)
+                  : [String(item.hn || '').trim().toUpperCase()];
+                if (candidates.some(c => c && c !== '-' && existingCustomersData.hns.has(c))) return true;
+                const p = String(item.phone || '').replace(/[^0-9]/g, '');
+                if (p && p.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(p)) return true;
+                const n = String(item.customer_name || '').trim().toLowerCase();
+                if (n && n !== '-' && existingCustomersData.names && existingCustomersData.names.has(n)) return true;
+              }
+              return false;
+            })();
 
             const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
             const resolvedLocalCustType = (typeof window.resolveVisitCustomerType === 'function')
@@ -735,11 +737,14 @@
           console.warn('Stock check error:', e);
         }
 
-        const hnUpper = String(order.hn || '').trim().toUpperCase();
+        const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
+          ? window.normalizeHnCandidates(order.hn)
+          : [String(order.hn || '').trim().toUpperCase()];
+        const isHnExisting = hnCandidates.some(c => c && c !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(c));
         const pClean = String(order.phone || '').replace(/[^0-9]/g, '');
         const nClean = String(order.customer_name || '').trim().toLowerCase();
         const isExistingCustomer = Boolean(
-          (hnUpper && hnUpper !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(hnUpper)) ||
+          isHnExisting ||
           (pClean && pClean.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pClean)) ||
           (nClean && nClean !== '-' && existingCustomersData.names && existingCustomersData.names.has(nClean))
         );
@@ -903,6 +908,10 @@
                 customer_type_th: finalCustTypeObj.th,
                 customer_type_en: finalCustTypeObj.en,
                 customer_type_manually_selected: true,
+                isExisting: Boolean(finalCustTypeObj.isOld || isOldCustomer),
+                isExistingCustomer: Boolean(finalCustTypeObj.isOld || isOldCustomer),
+                isOld: Boolean(finalCustTypeObj.isOld || isOldCustomer),
+                isOldCustomer: Boolean(finalCustTypeObj.isOld || isOldCustomer),
                 type: finalCustTypeObj.name,
                 items: (order.items || []).map(i => {
                   const typeLabel = typeof getItemTypeLabel === 'function' ? getItemTypeLabel(i) : (i.type || i.priceType || '');
@@ -1229,11 +1238,14 @@
                             <div className="flex items-center gap-1 mt-1 flex-wrap">
                               {(() => {
                                 const currentEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
-                                const hnUpper = String(ord.hn || '').trim().toUpperCase();
+                                const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
+                                  ? window.normalizeHnCandidates(ord.hn)
+                                  : [String(ord.hn || '').trim().toUpperCase()];
+                                const isHnInDb = hnCandidates.some(c => c && c !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(c));
                                 const pClean = String(ord.phone || '').replace(/[^0-9]/g, '');
                                 const nClean = String(ord.customer_name || '').trim().toLowerCase();
                                 const isExisting = Boolean(
-                                  (hnUpper && hnUpper !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(hnUpper)) ||
+                                  isHnInDb ||
                                   (pClean && pClean.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pClean)) ||
                                   (nClean && nClean !== '-' && existingCustomersData.names && existingCustomersData.names.has(nClean))
                                 );

@@ -1045,19 +1045,33 @@
 
                 let foundExistingCust = null;
 
-                // 1. ตรวจสอบด้วยรหัส HN ก่อนเป็นอันดับแรก (ถ้ามี HN ส่งมา ต้องค้นหาเทียบกับ HN เท่านั้น ห้ามข้ามไปเทียบเบอร์โทรคนละคน)
+                // 1. ตรวจสอบด้วยรหัส HN ก่อนเป็นอันดับแรก (ค้นหาเทียบกับ Normalized HN Candidate ทุกรูปแบบ)
                 if (pendingHn && pendingHn !== '-' && pendingHn !== '--') {
-                    foundExistingCust = (customers || []).find(c => c && (safeUpper(c.id) === safeUpper(pendingHn) || safeUpper(c.customer_id) === safeUpper(pendingHn)));
-                } else {
-                    // 2. ค้นหาจากเบอร์โทรเฉพาะกรณีที่ไม่ได้ระบุรหัส HN มาเท่านั้น เพื่อป้องกันไม่ให้ข้อมูลลูกค้าคนละ HN มาทับซ้อนกัน
-                    if (isValidPhone(pendingPhone)) {
-                        foundExistingCust = (customers || []).find(c => c && isValidPhone(c.phone) && cleanDigits(c.phone) === cleanDigits(pendingPhone));
-                    }
+                    const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
+                        ? window.normalizeHnCandidates(pendingHn)
+                        : [safeUpper(pendingHn)];
+                    const hnCandSet = new Set(hnCandidates.map(c => safeUpper(c)));
 
-                    // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ - หรือ --)
-                    if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--') {
-                        foundExistingCust = (customers || []).find(c => c && String(c.name || '').trim().toLowerCase() === pendingName.toLowerCase());
-                    }
+                    foundExistingCust = (customers || []).find(c => {
+                        if (!c) return false;
+                        const cId = safeUpper(c.id || c.customer_id);
+                        const cHn = safeUpper(c.hn);
+                        if (hnCandSet.has(cId) || (cHn && hnCandSet.has(cHn))) return true;
+                        if (typeof window.isHnMatch === 'function') {
+                            if (window.isHnMatch(pendingHn, c.id) || window.isHnMatch(pendingHn, c.customer_id) || window.isHnMatch(pendingHn, c.hn)) return true;
+                        }
+                        return false;
+                    });
+                }
+
+                // 2. ค้นหาจากเบอร์โทร (กรณีไม่พบจาก HN หรือไม่มี HN)
+                if (!foundExistingCust && isValidPhone(pendingPhone)) {
+                    foundExistingCust = (customers || []).find(c => c && isValidPhone(c.phone) && cleanDigits(c.phone) === cleanDigits(pendingPhone));
+                }
+
+                // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ - หรือ --)
+                if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--') {
+                    foundExistingCust = (customers || []).find(c => c && String(c.name || '').trim().toLowerCase() === pendingName.toLowerCase());
                 }
 
                 if (foundExistingCust) {
@@ -1186,8 +1200,15 @@
                     }
 
                     // 2. แมปประเภทลูกค้า (Customer Type) จากทุกภาษาให้เป็น Canonical Thai Name ที่ตรงกับ Dropdown และ Database 100%
+                    const isPendingOld = Boolean(
+                        pending.isExisting ||
+                        pending.isExistingCustomer ||
+                        pending.isOld ||
+                        pending.isOldCustomer ||
+                        (pending.customer_type && (pending.customer_type.includes('เก่า') || pending.customer_type.includes('ເກົ່າ')))
+                    );
                     const normType = (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id && !pending.customer_type_manually_selected)
-                        ? window.resolveVisitCustomerType(pending.visit_id, false, pending.customer_type, 'th')
+                        ? window.resolveVisitCustomerType(pending.visit_id, isPendingOld, pending.customer_type, 'th')
                         : ((typeof window.normalizeCustomerType === 'function')
                             ? window.normalizeCustomerType(pending.customer_type || pending.customer_type_id || pending.type, 'th', {
                                 disease: pending.disease,
@@ -2219,11 +2240,38 @@
                     }
                     newCustomerObj = { id: finalCustomerId, name: custData.name, phone: custData.phone, lineId: custData.lineId || '', type: custMode, symptom: custData.symptom, closerTeam: custData.closerTeam, closer: custData.closer, memberId: foundMember.id, memberName: foundMember.name };
                 } else {
-                    let originalCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(finalCustomerId));
+                    const findCustMatch = () => {
+                        const targetId = safeUpper(finalCustomerId);
+                        const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
+                            ? window.normalizeHnCandidates(finalCustomerId)
+                            : [targetId];
+                        const candSet = new Set(hnCandidates.map(c => safeUpper(c)));
+
+                        let matched = (customers || []).find(c => {
+                            if (!c) return false;
+                            const cId = safeUpper(c.id || c.customer_id);
+                            const cHn = safeUpper(c.hn);
+                            return candSet.has(cId) || (cHn && candSet.has(cHn));
+                        });
+                        if (matched) return matched;
+
+                        const pDigits = String(custData.phone || '').replace(/\D/g, '');
+                        if (pDigits.length >= 7) {
+                            matched = (customers || []).find(c => c && String(c.phone || '').replace(/\D/g, '') === pDigits);
+                            if (matched) return matched;
+                        }
+                        return null;
+                    };
+
+                    let originalCust = findCustMatch();
 
                     if (!originalCust) {
                         try {
-                            const dbCheck = await supabaseSelect('stk_customers', `customer_id=eq.${finalCustomerId}`);
+                            const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
+                                ? window.normalizeHnCandidates(finalCustomerId)
+                                : [finalCustomerId];
+                            const candParam = hnCandidates.map(c => encodeURIComponent(c)).join(',');
+                            const dbCheck = await supabaseSelect('stk_customers', `customer_id=in.(${candParam})&select=customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,member_id,member_name,extra_details_json&limit=1`);
                             if (Array.isArray(dbCheck) && dbCheck.length > 0) {
                                 const c = dbCheck[0];
                                 originalCust = {
@@ -2242,6 +2290,53 @@
                         } catch (e) {
                             console.warn('Checking customer owner in DB failed:', e);
                         }
+                    }
+
+                    // ⚡ ตรวจสอบเพิ่มเติมจากตาราง patients ของระบบคลินิก (จำกัดดึงเฉพาะฟิลด์จำเป็น และ limit=1)
+                    if (!originalCust) {
+                        try {
+                            if (typeof window.clinicSupabaseSelect === 'function') {
+                                const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
+                                    ? window.normalizeHnCandidates(finalCustomerId)
+                                    : [finalCustomerId];
+                                const candParam = hnCandidates.map(c => encodeURIComponent(c)).join(',');
+                                const pCheck = await window.clinicSupabaseSelect('patients', `hn=in.(${candParam})&select=hn,first_name,last_name,phone_number,phone,line_id,referred_by&limit=1`);
+                                if (Array.isArray(pCheck) && pCheck.length > 0) {
+                                    const p = pCheck[0];
+                                    const pName = [p.first_name, p.last_name].filter(Boolean).join(' ') || custData.name;
+                                    originalCust = {
+                                        id: finalCustomerId,
+                                        name: pName,
+                                        phone: p.phone_number || p.phone || custData.phone || '',
+                                        lineId: p.line_id || custData.lineId || '',
+                                        type: custMode,
+                                        symptom: custData.symptom || '',
+                                        closer: custData.closer || '',
+                                        closerTeam: custData.closerTeam || '',
+                                        memberId: foundMember ? foundMember.id : (p.referred_by || ''),
+                                        memberName: foundMember ? foundMember.name : (p.referred_by || '')
+                                    };
+                                }
+                            }
+                        } catch (pErr) {
+                            console.warn('Checking clinic patients table failed:', pErr);
+                        }
+                    }
+
+                    // ⚡ หากเป็นลูกค้าเก่าที่มีรหัส HN ชัดเจน แต่ยังไม่มีเรคคอร์ดใน stk_customers ให้ยอมรับและสร้างให้อัตโนมัติ ไม่บล็อกบิล
+                    if (!originalCust && finalCustomerId && finalCustomerId !== '-' && finalCustomerId !== '--') {
+                        originalCust = {
+                            id: finalCustomerId,
+                            name: custData.name,
+                            phone: custData.phone || '',
+                            lineId: custData.lineId || '',
+                            type: custMode,
+                            symptom: custData.symptom || '',
+                            closer: custData.closer || '',
+                            closerTeam: custData.closerTeam || '',
+                            memberId: foundMember ? foundMember.id : '',
+                            memberName: foundMember ? foundMember.name : ''
+                        };
                     }
 
                     if (!originalCust) {

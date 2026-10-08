@@ -35,14 +35,127 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=4"></script>
   <script src="dictionary.js"></script>
+  <script src="companySettings.js"></script>
   <script src="CommonComponents.js?v=4"></script>
   <script src="stockLogic.js?v=4"></script>
   <style>
     @media print {
-      body * { visibility: hidden; }
-      #printable-slip, #printable-slip *, #printable-grn-slip, #printable-grn-slip * { visibility: visible; }
-      #printable-slip, #printable-grn-slip { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; }
-      .no-print { display: none !important; }
+      /* 1. Global Print Canvas Reset */
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      /* 2. Hide all regular app navigation & background components */
+      aside,
+      header,
+      main,
+      #root > div > aside,
+      #root > div > div > header,
+      #root > div > div > main,
+      .no-print,
+      .no-print-zone {
+        display: none !important;
+      }
+
+      #root,
+      #root > div {
+        display: block !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        position: static !important;
+      }
+
+      body * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+
+      /* 3. Modals become normal document flow: full width, clean pagination, zero overlapping */
+      .print-modal-container {
+        position: static !important;
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        background: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        inset: auto !important;
+        z-index: auto !important;
+      }
+
+      .print-card-wrapper {
+        position: static !important;
+        display: block !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: #ffffff !important;
+      }
+
+      #printable-slip,
+      #printable-grn-slip,
+      #printable-ledger-slip {
+        position: static !important;
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 4mm 2mm !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+
+      /* 4. Natural Table Multi-Page Pagination */
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        page-break-inside: auto !important;
+      }
+
+      thead {
+        display: table-header-group !important;
+      }
+
+      tbody tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+
+      tfoot {
+        display: table-footer-group !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+
+      .signature-block-print {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
     }
   </style>
 </head>
@@ -115,6 +228,18 @@
       </svg>
     );
 
+    const Clock = ({ size = 20, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    );
+
+    const Download = ({ size = 20, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+      </svg>
+    );
+
     // =========================================================================
     // MAIN APP COMPONENT
     // =========================================================================
@@ -123,11 +248,68 @@
       const [currentUser, setCurrentUser] = useState(() => {
         try { return JSON.parse(localStorage.getItem('stk_current_user') || 'null'); } catch(e) { return null; }
       });
-      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [showLoginModal, setShowLoginModal] = useState(!localStorage.getItem('stk_current_user'));
       const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
       });
+
+      const companyInfo = useMemo(() => {
+        try {
+          if (typeof window.getCompanySettings === 'function') {
+            return window.getCompanySettings();
+          }
+          const direct = localStorage.getItem('stk_company_settings');
+          if (direct) return JSON.parse(direct);
+        } catch(e){}
+        return {
+          name: 'LOVE STK GROUPE',
+          branch: 'สำนักงานใหญ่ / คลินิกเวชกรรม',
+          address: 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)',
+          phone: '+856 20 85387291',
+          taxId: '',
+          logoUrl: ''
+        };
+      }, []);
+
+      // 🔐 Auth Handlers & Permissions
+      const handleLoginSuccess = useCallback((user) => {
+        try {
+          localStorage.setItem('stk_current_user', JSON.stringify(user));
+        } catch(e){}
+        setCurrentUser(user);
+        setShowLoginModal(false);
+        setToast({ show: true, message: `ยินดีต้อนรับคุณ ${user.name || user.username || 'ผู้ใช้งาน'}!`, type: 'success' });
+        setTimeout(() => setToast(prev => ({ ...prev, show: false })), 4000);
+      }, []);
+
+      const handleLogout = useCallback(() => {
+        if (typeof window.performGlobalLogout === 'function') {
+          window.performGlobalLogout(() => {
+            setCurrentUser(null);
+            setShowLoginModal(true);
+          });
+        } else {
+          try { localStorage.removeItem('stk_current_user'); } catch(e){}
+          setCurrentUser(null);
+          setShowLoginModal(true);
+          setToast({ show: true, message: 'ออกจากระบบเรียบร้อยแล้ว', type: 'info' });
+          setTimeout(() => setToast(prev => ({ ...prev, show: false })), 4000);
+        }
+      }, []);
+
+      // ตรวจสอบสถานะการเข้าใช้งาน ถ้าไม่ได้ล็อกอินให้เปิด Modal ทันที
+      useEffect(() => {
+        if (!currentUser) {
+          setShowLoginModal(true);
+        }
+      }, [currentUser]);
+
+      const isAdmin = currentUser?.role === 'แอดมิน' || currentUser?.permission_role === 'admin' || currentUser?.permission_role === 'ADMIN';
+      const userStockPerm = (typeof window.getUserPagePermission === 'function' && currentUser)
+        ? window.getUserPagePermission(currentUser, 'stock')
+        : (currentUser ? 'view' : 'none');
+      const canAccessWarehouse = !currentUser ? false : (isAdmin || userStockPerm !== 'none');
 
       // 🌓 Theme Sync (Light / Dark mode link)
       const [, forceThemeUpdate] = useReducer(x => x + 1, 0);
@@ -191,12 +373,37 @@
       const [auditHistorySessions, setAuditHistorySessions] = useState([]);
       const [isLoadingAuditHistory, setIsLoadingAuditHistory] = useState(false);
       const [auditSavedInfo, setAuditSavedInfo] = useState(null);
+      const [auditRecordsCache, setAuditRecordsCache] = useState(() => getCachedData('stk_warehouse_audit_cache', []));
 
       // Physical Count State for Daily Audit: { [productId]: countNumber }
       const [physicalCounts, setPhysicalCounts] = useState({});
       const [dailySalesMap, setDailySalesMap] = useState({});
       const [auditNotes, setAuditNotes] = useState('');
       const [isSavingAudit, setIsSavingAudit] = useState(false);
+
+      // 📍 Map จุดอ้างอิงปิดยอดล่าสุดของแต่ละสินค้า (Latest Daily Balance Checkpoint Map)
+      const latestCheckpointMap = useMemo(() => {
+        const map = {};
+        if (!Array.isArray(auditRecordsCache) || auditRecordsCache.length === 0) return map;
+        const sorted = [...auditRecordsCache].sort((a, b) => (b.balance_date || '').localeCompare(a.balance_date || ''));
+        sorted.forEach(row => {
+          const pid = row.product_id;
+          if (!pid) return;
+          if (!map[pid]) {
+            const closing = (row.physical_count_qty !== null && row.physical_count_qty !== undefined)
+              ? Number(row.physical_count_qty)
+              : Number(row.system_closing_qty || 0);
+            map[pid] = {
+              date: row.balance_date,
+              stock: closing,
+              physicalCount: row.physical_count_qty,
+              systemClosing: row.system_closing_qty,
+              status: row.audit_status
+            };
+          }
+        });
+        return map;
+      }, [auditRecordsCache]);
 
       // Multi-Item Stock In (GRN) States
       const [grnSubTab, setGrnSubTab] = useState('form'); // 'form' | 'history'
@@ -247,6 +454,8 @@
       const [transferHistorySearch, setTransferHistorySearch] = useState('');
       const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
       const [printSlipData, setPrintSlipData] = useState(null);
+      const [printLedgerData, setPrintLedgerData] = useState(null);
+      const [printOrientation, setPrintOrientation] = useState('landscape'); // 'landscape' | 'portrait'
       const [viewTransferDetailModal, setViewTransferDetailModal] = useState(null);
 
       // Lot Breakdown Detail Modal
@@ -254,6 +463,13 @@
 
       // 4. Data Fetching: Parallel Live Sync (Stale-While-Revalidate)
       const loadWarehouseData = useCallback(async (isSilent = false, forceRefresh = false) => {
+        // 🛡️ AUTH GUARD: ถ้ายังไม่ได้เข้าสู่ระบบหรือไม่ได้รับอนุญาต ห้ามยิงเรียกข้อมูล (ประหยัด Egress 100%)
+        if (!currentUser || !canAccessWarehouse) {
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+
         // ถ้ามีข้อมูลสินค้าเดิมแสดงอยู่แล้ว จะไม่ขึ้นหน้าหมุนเต็มจอให้ผู้ใช้ต้องรอ (Zero Loading Wait)
         if (!isSilent && products.length === 0) {
           setLoading(true);
@@ -323,7 +539,7 @@
           const fetchTransfersPromise = (async () => {
             if (typeof window.supabaseSelect === 'function') {
               try {
-                return await window.supabaseSelect('stk_warehouse_transfers', 'order=created_at.desc&limit=100' + cacheParam);
+                return await window.supabaseSelect('stk_warehouse_transfers', 'select=transfer_id,transfer_date,from_warehouse,to_warehouse,domain_type,items_json,total_items,status,created_at&order=created_at.desc&limit=50' + cacheParam);
               } catch(e) {
                 console.warn('fetchTransfers error:', e);
               }
@@ -334,9 +550,8 @@
           const fetchMovementsPromise = (async () => {
             if (typeof window.supabaseSelect === 'function') {
               try {
-                // อัปเดต: ใส่ select เพื่อดึงเฉพาะคอลัมน์ที่มีในฐานข้อมูลจริง (ตัด warehouse_id ทิ้ง) 
-                // และปรับ limit เป็น 2000 เพื่อดึงประวัติย้อนหลังมาหักสต๊อกหน้าร้านให้ถูกต้องครบถ้วน
-                return await window.supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=300' + cacheParam);
+                // ดึงความเคลื่อนไหวล่าสุดเฉพาะคอลัมน์สำคัญ (ประหยัด Egress สูงสุด)
+                return await window.supabaseSelect('stk_stock_movements', 'select=movement_id,date,product_id,type,sub_type,quantity,notes,created_at&order=created_at.desc&limit=100' + cacheParam);
               } catch(e) {
                 console.warn('fetchMovements error:', e);
               }
@@ -345,9 +560,10 @@
           })();
 
           const fetchAuditBalancePromise = (async () => {
-            if (auditDate && typeof window.supabaseSelect === 'function') {
+            if (typeof window.supabaseSelect === 'function') {
               try {
-                return await window.supabaseSelect('stk_daily_balance', `balance_date=eq.${auditDate}&limit=200`);
+                // ดึงประวัติปิดยอดสต็อกล่าสุด 300 รายการ เป็น Checkpoint ให้ทุกสินค้าในคราวเดียว
+                return await window.supabaseSelect('stk_daily_balance', 'select=id,balance_date,warehouse_id,product_id,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at&order=balance_date.desc&limit=300' + cacheParam);
               } catch(e) {
                 console.warn('fetchAuditBalance error:', e);
               }
@@ -380,7 +596,7 @@
           const fetchSalesPromise = (async () => {
             if (auditDate && typeof window.supabaseSelect === 'function') {
               try {
-                return await window.supabaseSelect('stk_stock_movements', 'select=product_id,type,sub_type,quantity,date,created_at,notes&order=created_at.desc&limit=2000' + cacheParam);
+                return await window.supabaseSelect('stk_sales', `select=date,items_json,status&date=eq.${auditDate}&limit=300` + cacheParam);
               } catch(e) {
                 console.warn('fetchSales error:', e);
               }
@@ -433,20 +649,63 @@
             try { sessionStorage.setItem('stk_warehouse_movements', JSON.stringify(movementsResult.value)); } catch(e){}
           }
 
-          // บันทึกและอัปเดต Audit Balance
+          // บันทึกและอัปเดต Audit Balance & Checkpoint Cache
           if (auditResult.status === 'fulfilled' && Array.isArray(auditResult.value) && auditResult.value.length > 0) {
-            const countMap = {};
-            let loadedNotes = '';
-            auditResult.value.forEach(b => {
-              if (b.physical_count_qty !== null && b.physical_count_qty !== undefined) {
-                countMap[b.product_id] = b.physical_count_qty;
+            setAuditRecordsCache(auditResult.value);
+            try { sessionStorage.setItem('stk_warehouse_audit_cache', JSON.stringify(auditResult.value)); } catch(e){}
+
+            // สร้าง Session History สรุปผลทันทีจากข้อมูลในหน่วยความจำ
+            const sessionMap = {};
+            auditResult.value.forEach(row => {
+              const key = `${row.balance_date}_${row.warehouse_id || 'FRONT_STORE'}`;
+              if (!sessionMap[key]) {
+                sessionMap[key] = {
+                  date: row.balance_date,
+                  warehouseId: row.warehouse_id || 'FRONT_STORE',
+                  auditedBy: row.audited_by || 'ADMIN',
+                  notes: row.audit_notes || '',
+                  createdAt: row.created_at,
+                  totalItems: 0,
+                  countedItems: 0,
+                  balancedItems: 0,
+                  diffItems: 0,
+                  hasDiscrepancy: false
+                };
               }
-              if (b.audit_notes && !loadedNotes) {
-                loadedNotes = b.audit_notes;
+              sessionMap[key].totalItems += 1;
+              if (row.physical_count_qty !== null && row.physical_count_qty !== undefined) {
+                sessionMap[key].countedItems += 1;
+                const diff = Number(row.diff_qty !== null && row.diff_qty !== undefined ? row.diff_qty : (Number(row.physical_count_qty) - Number(row.system_closing_qty || 0)));
+                if (diff === 0) sessionMap[key].balancedItems += 1;
+                else { sessionMap[key].diffItems += 1; sessionMap[key].hasDiscrepancy = true; }
               }
             });
-            setPhysicalCounts(prev => ({ ...prev, ...countMap }));
-            if (loadedNotes) setAuditNotes(loadedNotes);
+            setAuditHistorySessions(Object.values(sessionMap).sort((a, b) => b.date.localeCompare(a.date)));
+
+            // อัปเดตข้อมูลของ auditDate ถ้ามีบันทึกในระบบ
+            const currentDayRecords = auditResult.value.filter(b => b.balance_date === auditDate);
+            if (currentDayRecords.length > 0) {
+              const countMap = {};
+              let loadedNotes = '';
+              currentDayRecords.forEach(b => {
+                if (b.physical_count_qty !== null && b.physical_count_qty !== undefined) {
+                  countMap[b.product_id] = b.physical_count_qty;
+                }
+                if (b.audit_notes && !loadedNotes) loadedNotes = b.audit_notes;
+              });
+              setPhysicalCounts(countMap);
+              if (loadedNotes) setAuditNotes(loadedNotes);
+              setAuditSavedInfo({
+                date: auditDate,
+                auditedBy: currentDayRecords[0]?.audited_by || 'ADMIN',
+                count: currentDayRecords.length,
+                updatedAt: currentDayRecords[0]?.created_at,
+                hasPhysicalCount: currentDayRecords.some(b => b.physical_count_qty !== null && b.physical_count_qty !== undefined)
+              });
+            } else {
+              setPhysicalCounts({});
+              setAuditSavedInfo(null);
+            }
           }
 
           // บันทึกและอัปเดต Daily Sales Map (ยอดขายสำเร็จจริง)
@@ -458,11 +717,6 @@
               let items = [];
               if (bill.items_json) {
                 try { items = typeof bill.items_json === 'string' ? JSON.parse(bill.items_json) : bill.items_json; } catch(e){}
-              }
-              if (!Array.isArray(items) || items.length === 0) {
-                if (bill.items) {
-                  try { items = typeof bill.items === 'string' ? JSON.parse(bill.items) : bill.items; } catch(e){}
-                }
               }
               if (Array.isArray(items)) {
                 items.forEach(it => {
@@ -499,28 +753,34 @@
           setLoading(false);
           setRefreshing(false);
         }
-      }, [activeDomain, auditDate, products.length]);
+      }, [activeDomain, auditDate, products.length, currentUser, canAccessWarehouse]);
 
       useEffect(() => {
+        if (!currentUser || !canAccessWarehouse) return;
         // หากมีแคชอยู่แล้ว ให้โหลดเงียบๆ อัปเดตพื้นหลัง (Stale-While-Revalidate)
         const hasCache = products && products.length > 0;
         loadWarehouseData(hasCache);
-      }, [activeDomain]);
+      }, [activeDomain, currentUser, canAccessWarehouse]);
 
       // Load daily audit balances & daily sales when auditDate changes
       useEffect(() => {
-        if (!auditDate || typeof window.supabaseSelect !== 'function') return;
+        if (!currentUser || !canAccessWarehouse || !auditDate || typeof window.supabaseSelect !== 'function') return;
         (async () => {
           try {
-            const [balRes, salesRes] = await Promise.all([
-              window.supabaseSelect('stk_daily_balance', `balance_date=eq.${auditDate}&limit=200`).catch(() => []),
-              window.supabaseSelect('stk_sales', `date=eq.${auditDate}&limit=1000`).catch(() => [])
-            ]);
+            // 1. ตรวจสอบข้อมูลปิดยอดของ auditDate จาก cache ในหน่วยความจำก่อน (Zero Egress!)
+            let matchingBal = (auditRecordsCache || []).filter(b => b.balance_date === auditDate);
+            if (matchingBal.length === 0) {
+              const balRes = await window.supabaseSelect('stk_daily_balance', `balance_date=eq.${auditDate}&select=id,balance_date,warehouse_id,product_id,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at&limit=200`).catch(() => []);
+              if (Array.isArray(balRes) && balRes.length > 0) {
+                matchingBal = balRes;
+                setAuditRecordsCache(prev => [...balRes, ...(prev || []).filter(p => p.balance_date !== auditDate)]);
+              }
+            }
 
-            if (Array.isArray(balRes) && balRes.length > 0) {
+            if (matchingBal.length > 0) {
               const countMap = {};
               let loadedNotes = '';
-              balRes.forEach(b => {
+              matchingBal.forEach(b => {
                 if (b.physical_count_qty !== null && b.physical_count_qty !== undefined) {
                   countMap[b.product_id] = b.physical_count_qty;
                 }
@@ -532,15 +792,18 @@
               if (loadedNotes) setAuditNotes(loadedNotes);
               setAuditSavedInfo({
                 date: auditDate,
-                auditedBy: balRes[0]?.audited_by || 'ADMIN',
-                count: balRes.length,
-                updatedAt: balRes[0]?.created_at,
-                hasPhysicalCount: balRes.some(b => b.physical_count_qty !== null && b.physical_count_qty !== undefined)
+                auditedBy: matchingBal[0]?.audited_by || 'ADMIN',
+                count: matchingBal.length,
+                updatedAt: matchingBal[0]?.created_at,
+                hasPhysicalCount: matchingBal.some(b => b.physical_count_qty !== null && b.physical_count_qty !== undefined)
               });
             } else {
+              setPhysicalCounts({});
               setAuditSavedInfo(null);
             }
 
+            // 2. ดึงยอดขายประจำวัน เฉพาะคอลัมน์จำเป็นและจำกัดขอบเขต
+            const salesRes = await window.supabaseSelect('stk_sales', `date=eq.${auditDate}&select=bill_id,date,items_json,status&limit=500`).catch(() => []);
             if (Array.isArray(salesRes)) {
               const sMap = {};
               salesRes.forEach(bill => {
@@ -549,11 +812,6 @@
                 let items = [];
                 if (bill.items_json) {
                   try { items = typeof bill.items_json === 'string' ? JSON.parse(bill.items_json) : bill.items_json; } catch(e){}
-                }
-                if (!Array.isArray(items) || items.length === 0) {
-                  if (bill.items) {
-                    try { items = typeof bill.items === 'string' ? JSON.parse(bill.items) : bill.items; } catch(e){}
-                  }
                 }
                 if (Array.isArray(items)) {
                   items.forEach(it => {
@@ -576,7 +834,7 @@
             console.warn('auditDate fetch balance/sales error:', e);
           }
         })();
-      }, [auditDate, products]);
+      }, [auditDate, products, auditRecordsCache]);
 
       // โหลดประวัติกระทบยอดตามวันที่กำหนด (Ledger)
       const loadLedgerBalances = useCallback(async (targetDate) => {
@@ -584,7 +842,14 @@
         if (!d || typeof window.supabaseSelect !== 'function') return;
         setIsLoadingLedger(true);
         try {
-          const balRes = await window.supabaseSelect('stk_daily_balance', `balance_date=eq.${d}&limit=200`);
+          // ตรวจสอบใน auditRecordsCache ก่อน ถ้ามีไม่ต้องยิง Network (ประหยัด Egress 100%)
+          const matched = (auditRecordsCache || []).filter(r => r.balance_date === d);
+          if (matched.length > 0) {
+            setLedgerBalances(matched);
+            setIsLoadingLedger(false);
+            return;
+          }
+          const balRes = await window.supabaseSelect('stk_daily_balance', `balance_date=eq.${d}&select=id,balance_date,warehouse_id,product_id,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at&limit=200`);
           if (Array.isArray(balRes)) {
             setLedgerBalances(balRes);
           } else {
@@ -595,15 +860,52 @@
         } finally {
           setIsLoadingLedger(false);
         }
-      }, [ledgerDate]);
+      }, [ledgerDate, auditRecordsCache]);
 
       // โหลดสรุปประวัติการตรวจนับทั้งหมด (Sessions History) - ใช้คอลัมน์น้ำหนักเบา ประหยัดโควต้า
       const loadAuditHistorySessions = useCallback(async () => {
+        // ถ้า auditRecordsCache มีข้อมูลอยู่แล้ว ให้ประมวลผลจาก Cache ในหน่วยความจำเลย (Zero Egress!)
+        if (Array.isArray(auditRecordsCache) && auditRecordsCache.length > 0) {
+          const sessionMap = {};
+          auditRecordsCache.forEach(row => {
+            const key = `${row.balance_date}_${row.warehouse_id || 'FRONT_STORE'}`;
+            if (!sessionMap[key]) {
+              sessionMap[key] = {
+                date: row.balance_date,
+                warehouseId: row.warehouse_id || 'FRONT_STORE',
+                auditedBy: row.audited_by || 'ADMIN',
+                notes: row.audit_notes || '',
+                createdAt: row.created_at,
+                totalItems: 0,
+                countedItems: 0,
+                balancedItems: 0,
+                diffItems: 0,
+                hasDiscrepancy: false
+              };
+            }
+            sessionMap[key].totalItems += 1;
+            if (row.physical_count_qty !== null && row.physical_count_qty !== undefined) {
+              sessionMap[key].countedItems += 1;
+              const diff = Number(row.diff_qty !== null && row.diff_qty !== undefined ? row.diff_qty : (Number(row.physical_count_qty) - Number(row.system_closing_qty || 0)));
+              if (diff === 0) {
+                sessionMap[key].balancedItems += 1;
+              } else {
+                sessionMap[key].diffItems += 1;
+                sessionMap[key].hasDiscrepancy = true;
+              }
+            }
+          });
+          const list = Object.values(sessionMap).sort((a, b) => b.date.localeCompare(a.date));
+          setAuditHistorySessions(list);
+          return;
+        }
+
         if (typeof window.supabaseSelect !== 'function') return;
         setIsLoadingAuditHistory(true);
         try {
-          const res = await window.supabaseSelect('stk_daily_balance', 'select=balance_date,warehouse_id,audited_by,audit_status,audit_notes,created_at,diff_qty,physical_count_qty,system_closing_qty&order=balance_date.desc&limit=500');
+          const res = await window.supabaseSelect('stk_daily_balance', 'select=id,balance_date,warehouse_id,product_id,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at&order=balance_date.desc&limit=300');
           if (Array.isArray(res) && res.length > 0) {
+            setAuditRecordsCache(res);
             const sessionMap = {};
             res.forEach(row => {
               const key = `${row.balance_date}_${row.warehouse_id || 'FRONT_STORE'}`;
@@ -643,7 +945,7 @@
         } finally {
           setIsLoadingAuditHistory(false);
         }
-      }, []);
+      }, [auditRecordsCache]);
 
       // Load ledger balances when ledgerDate changes
       useEffect(() => {
@@ -825,38 +1127,95 @@
           }
         });
 
-        // 5. จัดสรรสต๊อก (หน้าร้าน = ประวัติ + ยอดนับจริง, คลังใหญ่ = ยอดรวม - หน้าร้าน)
+        // 5. จัดสรรสต๊อกตาม Checkpoint + Delta (หน้าร้าน = ยอดปิดล่าสุด + เบิกเข้าสะสม - ขายสะสม, คลังใหญ่ = ยอดรวม - หน้าร้าน)
         Object.values(map).forEach(item => {
           if (!item.isPromoBundle) {
-            const getTimeMs = (t) => { if (!t) return 0; const ms = new Date(t).getTime(); return isNaN(ms) ? 0 : ms; };
+            const pid = item.product.product_id;
 
-            item.frontEvents.sort((a, b) => {
-              const diff = getTimeMs(a.time) - getTimeMs(b.time);
-              if (diff !== 0) return diff;
-              if (a.type === 'TRANSFER_IN' && b.type !== 'TRANSFER_IN') return -1;
-              if (b.type === 'TRANSFER_IN' && a.type !== 'TRANSFER_IN') return 1;
-              return 0;
-            });
+            // 5.1 ตรวจสอบว่าในวันที่กำลังตรวจนับ มีการกรอกยอดนับจริงหรือไม่
+            const hasActivePhysicalCount = (physicalCounts[pid] !== undefined && physicalCounts[pid] !== null && physicalCounts[pid] !== '');
 
-            let runningFront = 0;
-            item.frontEvents.forEach(ev => {
-              if (ev.type === 'TRANSFER_IN') runningFront += ev.qty;
-              else if (ev.type === 'SALE_OUT') runningFront = Math.max(0, runningFront - ev.qty);
-              else if (ev.type === 'SALE_RETURN') runningFront += ev.qty;
-            });
+            // 5.2 จุดอ้างอิงปิดยอดล่าสุด (Checkpoint) จากตาราง stk_daily_balance
+            const cp = latestCheckpointMap[pid];
 
-            // 5.1 กำหนดสต๊อกหน้าร้าน
-            item.frontStock = Math.max(0, runningFront);
+            if (hasActivePhysicalCount) {
+              // ถ้ามีการใส่นับจริงในวันตรวจนับ ให้ล็อกหน้าร้านตามค่านั้นทันที
+              item.frontStock = Number(physicalCounts[pid]);
+            } else if (cp) {
+              // ใช้ Snapshot จากวันที่ปิดยอดล่าสุด (เช่น 2026-10-07 ได้ 57 ชิ้น)
+              const baseStock = Number(cp.stock || 0);
+              const cpDate = cp.date;
 
-            // 🔥 5.2 กฎเหล็ก: ถ้ามีการใส่ "ยอดนับจริง" ในวันนี้ ให้ล็อกยอดหน้าร้านเป็นค่านั้นทันที
-            if (physicalCounts[item.product.product_id] !== undefined && physicalCounts[item.product.product_id] !== null && physicalCounts[item.product.product_id] !== '') {
-                item.frontStock = Number(physicalCounts[item.product.product_id]);
+              // คำนวณเฉพาะ Transaction ที่เกิดขึ้น "หลังจาก" วันที่ปิดยอดล่าสุด (Delta Since Checkpoint)
+              let deltaIn = 0;
+              let deltaOut = 0;
+
+              // เบิกเข้าหน้าร้านหลังวัน Checkpoint
+              combinedTransfers.forEach(tr => {
+                if (!tr || tr.status === 'CANCELLED') return;
+                const trDate = (tr.transfer_date || tr.created_at || '').slice(0, 10);
+                if (trDate > cpDate) {
+                  const toWh = String(tr.to_warehouse || '').toUpperCase();
+                  if (toWh === 'FRONT_STORE' || toWh.includes('FRONT')) {
+                    let trItems = [];
+                    if (tr.items_json) { try { trItems = typeof tr.items_json === 'string' ? JSON.parse(tr.items_json) : tr.items_json; } catch(e){} }
+                    if (Array.isArray(trItems)) {
+                      trItems.forEach(it => {
+                        const trPid = it.productId || it.product_id || it.id;
+                        if (trPid === pid) {
+                          deltaIn += Number(it.qty || it.quantity || 0);
+                        }
+                      });
+                    }
+                  }
+                }
+              });
+
+              // รายการขาย และ คืนสินค้า หลังวัน Checkpoint
+              (movements || []).forEach(m => {
+                if (m.product_id !== pid) return;
+                const mDate = (m.date || m.created_at || '').slice(0, 10);
+                if (mDate > cpDate) {
+                  const q = Number(m.quantity || 0);
+                  if (q <= 0) return;
+                  const subType = String(m.sub_type || '').toLowerCase();
+                  const notesStr = String(m.notes || '').toLowerCase();
+                  const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                  const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+                  if (!isTransfer && !isGrn) {
+                    if (m.type === 'OUT') deltaOut += q;
+                    else if (m.type === 'IN') deltaIn += q;
+                  }
+                }
+              });
+
+              item.frontStock = Math.max(0, baseStock + deltaIn - deltaOut);
+            } else {
+              // กรณีสินค้าใหม่ยังไม่เคยผ่านการตรวจนับปิดยอด ให้ใช้ runningFront ตั้งต้น
+              const getTimeMs = (t) => { if (!t) return 0; const ms = new Date(t).getTime(); return isNaN(ms) ? 0 : ms; };
+
+              item.frontEvents.sort((a, b) => {
+                const diff = getTimeMs(a.time) - getTimeMs(b.time);
+                if (diff !== 0) return diff;
+                if (a.type === 'TRANSFER_IN' && b.type !== 'TRANSFER_IN') return -1;
+                if (b.type === 'TRANSFER_IN' && a.type !== 'TRANSFER_IN') return 1;
+                return 0;
+              });
+
+              let runningFront = 0;
+              item.frontEvents.forEach(ev => {
+                if (ev.type === 'TRANSFER_IN') runningFront += ev.qty;
+                else if (ev.type === 'SALE_OUT') runningFront = Math.max(0, runningFront - ev.qty);
+                else if (ev.type === 'SALE_RETURN') runningFront += ev.qty;
+              });
+
+              item.frontStock = Math.max(0, runningFront);
             }
 
             // ป้องกันไม่ให้หน้าร้านเยอะกว่ายอดรวม
             item.frontStock = Math.min(item.totalStock, item.frontStock);
 
-            // 5.3 คลังใหญ่ = สต๊อกรวม - หน้าร้าน
+            // 5.3 คลังใหญ่ = สต๊อกรวมทั้งระบบ - สต๊อกหน้าร้าน
             item.mainStock = Math.max(0, item.totalStock - item.frontStock);
           }
         });
@@ -881,7 +1240,7 @@
         });
 
         return Object.values(map);
-      }, [filteredProducts, lots, products, transfers, transferHistoryList, movements, physicalCounts, isPromoBundleProduct, resolveBundleBaseInfo]);
+      }, [filteredProducts, lots, products, transfers, transferHistoryList, movements, physicalCounts, latestCheckpointMap, isPromoBundleProduct, resolveBundleBaseInfo]);
       
       // สลับการจัดเรียงคอลัมน์ในตารางคลังสินค้า
       const handleToggleInventorySort = useCallback((col) => {
@@ -1007,6 +1366,12 @@
           }
         }
       }, [activeDomain]);
+
+      useEffect(() => {
+        if (activeTab === 'stockin' && grnSubTab === 'history') {
+          loadGrnHistory();
+        }
+      }, [activeTab, grnSubTab, loadGrnHistory]);
 
       const handleAddGrnRow = () => {
         setGrnItems(prev => [
@@ -1342,9 +1707,21 @@
             dateSales = Math.max(0, salesOut - salesReturn);
           }
 
-          // สต๊อกห้องขายหน้าร้าน (หากร้านยังไม่ได้แยกคลังเบิกย้าย จะแสดงยอดรวมสต๊อกปัจจุบัน)
-          const systemClosing = (item.frontStock > 0 || transfers.length > 0) ? item.frontStock : (item.totalStock || 0);
-          const opening = Math.max(0, systemClosing - dateTransfersIn + dateSales);
+          // ยอดยกมาต้นวัน: ค้นหาจากยอดปิดของวันก่อนหน้า (Yesterday / Previous Audited Closing)
+          let opening = 0;
+          const prevAudit = (auditRecordsCache || []).find(r => r.product_id === pid && r.balance_date < auditDate);
+          if (prevAudit) {
+            opening = (prevAudit.physical_count_qty !== null && prevAudit.physical_count_qty !== undefined)
+              ? Number(prevAudit.physical_count_qty)
+              : Number(prevAudit.system_closing_qty || 0);
+          } else {
+            // Fallback ถ้ายังไม่เคยมีบันทึกตรวจนับก่อนหน้านี้
+            const baseClosing = (item.frontStock > 0 || transfers.length > 0) ? item.frontStock : (item.totalStock || 0);
+            opening = Math.max(0, baseClosing - dateTransfersIn + dateSales);
+          }
+
+          // สต๊อกห้องขายหน้าร้านตามระบบ = ยอดยกมา + เบิกเข้า - ขาย
+          const systemClosing = Math.max(0, opening + dateTransfersIn - dateSales);
 
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
@@ -1366,7 +1743,7 @@
             diff: diff
           };
         });
-      }, [productStockSummary, transfers, movements, auditDate, physicalCounts, dailySalesMap, isProductDiscontinued]);
+      }, [productStockSummary, transfers, movements, auditDate, physicalCounts, dailySalesMap, isProductDiscontinued, auditRecordsCache]);
 
       // Handle Physical Count Input Change
       const handlePhysicalCountChange = (productId, val) => {
@@ -1410,13 +1787,42 @@
 
           if (res.success) {
             showToast(`✅ บันทึกกระทบยอดประจำวัน (${auditDate}) เรียบร้อยแล้ว (${res.count} รายการ)`, 'success');
+            const savedTime = new Date().toISOString();
             setAuditSavedInfo({
               date: auditDate,
               auditedBy: currentUser?.name || 'ADMIN',
               count: res.count,
-              updatedAt: new Date().toISOString(),
+              updatedAt: savedTime,
               hasPhysicalCount: auditRecords.some(r => r.physicalCount !== null && r.physicalCount !== undefined)
             });
+
+            // อัปเดต auditRecordsCache ในหน่วยความจำทันที ไม่ต้องโหลดซ้ำ (Zero Egress!)
+            const newAuditRows = auditRecords.map(r => ({
+              id: `BAL-FRONT_STORE-${auditDate}-${r.productId}`,
+              balance_date: auditDate,
+              warehouse_id: 'FRONT_STORE',
+              product_id: r.productId,
+              domain_type: activeDomain,
+              opening_qty: r.openingQty,
+              transfer_in_qty: r.receivedQty,
+              transfer_out_qty: 0,
+              sales_qty: r.salesQty,
+              system_closing_qty: r.closingQty,
+              physical_count_qty: r.physicalCount,
+              diff_qty: r.physicalCount !== null ? (Number(r.physicalCount) - Number(r.closingQty)) : 0,
+              audited_by: currentUser?.name || 'ADMIN',
+              audit_status: r.physicalCount !== null ? (Number(r.physicalCount) === Number(r.closingQty) ? 'BALANCED' : 'DISCREPANCY') : 'PENDING',
+              audit_notes: auditNotes,
+              created_at: savedTime
+            }));
+
+            setAuditRecordsCache(prev => {
+              const filtered = (prev || []).filter(row => row.balance_date !== auditDate);
+              const combined = [...newAuditRows, ...filtered];
+              try { sessionStorage.setItem('stk_warehouse_audit_cache', JSON.stringify(combined)); } catch(e){}
+              return combined;
+            });
+
             // อัปเดตประวัติและสมุดบัญชีย้อนหลังทันที
             await loadLedgerBalances(auditDate);
             await loadAuditHistorySessions();
@@ -1430,6 +1836,1245 @@
           setIsSavingAudit(false);
         }
       };
+
+      // Open Print / Export PDF Modal for Historical Daily Stock Ledger (Strictly for single selected date)
+      const handleOpenPrintLedger = useCallback(async (targetDate) => {
+        const d = (typeof targetDate === 'string' && targetDate) ? targetDate : ledgerDate;
+        if (!d) return;
+
+        const selectedSession = (auditHistorySessions || []).find(s => s.date === d);
+
+        // 1. ตรวจสอบข้อมูลเฉพาะของวันที่ d จากแคช
+        let rowsForDate = (auditRecordsCache || []).filter(r => r.balance_date === d);
+
+        // 2. ถ้าในแคชไม่มี ให้ดูจาก ledgerBalances (ถ้าตรงกับวันที่ d)
+        if (rowsForDate.length === 0 && Array.isArray(ledgerBalances) && ledgerBalances.length > 0) {
+          rowsForDate = ledgerBalances.filter(b => b.balance_date === d);
+        }
+
+        // 3. ถ้ายังไม่มี ให้ดึงจากฐานข้อมูลตรงๆ สำหรับวันที่ d
+        if (rowsForDate.length === 0 && typeof window.supabaseSelect === 'function') {
+          try {
+            const fetched = await window.supabaseSelect('stk_daily_balance', `balance_date=eq.${d}&select=id,balance_date,warehouse_id,product_id,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at&limit=200`);
+            if (Array.isArray(fetched) && fetched.length > 0) {
+              rowsForDate = fetched;
+              setAuditRecordsCache(prev => [...fetched, ...(prev || []).filter(p => p.balance_date !== d)]);
+            }
+          } catch(e) {
+            console.warn('handleOpenPrintLedger direct fetch error:', e);
+          }
+        }
+
+        // 4. สร้างรายการสินค้าเฉพาะของวันที่ d เท่านั้น
+        let items = [];
+        if (rowsForDate.length > 0) {
+          items = rowsForDate.map(b => {
+            const p = (products || []).find(prod => prod.product_id === b.product_id);
+            return {
+              productId: b.product_id,
+              name: p?.name || b.product_id,
+              openingQty: Number(b.opening_qty || 0),
+              transferInQty: Number(b.transfer_in_qty || 0),
+              transferOutQty: Number((b.transfer_out_qty || 0) + (b.sales_qty || 0)),
+              systemClosingQty: Number(b.system_closing_qty || 0),
+              physicalCountQty: b.physical_count_qty !== null && b.physical_count_qty !== undefined ? Number(b.physical_count_qty) : null,
+              diffQty: Number(b.diff_qty || 0),
+              status: b.audit_status || 'PENDING'
+            };
+          });
+        } else if (d === auditDate && Array.isArray(dailyReconciliation) && dailyReconciliation.length > 0) {
+          items = dailyReconciliation.map(r => ({
+            productId: r.productId,
+            name: r.name,
+            openingQty: Number(r.openingQty || 0),
+            transferInQty: Number(r.transferInQty || 0),
+            transferOutQty: Number(r.salesQty || 0),
+            systemClosingQty: Number(r.systemClosingQty || 0),
+            physicalCountQty: r.physicalCount,
+            diffQty: Number(r.diff || 0),
+            status: r.physicalCount !== null ? (r.diff === 0 ? 'BALANCED' : 'DISCREPANCY') : 'PENDING'
+          }));
+        }
+
+        setPrintLedgerData({
+          date: d,
+          warehouseId: selectedSession?.warehouseId === 'FRONT_STORE' ? 'ห้องขายหน้าร้าน (Front Store)' : (selectedSession?.warehouseId || 'ห้องขายหน้าร้าน (Front Store)'),
+          auditedBy: selectedSession?.auditedBy || rowsForDate[0]?.audited_by || currentUser?.name || 'ADMIN',
+          createdAt: selectedSession?.createdAt || rowsForDate[0]?.created_at || null,
+          notes: selectedSession?.notes || rowsForDate[0]?.audit_notes || '',
+          items: items
+        });
+      }, [auditHistorySessions, ledgerDate, auditRecordsCache, ledgerBalances, products, auditDate, dailyReconciliation, currentUser]);
+
+      // Safeguard: Reset scroll position before printing
+      useEffect(() => {
+        const handleBeforePrint = () => {
+          const slip = document.getElementById('printable-ledger-slip');
+          if (slip) slip.scrollTop = 0;
+        };
+        window.addEventListener('beforeprint', handleBeforePrint);
+        return () => window.removeEventListener('beforeprint', handleBeforePrint);
+      }, []);
+
+      // ═════════════════════════════════════════════════════════════════════
+      // 🖨️ DEDICATED HISTORICAL DAILY STOCK LEDGER PRINT & PDF GENERATOR
+      // ═════════════════════════════════════════════════════════════════════
+      const executePrintLedger = useCallback((customOrientation) => {
+        if (!printLedgerData) return;
+        const orient = customOrientation || printOrientation || 'landscape';
+        const d = printLedgerData;
+        const items = Array.isArray(d.items) ? d.items : [];
+        const totalOpening = items.reduce((s, it) => s + (it.openingQty || 0), 0);
+        const totalIn = items.reduce((s, it) => s + (it.transferInQty || 0), 0);
+        const totalOut = items.reduce((s, it) => s + (it.transferOutQty || 0), 0);
+        const totalSystem = items.reduce((s, it) => s + (it.systemClosingQty || 0), 0);
+        const totalPhysical = items.reduce((s, it) => s + (it.physicalCountQty !== null && it.physicalCountQty !== undefined ? it.physicalCountQty : 0), 0);
+        const totalDiff = items.reduce((s, it) => s + (it.diffQty || 0), 0);
+        const hasDiscrepancy = items.some(it => it.physicalCountQty !== null && it.physicalCountQty !== undefined && it.diffQty !== 0);
+
+        const escape = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const rowsHtml = items.length > 0 ? items.map((it, idx) => {
+          let diffHtml = '<span style="color: #94a3b8;">-</span>';
+          if (it.physicalCountQty !== null && it.physicalCountQty !== undefined) {
+            if (it.diffQty === 0) {
+              diffHtml = '<span style="color: #047857; font-weight: 700;">&plusmn;0</span>';
+            } else if (it.diffQty < 0) {
+              diffHtml = `<span style="color: #b91c1c; font-weight: 800;">${it.diffQty}</span>`;
+            } else {
+              diffHtml = `<span style="color: #b45309; font-weight: 800;">+${it.diffQty}</span>`;
+            }
+          }
+
+          let statusHtml = '<span style="color: #64748b; font-size: 10px;">ปิดตามระบบ</span>';
+          if (it.physicalCountQty !== null && it.physicalCountQty !== undefined) {
+            if (it.diffQty === 0) {
+              statusHtml = '<span style="color: #047857; font-weight: 700; font-size: 11px;">ตรง</span>';
+            } else {
+              statusHtml = '<span style="color: #b91c1c; font-weight: 800; font-size: 11px;">ผลต่าง</span>';
+            }
+          }
+
+          return `
+            <tr style="border-bottom: 1px solid #cbd5e1; ${idx % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
+              <td style="padding: 5px 4px; text-align: center; color: #64748b; font-weight: 700; border-right: 1px solid #cbd5e1;">${idx + 1}</td>
+              <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;">
+                <div style="font-weight: 700; color: #0f172a; font-size: ${orient === 'landscape' ? '12px' : '11px'}; line-height: 1.2;">${escape(it.name)}</div>
+                <div style="font-family: monospace; font-size: 9.5px; color: #64748b; margin-top: 1px;">${escape(it.productId)}</div>
+              </td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">${Number(it.openingQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 700; color: #047857; border-right: 1px solid #cbd5e1;">+${Number(it.transferInQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 700; color: #b91c1c; border-right: 1px solid #cbd5e1;">-${Number(it.transferOutQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 800; color: #1d4ed8; background-color: #eff6ff !important; border-right: 1px solid #cbd5e1;">${Number(it.systemClosingQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 800; color: #0f172a; border-right: 1px solid #cbd5e1;">
+                ${it.physicalCountQty !== null && it.physicalCountQty !== undefined ? Number(it.physicalCountQty).toLocaleString() : '-'}
+              </td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">
+                ${diffHtml}
+              </td>
+              <td style="padding: 5px 6px; text-align: center;">
+                ${statusHtml}
+              </td>
+            </tr>
+          `;
+        }).join('') : `
+          <tr>
+            <td colspan="9" style="padding: 30px; text-align: center; color: #94a3b8; font-weight: 700;">ยังไม่มีข้อมูลบันทึกตรวจนับปิดยอดประจำวัน (${escape(d.date)}) ในระบบ</td>
+          </tr>
+        `;
+
+        const timeStr = d.createdAt ? new Date(d.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
+
+        const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>รายงานสมุดบัญชีสต๊อกย้อนหลัง - ประจำวันที่ ${escape(d.date)}</title>
+  <style>
+    @page {
+      size: A4 ${orient};
+      margin: ${orient === 'landscape' ? '8mm 10mm 8mm 10mm' : '10mm 10mm 10mm 10mm'};
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Sarabun", "Prompt", sans-serif;
+      font-size: ${orient === 'landscape' ? '11.5px' : '10.5px'};
+      line-height: 1.35;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .page-sheet {
+      width: 100%;
+      margin: 0 auto;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 8px;
+    }
+    .header-table td {
+      border: none !important;
+      padding: 0 !important;
+      vertical-align: middle;
+    }
+    .comp-logo {
+      max-height: 54px;
+      max-width: 150px;
+      object-fit: contain;
+      margin-right: 14px;
+    }
+    .comp-name {
+      font-size: 18px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.15;
+    }
+    .comp-sub {
+      font-size: 11px;
+      color: #334155;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .comp-muted {
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    .title-box {
+      border: 2px solid #0f172a;
+      background-color: #f8fafc;
+      border-radius: 8px;
+      padding: 7px 12px;
+      text-align: right;
+    }
+    .title-main {
+      font-size: 14px;
+      font-weight: 900;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .title-sub {
+      font-size: 10px;
+      font-weight: 800;
+      color: #1d4ed8;
+      font-family: monospace;
+      letter-spacing: 0.6px;
+    }
+    .title-date {
+      margin-top: 3px;
+      padding-top: 3px;
+      border-top: 1px solid #cbd5e1;
+      font-size: 10.5px;
+      color: #475569;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 7px 12px;
+      margin-bottom: 10px;
+      font-size: 10.5px;
+    }
+    .meta-label {
+      color: #64748b;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 1px;
+    }
+    .meta-val {
+      font-weight: 800;
+      color: #0f172a;
+      font-size: 11.5px;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #cbd5e1;
+      margin-bottom: 10px;
+    }
+    table.data-table th, table.data-table td {
+      border: 1px solid #cbd5e1;
+    }
+    thead {
+      display: table-header-group !important;
+    }
+    thead th {
+      background-color: #f1f5f9 !important;
+      color: #334155;
+      font-weight: 800;
+      padding: 5px 6px;
+      font-size: ${orient === 'landscape' ? '11px' : '10px'};
+    }
+    tfoot {
+      display: table-footer-group !important;
+    }
+    tfoot tr {
+      background-color: #f8fafc !important;
+      font-weight: 900;
+      border-top: 2px solid #64748b;
+    }
+    tfoot td {
+      padding: 5px 6px;
+    }
+    tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .notes-box {
+      background-color: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-bottom: 12px;
+      font-size: 10.5px;
+      color: #334155;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+      text-align: center;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .sig-card {
+      border-top: 1.5px solid #64748b;
+      padding-top: 6px;
+    }
+    .sig-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .sig-space {
+      height: 38px;
+    }
+    .sig-name {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .sig-date {
+      font-size: 9.5px;
+      color: #64748b;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-sheet">
+    <!-- COMPANY HEADER -->
+    <table class="header-table">
+      <tr>
+        <td style="display: flex; align-items: center;">
+          ${companyInfo.logoUrl ? `<img src="${escape(companyInfo.logoUrl)}" class="comp-logo" alt="Logo" />` : ''}
+          <div>
+            <div class="comp-name">${escape(companyInfo.name || 'LOVE STK GROUPE')}</div>
+            <div class="comp-sub">${escape(companyInfo.branch || 'สำนักงานใหญ่ / คลินิกเวชกรรม')}</div>
+            <div class="comp-muted">${escape(companyInfo.address || 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)')}</div>
+            <div class="comp-muted">โทร: ${escape(companyInfo.phone || '+856 20 85387291')} ${companyInfo.taxId ? '• เลขผู้เสียภาษี: ' + escape(companyInfo.taxId) : ''}</div>
+          </div>
+        </td>
+        <td style="text-align: right; width: 330px;">
+          <div class="title-box">
+            <div class="title-main">รายงานสมุดบัญชีสต๊อกย้อนหลัง</div>
+            <div class="title-sub">DAILY STOCK LEDGER REPORT</div>
+            <div class="title-date">
+              ประจำวันที่: <strong style="color: #0f172a; font-family: monospace; font-size: 12.5px;">${escape(d.date)}</strong>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- METADATA GRID -->
+    <div class="meta-grid">
+      <div>
+        <span class="meta-label">วันที่ตรวจนับ / ปิดยอด:</span>
+        <span class="meta-val">${escape(d.date)}</span>
+      </div>
+      <div>
+        <span class="meta-label">คลังที่ตรวจสอบ:</span>
+        <span class="meta-val" style="color: #1d4ed8;">${escape(d.warehouseId)}</span>
+      </div>
+      <div>
+        <span class="meta-label">ผู้ตรวจนับ / บันทึก:</span>
+        <span class="meta-val">${escape(d.auditedBy || 'ADMIN')}</span>
+      </div>
+      <div>
+        <span class="meta-label">เวลาบันทึกปิดยอด:</span>
+        <span class="meta-val">${escape(timeStr)}</span>
+      </div>
+    </div>
+
+    <!-- TABLE OF ITEMS -->
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 32px; text-align: center;">#</th>
+          <th style="text-align: left;">รหัส / รายการสินค้า</th>
+          <th style="width: 70px; text-align: center;">ยอดยกมา</th>
+          <th style="width: 70px; text-align: center;">รับเข้า (+)</th>
+          <th style="width: 70px; text-align: center;">จ่ายออก (-)</th>
+          <th style="width: 80px; text-align: center; background-color: #dbeafe !important;">สต๊อกระบบ</th>
+          <th style="width: 70px; text-align: center;">นับจริง</th>
+          <th style="width: 70px; text-align: center;">ผลต่าง</th>
+          <th style="width: 70px; text-align: center;">สถานะ</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2" style="text-align: right; border-right: 1px solid #cbd5e1;">รวมทั้งสิ้น (${items.length} รายการ):</td>
+          <td style="text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">${totalOpening.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; color: #047857; border-right: 1px solid #cbd5e1;">+${totalIn.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; color: #b91c1c; border-right: 1px solid #cbd5e1;">-${totalOut.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; color: #1d4ed8; background-color: #eff6ff !important; border-right: 1px solid #cbd5e1;">${totalSystem.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">${totalPhysical.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">
+            ${totalDiff === 0 ? '±0' : (totalDiff > 0 ? '+' + totalDiff : totalDiff)}
+          </td>
+          <td style="text-align: center;">
+            ${hasDiscrepancy ? '<span style="color: #b91c1c;">พบผลต่าง</span>' : '<span style="color: #047857;">เรียบร้อย</span>'}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+
+    ${d.notes ? `
+      <div class="notes-box">
+        <strong>หมายเหตุ: </strong> ${escape(d.notes)}
+      </div>
+    ` : ''}
+
+    <!-- 3-COLUMN SIGNATURE BLOCK -->
+    <div class="sig-section">
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้ตรวจนับ / บันทึกยอด</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(${escape(d.auditedBy || '...........................................')})</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้จัดการคลังสินค้า / เภสัชกร</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(...........................................)</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้มีอำนาจอนุมัติ / กรรมการผู้จัดการ</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(...........................................)</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        // 🌟 Render into hidden isolated iframe for 100% clean multi-page printing
+        let printFrame = document.getElementById('ledger-print-iframe-engine');
+        if (printFrame) {
+          try { printFrame.remove(); } catch(e){}
+        }
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'ledger-print-iframe-engine';
+        printFrame.style.position = 'fixed';
+        printFrame.style.top = '-10000px';
+        printFrame.style.left = '-10000px';
+        printFrame.style.width = '1200px';
+        printFrame.style.height = '900px';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentDocument || printFrame.contentWindow.document;
+        frameDoc.open();
+        frameDoc.write(htmlContent);
+        frameDoc.close();
+
+        const triggerPrint = () => {
+          try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+          } catch(err) {
+            console.error('Iframe print error, falling back to window.print():', err);
+            window.print();
+          }
+        };
+
+        const img = frameDoc.querySelector('img');
+        if (img && !img.complete) {
+          img.onload = () => setTimeout(triggerPrint, 250);
+          img.onerror = () => setTimeout(triggerPrint, 250);
+          setTimeout(triggerPrint, 1500);
+        } else {
+          setTimeout(triggerPrint, 300);
+        }
+      }, [printLedgerData, printOrientation, companyInfo]);
+
+      // ═════════════════════════════════════════════════════════════════════
+      // 🖨️ PROPORTIONAL GOODS RECEIPT NOTE (GRN SLIP) PRINT & PDF GENERATOR
+      // ═════════════════════════════════════════════════════════════════════
+      const executePrintGrnSlip = useCallback((customData) => {
+        const grn = customData || printGrnSlipData;
+        if (!grn) return;
+
+        let items = [];
+        if (grn.items_json) {
+          try { items = typeof grn.items_json === 'string' ? JSON.parse(grn.items_json) : grn.items_json; } catch(e){}
+        } else if (grn.items && Array.isArray(grn.items)) {
+          items = grn.items;
+        }
+
+        const totalQty = Array.isArray(items) ? items.reduce((s, it) => s + (Number(it.qty || it.quantity) || 0), 0) : 0;
+        const totalCost = Array.isArray(items) ? items.reduce((s, it) => s + ((Number(it.qty || it.quantity) || 0) * (Number(it.costPrice || it.cost_price) || 0)), 0) : 0;
+
+        const escape = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const rowsHtml = Array.isArray(items) && items.length > 0 ? items.map((it, idx) => {
+          const cost = Number(it.costPrice || it.cost_price || 0);
+          const q = Number(it.qty || it.quantity || 0);
+          const sub = q * cost;
+          return `
+            <tr style="border-bottom: 1px solid #cbd5e1; ${idx % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
+              <td style="padding: 5px 4px; text-align: center; color: #64748b; font-weight: 700; border-right: 1px solid #cbd5e1;">${idx + 1}</td>
+              <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;">
+                <div style="font-weight: 700; color: #0f172a; font-size: 11.5px; line-height: 1.25;">${escape(it.productName || it.product_name || it.name || it.productId)}</div>
+                ${it.productId ? `<div style="font-family: monospace; font-size: 9.5px; color: #64748b; margin-top: 1px;">${escape(it.productId)}</div>` : ''}
+              </td>
+              <td style="padding: 5px 6px; border-right: 1px solid #cbd5e1; font-family: monospace; font-size: 10.5px; color: #334155;">${escape(it.lotId || it.lot_id || '-')}</td>
+              <td style="padding: 5px 6px; text-align: center; border-right: 1px solid #cbd5e1; font-size: 10.5px; color: #334155;">${escape(it.expiryDate || it.expiry_date || '-')}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 800; color: #0f172a; border-right: 1px solid #cbd5e1; font-size: 12px;">${q.toLocaleString()}</td>
+              <td style="padding: 5px 6px; text-align: right; font-family: monospace; border-right: 1px solid #cbd5e1; font-size: 11px; color: #334155;">${cost > 0 ? '฿' + cost.toLocaleString() : '-'}</td>
+              <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: 800; color: #047857; font-size: 11.5px;">${sub > 0 ? '฿' + sub.toLocaleString() : '-'}</td>
+            </tr>
+          `;
+        }).join('') : `
+          <tr>
+            <td colspan="7" style="padding: 24px; text-align: center; color: #94a3b8; font-weight: 700;">ไม่มีข้อมูลรายการสินค้า</td>
+          </tr>
+        `;
+
+        const dateStr = grn.transfer_date || grn.created_at?.slice(0, 10) || '-';
+        const toWhStr = grn.to_warehouse === 'MAIN_WH' ? 'คลังใหญ่ (Main WH - ชั้น 2)' : (grn.to_warehouse || '-');
+        const fromWhStr = grn.from_warehouse && grn.from_warehouse !== 'SUPPLIER' ? grn.from_warehouse : (grn.supplier || '-');
+
+        const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ใบรับสินค้าเข้าคลัง - ${escape(grn.transfer_id)}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm 10mm 12mm;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Sarabun", "Prompt", sans-serif;
+      font-size: 11px;
+      line-height: 1.35;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .sheet-wrapper {
+      width: 100%;
+      margin: 0 auto;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 8px;
+    }
+    .header-table td {
+      border: none !important;
+      padding: 0 !important;
+      vertical-align: middle;
+    }
+    .comp-logo {
+      max-height: 48px;
+      max-width: 130px;
+      object-fit: contain;
+      margin-right: 12px;
+    }
+    .comp-name {
+      font-size: 16px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.2;
+    }
+    .comp-sub {
+      font-size: 10.5px;
+      color: #334155;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+    .comp-muted {
+      font-size: 9.5px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    .title-box {
+      border: 1.5px solid #047857;
+      background-color: #f0fdf4;
+      border-radius: 8px;
+      padding: 6px 12px;
+      text-align: right;
+    }
+    .title-main {
+      font-size: 13.5px;
+      font-weight: 900;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .title-sub {
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #047857;
+      font-family: monospace;
+      letter-spacing: 0.6px;
+    }
+    .title-date {
+      margin-top: 3px;
+      padding-top: 3px;
+      border-top: 1px solid #bbf7d0;
+      font-size: 10.5px;
+      color: #475569;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 7px 12px;
+      margin-bottom: 10px;
+      font-size: 10.5px;
+    }
+    .meta-label {
+      color: #64748b;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 1px;
+    }
+    .meta-val {
+      font-weight: 800;
+      color: #0f172a;
+      font-size: 11.5px;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #cbd5e1;
+      margin-bottom: 10px;
+    }
+    table.data-table th, table.data-table td {
+      border: 1px solid #cbd5e1;
+    }
+    thead {
+      display: table-header-group !important;
+    }
+    thead th {
+      background-color: #f1f5f9 !important;
+      color: #334155;
+      font-weight: 800;
+      padding: 5px 6px;
+      font-size: 10.5px;
+    }
+    tfoot {
+      display: table-footer-group !important;
+    }
+    tfoot tr {
+      background-color: #f8fafc !important;
+      font-weight: 900;
+      border-top: 2px solid #64748b;
+    }
+    tfoot td {
+      padding: 5px 6px;
+    }
+    tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .notes-box {
+      background-color: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-bottom: 12px;
+      font-size: 10.5px;
+      color: #334155;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+      text-align: center;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .sig-card {
+      border-top: 1.5px solid #64748b;
+      padding-top: 6px;
+    }
+    .sig-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .sig-space {
+      height: 36px;
+    }
+    .sig-name {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .sig-date {
+      font-size: 9.5px;
+      color: #64748b;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet-wrapper">
+    <!-- COMPANY HEADER -->
+    <table class="header-table">
+      <tr>
+        <td style="display: flex; align-items: center;">
+          ${companyInfo.logoUrl ? `<img src="${escape(companyInfo.logoUrl)}" class="comp-logo" alt="Logo" />` : ''}
+          <div>
+            <div class="comp-name">${escape(companyInfo.name || 'LOVE STK GROUPE')}</div>
+            <div class="comp-sub">${escape(companyInfo.branch || 'สำนักงานใหญ่ / คลินิกเวชกรรม')}</div>
+            <div class="comp-muted">${escape(companyInfo.address || 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)')}</div>
+            <div class="comp-muted">โทร: ${escape(companyInfo.phone || '+856 20 85387291')} ${companyInfo.taxId ? '• เลขผู้เสียภาษี: ' + escape(companyInfo.taxId) : ''}</div>
+          </div>
+        </td>
+        <td style="text-align: right; width: 310px;">
+          <div class="title-box">
+            <div class="title-main">ใบรับสินค้าเข้าคลังสินค้า</div>
+            <div class="title-sub">GOODS RECEIPT NOTE (GRN)</div>
+            <div class="title-date">
+              เลขที่เอกสาร: <strong style="color: #0f172a; font-family: monospace; font-size: 12px;">${escape(grn.transfer_id)}</strong>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- METADATA GRID -->
+    <div class="meta-grid">
+      <div>
+        <span class="meta-label">วันที่รับเข้า:</span>
+        <span class="meta-val">${escape(dateStr)}</span>
+      </div>
+      <div>
+        <span class="meta-label">คลังปลายทาง:</span>
+        <span class="meta-val" style="color: #047857;">${escape(toWhStr)}</span>
+      </div>
+      <div>
+        <span class="meta-label">แหล่งที่มา / ซัพพลายเออร์:</span>
+        <span class="meta-val">${escape(fromWhStr)}</span>
+      </div>
+      <div>
+        <span class="meta-label">ผู้รับสินค้าเข้าคลัง:</span>
+        <span class="meta-val">${escape(grn.received_by || '-')}</span>
+      </div>
+    </div>
+
+    <!-- TABLE OF ITEMS -->
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 32px; text-align: center;">#</th>
+          <th style="text-align: left;">รหัส / รายการสินค้า</th>
+          <th style="width: 100px; text-align: left;">ล็อต (Lot No.)</th>
+          <th style="width: 85px; text-align: center;">วันหมดอายุ</th>
+          <th style="width: 75px; text-align: center;">จำนวน (ชิ้น)</th>
+          <th style="width: 85px; text-align: right;">ต้นทุน/หน่วย</th>
+          <th style="width: 95px; text-align: right;">รวมเงิน (บาท)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align: right; border-right: 1px solid #cbd5e1;">รวมทั้งสิ้น (${items.length} รายการ):</td>
+          <td style="text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1; font-size: 12px;">${totalQty.toLocaleString()}</td>
+          <td style="border-right: 1px solid #cbd5e1;"></td>
+          <td style="text-align: right; font-family: monospace; color: #047857; font-size: 12px;">฿${totalCost.toLocaleString()}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    ${grn.notes ? `
+      <div class="notes-box">
+        <strong>หมายเหตุ: </strong> ${escape(grn.notes)}
+      </div>
+    ` : ''}
+
+    <!-- 3-COLUMN SIGNATURE BLOCK -->
+    <div class="sig-section">
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้ส่งมอบสินค้า</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(${escape(grn.from_warehouse && grn.from_warehouse !== 'SUPPLIER' ? grn.from_warehouse : (grn.supplier || '...........................................'))})</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้รับสินค้าเข้าคลัง</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(${escape(grn.received_by || '...........................................')})</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้ตรวจสอบ / หัวหน้าคลัง</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(...........................................)</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        // 🌟 Render into hidden isolated iframe
+        let printFrame = document.getElementById('grn-print-iframe-engine');
+        if (printFrame) {
+          try { printFrame.remove(); } catch(e){}
+        }
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'grn-print-iframe-engine';
+        printFrame.style.position = 'fixed';
+        printFrame.style.top = '-10000px';
+        printFrame.style.left = '-10000px';
+        printFrame.style.width = '1000px';
+        printFrame.style.height = '900px';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentDocument || printFrame.contentWindow.document;
+        frameDoc.open();
+        frameDoc.write(htmlContent);
+        frameDoc.close();
+
+        const triggerPrint = () => {
+          try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+          } catch(err) {
+            console.error('Iframe print error, falling back to window.print():', err);
+            window.print();
+          }
+        };
+
+        const img = frameDoc.querySelector('img');
+        if (img && !img.complete) {
+          img.onload = () => setTimeout(triggerPrint, 250);
+          img.onerror = () => setTimeout(triggerPrint, 250);
+          setTimeout(triggerPrint, 1500);
+        } else {
+          setTimeout(triggerPrint, 300);
+        }
+      }, [printGrnSlipData, companyInfo]);
+
+      // ═════════════════════════════════════════════════════════════════════
+      // 🖨️ PROPORTIONAL INTERNAL TRANSFER SLIP PRINT & PDF GENERATOR
+      // ═════════════════════════════════════════════════════════════════════
+      const executePrintTransferSlip = useCallback((customData) => {
+        const slip = customData || printSlipData;
+        if (!slip) return;
+
+        let items = slip.items || [];
+        if (!items || items.length === 0) {
+          if (slip.items_json) {
+            try { items = typeof slip.items_json === 'string' ? JSON.parse(slip.items_json) : slip.items_json; } catch(e){}
+          } else if (slip.productName) {
+            items = [{
+              productName: slip.productName,
+              productId: slip.productId,
+              lotId: slip.lotId,
+              qty: slip.qty
+            }];
+          }
+        }
+
+        const totalQty = Array.isArray(items) ? items.reduce((s, it) => s + (Number(it.qty || it.quantity) || 0), 0) : 0;
+        const escape = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const rowsHtml = Array.isArray(items) && items.length > 0 ? items.map((it, idx) => {
+          const q = Number(it.qty || it.quantity || 0);
+          return `
+            <tr style="border-bottom: 1px solid #cbd5e1; ${idx % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
+              <td style="padding: 5px 4px; text-align: center; color: #64748b; font-weight: 700; border-right: 1px solid #cbd5e1;">${idx + 1}</td>
+              <td style="padding: 5px 8px; border-right: 1px solid #cbd5e1;">
+                <div style="font-weight: 700; color: #0f172a; font-size: 11.5px; line-height: 1.25;">${escape(it.productName || it.product_name || it.name || it.productId)}</div>
+                ${it.productId ? `<div style="font-family: monospace; font-size: 9.5px; color: #64748b; margin-top: 1px;">${escape(it.productId)}</div>` : ''}
+              </td>
+              <td style="padding: 5px 6px; border-right: 1px solid #cbd5e1; font-family: monospace; font-size: 10.5px; font-weight: 700; color: #4338ca;">${escape(it.lotId || it.lot_id || 'FEFO Auto-Assign')}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 800; color: #0f172a; font-size: 12px;">${q.toLocaleString()}</td>
+            </tr>
+          `;
+        }).join('') : `
+          <tr>
+            <td colspan="4" style="padding: 24px; text-align: center; color: #94a3b8; font-weight: 700;">ไม่มีข้อมูลรายการสินค้า</td>
+          </tr>
+        `;
+
+        const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ใบเบิกย้ายสินค้า - ${escape(slip.transferId)}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm 10mm 12mm;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Sarabun", "Prompt", sans-serif;
+      font-size: 11px;
+      line-height: 1.35;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .sheet-wrapper {
+      width: 100%;
+      margin: 0 auto;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 8px;
+    }
+    .header-table td {
+      border: none !important;
+      padding: 0 !important;
+      vertical-align: middle;
+    }
+    .comp-logo {
+      max-height: 48px;
+      max-width: 130px;
+      object-fit: contain;
+      margin-right: 12px;
+    }
+    .comp-name {
+      font-size: 16px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.2;
+    }
+    .comp-sub {
+      font-size: 10.5px;
+      color: #334155;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+    .comp-muted {
+      font-size: 9.5px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    .title-box {
+      border: 1.5px solid #2563eb;
+      background-color: #eff6ff;
+      border-radius: 8px;
+      padding: 6px 12px;
+      text-align: right;
+    }
+    .title-main {
+      font-size: 13.5px;
+      font-weight: 900;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .title-sub {
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #2563eb;
+      font-family: monospace;
+      letter-spacing: 0.6px;
+    }
+    .title-date {
+      margin-top: 3px;
+      padding-top: 3px;
+      border-top: 1px solid #bfdbfe;
+      font-size: 10.5px;
+      color: #475569;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 7px 12px;
+      margin-bottom: 10px;
+      font-size: 10.5px;
+    }
+    .meta-label {
+      color: #64748b;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 1px;
+    }
+    .meta-val {
+      font-weight: 800;
+      color: #0f172a;
+      font-size: 11.5px;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #cbd5e1;
+      margin-bottom: 10px;
+    }
+    table.data-table th, table.data-table td {
+      border: 1px solid #cbd5e1;
+    }
+    thead {
+      display: table-header-group !important;
+    }
+    thead th {
+      background-color: #f1f5f9 !important;
+      color: #334155;
+      font-weight: 800;
+      padding: 5px 6px;
+      font-size: 10.5px;
+    }
+    tfoot {
+      display: table-footer-group !important;
+    }
+    tfoot tr {
+      background-color: #f8fafc !important;
+      font-weight: 900;
+      border-top: 2px solid #64748b;
+    }
+    tfoot td {
+      padding: 5px 6px;
+    }
+    tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .notes-box {
+      background-color: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-bottom: 12px;
+      font-size: 10.5px;
+      color: #334155;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-top: 20px;
+      text-align: center;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .sig-card {
+      border-top: 1.5px solid #64748b;
+      padding-top: 6px;
+    }
+    .sig-title {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .sig-space {
+      height: 38px;
+    }
+    .sig-name {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .sig-date {
+      font-size: 9.5px;
+      color: #64748b;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet-wrapper">
+    <!-- COMPANY HEADER -->
+    <table class="header-table">
+      <tr>
+        <td style="display: flex; align-items: center;">
+          ${companyInfo.logoUrl ? `<img src="${escape(companyInfo.logoUrl)}" class="comp-logo" alt="Logo" />` : ''}
+          <div>
+            <div class="comp-name">${escape(companyInfo.name || 'LOVE STK GROUPE')}</div>
+            <div class="comp-sub">${escape(companyInfo.branch || 'สำนักงานใหญ่ / คลินิกเวชกรรม')}</div>
+            <div class="comp-muted">${escape(companyInfo.address || 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)')}</div>
+            <div class="comp-muted">โทร: ${escape(companyInfo.phone || '+856 20 85387291')} ${companyInfo.taxId ? '• เลขผู้เสียภาษี: ' + escape(companyInfo.taxId) : ''}</div>
+          </div>
+        </td>
+        <td style="text-align: right; width: 310px;">
+          <div class="title-box">
+            <div class="title-main">ใบเบิกย้ายสินค้าข้ามคลัง</div>
+            <div class="title-sub">INTERNAL TRANSFER SLIP</div>
+            <div class="title-date">
+              เลขที่เอกสาร: <strong style="color: #0f172a; font-family: monospace; font-size: 12px;">${escape(slip.transferId)}</strong>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- METADATA GRID -->
+    <div class="meta-grid">
+      <div>
+        <span class="meta-label">วันที่เบิก:</span>
+        <span class="meta-val">${escape(slip.date)}</span>
+      </div>
+      <div>
+        <span class="meta-label">ผู้ขอเบิก:</span>
+        <span class="meta-val">${escape(slip.requestedBy || '-')}</span>
+      </div>
+      <div>
+        <span class="meta-label">คลังต้นทาง:</span>
+        <span class="meta-val">${escape(slip.fromWarehouse)}</span>
+      </div>
+      <div>
+        <span class="meta-label">คลังปลายทาง:</span>
+        <span class="meta-val" style="color: #4338ca;">${escape(slip.toWarehouse)}</span>
+      </div>
+    </div>
+
+    <!-- TABLE OF ITEMS -->
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 32px; text-align: center;">#</th>
+          <th style="text-align: left;">รหัส / รายการสินค้า</th>
+          <th style="width: 140px; text-align: left;">ล็อตที่เบิก (Lot ID)</th>
+          <th style="width: 100px; text-align: center;">จำนวนที่เบิก (ชิ้น)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" style="text-align: right; border-right: 1px solid #cbd5e1;">รวมทั้งสิ้น (${items.length} รายการ):</td>
+          <td style="text-align: center; font-family: monospace; color: #4338ca; font-size: 12px;">${totalQty.toLocaleString()} ชิ้น</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    ${slip.notes ? `
+      <div class="notes-box">
+        <strong>หมายเหตุ: </strong> ${escape(slip.notes)}
+      </div>
+    ` : ''}
+
+    <!-- 2-COLUMN SIGNATURE BLOCK -->
+    <div class="sig-section">
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้ขอเบิกสินค้า</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(${escape(slip.requestedBy || '...................................................')})</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+      <div class="sig-card">
+        <div class="sig-title">ลงชื่อผู้จ่ายของ / หัวหน้าคลังสินค้า</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">(${escape(slip.approvedBy || '...................................................')})</div>
+        <div class="sig-date">วันที่: ........ / ........ / ................</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        // 🌟 Render into hidden isolated iframe
+        let printFrame = document.getElementById('transfer-print-iframe-engine');
+        if (printFrame) {
+          try { printFrame.remove(); } catch(e){}
+        }
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'transfer-print-iframe-engine';
+        printFrame.style.position = 'fixed';
+        printFrame.style.top = '-10000px';
+        printFrame.style.left = '-10000px';
+        printFrame.style.width = '1000px';
+        printFrame.style.height = '900px';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentDocument || printFrame.contentWindow.document;
+        frameDoc.open();
+        frameDoc.write(htmlContent);
+        frameDoc.close();
+
+        const triggerPrint = () => {
+          try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+          } catch(err) {
+            console.error('Iframe print error, falling back to window.print():', err);
+            window.print();
+          }
+        };
+
+        const img = frameDoc.querySelector('img');
+        if (img && !img.complete) {
+          img.onload = () => setTimeout(triggerPrint, 250);
+          img.onerror = () => setTimeout(triggerPrint, 250);
+          setTimeout(triggerPrint, 1500);
+        } else {
+          setTimeout(triggerPrint, 300);
+        }
+      }, [printSlipData, companyInfo]);
 
       return (
         <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
@@ -1448,7 +3093,11 @@
             activePage="warehouse"
             isLoggedIn={!!currentUser}
             currentUser={currentUser}
-            isAdmin={currentUser?.role === 'แอดมิน' || currentUser?.permission_role === 'admin'}
+            currentUserProfileUrl={currentUser?.id_card_url || '-'}
+            isAdmin={isAdmin}
+            onLogout={handleLogout}
+            showLoginModal={showLoginModal}
+            setShowLoginModal={setShowLoginModal}
             SCRIPT_URL=""
             isSidebarCollapsed={isSidebarCollapsed}
             setIsSidebarCollapsed={setIsSidebarCollapsed}
@@ -1456,7 +3105,48 @@
 
           {/* Main Content Area */}
           <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full min-w-0 max-w-full overflow-x-hidden pb-24 lg:pb-8`}>
-            {/* Sub-Header: Domain Switcher & Actions */}
+            {!currentUser ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center my-auto min-h-[70vh]">
+                <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-inner">
+                    <ShieldCheck size={36} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white">กรุณาเข้าสู่ระบบเพื่อเข้าใช้งาน</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">หน้านี้ต้องการสิทธิ์การเข้าถึงข้อมูลคลังสินค้า กรุณาเข้าสู่ระบบด้วยบัญชีผู้ใช้งานของคุณเพื่อดูข้อมูล</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginModal(true)}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <ShieldCheck size={16} />
+                    <span>เข้าสู่ระบบทันที</span>
+                  </button>
+                </div>
+              </div>
+            ) : !canAccessWarehouse ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center my-auto min-h-[70vh]">
+                <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-inner">
+                    <ShieldCheck size={36} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-rose-600 dark:text-rose-400">ไม่มีสิทธิ์เข้าถึงข้อมูลคลังสินค้า</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">บัญชีของคุณ ({currentUser?.name || currentUser?.username}) ไม่มีสิทธิ์เข้าใช้งานหน้านี้ กรุณาติดต่อผู้ดูแลระบบ</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                  >
+                    <span>ออกจากระบบ / สลับบัญชี</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Sub-Header: Domain Switcher & Actions */}
             <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
@@ -1464,10 +3154,10 @@
                 </div>
                 <div>
                   <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
-                    ระบบจัดการคลังสินค้า & สต๊อกแยกล็อต
+                    {t('wh_header_title', 'ระบบจัดการคลังสินค้า & สต๊อกแยกล็อต')}
                   </h1>
                   <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    (Multi-Warehouse, FEFO Expiry, Transfer Requisition & Daily Balance)
+                    {t('wh_header_subtitle', 'จัดการหลายคลังสินค้า, วันหมดอายุตามล็อต, การเบิกย้าย และกระทบยอดประจำวัน')}
                   </p>
                 </div>
               </div>
@@ -1483,7 +3173,7 @@
                   }`}
                 >
                   <PackageIcon size={15} />
-                  <span>{t('wh_domain_stk', 'สินค้าเสริมอาหาร (STK)')}</span>
+                  <span>{t('wh_domain_stk', 'สินค้าเสริมอาหาร')}</span>
                 </button>
                 <button
                   onClick={() => setActiveDomain('PHARMACY')}
@@ -1494,7 +3184,7 @@
                   }`}
                 >
                   <Pill size={15} />
-                  <span>{t('wh_domain_pharmacy', 'คลังยาหลวง (Pharmacy)')}</span>
+                  <span>{t('wh_domain_pharmacy', 'คลังยาหลวง')}</span>
                 </button>
                 <button
                   onClick={() => setActiveDomain('MEDICAL_DEVICE')}
@@ -1505,7 +3195,7 @@
                   }`}
                 >
                   <Stethoscope size={15} />
-                  <span>{t('wh_domain_devices', 'เครื่องมือแพทย์ (Devices)')}</span>
+                  <span>{t('wh_domain_devices', 'เครื่องมือแพทย์')}</span>
                 </button>
               </div>
 
@@ -1532,7 +3222,7 @@
                 }`}
               >
                 <BarChart3 size={15} className={activeTab === 'overview' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>{t('wh_tab_overview', '1. ภาพรวมสต๊อก & วันหมดอายุ (Overview & FEFO)')}</span>
+                <span>{t('wh_tab_overview', '1. ภาพรวมสต๊อก & วันหมดอายุ')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('stockin')}
@@ -1543,7 +3233,7 @@
                 }`}
               >
                 <Plus size={15} className={activeTab === 'stockin' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>{t('wh_tab_stockin', '2. รับเข้าสินค้าตามล็อต (Stock In)')}</span>
+                <span>{t('wh_tab_stockin', '2. รับเข้าสินค้าตามล็อต')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('transfer')}
@@ -1565,7 +3255,7 @@
                 }`}
               >
                 <CheckCircle size={15} className={activeTab === 'audit' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>{t('wh_tab_audit', '4. ตรวจนับและบาลานซ์สต๊อกประจำวัน (Daily Audit)')}</span>
+                <span>{t('wh_tab_audit', '4. ตรวจนับและกระทบยอดสต๊อกประจำวัน')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('ledger')}
@@ -1576,7 +3266,7 @@
                 }`}
               >
                 <Calendar size={15} className={activeTab === 'ledger' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>{t('wh_tab_ledger', '5. สมุดบัญชีสต็อกย้อนหลัง (Historical Ledger)')}</span>
+                <span>{t('wh_tab_ledger', '5. สมุดบัญชีสต๊อกย้อนหลัง')}</span>
               </button>
             </div>
 
@@ -1597,36 +3287,36 @@
                       {/* KPI Dashboard Cards */}
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">รายการสินค้า (SKU)</p>
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('wh_kpi_total_sku', 'รายการสินค้า')}</p>
                           <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{kpis.totalSkus}</h3>
                           <span className="text-[10px] text-slate-400">
-                            {kpis.promoSkus > 0 ? `สินค้าหลัก (มัดชุดโปร +${kpis.promoSkus})` : 'ในโดเมนปัจจุบัน'}
+                            {kpis.promoSkus > 0 ? `${t('wh_kpi_sub_promo_added', 'สินค้าหลัก (มัดชุดโปร +')}${kpis.promoSkus})` : t('wh_kpi_sub_in_domain', 'ในหมวดหมู่ปัจจุบัน')}
                           </span>
                         </div>
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/40 shadow-sm bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-950/20">
-                          <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">คลังใหญ่ (Main WH)</p>
+                          <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">{t('wh_kpi_main_wh', 'คลังใหญ่')}</p>
                           <h3 className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{kpis.mainUnits.toLocaleString()}</h3>
-                          <span className="text-[10px] text-slate-400">ชิ้น / พร้อมเบิก (สต๊อกจริง)</span>
+                          <span className="text-[10px] text-slate-400">{t('wh_kpi_sub_main', 'ชิ้น / พร้อมเบิก (สต๊อกจริง)')}</span>
                         </div>
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 shadow-sm bg-gradient-to-br from-indigo-50/50 to-transparent dark:from-indigo-950/20">
-                          <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">ห้องขายหน้าร้าน</p>
+                          <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">{t('wh_kpi_front_wh', 'ห้องขายหน้าร้าน')}</p>
                           <h3 className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{kpis.frontUnits.toLocaleString()}</h3>
-                          <span className="text-[10px] text-slate-400">ชิ้น / พร้อมขาย (สต๊อกจริง)</span>
+                          <span className="text-[10px] text-slate-400">{t('wh_kpi_sub_front', 'ชิ้น / พร้อมขาย (สต๊อกจริง)')}</span>
                         </div>
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">รวมทุกคลัง (Total)</p>
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('wh_kpi_total_all', 'รวมทุกคลัง')}</p>
                           <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{kpis.totalUnits.toLocaleString()}</h3>
-                          <span className="text-[10px] text-slate-400">ชิ้นสินค้าจริงทั้งหมด</span>
+                          <span className="text-[10px] text-slate-400">{t('wh_kpi_sub_total', 'ชิ้นสินค้าจริงทั้งหมด')}</span>
                         </div>
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/40 shadow-sm bg-gradient-to-br from-amber-50/50 to-transparent dark:from-amber-950/20">
-                          <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">ใกล้หมดอายุ (&le;90ว.)</p>
+                          <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">{t('wh_kpi_expiring', 'ใกล้หมดอายุ (≤90 วัน)')}</p>
                           <h3 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{kpis.nearExpiryCount}</h3>
-                          <span className="text-[10px] text-amber-500">ควรเร่งระบายออก</span>
+                          <span className="text-[10px] text-amber-500">{t('wh_kpi_sub_expiring', 'ควรเร่งระบายออก')}</span>
                         </div>
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-rose-100 dark:border-rose-900/40 shadow-sm bg-gradient-to-br from-rose-50/50 to-transparent dark:from-rose-950/20">
-                          <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">หมดอายุแล้ว</p>
+                          <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">{t('wh_kpi_expired', 'หมดอายุแล้ว')}</p>
                           <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{kpis.expiredCount}</h3>
-                          <span className="text-[10px] text-rose-500">ต้องกักกัน / ตัดทิ้ง</span>
+                          <span className="text-[10px] text-rose-500">{t('wh_kpi_sub_expired', 'ต้องกักกัน / ตัดทิ้ง')}</span>
                         </div>
                       </div>
 
@@ -1636,7 +3326,7 @@
                           <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                           <input
                             type="text"
-                            placeholder="ค้นหาชื่อสินค้า, รหัส SKU, หรือบาร์โค้ด..."
+                            placeholder={t('wh_search_placeholder', 'ค้นหาชื่อสินค้า, รหัสสินค้า, หรือบาร์โค้ด...')}
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:border-blue-500"
@@ -1654,7 +3344,7 @@
                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                           >
-                            <span>ทั้งหมด</span>
+                            <span>{t('wh_filter_all', 'ทั้งหมด')}</span>
                             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200">{kpis.allSkus}</span>
                           </button>
                           <button
@@ -1666,7 +3356,7 @@
                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                           >
-                            <span>📦 สินค้าหลัก</span>
+                            <span>{t('wh_filter_physical', '📦 สินค้าหลัก')}</span>
                             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">{kpis.totalSkus}</span>
                           </button>
                           <button
@@ -1678,29 +3368,29 @@
                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                           >
-                            <span>🎁 เซ็ตโปรโมชั่น</span>
+                            <span>{t('wh_filter_bundle', '🎁 เซ็ตโปรโมชั่น')}</span>
                             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">{kpis.promoSkus}</span>
                           </button>
                         </div>
 
                         {/* Status Filter */}
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-400">สถานะสต๊อก:</span>
+                          <span className="text-xs font-bold text-slate-400">{t('wh_label_status', 'สถานะสต๊อก:')}</span>
                           <select
                             value={selectedStatusFilter}
                             onChange={e => setSelectedStatusFilter(e.target.value)}
                             className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold focus:outline-none focus:border-blue-500"
                           >
-                            <option value="ALL">ทั้งหมด</option>
-                            <option value="EXPIRING">ใกล้หมดอายุ (&le;90 วัน)</option>
-                            <option value="CRITICAL">วิกฤติเร่งระบาย (&le;30 วัน)</option>
-                            <option value="EXPIRED">หมดอายุแล้ว</option>
+                            <option value="ALL">{t('wh_status_all', 'ทั้งหมด')}</option>
+                            <option value="EXPIRING">{t('wh_status_expiring', 'ใกล้หมดอายุ (≤90 วัน)')}</option>
+                            <option value="CRITICAL">{t('wh_status_critical', 'วิกฤติเร่งระบาย (≤30 วัน)')}</option>
+                            <option value="EXPIRED">{t('wh_status_expired', 'หมดอายุแล้ว')}</option>
                           </select>
                         </div>
 
                         {/* Sort Dropdown */}
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-400">จัดเรียง:</span>
+                          <span className="text-xs font-bold text-slate-400">{t('wh_label_sort', 'จัดเรียง:')}</span>
                           <select
                             value={`${inventorySortBy}_${inventorySortOrder}`}
                             onChange={e => {
@@ -1710,14 +3400,14 @@
                             }}
                             className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold focus:outline-none focus:border-blue-500"
                           >
-                            <option value="product_id_asc">รหัสสินค้า (ก-ฮ / A-Z)</option>
-                            <option value="product_id_desc">รหัสสินค้า (ฮ-ก / Z-A)</option>
-                            <option value="name_asc">ชื่อสินค้า (ก-ฮ)</option>
-                            <option value="name_desc">ชื่อสินค้า (ฮ-ก)</option>
-                            <option value="totalStock_desc">สต๊อกรวมมากสุด ➔ น้อยสุด</option>
-                            <option value="totalStock_asc">สต๊อกรวมน้อยสุด ➔ มากสุด</option>
-                            <option value="expiry_asc">วันหมดอายุเร็วสุด (FEFO)</option>
-                            <option value="expiry_desc">วันหมดอายุช้าสุด</option>
+                            <option value="product_id_asc">{t('wh_sort_id_asc', 'รหัสสินค้า (ก-ฮ / A-Z)')}</option>
+                            <option value="product_id_desc">{t('wh_sort_id_desc', 'รหัสสินค้า (ฮ-ก / Z-A)')}</option>
+                            <option value="name_asc">{t('wh_sort_name_asc', 'ชื่อสินค้า (ก-ฮ)')}</option>
+                            <option value="name_desc">{t('wh_sort_name_desc', 'ชื่อสินค้า (ฮ-ก)')}</option>
+                            <option value="totalStock_desc">{t('wh_sort_stock_desc', 'สต๊อกรวมมากสุด ➔ น้อยสุด')}</option>
+                            <option value="totalStock_asc">{t('wh_sort_stock_asc', 'สต๊อกรวมน้อยสุด ➔ มากสุด')}</option>
+                            <option value="expiry_asc">{t('wh_sort_expiry_asc', 'วันหมดอายุเร็วสุด')}</option>
+                            <option value="expiry_desc">{t('wh_sort_expiry_desc', 'วันหมดอายุช้าสุด')}</option>
                           </select>
                         </div>
                       </div>
@@ -1726,14 +3416,14 @@
                       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-3">
                           <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                            <span>รายการสินค้าและการกระจายตัวตามคลัง (Warehouse Breakdown)</span>
+                            <span>{t('wh_table_breakdown_title', 'รายการสินค้าและการกระจายตัวตามคลัง')}</span>
                             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
-                              {displayedStockItems.length} {displayedStockItems.length !== productStockSummary.length ? `/ ${productStockSummary.length}` : ''} รายการ
+                              {displayedStockItems.length} {displayedStockItems.length !== productStockSummary.length ? `/ ${productStockSummary.length}` : ''} {t('wh_items_unit', 'รายการ')}
                             </span>
                           </h3>
                           <div className="flex items-center gap-3 text-xs">
-                            <span className="text-slate-400 font-medium hidden sm:inline">คลิกหัวตารางเพื่อจัดเรียงข้อมูล</span>
-                            <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-500">ลำดับการจ่ายยึดตามหลัก FEFO</span>
+                            <span className="text-slate-400 font-medium hidden sm:inline">{t('wh_hint_click_sort', 'คลิกหัวตารางเพื่อจัดเรียงข้อมูล')}</span>
+                            <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-500">{t('wh_badge_fefo_rule', 'ลำดับการจ่ายยึดตามวันหมดอายุเร็วสุด')}</span>
                           </div>
                         </div>
 
@@ -1747,7 +3437,7 @@
                                   title="คลิกเพื่อเรียงตามรหัสสินค้า"
                                 >
                                   <div className="flex items-center gap-1.5">
-                                    <span>รูป / รหัส</span>
+                                    <span>{t('wh_col_img_id', 'รูป / รหัส')}</span>
                                     {inventorySortBy === 'product_id' ? (
                                       <span className="text-blue-600 dark:text-blue-400 text-xs font-black">{inventorySortOrder === 'asc' ? '▲' : '▼'}</span>
                                     ) : (
@@ -1761,7 +3451,7 @@
                                   title="คลิกเพื่อเรียงตามชื่อสินค้า"
                                 >
                                   <div className="flex items-center gap-1.5">
-                                    <span>ชื่อสินค้า</span>
+                                    <span>{t('wh_col_product_name', 'ชื่อสินค้า')}</span>
                                     {inventorySortBy === 'name' ? (
                                       <span className="text-blue-600 dark:text-blue-400 text-xs font-black">{inventorySortOrder === 'asc' ? '▲' : '▼'}</span>
                                     ) : (
@@ -1775,7 +3465,7 @@
                                   title="คลิกเพื่อเรียงตามยอดสต๊อกคลังใหญ่"
                                 >
                                   <div className="flex items-center justify-center gap-1.5">
-                                    <span>คลังใหญ่</span>
+                                    <span>{t('wh_col_main_wh', 'คลังใหญ่')}</span>
                                     {inventorySortBy === 'mainStock' ? (
                                       <span className="text-blue-600 dark:text-blue-400 text-xs font-black">{inventorySortOrder === 'asc' ? '▲' : '▼'}</span>
                                     ) : (
@@ -1789,7 +3479,7 @@
                                   title="คลิกเพื่อเรียงตามยอดสต๊อกหน้าร้าน"
                                 >
                                   <div className="flex items-center justify-center gap-1.5">
-                                    <span>ห้องขายหน้าร้าน</span>
+                                    <span>{t('wh_col_front_wh', 'ห้องขายหน้าร้าน')}</span>
                                     {inventorySortBy === 'frontStock' ? (
                                       <span className="text-blue-600 dark:text-blue-400 text-xs font-black">{inventorySortOrder === 'asc' ? '▲' : '▼'}</span>
                                     ) : (
@@ -1803,7 +3493,7 @@
                                   title="คลิกเพื่อเรียงตามยอดสต๊อกรวม"
                                 >
                                   <div className="flex items-center justify-center gap-1.5">
-                                    <span>สต๊อกรวม</span>
+                                    <span>{t('wh_col_total_stock', 'สต๊อกรวม')}</span>
                                     {inventorySortBy === 'totalStock' ? (
                                       <span className="text-blue-600 dark:text-blue-400 text-xs font-black">{inventorySortOrder === 'asc' ? '▲' : '▼'}</span>
                                     ) : (
@@ -1817,7 +3507,7 @@
                                   title="คลิกเพื่อเรียงตามวันหมดอายุ"
                                 >
                                   <div className="flex items-center gap-1.5">
-                                    <span>วันหมดอายุเร็วสุด (FEFO)</span>
+                                    <span>{t('wh_col_earliest_expiry', 'วันหมดอายุเร็วสุด')}</span>
                                     {inventorySortBy === 'expiry' ? (
                                       <span className="text-blue-600 dark:text-blue-400 text-xs font-black">{inventorySortOrder === 'asc' ? '▲' : '▼'}</span>
                                     ) : (
@@ -1825,15 +3515,15 @@
                                     )}
                                   </div>
                                 </th>
-                                <th className="py-3.5 px-4 text-center">สถานะล็อต</th>
-                                <th className="py-3.5 px-4 text-center">จัดการ</th>
+                                <th className="py-3.5 px-4 text-center">{t('wh_col_lot_status', 'สถานะล็อต')}</th>
+                                <th className="py-3.5 px-4 text-center">{t('wh_col_action', 'จัดการ')}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                               {displayedStockItems.length === 0 ? (
                                 <tr>
                                   <td colSpan="8" className="py-12 text-center text-slate-400 font-bold">
-                                    ไม่พบรายการสินค้าในเงื่อนไขที่เลือก
+                                    {t('wh_no_products_found', 'ไม่พบรายการสินค้าในเงื่อนไขที่เลือก')}
                                   </td>
                                 </tr>
                               ) : (
@@ -1966,7 +3656,7 @@
                                             onClick={() => setSelectedProductForLots(p)}
                                             className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-600 dark:text-slate-300 text-xs font-bold transition-all"
                                           >
-                                            ดูล็อต ({item.lotCount})
+                                            {t('wh_btn_view_lots', 'ดูล็อต')} ({item.lotCount})
                                           </button>
                                         )}
                                       </td>
@@ -2002,11 +3692,14 @@
                             }`}
                           >
                             <Plus size={16} />
-                            <span>📥 บันทึกรับเข้าสินค้า (สร้างใบรับ GRN)</span>
+                            <span>{t('wh_tab2_sub_form', '📥 บันทึกรับเข้าสินค้า (สร้างใบรับสินค้า)')}</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => setGrnSubTab('history')}
+                            onClick={() => {
+                              setGrnSubTab('history');
+                              loadGrnHistory();
+                            }}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
                               grnSubTab === 'history'
                                 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
@@ -2014,7 +3707,7 @@
                             }`}
                           >
                             <ClipboardList size={16} />
-                            <span>📋 ประวัติใบรับสินค้าเข้าคลัง</span>
+                            <span>{t('wh_tab2_sub_history', '📋 ประวัติใบรับสินค้าเข้าคลัง')}</span>
                             <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
                               {grnHistoryList.length}
                             </span>
@@ -2045,10 +3738,10 @@
                               </div>
                               <div>
                                 <h3 className="font-black text-base text-slate-900 dark:text-white">
-                                  ใบรับสินค้าเข้าคลัง (Goods Receipt Note - GRN)
+                                  {t('wh_tab2_grn_form_title', 'ใบรับสินค้าเข้าคลัง')}
                                 </h3>
                                 <p className="text-xs text-slate-400">
-                                  รับสินค้าเข้าคลังหลายรายการพร้อมกันใน 1 ใบรับ พร้อมระบุเลขล็อตและวันหมดอายุตามหลัก FEFO
+                                  {t('wh_tab2_grn_form_sub', 'รับสินค้าเข้าคลังหลายรายการพร้อมกันใน 1 ใบรับ พร้อมระบุเลขล็อตและวันหมดอายุ')}
                                 </p>
                               </div>
                             </div>
@@ -2058,7 +3751,7 @@
                               <div>
                                 <div className="flex justify-between items-center mb-1.5">
                                   <label className="text-xs font-black text-slate-700 dark:text-slate-300">
-                                    เลขที่ใบรับสินค้า (GRN No.)
+                                    {t('wh_tab2_grn_no', 'เลขที่ใบรับสินค้า')}
                                   </label>
                                   <button
                                     type="button"
@@ -2541,7 +4234,7 @@
                           }`}
                         >
                           <Edit size={16} />
-                          <span>📝 บันทึกใบเบิกย้ายสินค้า (Transfer Requisition Form)</span>
+                          <span>{t('wh_tab3_sub_form', '📝 บันทึกใบเบิกย้ายสินค้า')}</span>
                         </button>
                         <button
                           type="button"
@@ -2556,7 +4249,7 @@
                           }`}
                         >
                           <ClipboardList size={16} />
-                          <span>📋 ประวัติใบเบิกย้ายสินค้า (Transfer History)</span>
+                          <span>{t('wh_tab3_sub_history', '📋 ประวัติใบเบิกย้ายสินค้า')}</span>
                           {transferHistoryList.length > 0 && (
                             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold">
                               {transferHistoryList.length}
@@ -3005,11 +4698,11 @@
                       <div className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-900 to-indigo-900 text-white shadow-sm flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <h3 className="text-[11px] font-bold text-blue-100">
-                            ยอดยกมา + เบิกเข้า - ยอดขาย = สต๊อกตามระบบ
+                            {t('wh_tab4_formula', 'ยอดยกมา + เบิกเข้า - ยอดขาย = สต๊อกตามระบบ')}
                           </h3>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                          <label className="text-xs font-bold text-blue-200">วันที่ตรวจนับ:</label>
+                          <label className="text-xs font-bold text-blue-200">{t('wh_tab4_audit_date', 'วันที่ตรวจนับ:')}</label>
                           <input
                             type="date"
                             value={auditDate}
@@ -3159,29 +4852,50 @@
                   {/* ========================================================= */}
                   {activeTab === 'ledger' && (
                     <div className="space-y-6">
-                      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                            <Calendar size={22} />
+                      {/* Clean Toolbar: Title, Date Picker, Print & Export PDF */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                            <Calendar size={17} />
                           </div>
                           <div>
-                            <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                              สมุดบัญชีสต๊อกย้อนหลังรายวัน (Historical Daily Ledger)
+                            <h3 className="font-black text-sm text-slate-900 dark:text-white tracking-tight">
+                              {t('wh_tab5_title', 'สมุดบัญชีสต๊อกย้อนหลัง')}
                             </h3>
-                            <p className="text-xs text-slate-400">
-                              เรียกดูประวัติยอดสต๊อกเข้า-ออก และคงเหลือ ณ วันที่ต้องการตรวจสอบ (เช่น วันที่ 1, 2, 3...)
-                            </p>
+                            <span className="text-[11px] text-slate-400 font-mono">{t('wh_tab5_sub', 'Daily Stock Ledger')}</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs font-bold text-slate-400">เลือกวันที่ตรวจสอบ:</label>
-                          <input
-                            type="date"
-                            value={ledgerDate}
-                            onChange={e => setLedgerDate(e.target.value)}
-                            className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
-                          />
+                        <div className="flex items-center flex-wrap gap-2">
+                          <div className="flex items-center bg-slate-50 dark:bg-slate-800/80 rounded-xl px-2.5 py-1.5 border border-slate-200 dark:border-slate-700">
+                            <Calendar size={14} className="text-slate-400 mr-2 shrink-0" />
+                            <input
+                              type="date"
+                              value={ledgerDate}
+                              onChange={e => setLedgerDate(e.target.value)}
+                              className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleOpenPrintLedger}
+                            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-2xs"
+                            title="พิมพ์รายงานสมุดบัญชีสต๊อกประจำวัน"
+                          >
+                            <Printer size={15} className="text-blue-600 dark:text-blue-400" />
+                            <span>{t('wh_tab5_print', 'พิมพ์รายงาน')}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleOpenPrintLedger}
+                            className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm shadow-blue-500/25"
+                            title="ส่งออกรายงานเป็นไฟล์ PDF"
+                          >
+                            <Download size={15} />
+                            <span>{t('wh_tab5_export_pdf', 'ส่งออก PDF')}</span>
+                          </button>
                         </div>
                       </div>
 
@@ -3191,7 +4905,7 @@
                           <div>
                             <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
                               <ClipboardList size={18} className="text-blue-600 dark:text-blue-400" />
-                              <span>ประวัติการบันทึกกระทบยอดย้อนหลัง (Audit History Log)</span>
+                              <span>{t('wh_tab5_history_title', 'ประวัติการบันทึกกระทบยอดย้อนหลัง')}</span>
                             </h4>
                             <p className="text-xs text-slate-400 mt-0.5">
                               รายการวันที่เคยบันทึกตรวจนับและปิดยอดสต๊อกหน้าร้านไว้ในระบบ
@@ -3241,11 +4955,21 @@
                                       onClick={() => { setLedgerDate(s.date); }}
                                     >
                                       <td className="py-2.5 px-4">
-                                        <div className="flex items-center gap-2">
-                                          <Calendar size={14} className={isSelected ? "text-blue-600" : "text-slate-400"} />
-                                          <span className="font-bold text-slate-900 dark:text-white">{s.date}</span>
-                                          {isSelected && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-600 text-white">กำลังดู</span>
+                                        <div className="flex flex-col gap-0.5">
+                                          <div className="flex items-center gap-2">
+                                            <Calendar size={14} className={isSelected ? "text-blue-600" : "text-slate-400"} />
+                                            <span className="font-bold text-slate-900 dark:text-white">{s.date}</span>
+                                            {isSelected && (
+                                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-600 text-white">กำลังดู</span>
+                                            )}
+                                          </div>
+                                          {s.createdAt ? (
+                                            <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pl-5">
+                                              <Clock size={11} className="text-indigo-500" />
+                                              <span>ปิดยอด {new Date(s.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} น.</span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-[10px] text-slate-400 pl-5">-</span>
                                           )}
                                         </div>
                                       </td>
@@ -3276,25 +5000,49 @@
                                       <td className="py-2.5 px-4 text-slate-400 text-xs max-w-[150px] truncate" title={s.notes}>
                                         {s.notes || '-'}
                                       </td>
-                                      <td className="py-2.5 px-4 text-center text-[10px] text-slate-400 font-mono">
-                                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString('th-TH') : '-'}
+                                      <td className="py-2.5 px-4 text-center font-mono">
+                                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                          {s.createdAt ? new Date(s.createdAt).toLocaleDateString('th-TH') : '-'}
+                                        </div>
+                                        {s.createdAt && (
+                                          <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center gap-0.5 mt-0.5">
+                                            <Clock size={10} />
+                                            <span>{new Date(s.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                                          </div>
+                                        )}
                                       </td>
                                       <td className="py-2.5 px-4 text-center">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setLedgerDate(s.date);
-                                            setLedgerDetailOpen(true);
-                                          }}
-                                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 mx-auto ${
-                                            isSelected 
-                                              ? 'bg-blue-600 text-white' 
-                                              : 'bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300'
-                                          }`}
-                                        >
-                                          <Eye size={12} />
-                                          <span>{isSelected ? 'กำลังดู' : 'ดูรายละเอียด'}</span>
-                                        </button>
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setLedgerDate(s.date);
+                                              setLedgerDetailOpen(true);
+                                            }}
+                                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                              isSelected 
+                                                ? 'bg-blue-600 text-white shadow-2xs' 
+                                                : 'bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300'
+                                            }`}
+                                          >
+                                            <Eye size={12} />
+                                            <span>{isSelected ? 'กำลังดู' : 'ดูรายละเอียด'}</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setLedgerDate(s.date);
+                                              handleOpenPrintLedger(s.date);
+                                            }}
+                                            className="px-2 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white dark:bg-blue-950/60 dark:text-blue-400 transition-all flex items-center gap-1 shadow-2xs"
+                                            title={`พิมพ์รายงานของวันที่ ${s.date}`}
+                                          >
+                                            <Printer size={12} />
+                                            <span>พิมพ์</span>
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -3314,13 +5062,34 @@
                       {/* Daily Balance Snapshot Table from stk_daily_balance */}
                       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                          <h4 className="font-black text-sm text-slate-900 dark:text-white">
-                            ยอดคงเหลือและผลการกระทบยอดประจำวัน ({ledgerDate})
+                          <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                            <span>ยอดคงเหลือและผลการกระทบยอดประจำวัน ({ledgerDate})</span>
+                            {(() => {
+                              const selectedSession = auditHistorySessions.find(s => s.date === ledgerDate);
+                              if (selectedSession?.createdAt) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                                    <Clock size={12} className="text-indigo-500" />
+                                    <span>เวลาปิดยอด {new Date(selectedSession.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} น.</span>
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </h4>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-400">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 hidden sm:inline">
                               {isLoadingLedger ? 'กำลังโหลดข้อมูล...' : ledgerBalances.length > 0 ? `พบข้อมูลบันทึก ${ledgerBalances.length} รายการ` : 'ยังไม่มีการปิดยอดในวันนี้'}
                             </span>
+                            <button
+                              type="button"
+                              onClick={handleOpenPrintLedger}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 flex items-center gap-1 transition-all"
+                              title="พิมพ์รายงาน / ส่งออก PDF"
+                            >
+                              <Printer size={13} />
+                              <span>พิมพ์ / PDF</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => setLedgerDetailOpen(o => !o)}
@@ -3405,55 +5174,14 @@
                           </table>
                         </div>
                       </div>
-
-                      {/* Movements on that date */}
-                      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
-                        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
-                          <h4 className="font-black text-xs uppercase tracking-wider text-slate-500">
-                            การเคลื่อนไหวสต๊อกทั้งหมดในวันที่ {ledgerDate}
-                          </h4>
-                        </div>
-
-                        {movements.filter(m => m.date === ledgerDate).length === 0 ? (
-                          <div className="py-12 text-center text-slate-400 font-bold text-xs">
-                            ไม่มีรายการเคลื่อนไหวสต๊อกในวันที่เลือก ({ledgerDate})
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {movements.filter(m => m.date === ledgerDate).map((mov, idx) => {
-                              const isOut = mov.type === 'OUT';
-                              const p = products.find(prod => prod.product_id === mov.product_id);
-                              return (
-                                <div key={idx} className="py-3 flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-3">
-                                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-[10px] ${
-                                      isOut ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                    }`}>
-                                      {isOut ? 'OUT' : 'IN'}
-                                    </span>
-                                    <div>
-                                      <p className="font-bold text-slate-800 dark:text-slate-200">{p?.name || mov.product_id}</p>
-                                      <p className="text-[10px] text-slate-400">{mov.sub_type || '-'} &bull; {mov.notes || '-'}</p>
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className={`font-black text-sm ${isOut ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                      {isOut ? '-' : '+'}{mov.quantity} ชิ้น
-                                    </p>
-                                    <span className="text-[10px] text-slate-400">โดย: {mov.created_by || 'SYSTEM'}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
                     </div>
                   )}
                 </>
               )}
             </div>
-          </main>
+          </>
+        )}
+      </main>
 
           {/* ========================================================= */}
           {/* MODAL: LOT DETAILS BREAKDOWN                              */}
@@ -3532,31 +5260,86 @@
           {/* MODAL: PRINTABLE TRANSFER SLIP                            */}
           {/* ========================================================= */}
           {printSlipData && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 no-print">
-              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col">
-                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 shrink-0">
-                  <h3 className="font-black text-base text-slate-900 dark:text-white">ใบเบิกย้ายสินค้า (Internal Transfer Slip)</h3>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 print-modal-container">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-4xl w-full p-6 space-y-4 max-h-[92vh] flex flex-col print-card-wrapper">
+                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 shrink-0 no-print-zone">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                      <Printer size={16} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white">ใบเบิกย้ายสินค้า (Internal Transfer Slip)</h3>
+                      <p className="text-[11px] text-slate-400">ขนาดตัวอักษรใหญ่ ชัดเจน เหมาะสำหรับพิมพ์ A4 และเก็บเป็นหลักฐาน</p>
+                    </div>
+                  </div>
                   <button
                     onClick={() => setPrintSlipData(null)}
-                    className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl"
+                    className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors"
                   >
                     <X size={20} />
                   </button>
                 </div>
 
                 {/* Printable Slip Container */}
-                <div id="printable-slip" className="p-6 bg-white text-slate-900 rounded-2xl border border-slate-300 space-y-4 text-xs font-sans overflow-y-auto">
-                  <div className="text-center border-b border-slate-300 pb-3">
-                    <h2 className="text-base font-black uppercase">LOVE STK GROUPE</h2>
-                    <p className="text-[11px] font-bold text-slate-600">ใบเบิกย้ายสินค้าระหว่างคลัง (INTERNAL TRANSFER SLIP)</p>
-                    <p className="font-mono text-[10px] text-slate-500 mt-1">เลขที่เอกสาร: {printSlipData.transferId}</p>
+                <div id="printable-slip" className="p-5 sm:p-7 bg-white text-slate-900 rounded-2xl border border-slate-300 space-y-3.5 text-xs font-sans overflow-y-auto">
+                  {/* COMPANY HEADER WITH LOGO */}
+                  <div className="flex flex-row justify-between items-start gap-4 pb-3 border-b-2 border-slate-800">
+                    <div className="flex items-center gap-3.5">
+                      {companyInfo.logoUrl ? (
+                        <img src={companyInfo.logoUrl} alt="Logo" className="h-11 max-w-[130px] object-contain drop-shadow-xs" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md border border-blue-400 shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="20" height="5" x="2" y="3" rx="1"/>
+                            <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/>
+                            <line x1="10" x2="14" y1="12" y2="12"/>
+                          </svg>
+                        </div>
+                      )}
+                      <div>
+                        <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                          {companyInfo.name || 'LOVE STK GROUPE'}
+                        </h1>
+                        <p className="text-[11px] text-slate-700 font-bold mt-0.5">{companyInfo.branch || 'สำนักงานใหญ่ / คลินิกเวชกรรม'}</p>
+                        <p className="text-[10px] text-slate-500 leading-tight">{companyInfo.address || 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)'}</p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">โทร: {companyInfo.phone || '+856 20 85387291'} {companyInfo.taxId ? `• เลขผู้เสียภาษี: ${companyInfo.taxId}` : ''}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="bg-slate-50 border-2 border-slate-800 rounded-xl px-3.5 py-1.5 text-right">
+                        <h2 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
+                          ใบเบิกย้ายสินค้าข้ามคลัง
+                        </h2>
+                        <p className="text-[9.5px] font-black text-blue-700 font-mono tracking-wider">
+                          INTERNAL TRANSFER SLIP
+                        </p>
+                        <div className="mt-1 pt-1 border-t border-slate-300">
+                          <span className="text-[10.5px] text-slate-500 font-bold">เลขที่เอกสาร: </span>
+                          <span className="font-mono font-black text-xs sm:text-sm text-slate-900">{printSlipData.transferId}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div><span className="font-bold">วันที่เบิก:</span> {printSlipData.date}</div>
-                    <div><span className="font-bold">ผู้ขอเบิก:</span> {printSlipData.requestedBy}</div>
-                    <div><span className="font-bold">คลังต้นทาง:</span> {printSlipData.fromWarehouse}</div>
-                    <div><span className="font-bold">คลังปลายทาง:</span> {printSlipData.toWarehouse}</div>
+                  {/* DOCUMENT METADATA */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">วันที่เบิก:</span>
+                      <span className="font-bold text-slate-800 text-xs mt-0.5 block">{printSlipData.date}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">ผู้ขอเบิก:</span>
+                      <span className="font-bold text-slate-800 text-xs mt-0.5 block truncate">{printSlipData.requestedBy || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">คลังต้นทาง:</span>
+                      <span className="font-bold text-slate-800 text-xs mt-0.5 block truncate">{printSlipData.fromWarehouse}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">คลังปลายทาง:</span>
+                      <span className="font-bold text-indigo-700 text-xs mt-0.5 block truncate">{printSlipData.toWarehouse}</span>
+                    </div>
                   </div>
 
                   {(() => {
@@ -3576,32 +5359,32 @@
                     const totalQty = Array.isArray(items) ? items.reduce((s, it) => s + (Number(it.qty || it.quantity) || 0), 0) : 0;
 
                     return (
-                      <table className="w-full border-collapse border border-slate-300 text-left my-2 text-[11px]">
+                      <table className="w-full border-collapse border border-slate-300 text-left my-2.5 text-xs">
                         <thead>
-                          <tr className="bg-slate-100 border-b border-slate-300">
-                            <th className="p-2 border-r border-slate-300 text-center w-8">#</th>
-                            <th className="p-2 border-r border-slate-300">รหัส / รายการสินค้า</th>
-                            <th className="p-2 border-r border-slate-300">ล็อตที่เบิก</th>
-                            <th className="p-2 text-center">จำนวนที่เบิก (ชิ้น)</th>
+                          <tr className="bg-slate-100 border-b-2 border-slate-300 text-slate-700 font-black text-[11px]">
+                            <th className="py-2 px-2.5 border-r border-slate-300 text-center w-10">#</th>
+                            <th className="py-2 px-2.5 border-r border-slate-300">รหัส / รายการสินค้า</th>
+                            <th className="py-2 px-2.5 border-r border-slate-300 w-36">ล็อตที่เบิก (Lot ID)</th>
+                            <th className="py-2 px-2.5 text-center w-28">จำนวนที่เบิก (ชิ้น)</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-200">
                           {Array.isArray(items) && items.map((it, idx) => (
-                            <tr key={idx} className="border-b border-slate-200">
-                              <td className="p-2 border-r border-slate-300 text-center font-bold text-slate-500">{idx + 1}</td>
-                              <td className="p-2 border-r border-slate-300 font-bold">
-                                {it.productName || it.product_name || it.name || it.productId}
-                                {it.productId && <span className="block font-mono text-[9px] text-slate-400 font-normal">{it.productId}</span>}
+                            <tr key={idx} className="hover:bg-slate-50/50">
+                              <td className="py-2 px-2.5 border-r border-slate-300 text-center font-bold text-slate-500">{idx + 1}</td>
+                              <td className="py-2 px-2.5 border-r border-slate-300 font-bold">
+                                <div className="text-xs font-bold text-slate-900">{it.productName || it.product_name || it.name || it.productId}</div>
+                                {it.productId && <span className="font-mono text-[10px] text-slate-400 font-normal">{it.productId}</span>}
                               </td>
-                              <td className="p-2 border-r border-slate-300 font-mono font-bold text-indigo-600">{it.lotId || it.lot_id || 'FEFO Auto-Assign'}</td>
-                              <td className="p-2 text-center font-black text-sm">{Number(it.qty || it.quantity || 0).toLocaleString()}</td>
+                              <td className="py-2 px-2.5 border-r border-slate-300 font-mono font-bold text-indigo-700 text-[11px]">{it.lotId || it.lot_id || 'FEFO Auto-Assign'}</td>
+                              <td className="py-2 px-2.5 text-center font-black text-xs font-mono text-slate-900">{Number(it.qty || it.quantity || 0).toLocaleString()}</td>
                             </tr>
                           ))}
                         </tbody>
                         <tfoot>
-                          <tr className="bg-slate-100 font-bold border-t border-slate-300">
-                            <td colSpan="3" className="p-2 text-right border-r border-slate-300">รวมทั้งสิ้น ({items.length} รายการ):</td>
-                            <td className="p-2 text-center font-black text-indigo-600 text-sm">{totalQty.toLocaleString()} ชิ้น</td>
+                          <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs">
+                            <td colSpan="3" className="py-2 px-2.5 text-right border-r border-slate-300">รวมทั้งสิ้น ({items.length} รายการ):</td>
+                            <td className="py-2 px-2.5 text-center font-black text-indigo-700 text-xs font-mono">{totalQty.toLocaleString()} ชิ้น</td>
                           </tr>
                         </tfoot>
                       </table>
@@ -3609,34 +5392,48 @@
                   })()}
 
                   {printSlipData.notes && (
-                    <p className="text-[10px] text-slate-600 italic"><span className="font-bold">หมายเหตุ:</span> {printSlipData.notes}</p>
+                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-600">
+                      <span className="font-bold text-slate-900">หมายเหตุ: </span>
+                      <span>{printSlipData.notes}</span>
+                    </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4 pt-6 text-center text-[10px]">
-                    <div className="border-t border-slate-400 pt-1">
-                      <p className="font-bold">ลงชื่อผู้ขอเบิก</p>
-                      <p className="text-slate-500 mt-5">({printSlipData.requestedBy || '....................................'})</p>
+                  {/* SIGNATURE BLOCK */}
+                  <div className="grid grid-cols-2 gap-8 pt-4 text-center text-xs">
+                    <div className="border-t-2 border-slate-400 pt-2">
+                      <p className="font-bold text-xs text-slate-800">ลงชื่อผู้ขอเบิกสินค้า</p>
+                      <p className="text-slate-600 mt-6 font-semibold text-[11px]">({printSlipData.requestedBy || '...................................................'})</p>
+                      <p className="text-slate-400 text-[10px] mt-0.5">วันที่: ........ / ........ / ................</p>
                     </div>
-                    <div className="border-t border-slate-400 pt-1">
-                      <p className="font-bold">ลงชื่อผู้จ่ายของ / หัวหน้าคลัง</p>
-                      <p className="text-slate-500 mt-5">({printSlipData.approvedBy || '....................................'})</p>
+                    <div className="border-t-2 border-slate-400 pt-2">
+                      <p className="font-bold text-xs text-slate-800">ลงชื่อผู้จ่ายของ / หัวหน้าคลังสินค้า</p>
+                      <p className="text-slate-600 mt-6 font-semibold text-[11px]">({printSlipData.approvedBy || '...................................................'})</p>
+                      <p className="text-slate-400 text-[10px] mt-0.5">วันที่: ........ / ........ / ................</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-2 shrink-0">
+                <div className="flex justify-end gap-2.5 pt-2 shrink-0 no-print-zone">
                   <button
                     onClick={() => setPrintSlipData(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
                   >
                     ปิด
                   </button>
                   <button
-                    onClick={() => window.print()}
-                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md"
+                    onClick={() => executePrintTransferSlip(printSlipData)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
+                    title="ส่งออกเอกสารเป็น PDF"
+                  >
+                    <Download size={14} className="text-indigo-600 dark:text-indigo-400" />
+                    <span>บันทึก PDF</span>
+                  </button>
+                  <button
+                    onClick={() => executePrintTransferSlip(printSlipData)}
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
                   >
                     <Printer size={15} />
-                    <span>พิมพ์ใบเบิก (Print Slip)</span>
+                    <span>พิมพ์ใบเบิก (Print Slip A4)</span>
                   </button>
                 </div>
               </div>
@@ -3753,123 +5550,480 @@
           {/* MODAL: PRINTABLE GOODS RECEIPT NOTE (GRN SLIP)            */}
           {/* ========================================================= */}
           {printGrnSlipData && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 no-print">
-              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col">
-                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 shrink-0">
-                  <h3 className="font-black text-base text-slate-900 dark:text-white">ใบรับสินค้าเข้าคลัง (Goods Receipt Note)</h3>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 print-modal-container">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-4xl w-full p-6 space-y-4 max-h-[92vh] flex flex-col print-card-wrapper">
+                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 shrink-0 no-print-zone">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <Printer size={16} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white">ใบรับสินค้าเข้าคลัง (Goods Receipt Note - GRN)</h3>
+                      <p className="text-[11px] text-slate-400">ขนาดตัวอักษรใหญ่ ชัดเจน พร้อมหัวบิลบริษัท เหมาะสำหรับพิมพ์ A4</p>
+                    </div>
+                  </div>
                   <button
                     onClick={() => setPrintGrnSlipData(null)}
-                    className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl"
+                    className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors"
                   >
                     <X size={20} />
                   </button>
                 </div>
 
                 {/* Printable Slip Container */}
-                <div id="printable-grn-slip" className="p-6 bg-white text-slate-900 rounded-2xl border border-slate-300 space-y-4 text-xs font-sans overflow-y-auto">
-                  <div className="text-center border-b border-slate-300 pb-3">
-                    <h2 className="text-base font-black uppercase">LOVE STK GROUPE</h2>
-                    <p className="text-[11px] font-bold text-slate-600">ใบรับสินค้าเข้าคลังสินค้า (GOODS RECEIPT NOTE - GRN)</p>
-                    <p className="font-mono text-[10px] text-slate-500 mt-1">เลขที่เอกสาร: {printGrnSlipData.transfer_id}</p>
+                <div id="printable-grn-slip" className="p-5 sm:p-7 bg-white text-slate-900 rounded-2xl border border-slate-300 space-y-3.5 text-xs font-sans overflow-y-auto">
+                  {/* COMPANY HEADER WITH LOGO */}
+                  <div className="flex flex-row justify-between items-start gap-4 pb-3 border-b-2 border-slate-800">
+                    <div className="flex items-center gap-3.5">
+                      {companyInfo.logoUrl ? (
+                        <img src={companyInfo.logoUrl} alt="Logo" className="h-11 max-w-[130px] object-contain drop-shadow-xs" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md border border-emerald-400 shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                            <line x1="12" y1="22.08" x2="12" y2="12"/>
+                          </svg>
+                        </div>
+                      )}
+                      <div>
+                        <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                          {companyInfo.name || 'LOVE STK GROUPE'}
+                        </h1>
+                        <p className="text-[11px] text-slate-700 font-bold mt-0.5">{companyInfo.branch || 'สำนักงานใหญ่ / คลินิกเวชกรรม'}</p>
+                        <p className="text-[10px] text-slate-500 leading-tight">{companyInfo.address || 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)'}</p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">โทร: {companyInfo.phone || '+856 20 85387291'} {companyInfo.taxId ? `• เลขผู้เสียภาษี: ${companyInfo.taxId}` : ''}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="bg-slate-50 border-2 border-slate-800 rounded-xl px-3.5 py-1.5 text-right">
+                        <h2 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
+                          ใบรับสินค้าเข้าคลังสินค้า
+                        </h2>
+                        <p className="text-[9.5px] font-black text-emerald-700 font-mono tracking-wider">
+                          GOODS RECEIPT NOTE (GRN)
+                        </p>
+                        <div className="mt-1 pt-1 border-t border-slate-300">
+                          <span className="text-[10.5px] text-slate-500 font-bold">เลขที่เอกสาร: </span>
+                          <span className="font-mono font-black text-xs sm:text-sm text-slate-900">{printGrnSlipData.transfer_id}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div><span className="font-bold">วันที่รับเข้า:</span> {printGrnSlipData.transfer_date}</div>
-                    <div><span className="font-bold">คลังปลายทาง:</span> {printGrnSlipData.to_warehouse === 'MAIN_WH' ? 'คลังใหญ่ (Main WH - ชั้น 2)' : printGrnSlipData.to_warehouse}</div>
-                    <div><span className="font-bold">แหล่งที่มา / ซัพพลายเออร์:</span> {printGrnSlipData.from_warehouse && printGrnSlipData.from_warehouse !== 'SUPPLIER' ? printGrnSlipData.from_warehouse : '-'}</div>
-                    <div><span className="font-bold">ผู้รับสินค้าเข้าคลัง:</span> {printGrnSlipData.received_by || '-'}</div>
+                  {/* DOCUMENT METADATA */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">วันที่รับเข้า:</span>
+                      <span className="font-bold text-slate-800 text-xs mt-0.5 block">{printGrnSlipData.transfer_date || printGrnSlipData.created_at?.slice(0, 10)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">คลังปลายทาง:</span>
+                      <span className="font-bold text-emerald-700 text-xs mt-0.5 block truncate">{printGrnSlipData.to_warehouse === 'MAIN_WH' ? 'คลังใหญ่ (Main WH - ชั้น 2)' : (printGrnSlipData.to_warehouse || '-')}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">แหล่งที่มา / ซัพพลายเออร์:</span>
+                      <span className="font-bold text-slate-800 text-xs mt-0.5 block truncate">{printGrnSlipData.from_warehouse && printGrnSlipData.from_warehouse !== 'SUPPLIER' ? printGrnSlipData.from_warehouse : (printGrnSlipData.supplier || '-')}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[9.5px] uppercase tracking-wider">ผู้รับสินค้าเข้าคลัง:</span>
+                      <span className="font-bold text-slate-800 text-xs mt-0.5 block truncate">{printGrnSlipData.received_by || '-'}</span>
+                    </div>
                   </div>
 
                   {(() => {
                     let items = [];
                     if (printGrnSlipData.items_json) {
                       try { items = typeof printGrnSlipData.items_json === 'string' ? JSON.parse(printGrnSlipData.items_json) : printGrnSlipData.items_json; } catch(e){}
+                    } else if (printGrnSlipData.items && Array.isArray(printGrnSlipData.items)) {
+                      items = printGrnSlipData.items;
                     }
-                    const totalQty = Array.isArray(items) ? items.reduce((s, it) => s + (Number(it.qty) || 0), 0) : 0;
-                    const totalCost = Array.isArray(items) ? items.reduce((s, it) => s + ((Number(it.qty) || 0) * (Number(it.costPrice || it.cost_price) || 0)), 0) : 0;
+                    const totalQty = Array.isArray(items) ? items.reduce((s, it) => s + (Number(it.qty || it.quantity) || 0), 0) : 0;
+                    const totalCost = Array.isArray(items) ? items.reduce((s, it) => s + ((Number(it.qty || it.quantity) || 0) * (Number(it.costPrice || it.cost_price) || 0)), 0) : 0;
 
                     return (
                       <>
-                        <table className="w-full border-collapse border border-slate-300 text-left my-2 text-[11px]">
+                        <table className="w-full border-collapse border border-slate-300 text-left my-2.5 text-xs">
                           <thead>
-                            <tr className="bg-slate-100 border-b border-slate-300">
-                              <th className="p-2 border-r border-slate-300 text-center w-8">#</th>
-                              <th className="p-2 border-r border-slate-300">รหัส / รายการสินค้า</th>
-                              <th className="p-2 border-r border-slate-300">ล็อต (Lot No.)</th>
-                              <th className="p-2 border-r border-slate-300 text-center">วันหมดอายุ</th>
-                              <th className="p-2 border-r border-slate-300 text-center">จำนวน (ชิ้น)</th>
-                              <th className="p-2 border-r border-slate-300 text-right">ต้นทุน/หน่วย</th>
-                              <th className="p-2 text-right">รวมเงิน (บาท)</th>
+                            <tr className="bg-slate-100 border-b-2 border-slate-300 text-slate-700 font-black text-[11px]">
+                              <th className="py-2 px-2.5 border-r border-slate-300 text-center w-10">#</th>
+                              <th className="py-2 px-2.5 border-r border-slate-300">รหัส / รายการสินค้า</th>
+                              <th className="py-2 px-2.5 border-r border-slate-300 w-28">ล็อต (Lot No.)</th>
+                              <th className="py-2 px-2.5 border-r border-slate-300 text-center w-24">วันหมดอายุ</th>
+                              <th className="py-2 px-2.5 border-r border-slate-300 text-center w-24">จำนวน (ชิ้น)</th>
+                              <th className="py-2 px-2.5 border-r border-slate-300 text-right w-24">ต้นทุน/หน่วย</th>
+                              <th className="py-2 px-2.5 text-right w-28">รวมเงิน (บาท)</th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody className="divide-y divide-slate-200">
                             {Array.isArray(items) && items.map((it, idx) => {
                               const cost = Number(it.costPrice || it.cost_price || 0);
-                              const q = Number(it.qty || 0);
+                              const q = Number(it.qty || it.quantity || 0);
                               const sub = q * cost;
                               return (
-                                <tr key={idx} className="border-b border-slate-200">
-                                  <td className="p-2 border-r border-slate-300 text-center font-bold text-slate-500">{idx + 1}</td>
-                                  <td className="p-2 border-r border-slate-300 font-bold">
-                                    {it.productName || it.name || it.productId}
-                                    <span className="block font-mono text-[9px] text-slate-400 font-normal">{it.productId}</span>
+                                <tr key={idx} className="hover:bg-slate-50/50">
+                                  <td className="py-2 px-2.5 border-r border-slate-300 text-center font-bold text-slate-500">{idx + 1}</td>
+                                  <td className="py-2 px-2.5 border-r border-slate-300 font-bold">
+                                    <div className="text-xs font-bold text-slate-900">{it.productName || it.product_name || it.name || it.productId}</div>
+                                    {it.productId && <span className="font-mono text-[10px] text-slate-400 font-normal">{it.productId}</span>}
                                   </td>
-                                  <td className="p-2 border-r border-slate-300 font-mono font-bold">{it.lotId || '-'}</td>
-                                  <td className="p-2 border-r border-slate-300 text-center font-bold">{it.expiryDate || it.expiry_date || '-'}</td>
-                                  <td className="p-2 border-r border-slate-300 text-center font-black">{q.toLocaleString()}</td>
-                                  <td className="p-2 border-r border-slate-300 text-right">{cost > 0 ? `฿${cost.toLocaleString()}` : '-'}</td>
-                                  <td className="p-2 text-right font-bold">{sub > 0 ? `฿${sub.toLocaleString()}` : '-'}</td>
+                                  <td className="py-2 px-2.5 border-r border-slate-300 font-mono font-bold text-slate-700 text-[11px]">{it.lotId || it.lot_id || '-'}</td>
+                                  <td className="py-2 px-2.5 border-r border-slate-300 text-center font-semibold text-slate-600 text-[11px]">{it.expiryDate || it.expiry_date || '-'}</td>
+                                  <td className="py-2 px-2.5 border-r border-slate-300 text-center font-black text-xs text-slate-900">{q.toLocaleString()}</td>
+                                  <td className="py-2 px-2.5 border-r border-slate-300 text-right font-mono font-bold text-slate-700 text-[11px]">{cost > 0 ? `฿${cost.toLocaleString()}` : '-'}</td>
+                                  <td className="py-2 px-2.5 text-right font-mono font-black text-emerald-700 text-xs">{sub > 0 ? `฿${sub.toLocaleString()}` : '-'}</td>
                                 </tr>
                               );
                             })}
                           </tbody>
                           <tfoot>
-                            <tr className="bg-slate-100 font-bold border-t border-slate-300">
-                              <td colSpan="4" className="p-2 text-right border-r border-slate-300">รวมทั้งสิ้น ({items.length} รายการ):</td>
-                              <td className="p-2 text-center font-black border-r border-slate-300">{totalQty.toLocaleString()}</td>
-                              <td className="p-2 border-r border-slate-300"></td>
-                              <td className="p-2 text-right font-black text-emerald-600">฿{totalCost.toLocaleString()}</td>
+                            <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs">
+                              <td colSpan="4" className="py-2 px-2.5 text-right border-r border-slate-300">รวมทั้งสิ้น ({items.length} รายการ):</td>
+                              <td className="py-2 px-2.5 text-center font-black border-r border-slate-300 text-xs">{totalQty.toLocaleString()}</td>
+                              <td className="py-2 px-2.5 border-r border-slate-300"></td>
+                              <td className="py-2 px-2.5 text-right font-black text-emerald-700 text-xs">฿{totalCost.toLocaleString()}</td>
                             </tr>
                           </tfoot>
                         </table>
 
                         {printGrnSlipData.notes && (
-                          <p className="text-[10px] text-slate-600 italic"><span className="font-bold">หมายเหตุ:</span> {printGrnSlipData.notes}</p>
+                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-600">
+                            <span className="font-bold text-slate-900">หมายเหตุ: </span>
+                            <span>{printGrnSlipData.notes}</span>
+                          </div>
                         )}
                       </>
                     );
                   })()}
 
-                  <div className="grid grid-cols-3 gap-2 pt-8 text-center text-[10px]">
-                    <div className="border-t border-slate-400 pt-1">
-                      <p className="font-bold">ลงชื่อผู้ส่งมอบสินค้า</p>
-                      <p className="text-slate-500 mt-5">({printGrnSlipData.from_warehouse && printGrnSlipData.from_warehouse !== 'SUPPLIER' ? printGrnSlipData.from_warehouse : '....................................'})</p>
+                  {/* 3-COLUMN SIGNATURE BLOCK */}
+                  <div className="grid grid-cols-3 gap-5 pt-4 text-center text-xs">
+                    <div className="border-t-2 border-slate-400 pt-2">
+                      <p className="font-bold text-xs text-slate-800">ลงชื่อผู้ส่งมอบสินค้า</p>
+                      <p className="text-slate-600 mt-6 font-semibold text-[11px]">({printGrnSlipData.from_warehouse && printGrnSlipData.from_warehouse !== 'SUPPLIER' ? printGrnSlipData.from_warehouse : (printGrnSlipData.supplier || '...........................................')})</p>
+                      <p className="text-slate-400 text-[10px] mt-0.5">วันที่: ........ / ........ / ................</p>
                     </div>
-                    <div className="border-t border-slate-400 pt-1">
-                      <p className="font-bold">ลงชื่อผู้รับสินค้าเข้าคลัง</p>
-                      <p className="text-slate-500 mt-5">({printGrnSlipData.received_by || '....................................'})</p>
+                    <div className="border-t-2 border-slate-400 pt-2">
+                      <p className="font-bold text-xs text-slate-800">ลงชื่อผู้รับสินค้าเข้าคลัง</p>
+                      <p className="text-slate-600 mt-6 font-semibold text-[11px]">({printGrnSlipData.received_by || '...........................................'})</p>
+                      <p className="text-slate-400 text-[10px] mt-0.5">วันที่: ........ / ........ / ................</p>
                     </div>
-                    <div className="border-t border-slate-400 pt-1">
-                      <p className="font-bold">ลงชื่อผู้ตรวจสอบ / หัวหน้าคลัง</p>
-                      <p className="text-slate-500 mt-5">(....................................)</p>
+                    <div className="border-t-2 border-slate-400 pt-2">
+                      <p className="font-bold text-xs text-slate-800">ลงชื่อผู้ตรวจสอบ / หัวหน้าคลัง</p>
+                      <p className="text-slate-600 mt-6 font-semibold text-[11px]">(...........................................)</p>
+                      <p className="text-slate-400 text-[10px] mt-0.5">วันที่: ........ / ........ / ................</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-2 shrink-0">
+                <div className="flex justify-end gap-2.5 pt-2 shrink-0 no-print-zone">
                   <button
                     onClick={() => setPrintGrnSlipData(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
                   >
                     ปิด
                   </button>
                   <button
-                    onClick={() => window.print()}
-                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md"
+                    onClick={() => executePrintGrnSlip(printGrnSlipData)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
+                    title="ส่งออกเอกสารเป็น PDF"
+                  >
+                    <Download size={14} className="text-emerald-600 dark:text-emerald-400" />
+                    <span>บันทึก PDF</span>
+                  </button>
+                  <button
+                    onClick={() => executePrintGrnSlip(printGrnSlipData)}
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
                   >
                     <Printer size={15} />
-                    <span>พิมพ์ใบรับสินค้า (Print GRN)</span>
+                    <span>พิมพ์ใบรับสินค้า (Print GRN A4)</span>
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* MODAL: PRINTABLE HISTORICAL DAILY STOCK LEDGER REPORT      */}
+          {/* ========================================================= */}
+          {printLedgerData && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 print-modal-container">
+              {/* Dynamic Orientation Control for Print Engine */}
+              <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                  @page {
+                    size: A4 ${printOrientation} !important;
+                    margin: ${printOrientation === 'landscape' ? '8mm 10mm 10mm 10mm' : '10mm 12mm 12mm 12mm'} !important;
+                  }
+                }
+              ` }} />
+
+              <div className={`bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl ${printOrientation === 'landscape' ? 'max-w-6xl' : 'max-w-4xl'} w-full p-6 space-y-4 max-h-[92vh] flex flex-col print-card-wrapper`}>
+                <div className="flex flex-wrap justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 gap-2 shrink-0 no-print-zone">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <Printer size={16} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white">รายงานสมุดบัญชีสต๊อกย้อนหลัง (Historical Daily Ledger Report)</h3>
+                      <p className="text-[11px] text-slate-400">เลือกพิมพ์ได้ทั้งแนวนอน (กว้าง อ่านง่าย) หรือแนวตั้ง พร้อมหัวบิลทางการ</p>
+                    </div>
+                  </div>
+
+                  {/* Orientation Switcher & Close */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setPrintOrientation('portrait')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          printOrientation === 'portrait'
+                            ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                        title="ปรับเป็นแนวตั้ง"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="18" x="5" y="3" rx="2"/></svg>
+                        <span>แนวตั้ง</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPrintOrientation('landscape')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          printOrientation === 'landscape'
+                            ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                        title="ปรับเป็นแนวนอน (แนะนำ)"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="14" x="3" y="5" rx="2"/></svg>
+                        <span>แนวนอน</span>
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setPrintLedgerData(null)}
+                      className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Printable Slip Container */}
+                <div id="printable-ledger-slip" className="p-6 sm:p-8 bg-white text-slate-900 rounded-2xl border border-slate-300 space-y-5 text-sm font-sans overflow-y-auto">
+                  {/* COMPANY HEADER WITH LOGO */}
+                  <div className="flex flex-row justify-between items-start gap-4 pb-4 border-b-2 border-slate-800">
+                    <div className="flex items-center gap-4">
+                      {companyInfo.logoUrl ? (
+                        <img src={companyInfo.logoUrl} alt="Logo" className="h-16 max-w-[160px] object-contain drop-shadow-sm" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md border border-blue-400 shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                            <line x1="16" x2="16" y1="2" y2="6"/>
+                            <line x1="8" x2="8" y1="2" y2="6"/>
+                            <line x1="3" x2="21" y1="10" y2="10"/>
+                          </svg>
+                        </div>
+                      )}
+                      <div>
+                        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                          {companyInfo.name || 'LOVE STK GROUPE'}
+                        </h1>
+                        <p className="text-xs text-slate-700 font-bold mt-0.5">{companyInfo.branch || 'สำนักงานใหญ่ / คลินิกเวชกรรม'}</p>
+                        <p className="text-xs text-slate-500">{companyInfo.address || 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)'}</p>
+                        <p className="text-xs text-slate-500 font-mono">โทร: {companyInfo.phone || '+856 20 85387291'} {companyInfo.taxId ? `• เลขผู้เสียภาษี: ${companyInfo.taxId}` : ''}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="bg-slate-50 border-2 border-slate-800 rounded-xl px-4 py-2.5 text-right">
+                        <h2 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-wide">
+                          รายงานสมุดบัญชีสต๊อกย้อนหลัง
+                        </h2>
+                        <p className="text-xs font-black text-blue-700 font-mono tracking-wider">
+                          DAILY STOCK LEDGER REPORT
+                        </p>
+                        <div className="mt-1 pt-1 border-t border-slate-300">
+                          <span className="text-xs text-slate-500 font-bold">ประจำวันที่: </span>
+                          <span className="font-mono font-black text-sm text-slate-900">{printLedgerData.date}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DOCUMENT METADATA */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs sm:text-sm">
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase">วันที่ตรวจนับ / ปิดยอด:</span>
+                      <span className="font-bold text-slate-800 text-sm">{printLedgerData.date}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase">คลังที่ตรวจสอบ:</span>
+                      <span className="font-bold text-blue-700 text-sm">{printLedgerData.warehouseId}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase">ผู้ตรวจนับ / บันทึก:</span>
+                      <span className="font-bold text-slate-800 text-sm">{printLedgerData.auditedBy || 'ADMIN'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase">เวลาบันทึกปิดยอด:</span>
+                      <span className="font-bold text-slate-800 text-sm">
+                        {printLedgerData.createdAt ? new Date(printLedgerData.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* TABLE OF LEDGER ITEMS */}
+                  {(() => {
+                    const items = printLedgerData.items || [];
+                    const totalOpening = items.reduce((s, it) => s + (it.openingQty || 0), 0);
+                    const totalIn = items.reduce((s, it) => s + (it.transferInQty || 0), 0);
+                    const totalOut = items.reduce((s, it) => s + (it.transferOutQty || 0), 0);
+                    const totalSystem = items.reduce((s, it) => s + (it.systemClosingQty || 0), 0);
+                    const totalPhysical = items.reduce((s, it) => s + (it.physicalCountQty !== null ? it.physicalCountQty : 0), 0);
+                    const totalDiff = items.reduce((s, it) => s + (it.diffQty || 0), 0);
+                    const hasDiscrepancy = items.some(it => it.physicalCountQty !== null && it.diffQty !== 0);
+
+                    return (
+                      <>
+                        <table className="w-full border-collapse border border-slate-300 text-left my-3 text-xs sm:text-sm">
+                          <thead>
+                            <tr className="bg-slate-100 border-b-2 border-slate-300 text-slate-700 font-black">
+                              <th className="p-2.5 border-r border-slate-300 text-center w-10">#</th>
+                              <th className="p-2.5 border-r border-slate-300">รหัส / รายการสินค้า</th>
+                              <th className="p-2.5 border-r border-slate-300 text-center w-20">ยอดยกมา</th>
+                              <th className="p-2.5 border-r border-slate-300 text-center w-20">รับเข้า (+)</th>
+                              <th className="p-2.5 border-r border-slate-300 text-center w-20">จ่ายออก (-)</th>
+                              <th className="p-2.5 border-r border-slate-300 text-center w-24 bg-blue-50/50">สต๊อกระบบ</th>
+                              <th className="p-2.5 border-r border-slate-300 text-center w-20">นับจริง</th>
+                              <th className="p-2.5 border-r border-slate-300 text-center w-20">ผลต่าง</th>
+                              <th className="p-2.5 text-center w-20">สถานะ</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {items.length > 0 ? (
+                              items.map((it, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50/50">
+                                  <td className="p-2.5 border-r border-slate-300 text-center font-bold text-slate-500">{idx + 1}</td>
+                                  <td className="p-2.5 border-r border-slate-300 font-bold">
+                                    <div className="text-xs sm:text-sm font-bold text-slate-900">{it.name}</div>
+                                    <span className="font-mono text-[10px] text-slate-400 font-normal">{it.productId}</span>
+                                  </td>
+                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono">{Number(it.openingQty || 0).toLocaleString()}</td>
+                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-emerald-700">+{Number(it.transferInQty || 0).toLocaleString()}</td>
+                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-rose-700">-{Number(it.transferOutQty || 0).toLocaleString()}</td>
+                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-black text-blue-700 bg-blue-50/30">{Number(it.systemClosingQty || 0).toLocaleString()}</td>
+                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-black text-slate-900">
+                                    {it.physicalCountQty !== null ? Number(it.physicalCountQty).toLocaleString() : '-'}
+                                  </td>
+                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-bold">
+                                    {it.physicalCountQty === null ? (
+                                      <span className="text-slate-400 text-xs">-</span>
+                                    ) : it.diffQty === 0 ? (
+                                      <span className="text-emerald-700">&plusmn;0</span>
+                                    ) : it.diffQty < 0 ? (
+                                      <span className="text-rose-700 font-black">{it.diffQty}</span>
+                                    ) : (
+                                      <span className="text-amber-700 font-black">+{it.diffQty}</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-center text-xs">
+                                    {it.physicalCountQty === null ? (
+                                      <span className="text-slate-400">ปิดตามระบบ</span>
+                                    ) : it.diffQty === 0 ? (
+                                      <span className="text-emerald-700 font-bold">ตรง</span>
+                                    ) : (
+                                      <span className="text-rose-700 font-bold">ผลต่าง</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="9" className="p-8 text-center text-slate-400 font-bold">
+                                  ยังไม่มีข้อมูลบันทึกตรวจนับปิดยอดประจำวัน ({printLedgerData.date}) ในระบบ
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs sm:text-sm">
+                              <td colSpan="2" className="p-2.5 text-right border-r border-slate-300">รวมทั้งสิ้น ({items.length} รายการ):</td>
+                              <td className="p-2.5 text-center border-r border-slate-300 font-mono">{totalOpening.toLocaleString()}</td>
+                              <td className="p-2.5 text-center border-r border-slate-300 font-mono text-emerald-700">+{totalIn.toLocaleString()}</td>
+                              <td className="p-2.5 text-center border-r border-slate-300 font-mono text-rose-700">-{totalOut.toLocaleString()}</td>
+                              <td className="p-2.5 text-center border-r border-slate-300 font-mono text-blue-700">{totalSystem.toLocaleString()}</td>
+                              <td className="p-2.5 text-center border-r border-slate-300 font-mono">{totalPhysical.toLocaleString()}</td>
+                              <td className="p-2.5 text-center border-r border-slate-300 font-mono">
+                                {totalDiff === 0 ? '±0' : (totalDiff > 0 ? `+${totalDiff}` : totalDiff)}
+                              </td>
+                              <td className="p-2.5 text-center font-bold">
+                                {hasDiscrepancy ? <span className="text-rose-700">พบผลต่าง</span> : <span className="text-emerald-700">เรียบร้อย</span>}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+
+                        {printLedgerData.notes && (
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700">
+                            <span className="font-bold text-slate-900">หมายเหตุ: </span>
+                            <span>{printLedgerData.notes}</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {/* 3-COLUMN SIGNATURE BLOCK */}
+                  <div className="grid grid-cols-3 gap-6 pt-8 text-center text-xs sm:text-sm signature-block-print">
+                    <div className="border-t-2 border-slate-400 pt-3">
+                      <p className="font-bold text-sm text-slate-800">ลงชื่อผู้ตรวจนับ / บันทึกยอด</p>
+                      <p className="text-slate-600 mt-10 font-semibold">({printLedgerData.auditedBy || '...........................................'})</p>
+                      <p className="text-slate-400 text-xs mt-1">วันที่: ........ / ........ / ................</p>
+                    </div>
+                    <div className="border-t-2 border-slate-400 pt-3">
+                      <p className="font-bold text-sm text-slate-800">ลงชื่อผู้จัดการคลังสินค้า / เภสัชกร</p>
+                      <p className="text-slate-600 mt-10 font-semibold">(...........................................)</p>
+                      <p className="text-slate-400 text-xs mt-1">วันที่: ........ / ........ / ................</p>
+                    </div>
+                    <div className="border-t-2 border-slate-400 pt-3">
+                      <p className="font-bold text-sm text-slate-800">ลงชื่อผู้มีอำนาจอนุมัติ / กรรมการผู้จัดการ</p>
+                      <p className="text-slate-600 mt-10 font-semibold">(...........................................)</p>
+                      <p className="text-slate-400 text-xs mt-1">วันที่: ........ / ........ / ................</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 shrink-0 no-print-zone">
+                  <div className="text-xs text-slate-500 font-medium">
+                    โหมดการพิมพ์ปัจจุบัน: <span className="font-bold text-blue-600">{printOrientation === 'landscape' ? 'แนวนอน (A4 Landscape)' : 'แนวตั้ง (A4 Portrait)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      onClick={() => setPrintLedgerData(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+                    >
+                      ปิด
+                    </button>
+                    <button
+                      onClick={() => executePrintLedger(printOrientation)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
+                      title="ส่งออกเอกสารเป็น PDF"
+                    >
+                      <Download size={14} className="text-blue-600 dark:text-blue-400" />
+                      <span>บันทึก PDF</span>
+                    </button>
+                    <button
+                      onClick={() => executePrintLedger(printOrientation)}
+                      className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                    >
+                      <Printer size={15} />
+                      <span>พิมพ์รายงาน ({printOrientation === 'landscape' ? 'แนวนอน A4' : 'แนวตั้ง A4'})</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3963,6 +6117,18 @@
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* LOGIN MODAL                                               */}
+          {/* ========================================================= */}
+          {LoginModal && (
+            <LoginModal
+              isOpen={showLoginModal}
+              onClose={() => setShowLoginModal(false)}
+              onLoginSuccess={handleLoginSuccess}
+              systemUsers={[]}
+            />
           )}
         </div>
       );

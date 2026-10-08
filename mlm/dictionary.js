@@ -30,17 +30,100 @@ window.stkDict = {
     "b2b_buyer_member": { th: "พนักงาน / ตัวแทน", lo: "ພະນັກງານ / ຕົວແທນ", en: "Staff / Agent" },
     "b2b_buyer_customer": { th: "ลูกค้าทั่วไป / ร้านค้า", lo: "ລູກຄ້າທົ່ວໄປ / ຮ້ານຄ້າ", en: "General / Store" },
 
-    // ---- แท็บเมนูคลังสินค้า (Warehouse Tabs) ----
-    "wh_tab_overview": { th: "1. ภาพรวมสต็อก & วันหมดอายุ (Overview & FEFO)", lo: "1. ພາບລວມສະຕ໋ອກ & ວັນໝົດອາຍຸ (Overview & FEFO)", en: "1. Stock Overview & Expiry (FEFO)" },
-    "wh_tab_stockin": { th: "2. รับเข้าสินค้าตามล็อต (Stock In)", lo: "2. ຮັບເຂົ້າສິນຄ້າຕາມລັອດ (Stock In)", en: "2. Stock In by Lot" },
-    "wh_tab_transfer": { th: "3. เบิกย้ายสินค้า (คลังใหญ่ ➔ หน้าร้าน)", lo: "3. ເບີກຍ້າຍສິນຄ້າ (ສາງໃຫຍ່ ➔ ໜ້າຮ້ານ)", en: "3. Stock Transfer (Main WH ➔ Front)" },
-    "wh_tab_audit": { th: "4. ตรวจนับและบาลานซ์สต็อกประจำวัน (Daily Audit)", lo: "4. ກວດນັບ & ບາລານສ໌ສະຕ໋ອກປະຈຳວັນ (Daily Audit)", en: "4. Daily Stock Audit & Balance" },
-    "wh_tab_ledger": { th: "5. สมุดบัญชีสต็อกย้อนหลัง (Historical Ledger)", lo: "5. ປຶ້ມບັນຊີສະຕ໋ອກຍ້ອນຫຼັງ (Historical Ledger)", en: "5. Historical Stock Ledger" },
-    "wh_domain_stk": { th: "สินค้าเสริมอาหาร (STK)", lo: "ສິນຄ້າອາຫານເສີມ (STK)", en: "Supplements (STK)" },
-    "wh_domain_pharmacy": { th: "คลังยาชาหลวง (Pharmacy)", lo: "ສາງຢາຊາຫຼວງ (Pharmacy)", en: "Pharmacy Warehouse" },
-    "wh_domain_devices": { th: "เครื่องมือแพทย์ (Devices)", lo: "ເຄື່ອງມືແພດ (Devices)", en: "Medical Devices" },
+    // ---- ระบบจัดการคลังสินค้า (Warehouse Module) ----
+    "wh_header_title": { th: "ระบบจัดการคลังสินค้า & สต๊อกแยกล็อต", lo: "ລະບົບຈັດການສາງສິນຄ້າ & ສະຕ໋ອກແຍກລັອດ", en: "Warehouse & Lot Inventory Management" },
+    "wh_header_subtitle": { th: "จัดการหลายคลังสินค้า, วันหมดอายุตามล็อต, การเบิกย้าย และกระทบยอดประจำวัน", lo: "ລະບົບຫຼາຍສາງສິນຄ້າ, ຕິດຕາມວັນໝົດອາຍຸຕາມລັອດ, ການເບີກຍ້າຍ ແລະ ກວດຍອດປະຈຳວັນ", en: "Multi-Warehouse, FEFO Expiry, Transfer Requisition & Daily Balance" },
+
+    // แท็บเมนูคลังสินค้า (Warehouse Tabs)
+    "wh_tab_overview": { th: "1. ภาพรวมสต๊อก & วันหมดอายุ", lo: "1. ພາບລວມສະຕ໋ອກ & ວັນໝົດອາຍຸ", en: "1. Stock Overview & Expiry" },
+    "wh_tab_stockin": { th: "2. รับเข้าสินค้าตามล็อต", lo: "2. ຮັບເຂົ້າສິນຄ້າຕາມລັອດ", en: "2. Stock In by Lot" },
+    "wh_tab_transfer": { th: "3. เบิกย้ายสินค้า (คลังใหญ่ ➔ หน้าร้าน)", lo: "3. ເບີກຍ້າຍສິນຄ້າ (ສາງໃຫຍ່ ➔ ໜ້າຮ້ານ)", en: "3. Stock Transfer (Main WH ➔ Front Store)" },
+    "wh_tab_audit": { th: "4. ตรวจนับและกระทบยอดสต๊อกประจำวัน", lo: "4. ກວດນັບ & ປັບຍອດສະຕ໋ອກປະຈຳວັນ", en: "4. Daily Stock Audit & Balance" },
+    "wh_tab_ledger": { th: "5. สมุดบัญชีสต๊อกย้อนหลัง", lo: "5. ປຶ້ມບັນຊີສະຕ໋ອກຍ້ອນຫຼັງ", en: "5. Historical Stock Ledger" },
+
+    // โดเมนสินค้า
+    "wh_domain_stk": { th: "สินค้าเสริมอาหาร", lo: "ສິນຄ້າອາຫານເສີມ", en: "Supplements" },
+    "wh_domain_pharmacy": { th: "คลังยาหลวง", lo: "ສາງຢາຫຼວງ", en: "Pharmacy Warehouse" },
+    "wh_domain_devices": { th: "เครื่องมือแพทย์", lo: "ເຄື່ອງມືແພດ", en: "Medical Devices" },
     "wh_btn_refresh": { th: "รีเฟรชสต๊อก", lo: "ຣີເຟຣຊສະຕ໋ອກ", en: "Refresh Stock" },
     "wh_btn_syncing": { th: "กำลังซิงค์...", lo: "ກຳລັງຊິງຄ໌...", en: "Syncing..." },
+
+    // การ์ดสรุปสต๊อก (KPI Cards)
+    "wh_kpi_total_sku": { th: "รายการสินค้า", lo: "ລາຍການສິນຄ້າ", en: "Total Products (SKU)" },
+    "wh_kpi_main_wh": { th: "คลังใหญ่", lo: "ສາງໃຫຍ່", en: "Main Warehouse" },
+    "wh_kpi_front_wh": { th: "ห้องขายหน้าร้าน", lo: "ຫ້ອງຂາຍໜ້າຮ້ານ", en: "Front Store" },
+    "wh_kpi_total_all": { th: "รวมทุกคลัง", lo: "ລວມທຸກສາງ", en: "Total Stock" },
+    "wh_kpi_expiring": { th: "ใกล้หมดอายุ (≤90 วัน)", lo: "ໃກ້ໝົດອາຍຸ (≤90 ວັນ)", en: "Expiring Soon (≤90 Days)" },
+    "wh_kpi_expired": { th: "หมดอายุแล้ว", lo: "ໝົດອາຍຸແລ້ວ", en: "Expired" },
+
+    // คำอธิบายย่อย KPI
+    "wh_kpi_sub_promo_added": { th: "สินค้าหลัก (มัดชุดโปร +", lo: "ສິນຄ້າຫຼັກ (ມັດຊຸດໂປຣ +", en: "Main Products (Bundle sets +" },
+    "wh_kpi_sub_in_domain": { th: "ในหมวดหมู่ปัจจุบัน", lo: "ໃນໝວດໝູ່ປັດຈຸບັນ", en: "In current category" },
+    "wh_kpi_sub_main": { th: "ชิ้น / พร้อมเบิก (สต๊อกจริง)", lo: "ອັນ / ພ້ອມເບີກ (ສະຕ໋ອກຕົວຈິງ)", en: "Units / Available (Physical)" },
+    "wh_kpi_sub_front": { th: "ชิ้น / พร้อมขาย (สต๊อกจริง)", lo: "ອັນ / ພ້ອມຂາຍ (ສະຕ໋ອກຕົວຈິງ)", en: "Units / Ready for Sale" },
+    "wh_kpi_sub_total": { th: "ชิ้นสินค้าจริงทั้งหมด", lo: "ຈຳນວນສິນຄ້າຕົວຈິງທັງໝົດ", en: "Total Physical Units" },
+    "wh_kpi_sub_expiring": { th: "ควรเร่งระบายออก", lo: "ຄວນຮີບລະບາຍອອກ", en: "Action Recommended" },
+    "wh_kpi_sub_expired": { th: "ต้องกักกัน / ตัดทิ้ง", lo: "ຕ້ອງກັກກັນ / ຕັດຖິ້ມ", en: "Quarantine / Discard" },
+
+    // ตัวกรองและค้นหา (Filters & Search)
+    "wh_search_placeholder": { th: "ค้นหาชื่อสินค้า, รหัสสินค้า, หรือบาร์โค้ด...", lo: "ຄົ້ນຫາຊື່ສິນຄ້າ, ລະຫັດສິນຄ້າ, ຫຼື ບາໂຄ້ດ...", en: "Search product name, SKU, or barcode..." },
+    "wh_filter_all": { th: "ทั้งหมด", lo: "ທັງໝົດ", en: "All" },
+    "wh_filter_physical": { th: "📦 สินค้าหลัก", lo: "📦 ສິນຄ້າຫຼັກ", en: "📦 Main Products" },
+    "wh_filter_bundle": { th: "🎁 เซ็ตโปรโมชั่น", lo: "🎁 ເຊັດໂປຣໂມຊັ່ນ", en: "🎁 Promo Bundles" },
+    "wh_label_status": { th: "สถานะสต๊อก:", lo: "ສະຖານະສະຕ໋ອກ:", en: "Stock Status:" },
+    "wh_status_all": { th: "ทั้งหมด", lo: "ທັງໝົດ", en: "All" },
+    "wh_status_expiring": { th: "ใกล้หมดอายุ (≤90 วัน)", lo: "ໃກ້ໝົດອາຍຸ (≤90 ວັນ)", en: "Expiring Soon (≤90 Days)" },
+    "wh_status_critical": { th: "วิกฤติเร่งระบาย (≤30 วัน)", lo: "ວິກິດຮີບລະບາຍ (≤30 ວັນ)", en: "Critical (≤30 Days)" },
+    "wh_status_expired": { th: "หมดอายุแล้ว", lo: "ໝົດອາຍຸແລ້ວ", en: "Expired" },
+    "wh_label_sort": { th: "จัดเรียง:", lo: "ຈັດລຽງ:", en: "Sort By:" },
+    "wh_sort_id_asc": { th: "รหัสสินค้า (ก-ฮ / A-Z)", lo: "ລະຫັດສິນຄ້າ (A-Z)", en: "Product Code (A-Z)" },
+    "wh_sort_id_desc": { th: "รหัสสินค้า (ฮ-ก / Z-A)", lo: "ລະຫັດສິນຄ້າ (Z-A)", en: "Product Code (Z-A)" },
+    "wh_sort_name_asc": { th: "ชื่อสินค้า (ก-ฮ)", lo: "ຊື່ສິນຄ້າ (A-Z)", en: "Product Name (A-Z)" },
+    "wh_sort_name_desc": { th: "ชื่อสินค้า (ฮ-ก)", lo: "ຊື່ສິນຄ້າ (Z-A)", en: "Product Name (Z-A)" },
+    "wh_sort_stock_desc": { th: "สต๊อกรวมมากสุด ➔ น้อยสุด", lo: "ສະຕ໋ອກລວມຫຼາຍສຸດ ➔ ໜ້ອຍສຸດ", en: "Total Stock (High ➔ Low)" },
+    "wh_sort_stock_asc": { th: "สต๊อกรวมน้อยสุด ➔ มากสุด", lo: "ສະຕ໋ອກລວມໜ້ອຍສຸດ ➔ ຫຼາຍສຸດ", en: "Total Stock (Low ➔ High)" },
+    "wh_sort_expiry_asc": { th: "วันหมดอายุเร็วสุด", lo: "ວັນໝົດອາຍຸໄວສຸດ", en: "Earliest Expiry (FEFO)" },
+    "wh_sort_expiry_desc": { th: "วันหมดอายุช้าสุด", lo: "ວັນໝົດອາຍຸຊ້າສຸດ", en: "Latest Expiry" },
+
+    // ตารางสต๊อกตามคลัง (Warehouse Breakdown Table)
+    "wh_table_breakdown_title": { th: "รายการสินค้าและการกระจายตัวตามคลัง", lo: "ລາຍການສິນຄ້າ ແລະ ການກະຈາຍຕາມສາງ", en: "Product List & Warehouse Breakdown" },
+    "wh_items_unit": { th: "รายการ", lo: "ລາຍການ", en: "Items" },
+    "wh_hint_click_sort": { th: "คลิกหัวตารางเพื่อจัดเรียงข้อมูล", lo: "ຄລິກຫົວຕາຕະລາງເພື່ອຈັດລຽງຂໍ້ມູນ", en: "Click table headers to sort" },
+    "wh_badge_fefo_rule": { th: "ลำดับการจ่ายยึดตามวันหมดอายุเร็วสุด", lo: "ລຳດັບການຕັດຈ່າຍຕາມວັນໝົດອາຍຸໄວສຸດ", en: "FEFO Priority (First Expired, First Out)" },
+
+    // หัวตาราง
+    "wh_col_img_id": { th: "รูป / รหัส", lo: "ຮູບ / ລະຫັດ", en: "Image / Code" },
+    "wh_col_product_name": { th: "ชื่อสินค้า", lo: "ຊື່ສິນຄ້າ", en: "Product Name" },
+    "wh_col_main_wh": { th: "คลังใหญ่", lo: "ສາງໃຫຍ່", en: "Main Warehouse" },
+    "wh_col_front_wh": { th: "ห้องขายหน้าร้าน", lo: "ຫ້ອງຂາຍໜ້າຮ້ານ", en: "Front Store" },
+    "wh_col_total_stock": { th: "สต๊อกรวม", lo: "ສະຕ໋ອກລວມ", en: "Total Stock" },
+    "wh_col_earliest_expiry": { th: "วันหมดอายุเร็วสุด", lo: "ວັນໝົດອາຍຸໄວສຸດ", en: "Earliest Expiry (FEFO)" },
+    "wh_col_lot_status": { th: "สถานะล็อต", lo: "ສະຖານະລັອດ", en: "Lot Status" },
+    "wh_col_action": { th: "จัดการ", lo: "ຈັດການ", en: "Action" },
+    "wh_no_products_found": { th: "ไม่พบรายการสินค้าในเงื่อนไขที่เลือก", lo: "ບໍ່ພົບລາຍການສິນຄ້າໃນເງື່ອນໄຂທີ່ເລືອກ", en: "No products found matching criteria" },
+    "wh_btn_view_lots": { th: "ดูล็อต", lo: "ເບິ່ງລັອດ", en: "View Lots" },
+
+    // แท็บ 2 รับเข้าสินค้า (Tab 2 Stock In)
+    "wh_tab2_sub_form": { th: "📥 บันทึกรับเข้าสินค้า (สร้างใบรับสินค้า)", lo: "📥 ບັນທຶກຮັບເຂົ້າສິນຄ້າ (ສ້າງໃບຮັບ)", en: "📥 Stock In (Create GRN)" },
+    "wh_tab2_sub_history": { th: "📋 ประวัติใบรับสินค้าเข้าคลัง", lo: "📋 ປະຫວັດໃບຮັບສິນຄ້າເຂົ້າສາງ", en: "📋 Goods Receipt History" },
+    "wh_tab2_grn_form_title": { th: "ใบรับสินค้าเข้าคลัง", lo: "ໃບຮັບສິນຄ້າເຂົ້າສາງ", en: "Goods Receipt Note (GRN)" },
+    "wh_tab2_grn_form_sub": { th: "รับสินค้าเข้าคลังหลายรายการพร้อมกันใน 1 ใบรับ พร้อมระบุเลขล็อตและวันหมดอายุ", lo: "ຮັບສິນຄ້າເຂົ້າສາງຫຼາຍລາຍການພ້ອມກັນໃນ 1 ໃບຮັບ ພ້ອມລະບຸເລກລັອດ ແລະ ວັນໝົດອາຍຸ", en: "Receive multiple items in one GRN with batch lot and FEFO expiry tracking" },
+    "wh_tab2_grn_no": { th: "เลขที่ใบรับสินค้า", lo: "ເລກທີໃບຮັບສິນຄ້າ", en: "GRN Document No." },
+
+    // แท็บ 3 เบิกย้ายสินค้า (Tab 3 Transfer)
+    "wh_tab3_sub_form": { th: "📝 บันทึกใบเบิกย้ายสินค้า", lo: "📝 ບັນທຶກໃບເບີກຍ້າຍສິນຄ້າ", en: "📝 Internal Stock Transfer Form" },
+    "wh_tab3_sub_history": { th: "📋 ประวัติใบเบิกย้ายสินค้า", lo: "📋 ປະຫວັດໃບເບີກຍ້າຍສິນຄ້າ", en: "📋 Stock Transfer History" },
+
+    // แท็บ 4 ตรวจนับสต๊อก (Tab 4 Audit)
+    "wh_tab4_formula": { th: "ยอดยกมา + เบิกเข้า - ยอดขาย = สต๊อกตามระบบ", lo: "ຍອດຍົກມາ + ເບີກເຂົ້າ - ຍອດຂາຍ = ສະຕ໋ອກຕາມລະບົບ", en: "Opening Stock + Transferred In - Sales = System Stock" },
+    "wh_tab4_audit_date": { th: "วันที่ตรวจนับ:", lo: "ວັນທີກວດນັບ:", en: "Audit Date:" },
+
+    // แท็บ 5 สมุดบัญชีสต๊อกย้อนหลัง (Tab 5 Ledger)
+    "wh_tab5_title": { th: "สมุดบัญชีสต๊อกย้อนหลัง", lo: "ປຶ້ມບັນຊີສະຕ໋ອກຍ້ອນຫຼັງ", en: "Daily Stock Ledger" },
+    "wh_tab5_sub": { th: "บันทึกความเคลื่อนไหวสต๊อกรายวัน", lo: "ບັນທຶກການເຄື່ອນໄຫວສະຕ໋ອກລາຍວັນ", en: "Daily Movement & Balance Log" },
+    "wh_tab5_print": { th: "พิมพ์รายงาน", lo: "ພິມລາຍງານ", en: "Print Report" },
+    "wh_tab5_export_pdf": { th: "ส่งออก PDF", lo: "ສົ່ງອອກ PDF", en: "Export PDF" },
+    "wh_tab5_history_title": { th: "ประวัติการบันทึกกระทบยอดย้อนหลัง", lo: "ປະຫວັດການບັນທຶກປັບຍອດຍ້ອນຫຼັງ", en: "Audit History Log" },
     
     // ---- เมนูย่อยตั้งค่า ----
     "menu_company_settings": { th: "ข้อมูลบริษัท / หัวบิล", lo: "ຂໍ້ມູນບໍລິສັດ / ຫົວບິນ", en: "Company / Receipt Header" },
@@ -339,6 +422,45 @@ window.normalizeCustomerType = function(input, targetLang, context) {
 };
 
 /**
+ * 🔍 แปลงรหัส HN ให้อยู่ในรูปแบบ Candidate ต่างๆ เพื่อค้นหาและเทียบความถูกต้อง (Universal HN Normalizer)
+ * รองรับทั้ง 'HN-984097', '984097', 'HN984097'
+ * @param {string} rawHn
+ * @returns {string[]} อาร์เรย์ของ HN ที่เป็นไปได้ทั้งหมด
+ */
+window.normalizeHnCandidates = function(rawHn) {
+    if (!rawHn) return [];
+    const s = String(rawHn).trim().toUpperCase();
+    if (!s || s === '-' || s === '--' || s === 'NULL' || s === 'UNDEFINED') return [];
+    const candSet = new Set();
+    candSet.add(s);
+    const stripped = s.replace(/^HN[-_\s]*/i, '').trim();
+    if (stripped) {
+        candSet.add(stripped);
+        candSet.add('HN-' + stripped);
+        candSet.add('HN' + stripped);
+    }
+    const digits = s.replace(/\D/g, '');
+    if (digits) {
+        candSet.add(digits);
+        candSet.add('HN-' + digits);
+        candSet.add('HN' + digits);
+    }
+    return Array.from(candSet);
+};
+
+/**
+ * 🔍 ตรวจสอบว่ารหัส HN สองตัวตรงกันหรือไม่ (เทียบข้ามฟอร์แมต)
+ */
+window.isHnMatch = function(hn1, hn2) {
+    if (!hn1 || !hn2) return false;
+    const c1 = window.normalizeHnCandidates(hn1);
+    const c2 = window.normalizeHnCandidates(hn2);
+    if (!c1.length || !c2.length) return false;
+    const s2 = new Set(c2);
+    return c1.some(c => s2.has(c));
+};
+
+/**
  * 🏷️ ฟังก์ชันจัดประเภทลูกค้าตามรูปแบบรหัส Visit (VIS-ORD- vs VIS-ตัวเลข) และสถานะประวัติในระบบ
  * @param {string} visitId - รหัส Visit เช่น 'VIS-ORD-62512' หรือ 'VIS-163960'
  * @param {boolean} isExistingCustomer - ลูกค้ารายนี้มีประวัติในระบบแล้วหรือไม่
@@ -352,16 +474,26 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
     const list = window.STK_CUSTOMER_TYPES_MAP || [];
     const vStr = String(visitId || '').trim().toUpperCase();
 
+    // ตรวจสอบสถานะลูกค้าเก่าจาก explicitType ร่วมด้วย
+    const hasExistingExplicit = (explicitType && (
+        String(explicitType).includes('เก่า') ||
+        String(explicitType).includes('ເກົ່າ') ||
+        String(explicitType) === 'T006' ||
+        String(explicitType) === 'T002' ||
+        String(explicitType) === 'T005'
+    ));
+    const effectiveIsExisting = Boolean(isExistingCustomer || hasExistingExplicit);
+
     // 1. ตรวจสอบรหัส VIS-ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์ ห้ามเป็น "ลูกค้าใหม่มาตรวจ" เด็ดขาด)
     if (vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-')) {
-        const targetId = isExistingCustomer ? 'T006' : 'T004';
+        const targetId = effectiveIsExisting ? 'T006' : 'T004';
         const item = list.find(t => t.id === targetId) || {
             id: targetId,
-            name: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
-            th: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
-            lo: isExistingCustomer ? 'ໂທປິດການຂາຍລູກຄ້າເກົ່າ' : 'ໂທປິດການຂາຍລູກຄ້າໃໝ່',
-            en: isExistingCustomer ? 'Telesales - Returning Customer' : 'Telesales - New Customer',
-            isOld: Boolean(isExistingCustomer)
+            name: effectiveIsExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
+            th: effectiveIsExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
+            lo: effectiveIsExisting ? 'ໂທປິດການຂາຍລູກຄ້າເກົ່າ' : 'ໂທປິດການຂາຍລູກຄ້າໃໝ່',
+            en: effectiveIsExisting ? 'Telesales - Returning Customer' : 'Telesales - New Customer',
+            isOld: Boolean(effectiveIsExisting)
         };
         return {
             ...item,
@@ -431,47 +563,35 @@ window.resolveOrderCloser = function(ord) {
     const closerDrStr = String(ord.closer_dr || ord.closer || '').trim();
     const typeStr = String(ord.order_by_type || ord.prescribe_type || ord.closer_type || '').trim().toLowerCase();
     const teamStr = String(ord.closer_team || ord.closerTeam || '').trim().toLowerCase();
-
     const closerLower = closerDrStr.toLowerCase();
-    const recordedLower = recordedByStr.toLowerCase();
 
-    // 1. ตรวจสอบคีย์เวิร์ด "สั่งจ่ายเอง / ตัวเองปิด / ฝ่ายการตลาด" (ครอบคลุมทั้งภาษาลาวและไทย)
-    // ภาษาลาว: ປິດເອງ, ປີດເອງ, ສັ່ງເອງ, ສັ່ງຈ່າຍເອງ, ຕົວແທນ, ການຕະຫຼາດ, ເອງ
-    // ภาษาไทย: ปิดเอง, ตัวเองปิด, สั่งเอง, สั่งจ่ายเอง, พนักงานปิดเอง, การตลาด, เอง
-    const isSelfByCloser = closerLower.includes('ປິດເອງ') || closerLower.includes('ປີດເອງ') || closerLower.includes('ສັ່ງເອງ') || closerLower.includes('ສັ່ງຈ່າຍເອງ') || closerLower.includes('ເອງ')
-        || closerLower.includes('ปิดเอง') || closerLower.includes('ตัวเองปิด') || closerLower.includes('สั่งเอง') || closerLower.includes('สั่งจ่ายเอง') || closerLower.includes('การตลาด')
-        || closerLower.includes('self') || closerLower.includes('own') || closerLower.includes('marketing');
+    // 1. ตรวจสอบความชัดเจนของทีมและรูปแบบการสั่งจ่าย (ยึดตามออเดอร์ต้นทางเป๊ะๆ ห้ามเขียนทับเด็ดขาด)
+    const isExplicitCenter = teamStr === 'center' || teamStr.includes('ส่วนกลาง') || typeStr.includes('หมอ') || typeStr.includes('ແພດ') || typeStr.includes('dr') || typeStr.includes('center');
+    const isExplicitMarketing = (teamStr === 'marketing' || teamStr.includes('การตลาด') || teamStr.includes('ຕະຫຼາດ') || typeStr.includes('เอง') || typeStr.includes('ເອງ') || typeStr.includes('ตลาด') || typeStr.includes('ຕະຫຼາດ') || typeStr.includes('self')) && !isExplicitCenter;
 
-    const isSelfByType = (typeStr.includes('เอง') || typeStr.includes('ເອງ') || typeStr.includes('ตลาด') || typeStr.includes('ຕະຫຼາດ') || typeStr.includes('self') || typeStr.includes('marketing'))
-        && !typeStr.includes('หมอ') && !typeStr.includes('ແພດ') && !typeStr.includes('dr');
+    // 2. ตรวจสอบข้อความใน closer_dr กรณีไม่มีทีมระบุชัดเจน
+    const isCloserKeywordSelf = closerLower.includes('ປິດເອງ') || closerLower.includes('ປີດເອງ') || closerLower.includes('ສັ່ງເອງ') || closerLower.includes('ສັ່ງຈ່າຍເອງ') || closerLower.includes('ເອງ')
+        || closerLower.includes('ปิดเอง') || closerLower.includes('ตัวเองปิด') || closerLower.includes('สั่งเอง') || closerLower.includes('สั่งจ่ายเอง')
+        || closerLower.includes('self') || closerLower.includes('marketing');
 
-    const isSelfByTeam = (teamStr === 'marketing' || teamStr.includes('การตลาด') || teamStr.includes('ຕະຫຼາດ'));
-
-    // 2. ตรวจสอบกรณีชื่อผู้สั่งจ่าย (closer_dr) ตรงกับผู้แนะนำ/ผู้บันทึก (recorded_by)
-    // เช่น recorded_by: "T6395 - Tester" และ closer_dr: "T6395 - Tester"
-    let isCloserSameAsRecorded = false;
-    if (recordedByStr && closerDrStr && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)') {
-        if (recordedLower === closerLower) {
-            isCloserSameAsRecorded = true;
-        } else {
-            // สกัด ID ต้นสาย เช่น T6395 จาก 'T6395 - Tester'
-            const recId = recordedByStr.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            const closeId = closerDrStr.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            if (recId && closeId && recId === closeId) {
-                isCloserSameAsRecorded = true;
-            }
-        }
+    let isSelf = false;
+    if (isExplicitCenter) {
+        isSelf = false;
+    } else if (isExplicitMarketing) {
+        isSelf = true;
+    } else if (isCloserKeywordSelf) {
+        isSelf = true;
+    } else {
+        isSelf = false;
     }
 
-    const isSelf = isSelfByCloser || isSelfByType || isSelfByTeam || isCloserSameAsRecorded;
-
     if (isSelf) {
-        // --- กรณีสั่งจ่ายเอง / ตัวเองปิด (Marketing) ---
+        // --- กรณีสั่งจ่ายยาเอง (Marketing) ---
         const orderByType = 'สั่งจ่ายยาเอง';
         const closerTeam = 'Marketing';
         let closerName = '';
 
-        if (closerDrStr && !isSelfByCloser && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)') {
+        if (closerDrStr && !isCloserKeywordSelf && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)') {
             closerName = closerDrStr;
         } else if (recordedByStr && recordedByStr !== '-') {
             closerName = recordedByStr;
@@ -490,7 +610,7 @@ window.resolveOrderCloser = function(ord) {
             badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200'
         };
     } else {
-        // --- กรณีหมอสั่งจ่าย / Center ปิด ---
+        // --- กรณีหมอสั่งจ่าย (Center) ---
         const orderByType = 'หมอสั่งจ่าย';
         const closerTeam = 'Center';
         let closerName = (closerDrStr && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)')
