@@ -1682,9 +1682,16 @@
           .filter(item => !item.isPromoBundle && !isProductDiscontinued(item.product))
           .map(item => {
           const pid = item.product.product_id;
-          // Calculate transfers in on this date
+          // Calculate transfers in on this date (นับเฉพาะ TRF ที่เบิกเข้าหน้าร้านเท่านั้น ไม่นับ GRN หรือรับเข้าคลังใหญ่)
           const dateTransfersIn = transfers
-            .filter(t => (t.transfer_date === auditDate || (t.created_at && t.created_at.slice(0, 10) === auditDate)) && t.status !== 'CANCELLED')
+            .filter(t => {
+              const isToday = (t.transfer_date === auditDate || (t.created_at && t.created_at.slice(0, 10) === auditDate));
+              const isNotCancelled = t.status !== 'CANCELLED';
+              const isToFrontStore = String(t.to_warehouse || '').toUpperCase().includes('FRONT');
+              const isNotGRN = !String(t.transfer_id || '').toUpperCase().startsWith('GRN'); // แยกใบเบิก(TRF)ออกจากใบรับ(GRN)
+              
+              return isToday && isNotCancelled && isToFrontStore && isNotGRN;
+            })
             .reduce((sum, t) => {
               let items = [];
               try { items = typeof t.items_json === 'string' ? JSON.parse(t.items_json) : t.items_json; } catch(e){}
