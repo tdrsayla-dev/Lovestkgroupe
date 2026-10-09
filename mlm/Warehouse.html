@@ -390,9 +390,8 @@
           const pid = row.product_id;
           if (!pid) return;
           if (!map[pid]) {
-            const closing = (row.physical_count_qty !== null && row.physical_count_qty !== undefined)
-              ? Number(row.physical_count_qty)
-              : Number(row.system_closing_qty || 0);
+            // บังคับยึด "สต๊อกตามระบบ" (System Closing) เป็นหลักในการยกยอด ห้ามเอายอดนับจริงมาใช้คำนวณเด็ดขาด
+                    const closing = Number(row.system_closing_qty || 0);
             map[pid] = {
               date: row.balance_date,
               stock: closing,
@@ -551,7 +550,7 @@
             if (typeof window.supabaseSelect === 'function') {
               try {
                 // ดึงความเคลื่อนไหวล่าสุดเฉพาะคอลัมน์สำคัญ (ประหยัด Egress สูงสุด)
-                return await window.supabaseSelect('stk_stock_movements', 'select=movement_id,date,product_id,type,sub_type,quantity,notes,created_at&order=created_at.desc&limit=100' + cacheParam);
+                return await window.supabaseSelect('stk_stock_movements', 'select=movement_id,date,product_id,type,sub_type,quantity,notes,created_at&order=created_at.desc&limit=1000' + cacheParam);
               } catch(e) {
                 console.warn('fetchMovements error:', e);
               }
@@ -1040,11 +1039,10 @@
         };
       }, []);
 
-      // Calculate Stock per Product by Warehouse
+      // Calculate Stock per Product by Warehouse (คำนวณจากยอดจริงของระบบ 100% ไม่มีเดาเผื่อ)
       const productStockSummary = useMemo(() => {
         const map = {};
 
-        // 1. สร้าง Map ตั้งต้น
         filteredProducts.forEach(p => {
           const isBundle = isPromoBundleProduct(p);
           const liveCurrentStock = Number(p.current_stock !== undefined && p.current_stock !== null ? p.current_stock : (p.stock || 0));
@@ -1063,7 +1061,6 @@
           };
         });
 
-        // 2. ดึงวันหมดอายุจากล็อต (เอาแค่ FEFO ไม่เอายอดมาคำนวณคลังใหญ่แล้ว)
         lots.forEach(lot => {
           const pid = lot.product_id;
           if (map[pid] && !map[pid].isPromoBundle) {
@@ -1077,14 +1074,22 @@
           }
         });
 
-        // 3. กวาดประวัติเบิกเข้าหน้าร้าน (TRANSFER IN)
-        const combinedTransfers = [...(transfers || []), ...(transferHistoryList || [])];
-        const processedTrfIds = new Set();
+        const rawTransfers = [...(transfers || []), ...(transferHistoryList || [])];
+        const seenTrfIds = new Set();
+        const combinedTransfers = rawTransfers.filter(tr => {
+          if (!tr) return false;
+          const trfId = String(tr.transfer_id || '').toUpperCase();
+          if (trfId) {
+            if (seenTrfIds.has(trfId)) return false;
+            seenTrfIds.add(trfId);
+          }
+          return true;
+        });
+
         combinedTransfers.forEach(tr => {
           if (!tr || tr.status === 'CANCELLED') return;
-          const trfId = String(tr.transfer_id || '');
-          if (trfId && processedTrfIds.has(trfId)) return;
-          if (trfId) processedTrfIds.add(trfId);
+          const trfId = String(tr.transfer_id || '').toUpperCase();
+          if (trfId.startsWith('GRN')) return;
 
           const toWh = String(tr.to_warehouse || '').toUpperCase();
           if (toWh === 'FRONT_STORE' || toWh.includes('FRONT')) {
@@ -1103,7 +1108,6 @@
           }
         });
 
-        // 4. กวาดประวัติการขาย และคืนสินค้า (บังคับให้การขายทุกอย่างหักจากหน้าร้านเสมอ)
         (movements || []).forEach(m => {
           const pid = m.product_id;
           if (!map[pid] || map[pid].isPromoBundle) return;
@@ -1112,96 +1116,108 @@
 
           const subType = String(m.sub_type || '').toLowerCase();
           const notesStr = String(m.notes || '').toLowerCase();
+          const whId = String(m.warehouse_id || '').toUpperCase();
           const mTime = m.created_at || (m.date ? m.date + 'T00:00:00Z' : '') || '';
 
-          const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
-          if (isTransfer) return;
+          const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
+          if (isMainWh) return;
 
-          const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
-          if (isGrn) return;
+          const isSaleOut = m.type === 'OUT' && (
+             subType.includes('ขาย') || subType.includes('ตัดสต๊อก') || subType.includes('sale') ||
+             notesStr.includes('ขาย') || notesStr.includes('sale') || notesStr.includes('บิล') ||
+             subType.includes('ปรับปรุง') || notesStr.includes('ปรับปรุง') || subType.includes('audit')
+          ) && !subType.includes('เบิกย้าย');
 
-          if (m.type === 'OUT') {
+          const isSaleReturn = m.type === 'IN' && (
+             subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') ||
+             notesStr.includes('คืน') || notesStr.includes('ยกเลิก') ||
+             subType.includes('ปรับปรุง') || notesStr.includes('ปรับปรุง') || subType.includes('audit')
+          );
+
+          if (isSaleOut) {
             map[pid].frontEvents.push({ type: 'SALE_OUT', time: mTime, qty: q });
-          } else if (m.type === 'IN') {
+          } else if (isSaleReturn) {
             map[pid].frontEvents.push({ type: 'SALE_RETURN', time: mTime, qty: q });
           }
         });
 
-        // 5. จัดสรรสต๊อกตาม Checkpoint + Delta (หน้าร้าน = ยอดปิดล่าสุด + เบิกเข้าสะสม - ขายสะสม, คลังใหญ่ = ยอดรวม - หน้าร้าน)
         Object.values(map).forEach(item => {
           if (!item.isPromoBundle) {
             const pid = item.product.product_id;
 
-            // 5.1 ตรวจสอบว่าในวันที่กำลังตรวจนับ มีการกรอกยอดนับจริงหรือไม่
-            const hasActivePhysicalCount = (physicalCounts[pid] !== undefined && physicalCounts[pid] !== null && physicalCounts[pid] !== '');
+            // ตรวจสอบยอดปิดตรวจนับล่าสุดจาก stk_daily_balance
+            const latestAudit = (auditRecordsCache || [])
+              .filter(r => r.product_id === pid && r.balance_date)
+              .sort((a, b) => (b.balance_date || '').localeCompare(a.balance_date || ''))[0];
 
-            // 5.2 จุดอ้างอิงปิดยอดล่าสุด (Checkpoint) จากตาราง stk_daily_balance
-            const cp = latestCheckpointMap[pid];
+            if (latestAudit) {
+              const auditDateStr = latestAudit.balance_date;
+              const frontBase = Number(latestAudit.system_closing_qty || 0);
 
-            if (hasActivePhysicalCount) {
-              // ถ้ามีการใส่นับจริงในวันตรวจนับ ให้ล็อกหน้าร้านตามค่านั้นทันที
-              item.frontStock = Number(physicalCounts[pid]);
-            } else if (cp) {
-              // ใช้ Snapshot จากวันที่ปิดยอดล่าสุด (เช่น 2026-10-07 ได้ 57 ชิ้น)
-              const baseStock = Number(cp.stock || 0);
-              const cpDate = cp.date;
-
-              // คำนวณเฉพาะ Transaction ที่เกิดขึ้น "หลังจาก" วันที่ปิดยอดล่าสุด (Delta Since Checkpoint)
-              let deltaIn = 0;
-              let deltaOut = 0;
-
-              // เบิกเข้าหน้าร้านหลังวัน Checkpoint
-              combinedTransfers.forEach(tr => {
-                if (!tr || tr.status === 'CANCELLED') return;
-                const trDate = (tr.transfer_date || tr.created_at || '').slice(0, 10);
-                if (trDate > cpDate) {
+              // คำนวณเบิกเข้าหน้าร้านหลังจากวันตรวจนับล่าสุด
+              const trfAfter = combinedTransfers
+                .filter(tr => {
+                  if (!tr || tr.status === 'CANCELLED') return false;
                   const toWh = String(tr.to_warehouse || '').toUpperCase();
-                  if (toWh === 'FRONT_STORE' || toWh.includes('FRONT')) {
-                    let trItems = [];
-                    if (tr.items_json) { try { trItems = typeof tr.items_json === 'string' ? JSON.parse(tr.items_json) : tr.items_json; } catch(e){} }
-                    if (Array.isArray(trItems)) {
-                      trItems.forEach(it => {
-                        const trPid = it.productId || it.product_id || it.id;
-                        if (trPid === pid) {
-                          deltaIn += Number(it.qty || it.quantity || 0);
-                        }
-                      });
-                    }
-                  }
-                }
-              });
+                  if (!toWh.includes('FRONT')) return false;
+                  const trfId = String(tr.transfer_id || '').toUpperCase();
+                  if (trfId.startsWith('GRN')) return false;
+                  const tDate = String(tr.transfer_date || tr.created_at || '').slice(0, 10);
+                  return tDate > auditDateStr;
+                })
+                .reduce((sum, tr) => {
+                  let trItems = [];
+                  if (tr.items_json) { try { trItems = typeof tr.items_json === 'string' ? JSON.parse(tr.items_json) : tr.items_json; } catch(e){} }
+                  const f = (Array.isArray(trItems) ? trItems : []).find(i => (i.product_id === pid || i.productId === pid || i.id === pid));
+                  return sum + (f ? Number(f.quantity || f.qty || 0) : 0);
+                }, 0);
 
-              // รายการขาย และ คืนสินค้า หลังวัน Checkpoint
-              (movements || []).forEach(m => {
-                if (m.product_id !== pid) return;
-                const mDate = (m.date || m.created_at || '').slice(0, 10);
-                if (mDate > cpDate) {
-                  const q = Number(m.quantity || 0);
-                  if (q <= 0) return;
-                  const subType = String(m.sub_type || '').toLowerCase();
-                  const notesStr = String(m.notes || '').toLowerCase();
-                  const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
-                  const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
-                  if (!isTransfer && !isGrn) {
-                    if (m.type === 'OUT') deltaOut += q;
-                    else if (m.type === 'IN') deltaIn += q;
-                  }
-                }
-              });
+              // คำนวณยอดขายหลังจากวันตรวจนับล่าสุด (หักยอดคืน/ยกเลิกบิลออก เพื่อให้ตรงกับยอดขายสุทธิของหน้าร้านจริง)
+              let salesAfter = 0;
+              const todayDateStr = (typeof auditDate === 'string' && auditDate) ? auditDate : new Date().toISOString().slice(0, 10);
+              if (auditDateStr < todayDateStr && dailySalesMap && dailySalesMap[pid] !== undefined) {
+                salesAfter = dailySalesMap[pid];
+              } else if (auditDateStr < todayDateStr) {
+                const salesOut = (movements || [])
+                  .filter(m => {
+                    const mDate = String(m.date || m.created_at || '').slice(0, 10);
+                    if (mDate <= auditDateStr || m.product_id !== pid || m.type !== 'OUT') return false;
 
-              item.frontStock = Math.max(0, baseStock + deltaIn - deltaOut);
+                    const subType = String(m.sub_type || '').toLowerCase();
+                    const notesStr = String(m.notes || '').toLowerCase();
+                    const whId = String(m.warehouse_id || '').toUpperCase();
+                    const isMain = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
+                    const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                    const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+
+                    return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale')) && !isTransfer && !isGrn && !isMain;
+                  })
+                  .reduce((s, m) => s + Number(m.quantity || 0), 0);
+
+                const salesReturn = (movements || [])
+                  .filter(m => {
+                    const mDate = String(m.date || m.created_at || '').slice(0, 10);
+                    if (mDate <= auditDateStr || m.product_id !== pid || m.type !== 'IN') return false;
+
+                    const subType = String(m.sub_type || '').toLowerCase();
+                    const notesStr = String(m.notes || '').toLowerCase();
+                    const whId = String(m.warehouse_id || '').toUpperCase();
+                    const isMain = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
+                    const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                    const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+
+                    return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMain;
+                  })
+                  .reduce((s, m) => s + Number(m.quantity || 0), 0);
+
+                salesAfter = Math.max(0, salesOut - salesReturn);
+              }
+
+              const liveFront = Math.max(0, frontBase + trfAfter - salesAfter);
+              item.frontStock = Math.min(item.totalStock, liveFront);
+              item.mainStock = Math.max(0, item.totalStock - item.frontStock);
             } else {
-              // กรณีสินค้าใหม่ยังไม่เคยผ่านการตรวจนับปิดยอด ให้ใช้ runningFront ตั้งต้น
-              const getTimeMs = (t) => { if (!t) return 0; const ms = new Date(t).getTime(); return isNaN(ms) ? 0 : ms; };
-
-              item.frontEvents.sort((a, b) => {
-                const diff = getTimeMs(a.time) - getTimeMs(b.time);
-                if (diff !== 0) return diff;
-                if (a.type === 'TRANSFER_IN' && b.type !== 'TRANSFER_IN') return -1;
-                if (b.type === 'TRANSFER_IN' && a.type !== 'TRANSFER_IN') return 1;
-                return 0;
-              });
-
+              // Fallback กรณีสินค้ายังไม่เคยมีประวัติตรวจนับใน stk_daily_balance
               let runningFront = 0;
               item.frontEvents.forEach(ev => {
                 if (ev.type === 'TRANSFER_IN') runningFront += ev.qty;
@@ -1210,17 +1226,12 @@
               });
 
               item.frontStock = Math.max(0, runningFront);
+              item.frontStock = Math.min(item.totalStock, item.frontStock);
+              item.mainStock = Math.max(0, item.totalStock - item.frontStock);
             }
-
-            // ป้องกันไม่ให้หน้าร้านเยอะกว่ายอดรวม
-            item.frontStock = Math.min(item.totalStock, item.frontStock);
-
-            // 5.3 คลังใหญ่ = สต๊อกรวมทั้งระบบ - สต๊อกหน้าร้าน
-            item.mainStock = Math.max(0, item.totalStock - item.frontStock);
           }
         });
 
-        // 6. คำนวณสต๊อกสินค้าเซ็ต (Bundle)
         Object.values(map).forEach(item => {
           if (item.isPromoBundle) {
             const baseInfo = resolveBundleBaseInfo(item.product, products);
@@ -1240,7 +1251,7 @@
         });
 
         return Object.values(map);
-      }, [filteredProducts, lots, products, transfers, transferHistoryList, movements, physicalCounts, latestCheckpointMap, isPromoBundleProduct, resolveBundleBaseInfo]);
+      }, [filteredProducts, lots, products, transfers, transferHistoryList, movements, isPromoBundleProduct, resolveBundleBaseInfo, auditRecordsCache, auditDate, dailySalesMap]);
       
       // สลับการจัดเรียงคอลัมน์ในตารางคลังสินค้า
       const handleToggleInventorySort = useCallback((col) => {
@@ -1678,20 +1689,30 @@
       // Daily Reconciliation Ledger Calculation
       const dailyReconciliation = useMemo(() => {
         // Daily formula: Opening + Transfer In - Sales = System Closing
+        const rawTransfers = [...(transfers || []), ...(transferHistoryList || [])];
+        const seenTrfIds = new Set();
+        const validTransfers = rawTransfers.filter(t => {
+          if (!t) return false;
+          const trfId = String(t.transfer_id || '').toUpperCase();
+          if (trfId) {
+            if (seenTrfIds.has(trfId)) return false;
+            seenTrfIds.add(trfId);
+          }
+
+          const isToday = (t.transfer_date === auditDate || (t.created_at && t.created_at.slice(0, 10) === auditDate));
+          const isNotCancelled = t.status !== 'CANCELLED';
+          const isToFrontStore = String(t.to_warehouse || '').toUpperCase().includes('FRONT');
+          const isNotGRN = !trfId.startsWith('GRN'); // แยกใบเบิก(TRF)ออกจากใบรับ(GRN)
+          
+          return isToday && isNotCancelled && isToFrontStore && isNotGRN;
+        });
+
         return productStockSummary
           .filter(item => !item.isPromoBundle && !isProductDiscontinued(item.product))
           .map(item => {
           const pid = item.product.product_id;
           // Calculate transfers in on this date (นับเฉพาะ TRF ที่เบิกเข้าหน้าร้านเท่านั้น ไม่นับ GRN หรือรับเข้าคลังใหญ่)
-          const dateTransfersIn = transfers
-            .filter(t => {
-              const isToday = (t.transfer_date === auditDate || (t.created_at && t.created_at.slice(0, 10) === auditDate));
-              const isNotCancelled = t.status !== 'CANCELLED';
-              const isToFrontStore = String(t.to_warehouse || '').toUpperCase().includes('FRONT');
-              const isNotGRN = !String(t.transfer_id || '').toUpperCase().startsWith('GRN'); // แยกใบเบิก(TRF)ออกจากใบรับ(GRN)
-              
-              return isToday && isNotCancelled && isToFrontStore && isNotGRN;
-            })
+          const dateTransfersIn = validTransfers
             .reduce((sum, t) => {
               let items = [];
               try { items = typeof t.items_json === 'string' ? JSON.parse(t.items_json) : t.items_json; } catch(e){}
@@ -1743,17 +1764,16 @@
             dateSales = Math.max(0, salesOut - salesReturn);
           }
 
-          // ยอดยกมาต้นวัน: ค้นหาจากยอดปิดของวันก่อนหน้า (Yesterday / Previous Audited Closing)
+          // ยอดยกมาต้นวัน: ค้นหาจากยอดปิด "ตามระบบ" ของวันก่อนหน้าที่ใกล้ที่สุดเท่านั้น ห้ามดึงยอดนับจริงมาใช้
           let opening = 0;
-          const prevAudit = (auditRecordsCache || []).find(r => r.product_id === pid && r.balance_date < auditDate);
+          const prevAudit = (auditRecordsCache || [])
+            .filter(r => r.product_id === pid && r.balance_date && r.balance_date < auditDate)
+            .sort((a, b) => (b.balance_date || '').localeCompare(a.balance_date || ''))[0];
           if (prevAudit) {
-            opening = (prevAudit.physical_count_qty !== null && prevAudit.physical_count_qty !== undefined)
-              ? Number(prevAudit.physical_count_qty)
-              : Number(prevAudit.system_closing_qty || 0);
+            opening = Number(prevAudit.system_closing_qty || 0);
           } else {
-            // Fallback ถ้ายังไม่เคยมีบันทึกตรวจนับก่อนหน้านี้
-            const baseClosing = (item.frontStock > 0 || transfers.length > 0) ? item.frontStock : (item.totalStock || 0);
-            opening = Math.max(0, baseClosing - dateTransfersIn + dateSales);
+            // Fallback: ถ้ายังไม่เคยนับสต๊อก ให้คำนวณย้อนกลับจากสต๊อกหน้าร้านปัจจุบัน
+            opening = Math.max(0, (item.frontStock || 0) - dateTransfersIn + dateSales);
           }
 
           // สต๊อกห้องขายหน้าร้านตามระบบ = ยอดยกมา + เบิกเข้า - ขาย
@@ -1779,7 +1799,7 @@
             diff: diff
           };
         });
-      }, [productStockSummary, transfers, movements, auditDate, physicalCounts, dailySalesMap, isProductDiscontinued, auditRecordsCache]);
+      }, [productStockSummary, transfers, transferHistoryList, movements, auditDate, physicalCounts, dailySalesMap, isProductDiscontinued, auditRecordsCache]);
 
       // Handle Physical Count Input Change
       const handlePhysicalCountChange = (productId, val) => {
@@ -1862,6 +1882,10 @@
             // อัปเดตประวัติและสมุดบัญชีย้อนหลังทันที
             await loadLedgerBalances(auditDate);
             await loadAuditHistorySessions();
+
+            // เคลียร์ช่องกรอกยอดนับจริงและหมายเหตุให้ว่างหลังจากบันทึกเสร็จสิ้น
+            setPhysicalCounts({});
+            setAuditNotes('');
           } else {
             showToast(res.error || 'บันทึกไม่สำเร็จ', 'error');
           }
@@ -4729,126 +4753,168 @@
                   {/* TAB 4: DAILY STOCK BALANCE & RECONCILIATION               */}
                   {/* ========================================================= */}
                   {activeTab === 'audit' && (
-                    <div className="space-y-6">
-                      {/* Formula Banner */}
-                      <div className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-900 to-indigo-900 text-white shadow-sm flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h3 className="text-[11px] font-bold text-blue-100">
-                            {t('wh_tab4_formula', 'ยอดยกมา + เบิกเข้า - ยอดขาย = สต๊อกตามระบบ')}
-                          </h3>
-                        </div>
+                    <div className="space-y-4">
+                      {/* Formula & Date Bar */}
+                      <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                          <label className="text-xs font-bold text-blue-200">{t('wh_tab4_audit_date', 'วันที่ตรวจนับ:')}</label>
-                          <input
-                            type="date"
-                            value={auditDate}
-                            onChange={e => setAuditDate(e.target.value)}
-                            className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-bold focus:outline-none"
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">สูตรกระทบยอด:</span>
+                          </div>
+                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-mono font-medium border border-slate-200/60 dark:border-slate-700/60">
+                            <span>ยอดยกมา</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">+</span>
+                            <span>เบิกเข้า</span>
+                            <span className="text-rose-600 dark:text-rose-400 font-bold">-</span>
+                            <span>ยอดขาย</span>
+                            <span className="text-blue-600 dark:text-blue-400 font-bold">=</span>
+                            <span className="font-bold text-blue-600 dark:text-blue-400">สต๊อกตามระบบ</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
+                            <Calendar size={14} className="text-slate-400 shrink-0" />
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">วันที่:</span>
+                            <input
+                              type="date"
+                              value={auditDate}
+                              onChange={e => setAuditDate(e.target.value)}
+                              className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleAutoFillPhysicalCounts}
+                            title="คัดลอกยอดสต๊อกตามระบบลงในช่องนับจริงทั้งหมด เพื่อความสะดวกรวดเร็ว"
+                            className="px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/50 hover:bg-blue-100/60 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs"
+                          >
+                            <Check size={13} />
+                            <span>คัดลอกยอดตามระบบลงนับจริง</span>
+                          </button>
                         </div>
                       </div>
 
                       {/* Audit Status Notification Banner */}
                       {auditSavedInfo ? (
-                        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-                              <CheckCircle size={16} />
+                        <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                              <CheckCircle size={18} />
                             </div>
                             <div>
-                              <p className="font-bold text-xs text-emerald-900 dark:text-emerald-200">
-                                วันที่นี้ได้ทำการบันทึกปิดยอดตรวจนับแล้ว ({auditSavedInfo.count} รายการ)
+                              <p className="font-semibold text-xs text-emerald-900 dark:text-emerald-200">
+                                บันทึกปิดยอดตรวจนับประจำวันเรียบร้อยแล้ว ({auditSavedInfo.count} รายการ)
                               </p>
-                              <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                                ผู้ตรวจนับ: <span className="font-bold">{auditSavedInfo.auditedBy}</span> &bull; บันทึกเมื่อ: {auditSavedInfo.updatedAt ? new Date(auditSavedInfo.updatedAt).toLocaleString('th-TH') : '-'}
+                              <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
+                                ผู้ตรวจนับ: <span className="font-semibold text-emerald-800 dark:text-emerald-300">{auditSavedInfo.auditedBy}</span> &bull; บันทึกเมื่อ: {auditSavedInfo.updatedAt ? new Date(auditSavedInfo.updatedAt).toLocaleString('th-TH') : '-'}
                               </p>
                             </div>
                           </div>
                           <button
                             onClick={() => { setLedgerDate(auditDate); setActiveTab('ledger'); }}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
+                            className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs"
                           >
                             <Eye size={13} />
-                            <span>ดูสมุดบัญชีย้อนหลังของวันนี้</span>
+                            <span>ดูสมุดบัญชีย้อนหลัง</span>
                           </button>
                         </div>
                       ) : (
-                        <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-2.5 text-xs text-slate-500 dark:text-slate-400">
-                          <Info size={16} className="text-blue-500 shrink-0" />
-                          <span>ยังไม่มีการบันทึกตรวจนับปิดยอดสำหรับวันที่ <b>{auditDate}</b> — สามารถกรอกยอดนับจริงแล้วกดปุ่มบันทึกด้านล่างเพื่อบันทึกประวัติ</span>
+                        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 shadow-xs">
+                          <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <Info size={16} />
+                          </div>
+                          <div className="flex-1">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">ยังไม่มีการบันทึกปิดยอดวันที่ {auditDate}</span>
+                            <span className="text-slate-400 ml-1.5">— กรอกยอดนับจริงแล้วกดบันทึกด้านล่างเพื่อบันทึกประวัติการกระทบยอด</span>
+                          </div>
                         </div>
                       )}
 
                       {/* Reconciliation Table */}
-                      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                          <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                            ตารางกระทบยอดสต๊อกหน้าร้านประจำวัน ({auditDate})
-                          </h3>
-                          <span className="text-xs text-slate-400 font-medium">ห้องขายหน้าร้าน (Front Store)</span>
+                      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                          <div>
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                              ตารางกระทบยอดสต๊อกหน้าร้านประจำวัน
+                            </h3>
+                            <p className="text-[11px] text-slate-400 mt-0.5">ประจำวันที่ {auditDate}</p>
+                          </div>
+                          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60">
+                            ห้องขายหน้าร้าน (Front Store)
+                          </span>
                         </div>
 
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
-                              <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase font-black text-[10px] tracking-wider">
+                              <tr className="bg-slate-50/75 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800 text-[11px] font-semibold">
                                 <th className="py-3 px-4">รหัส / สินค้า</th>
-                                <th className="py-3 px-4 text-center">ยอดยกมาต้นวัน</th>
-                                <th className="py-3 px-4 text-center">เบิกเข้าหน้าร้าน (+)</th>
-                                <th className="py-3 px-4 text-center">ยอดขายวันนี้ (-)</th>
-                                <th className="py-3 px-4 text-center bg-blue-50/50 dark:bg-blue-950/20">🏪 สต๊อกหน้าร้าน (ระบบ)</th>
-                                <th className="py-3 px-4 text-center bg-indigo-50/50 dark:bg-indigo-950/20">🌐 สต๊อกรวมทั้งระบบ</th>
-                                <th className="py-3 px-4 text-center">✍️ นับจริงหน้าร้าน</th>
-                                <th className="py-3 px-4 text-center">⚖️ ผลต่างหน้าร้าน (Diff)</th>
+                                <th className="py-3 px-4 text-center">ยอดยกมา</th>
+                                <th className="py-3 px-4 text-center">เบิกเข้า (+)</th>
+                                <th className="py-3 px-4 text-center">ยอดขาย (-)</th>
+                                <th className="py-3 px-4 text-center bg-blue-50/40 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 font-bold border-x border-blue-100/60 dark:border-blue-900/40">สต๊อกหน้าร้าน (ระบบ)</th>
+                                <th className="py-3 px-4 text-center bg-slate-100/40 dark:bg-slate-800/30 text-slate-600 dark:text-slate-400">สต๊อกรวม</th>
+                                <th className="py-3 px-4 text-center">นับจริง</th>
+                                <th className="py-3 px-4 text-center">ผลต่าง (Diff)</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                               {dailyReconciliation.map(r => {
                                 return (
-                                  <tr key={r.productId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                                    <td className="py-3 px-4">
-                                      <p className="font-bold text-slate-900 dark:text-white">{r.name}</p>
-                                      <span className="font-mono text-[10px] text-slate-400">{r.productId}</span>
+                                  <tr key={r.productId} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
+                                    <td className="py-2.5 px-4">
+                                      <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{r.name}</div>
+                                      <div className="font-mono text-[11px] text-slate-400 tracking-wide">{r.productId}</div>
                                     </td>
-                                    <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
+                                    <td className="py-2.5 px-4 text-center text-slate-600 dark:text-slate-300 font-medium">
                                       {r.openingQty}
                                     </td>
-                                    <td className="py-3 px-4 text-center font-bold text-emerald-600 dark:text-emerald-400">
-                                      +{r.transferInQty}
+                                    <td className="py-2.5 px-4 text-center">
+                                      {r.transferInQty > 0 ? (
+                                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">+{r.transferInQty}</span>
+                                      ) : (
+                                        <span className="text-slate-300 dark:text-slate-600">0</span>
+                                      )}
                                     </td>
-                                    <td className="py-3 px-4 text-center font-bold text-rose-600 dark:text-rose-400">
-                                      -{r.salesQty}
+                                    <td className="py-2.5 px-4 text-center">
+                                      {r.salesQty > 0 ? (
+                                        <span className="font-semibold text-rose-600 dark:text-rose-400">-{r.salesQty}</span>
+                                      ) : (
+                                        <span className="text-slate-300 dark:text-slate-600">0</span>
+                                      )}
                                     </td>
-                                    <td className="py-3 px-4 text-center font-black text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20 text-sm">
+                                    <td className="py-2.5 px-4 text-center font-bold text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/20 text-sm border-x border-blue-100/40 dark:border-blue-900/30">
                                       {r.systemClosingQty}
                                     </td>
-                                    <td className="py-3 px-4 text-center font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 text-sm">
+                                    <td className="py-2.5 px-4 text-center font-medium text-slate-600 dark:text-slate-400 bg-slate-100/30 dark:bg-slate-800/20">
                                       {r.totalStockQty.toLocaleString()}
                                     </td>
-                                    <td className="py-3 px-4 text-center">
+                                    <td className="py-2.5 px-4 text-center">
                                       <input
                                         type="number"
                                         min="0"
-                                        placeholder="ใส่ยอดนับจริง"
+                                        placeholder="0"
                                         value={physicalCounts[r.productId] ?? ''}
                                         onChange={e => handlePhysicalCountChange(r.productId, e.target.value)}
-                                        className="w-24 text-center py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black focus:outline-none focus:border-blue-500"
+                                        className="w-20 text-center py-1 px-2 rounded-lg bg-slate-50 hover:bg-white focus:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 placeholder:font-normal"
                                       />
                                     </td>
-                                    <td className="py-3 px-4 text-center">
+                                    <td className="py-2.5 px-4 text-center">
                                       {r.physicalCount === null ? (
-                                        <span className="text-slate-400 text-[10px] italic">รอนับ</span>
+                                        <span className="text-slate-300 dark:text-slate-600 text-xs font-mono">-</span>
                                       ) : r.diff === 0 ? (
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                                          &plusmn;0 ตรงเป๊ะ
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50">
+                                          ตรง (0)
                                         </span>
                                       ) : r.diff < 0 ? (
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 animate-pulse">
-                                          ขาด {r.diff} ชิ้น
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50">
+                                          ขาด {r.diff}
                                         </span>
                                       ) : (
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-                                          เกิน +{r.diff} ชิ้น
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50">
+                                          เกิน +{r.diff}
                                         </span>
                                       )}
                                     </td>
@@ -4860,24 +4926,34 @@
                         </div>
 
                         {/* Audit Save Footer */}
-                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                        <div className="p-4 bg-slate-50/75 dark:bg-slate-800/40 border-t border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
                           <div className="flex-1 min-w-[280px]">
                             <input
                               type="text"
-                              placeholder="หมายเหตุการตรวจนับกระทบยอด (Audit Notes)"
+                              placeholder="หมายเหตุการตรวจนับกระทบยอด (ไม่ระบุก็ได้)"
                               value={auditNotes}
                               onChange={e => setAuditNotes(e.target.value)}
-                              className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium"
+                              className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                             />
                           </div>
-                          <button
-                            onClick={handleSaveDailyAudit}
-                            disabled={isSavingAudit}
-                            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 flex items-center gap-2 disabled:opacity-50"
-                          >
-                            {isSavingAudit ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                            <span>{isSavingAudit ? 'กำลังบันทึก...' : 'บันทึกยอดตรวจนับ & ปิดยอดประจำวัน'}</span>
-                          </button>
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              type="button"
+                              onClick={handleAutoFillPhysicalCounts}
+                              className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs"
+                            >
+                              <Check size={14} className="text-blue-500" />
+                              <span>คัดลอกยอดตามระบบ</span>
+                            </button>
+                            <button
+                              onClick={handleSaveDailyAudit}
+                              disabled={isSavingAudit}
+                              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-xs flex items-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              {isSavingAudit ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                              <span>{isSavingAudit ? 'กำลังบันทึก...' : 'บันทึกยอดตรวจนับ & ปิดยอด'}</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>

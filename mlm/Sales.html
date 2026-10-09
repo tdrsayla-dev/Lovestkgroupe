@@ -2300,10 +2300,10 @@
                                     ? window.normalizeHnCandidates(finalCustomerId)
                                     : [finalCustomerId];
                                 const candParam = hnCandidates.map(c => encodeURIComponent(c)).join(',');
-                                const pCheck = await window.clinicSupabaseSelect('patients', `hn=in.(${candParam})&select=hn,first_name,last_name,phone_number,phone,line_id,referred_by&limit=1`);
+                                const pCheck = await window.clinicSupabaseSelect('patients', `hn=in.(${candParam})&select=hn,patient_name,first_name,last_name,phone_number,phone,line_id,referred_by&limit=1`);
                                 if (Array.isArray(pCheck) && pCheck.length > 0) {
                                     const p = pCheck[0];
-                                    const pName = [p.first_name, p.last_name].filter(Boolean).join(' ') || custData.name;
+                                    const pName = p.patient_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || custData.name;
                                     originalCust = {
                                         id: finalCustomerId,
                                         name: pName,
@@ -2875,16 +2875,35 @@
 
                     if (newCustomerObj) {
                         if (newCustomerObj.isExistingCustomer) {
-                            const custUpdatePayload = {
-                                phone: newCustomerObj.phone,
+                            const custPayload = {
+                                customer_id: newCustomerObj.id,
+                                name: newCustomerObj.name,
+                                phone: newCustomerObj.phone || '',
                                 line_id: newCustomerObj.lineId || '',
-                                customer_type: newCustomerObj.type,
-                                symptom_disease: newCustomerObj.symptom,
-                                closer_id: newCustomerObj.closer
+                                customer_type: newCustomerObj.type || '',
+                                symptom_disease: newCustomerObj.symptom || '',
+                                owner_member_id: newCustomerObj.memberId || '',
+                                closer_id: newCustomerObj.closer || '',
+                                extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
+                                status: 'Active'
                             };
-                            if (typeof supabaseUpdate === 'function') {
+                            let savedExistingOk = false;
+                            if (typeof supabaseUpsert === 'function') {
                                 try {
-                                    await supabaseUpdate('stk_customers', newCustomerObj.id, custUpdatePayload, 'customer_id');
+                                    await supabaseUpsert('stk_customers', custPayload);
+                                    savedExistingOk = true;
+                                } catch (eUpCust) {
+                                    const fallbackUpsert = { ...custPayload };
+                                    delete fallbackUpsert.extra_details_json;
+                                    try {
+                                        await supabaseUpsert('stk_customers', fallbackUpsert);
+                                        savedExistingOk = true;
+                                    } catch (_) {}
+                                }
+                            }
+                            if (!savedExistingOk && typeof supabaseUpdate === 'function') {
+                                try {
+                                    await supabaseUpdate('stk_customers', newCustomerObj.id, custPayload, 'customer_id');
                                 } catch (errUp) {
                                     console.warn('Customer update failed:', errUp);
                                 }

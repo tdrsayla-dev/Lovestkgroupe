@@ -12,8 +12,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
+  <script src="dictionary.js"></script>
   <script src="companySettings.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
   <script src="stockLogic.js"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
@@ -94,7 +95,20 @@
         }
     };
 
-    const OrdersView = ({ sales, setSales, members, customers, setCustomers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [], loading }) => {
+    const OrdersView = ({ sales, setSales, members, customers, setCustomers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [], nutrientOrders = [], loading }) => {
+        // ⚡ สร้าง Index Map สำหรับดึงชื่อลูกค้าและผู้ปิดการขายจากใบสั่งจ่ายยา (stk_nutrient_orders)
+        const nutrientOrdersMap = useMemo(() => {
+            const map = new Map();
+            (nutrientOrders || []).forEach(no => {
+                if (!no) return;
+                if (no.sale_order_id) map.set(String(no.sale_order_id).trim().toUpperCase(), no);
+                if (no.visit_id) map.set(String(no.visit_id).trim().toUpperCase(), no);
+                if (no.order_id) map.set(String(no.order_id).trim().toUpperCase(), no);
+                if (no.hn) map.set(String(no.hn).trim().toUpperCase(), no);
+            });
+            return map;
+        }, [nutrientOrders]);
+
         // ⚡ SPEED FIX: สร้าง Index Map สำหรับหาสินค้าแบบรวดเร็ว (O(1)) เพื่อแก้ปัญหาหน้าจอค้าง
         const prodMap = useMemo(() => {
             const m = {};
@@ -290,8 +304,63 @@
                     const chunk = missingCustIds.slice(i, i + chunkSize);
                     const custQuery = `customer_id=in.(${chunk.join(',')})&select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease`;
                     const custRes = await window.supabaseSelect('stk_customers', custQuery).catch(() => []);
-                    if (Array.isArray(custRes) && custRes.length > 0) {
-                        const formattedNewCusts = custRes.map(x => ({
+                    const foundHnSet = new Set((custRes || []).map(x => String(x.customer_id || x.id || '').trim().toUpperCase()));
+                    const remainingMissing = chunk.filter(id => !foundHnSet.has(id));
+
+                    let extraCusts = [];
+                    // 1. ค้นหาจาก stk_nutrient_orders สำหรับรายการสั่งจ่ายยา
+                    if (remainingMissing.length > 0) {
+                        try {
+                            const nRes = await window.supabaseSelect('stk_nutrient_orders', `hn=in.(${remainingMissing.join(',')})&select=hn,customer_name,customer_type,customer_phone,closer_dr,closer_team,symptom&limit=50`).catch(() => []);
+                            if (Array.isArray(nRes) && nRes.length > 0) {
+                                nRes.forEach(no => {
+                                    const nHn = String(no.hn || '').trim().toUpperCase();
+                                    if (nHn && !foundHnSet.has(nHn)) {
+                                        foundHnSet.add(nHn);
+                                        extraCusts.push({
+                                            customer_id: nHn,
+                                            id: nHn,
+                                            name: no.customer_name || '',
+                                            phone: no.customer_phone || '',
+                                            symptom: no.symptom || '',
+                                            customer_type: no.customer_type || '',
+                                            type: no.customer_type || '',
+                                            closer_id: no.closer_dr || '',
+                                            closer: no.closer_dr || ''
+                                        });
+                                    }
+                                });
+                            }
+                        } catch(eN){}
+                    }
+
+                    // 2. ค้นหาจากตาราง patients ของคลินิก
+                    const stillMissing = remainingMissing.filter(id => !foundHnSet.has(id));
+                    if (stillMissing.length > 0 && typeof window.clinicSupabaseSelect === 'function') {
+                        try {
+                            const pRes = await window.clinicSupabaseSelect('patients', `hn=in.(${stillMissing.join(',')})&select=hn,patient_name,phone,referred_by&limit=50`).catch(() => []);
+                            if (Array.isArray(pRes) && pRes.length > 0) {
+                                pRes.forEach(p => {
+                                    const pHn = String(p.hn || '').trim().toUpperCase();
+                                    if (pHn && !foundHnSet.has(pHn)) {
+                                        foundHnSet.add(pHn);
+                                        extraCusts.push({
+                                            customer_id: pHn,
+                                            id: pHn,
+                                            name: p.patient_name || '',
+                                            phone: p.phone || '',
+                                            closer_id: '',
+                                            closer: ''
+                                        });
+                                    }
+                                });
+                            }
+                        } catch(eP){}
+                    }
+
+                    const allCusts = [...(custRes || []), ...extraCusts];
+                    if (allCusts.length > 0) {
+                        const formattedNewCusts = allCusts.map(x => ({
                             ...x,
                             id: x.customer_id || x.id,
                             name: x.name || x.customer_name || '',
@@ -566,17 +635,26 @@
            }
 
            if (salesSearchTerm.trim() !== '') {
-                const st = salesSearchTerm.toLowerCase();
+                const st = salesSearchTerm.toLowerCase().trim();
                 result = result.filter(s => {
                    const sCustId = s.customerId ? s.customerId.toLowerCase() : '';
                    const sMemId = s.memberId ? s.memberId.toLowerCase() : '';
                    const sMemName = s.memberName ? s.memberName.toLowerCase() : '';
-                   const sIdStr = s.id ? s.id.toString() : '';
-                   return sCustId.includes(st) || sMemId.includes(st) || sMemName.includes(st) || sIdStr.includes(st);
+                   const sIdStr = s.id ? s.id.toString().toLowerCase() : '';
+                   const sNote = s.paymentNote ? s.paymentNote.toLowerCase() : '';
+
+                   const cObj = (customers || []).find(c => c && String(c.id || c.customer_id || '').toLowerCase() === sCustId);
+                   const nOrd = (nutrientOrdersMap && (
+                       (s.id && nutrientOrdersMap.get(String(s.id).toUpperCase())) ||
+                       (sCustId && nutrientOrdersMap.get(sCustId.toUpperCase()))
+                   )) || null;
+                   const sCustName = (cObj?.name || nOrd?.customer_name || s.customerName || s.customer_name || '').toLowerCase();
+
+                   return sCustId.includes(st) || sCustName.includes(st) || sMemId.includes(st) || sMemName.includes(st) || sIdStr.includes(st) || sNote.includes(st);
                 });
            }
            return result;
-        }, [dbSalesHistory, salesSearchTerm, isMarketing, currentUser, historyStartDate, historyEndDate, filterRecordedBy]);
+        }, [dbSalesHistory, salesSearchTerm, isMarketing, currentUser, historyStartDate, historyEndDate, filterRecordedBy, customers, nutrientOrdersMap]);
 
         // อัปเดตให้รีเซ็ตหน้าจอเวลาเปลี่ยนฟิลเตอร์
         useEffect(() => { setSalesPage(1); }, [historyStartDate, historyEndDate, salesSearchTerm, filterRecordedBy]);
@@ -681,14 +759,26 @@
             const mPhone = memberObj.phone || memberObj.phone_number || memberObj.phoneNumber || saleRecord.memberPhone || saleRecord.member_phone || saleRecord.sellerPhone || saleRecord.seller_phone || '';
             const mDisplay = mPhone ? `<div>${mName}</div><div style="font-size: 10px; color: #475569; margin-top: 1px;">(โทร: ${mPhone})</div>` : mName;
             const targetSaleCustId = String(saleRecord.customerId || saleRecord.customer_id || '').trim().toUpperCase();
+            const pNoteReceipt = String(saleRecord.paymentNote || saleRecord.payment_note || '').trim().toUpperCase();
+            const vMatchReceipt = pNoteReceipt.match(/VISIT:\s*([^\)\s]+)/);
+            const visitIdReceipt = vMatchReceipt ? vMatchReceipt[1] : '';
+
             const custObj = (customers || []).find(c => {
                 if (!c) return false;
                 const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
                 return cid && cid === targetSaleCustId;
             }) || {};
-            const custName = custObj.name || saleRecord.customerName || saleRecord.customer_name || '';
+
+            const nutrientOrderReceipt = (saleRecord.id && nutrientOrdersMap.get(String(saleRecord.id).toUpperCase())) ||
+                                         (visitIdReceipt && nutrientOrdersMap.get(visitIdReceipt)) ||
+                                         (targetSaleCustId && nutrientOrdersMap.get(targetSaleCustId)) || null;
+
+            const isCleanReceiptName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
+            const custName = (isCleanReceiptName(custObj.name) ? custObj.name : null) || 
+                             (isCleanReceiptName(nutrientOrderReceipt?.customer_name) ? nutrientOrderReceipt.customer_name : null) || 
+                             (isCleanReceiptName(saleRecord.customerName || saleRecord.customer_name) ? (saleRecord.customerName || saleRecord.customer_name) : '');
             const closersList = typeof closers !== 'undefined' ? closers : [];
-            const rawReceiptCloser = String(custObj.closer || custObj.closerId || custObj.closer_id || saleRecord.closer || saleRecord.closer_id || '').trim();
+            const rawReceiptCloser = String(custObj.closer || custObj.closerId || custObj.closer_id || nutrientOrderReceipt?.closer_dr || saleRecord.closer || saleRecord.closer_id || '').trim();
             let closerName = '-';
             if (rawReceiptCloser) {
                 const rawUpper = rawReceiptCloser.toUpperCase();
@@ -1643,48 +1733,66 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                             </div>
                         </div>
 
-                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
-                           <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
-                           
-                           {(() => {
-                               const targetModalCustId = String(viewBillDetail.customerId || viewBillDetail.customer_id || '').trim().toUpperCase();
-                               const cObj = (customers || []).find(c => {
-                                   if (!c) return false;
-                                   const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
-                                   return cid && cid === targetModalCustId;
-                               });
-                               const rawModalCloser = cObj ? String(cObj.closer_id || cObj.closer || '').trim() : String(viewBillDetail.closer || viewBillDetail.closer_id || '').trim();
-                               let modalCloserName = '-';
-                               if (rawModalCloser) {
-                                   const rawUpper = rawModalCloser.toUpperCase();
-                                   const matched = (closers || []).find(cl => {
-                                       if (!cl) return false;
-                                       const clId = String(cl.id || cl.closer_id || '').trim().toUpperCase();
-                                       const clName = String(cl.name || '').trim().toUpperCase();
-                                       return (clId && (clId === rawUpper || rawUpper.startsWith(clId + ' ') || rawUpper.startsWith(clId + '-'))) ||
-                                              (clName && (clName === rawUpper || rawUpper.includes(clName)));
-                                   });
-                                   if (matched && matched.name) {
-                                       modalCloserName = matched.name;
-                                   } else if (rawModalCloser.includes(' - ')) {
-                                       modalCloserName = rawModalCloser.split(' - ').slice(1).join(' - ').trim() || rawModalCloser;
-                                   } else {
-                                       modalCloserName = rawModalCloser;
-                                   }
-                               }
-                               return (
-                                   <React.Fragment>
-                                       <div className="flex justify-between"><span className="text-slate-500">ผู้ปิดการขาย (หมอ):</span> <span className="font-bold text-emerald-700">{modalCloserName}</span></div>
-                                       {cObj && (
-                                           <React.Fragment>
-                                               <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{cObj.phone || '-'}</span></div>
-                                               {cObj.lineId && <div className="flex justify-between"><span className="text-slate-500">LINE ID:</span> <span className="font-bold text-slate-800">{cObj.lineId}</span></div>}
-                                               {cObj.symptom && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{cObj.symptom}</span></div>}
-                                           </React.Fragment>
-                                       )}
-                                   </React.Fragment>
-                               );
-                           })()}
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
+                            {(() => {
+                                const targetModalCustId = String(viewBillDetail.customerId || viewBillDetail.customer_id || '').trim().toUpperCase();
+                                const pNoteModal = String(viewBillDetail.paymentNote || viewBillDetail.payment_note || '').trim().toUpperCase();
+                                const vMatchModal = pNoteModal.match(/VISIT:\s*([^\)\s]+)/);
+                                const visitIdModal = vMatchModal ? vMatchModal[1] : '';
+
+                                const cObj = (customers || []).find(c => {
+                                    if (!c) return false;
+                                    const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
+                                    return cid && cid === targetModalCustId;
+                                });
+
+                                const nOrdModal = (viewBillDetail.id && nutrientOrdersMap.get(String(viewBillDetail.id).toUpperCase())) ||
+                                                  (visitIdModal && nutrientOrdersMap.get(visitIdModal)) ||
+                                                  (targetModalCustId && nutrientOrdersMap.get(targetModalCustId)) || null;
+
+                                const isCleanModalName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
+                                const modalCustName = (isCleanModalName(cObj?.name) ? cObj.name : null) || 
+                                                      (isCleanModalName(nOrdModal?.customer_name) ? nOrdModal.customer_name : null) || 
+                                                      (isCleanModalName(viewBillDetail.customerName) ? viewBillDetail.customerName : '');
+
+                                const rawModalCloser = (cObj && (cObj.closer_id || cObj.closer))
+                                    ? String(cObj.closer_id || cObj.closer).trim()
+                                    : (nOrdModal && (nOrdModal.closer_dr || nOrdModal.closer))
+                                    ? String(nOrdModal.closer_dr || nOrdModal.closer).trim()
+                                    : String(viewBillDetail.closer || viewBillDetail.closer_id || '').trim();
+
+                                let modalCloserName = '-';
+                                if (rawModalCloser) {
+                                    const rawUpper = rawModalCloser.toUpperCase();
+                                    const matched = (closers || []).find(cl => {
+                                        if (!cl) return false;
+                                        const clId = String(cl.id || cl.closer_id || '').trim().toUpperCase();
+                                        const clName = String(cl.name || '').trim().toUpperCase();
+                                        return (clId && (clId === rawUpper || rawUpper.startsWith(clId + ' ') || rawUpper.startsWith(clId + '-'))) ||
+                                               (clName && (clName === rawUpper || rawUpper.includes(clName)));
+                                    });
+                                    if (matched && matched.name) {
+                                        modalCloserName = matched.name;
+                                    } else if (rawModalCloser.includes(' - ')) {
+                                        modalCloserName = rawModalCloser.split(' - ').slice(1).join(' - ').trim() || rawModalCloser;
+                                    } else {
+                                        modalCloserName = rawModalCloser;
+                                    }
+                                }
+                                return (
+                                    <React.Fragment>
+                                        <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{modalCustName ? `${viewBillDetail.customerId || ''} (${modalCustName})` : (viewBillDetail.customerName || viewBillDetail.customerId || '-')}</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-500">ผู้ปิดการขาย (หมอ):</span> <span className="font-bold text-emerald-700">{modalCloserName}</span></div>
+                                        {(cObj || nOrdModal) && (
+                                            <React.Fragment>
+                                                <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{cObj?.phone || nOrdModal?.customer_phone || '-'}</span></div>
+                                                {cObj?.lineId && <div className="flex justify-between"><span className="text-slate-500">LINE ID:</span> <span className="font-bold text-slate-800">{cObj.lineId}</span></div>}
+                                                {(cObj?.symptom || nOrdModal?.symptom) && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{cObj?.symptom || nOrdModal?.symptom}</span></div>}
+                                            </React.Fragment>
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })()}
 
                            <div className="flex justify-between"><span className="text-slate-500">ผู้คีย์รายการ:</span> <span className="font-bold text-indigo-600">{viewBillDetail.recordedBy || 'Admin'}</span></div>
                            
@@ -1909,13 +2017,48 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                        ) : paginatedSalesHistory.map((rs, index) => {
                           const mName = (members || []).find(m => m && String(m.id).trim().toUpperCase() === String(rs.memberId).trim().toUpperCase())?.name || rs.memberName || rs.memberId;
                           const targetCustId = String(rs.customerId || rs.customer_id || '').trim().toUpperCase();
+                          const pNoteRow = String(rs.paymentNote || rs.payment_note || '').trim().toUpperCase();
+                          const vMatchRow = pNoteRow.match(/VIS-[A-Z0-9-]+/i) || pNoteRow.match(/VISIT:\s*([^\)\s]+)/i);
+                          const visitIdRow = vMatchRow ? (vMatchRow[1] || vMatchRow[0]).trim().toUpperCase() : '';
+
                           const custObj = (customers || []).find(c => {
                               if (!c) return false;
                               const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
                               return cid && cid === targetCustId;
                           });
-                          const cName = custObj?.name || rs.customerName || rs.customer_name || '';
-                          const rawCloser = custObj ? String(custObj.closer_id || custObj.closer || '').trim() : String(rs.closer || rs.closer_id || '').trim();
+
+                          const nutrientOrderRow = (nutrientOrdersMap && (
+                              (rs.id && nutrientOrdersMap.get(String(rs.id).trim().toUpperCase())) ||
+                              (visitIdRow && nutrientOrdersMap.get(visitIdRow)) ||
+                              (targetCustId && nutrientOrdersMap.get(targetCustId))
+                          )) || null;
+
+                          const isCleanCustName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
+                          const cName = (isCleanCustName(custObj?.name) ? custObj.name : null) || 
+                                        (isCleanCustName(nutrientOrderRow?.customer_name) ? nutrientOrderRow.customer_name : null) || 
+                                        (isCleanCustName(rs.customerName || rs.customer_name) ? (rs.customerName || rs.customer_name) : '');
+
+                          let custFallbackLabel = '';
+                          if (typeof window.resolveVisitCustomerType === 'function' && visitIdRow) {
+                              const isExisting = Boolean(
+                                  (custObj?.type && custObj.type.includes('เก่า')) ||
+                                  (nutrientOrderRow?.customer_type && nutrientOrderRow.customer_type.includes('เก่า'))
+                              );
+                              const resolvedType = window.resolveVisitCustomerType(visitIdRow, isExisting, custObj?.type || nutrientOrderRow?.customer_type);
+                              custFallbackLabel = resolvedType?.label || resolvedType?.name || (visitIdRow.startsWith('VIS-ORD') ? 'โทรปิดการขายลูกค้าใหม่' : 'ลูกค้าใหม่มาตรวจ');
+                          } else if (visitIdRow.startsWith('VIS-ORD') || visitIdRow.includes('-ORD-')) {
+                              custFallbackLabel = 'โทรปิดการขายลูกค้าใหม่';
+                          } else if (visitIdRow.startsWith('VIS-')) {
+                              custFallbackLabel = 'ลูกค้าใหม่มาตรวจ';
+                          } else {
+                              custFallbackLabel = 'ลูกค้าทั่วไป';
+                          }
+
+                          const rawCloser = (custObj && (custObj.closer_id || custObj.closer))
+                              ? String(custObj.closer_id || custObj.closer).trim()
+                              : (nutrientOrderRow && (nutrientOrderRow.closer_dr || nutrientOrderRow.closer || nutrientOrderRow.closer_team))
+                              ? String(nutrientOrderRow.closer_dr || nutrientOrderRow.closer || nutrientOrderRow.closer_team).trim()
+                              : String(rs.closer || rs.closer_id || '').trim();
                           let closerName = '-';
                           if (rawCloser) {
                               const rawUpper = rawCloser.toUpperCase();
@@ -1938,7 +2081,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                            <tr key={index} className="hover:bg-slate-50/80 transition-colors">
                               <td className="py-2.5 px-3 align-top border-r border-slate-100 overflow-hidden">
                                  <div className="font-bold text-blue-700 text-sm leading-tight mb-1 truncate flex justify-between items-center" title={rs.customerId}>
-                                    <span className="truncate mr-1">👤 {rs.customerId || ''} <span className="text-[11px] font-bold text-slate-700">({cName || 'ลูกค้าใหม่มาตรวจ'})</span></span>
+                                    <span className="truncate mr-1">👤 {rs.customerId || ''} <span className="text-[11px] font-bold text-slate-700">({cName || custFallbackLabel})</span></span>
                                     <div className="flex items-center gap-1.5 shrink-0">
     <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200 font-bold shadow-xs text-center">บิล: <span className="font-black">{rs.id}</span></span>
     {formatOrderTime(rs) && (
@@ -2072,6 +2215,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
       const [systemSettings, setSystemSettings] = useState(() => initialCache && initialCache.systemSettings ? initialCache.systemSettings : { exchange_rate: 700 });
       const [systemUsers, setSystemUsers] = useState([]);
       const [closers, setClosers] = useState(() => initialCache && Array.isArray(initialCache.closers) ? initialCache.closers.map(x => ({ ...x, id: x.id || x.closer_id })) : []);
+      const [nutrientOrders, setNutrientOrders] = useState(() => initialCache && Array.isArray(initialCache.nutrientOrders) ? initialCache.nutrientOrders : []);
       const [isAppLoading, setIsAppLoading] = useState(() => !initialCache);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('stk_sidebar_collapsed') === 'true');
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -2112,7 +2256,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
               setCustomers(data.customers.map(x => ({ 
                   ...x, 
                   id: x.customer_id || x.id, 
-                  name: x.name || x.customer_name || '',
+                  name: (x.name && !/^[\?\s]+$/.test(String(x.name).trim())) ? x.name : ((x.customer_name && !/^[\?\s]+$/.test(String(x.customer_name).trim())) ? x.customer_name : ''),
                   phone: x.phone || x.phone_number || '',
                   symptom: x.symptom_disease || x.symptom || '',
                   type: String(x.type || x.customer_type || x.customerType || '').trim(),
@@ -2121,6 +2265,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
           }
 
           if (Array.isArray(data.closers)) setClosers(data.closers.map(x => ({ ...x, id: x.id || x.closer_id })));
+          if (Array.isArray(data.nutrientOrders)) setNutrientOrders(data.nutrientOrders);
           if (Array.isArray(data.products)) setProducts(data.products.map(p => ({
              ...p,
              id: p.id || p.product_id,
@@ -2198,8 +2343,15 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                     query += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;
                 }
 
-                // ⚡ ดึงเฉพาะบิลขายที่มีการอัปเดต (ตัดการดึงลูกค้า 2,500 รายการซ้ำออกไป ประหยัด Egress มหาศาล)
-                const saleRes = await supabaseSelect('stk_sales', query).catch(() => []);
+                // ⚡ ดึงเฉพาะบิลขายที่มีการอัปเดต และดึงใบสั่งจ่ายยาเพื่อชื่อลูกค้า/ผู้ปิดการขาย
+                const [saleRes, nutrientRes] = await Promise.all([
+                    supabaseSelect('stk_sales', query).catch(() => []),
+                    supabaseSelect('stk_nutrient_orders', 'select=order_id,visit_id,hn,customer_name,customer_type,customer_phone,closer_dr,closer_team,sale_order_id&order=created_at.desc&limit=500').catch(() => [])
+                ]);
+
+                if (Array.isArray(nutrientRes) && nutrientRes.length > 0) {
+                    setNutrientOrders(nutrientRes);
+                }
                 
                 if (Array.isArray(saleRes)) {
                     let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
@@ -2297,8 +2449,9 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
           supabaseSelect('stk_products', 'select=product_id,name,current_stock,price_full,price_member,price_promo,give_pv,status,category').catch(() => []),
           supabaseSelect('stk_system_settings').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
-          supabaseSelect('stk_sales', salesQuery).catch(() => [])
-        ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes]) => {
+          supabaseSelect('stk_sales', salesQuery).catch(() => []),
+          supabaseSelect('stk_nutrient_orders', 'select=order_id,visit_id,hn,customer_name,customer_type,customer_phone,closer_dr,closer_team,sale_order_id&order=created_at.desc&limit=500').catch(() => [])
+        ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes, nutrientRes]) => {
            lastSalesRefreshTime = Date.now();
            setIsAppLoading(false); // ⚡ ปลด Loading ทันที
            const settingsObj = { exchange_rate: 700 };
@@ -2310,7 +2463,8 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
              products: prodRes,
              systemSettings: settingsObj,
              closers: closerRes,
-             sales: saleRes 
+             sales: saleRes,
+             nutrientOrders: nutrientRes
            };
 
            applyDataToStates(resObj);
@@ -2333,7 +2487,8 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                     products: productsToCache,
                    systemSettings: settingsObj,
                    closers: closerRes,
-                   sales: (saleRes || []).slice(0, 500)
+                   sales: (saleRes || []).slice(0, 500),
+                   nutrientOrders: (nutrientRes || []).slice(0, 300)
                };
                localStorage.setItem('stk_app_cache_data', JSON.stringify(cleanCache));
                localStorage.setItem('stk_app_cache_time', String(Date.now()));
@@ -2411,6 +2566,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                showToast={showToast} 
                currentUser={currentUser} 
                closers={closers}
+               nutrientOrders={nutrientOrders}
                loading={isAppLoading}
              />
           </main>

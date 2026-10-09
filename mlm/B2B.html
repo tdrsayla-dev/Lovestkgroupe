@@ -386,7 +386,7 @@
         };
       }, []);
 
-      const [selectedWarehouse, setSelectedWarehouse] = useState('MAIN_WH');
+      const [selectedWarehouse, setSelectedWarehouse] = useState('FRONT_STORE');
       const [orderNotes, setOrderNotes] = useState('');
 
       // Cart State
@@ -1028,7 +1028,7 @@
             };
 
             const whObj = warehouses.find(w => w.warehouse_id === selectedWarehouse);
-            const whName = whObj ? whObj.name : (selectedWarehouse === 'MAIN_WH' ? 'คลังใหญ่' : selectedWarehouse);
+            const whName = whObj ? whObj.name : (selectedWarehouse === 'FRONT_STORE' ? 'ห้องขายหน้าร้าน' : (selectedWarehouse === 'MAIN_WH' ? 'คลังใหญ่' : selectedWarehouse));
 
             await window.StockLogic.applyBillStockChange({
               oldBill: null,
@@ -1037,7 +1037,7 @@
               actor: currentUser ? (currentUser.name || currentUser.username) : 'B2B SYSTEM',
               billId: orderId,
               billDate: orderDate,
-              preferredWarehouse: selectedWarehouse || 'MAIN_WH',
+              preferredWarehouse: selectedWarehouse || 'FRONT_STORE',
               saleType: 'B2B',
               reasonNote: `ตัดสต๊อกขายส่ง (B2B) ออกจาก${whName} บิล ${orderId} [ผู้ซื้อ: ${selectedBuyer.name}]`
             });
@@ -1092,7 +1092,7 @@
               actor: currentUser ? (currentUser.name || currentUser.username) : 'ADMIN',
               billId: order.order_id,
               reason: 'ยกเลิกบิลขายส่ง B2B',
-              preferredWarehouse: order.warehouse_id || 'MAIN_WH'
+              preferredWarehouse: order.warehouse_id || 'FRONT_STORE'
             });
           }
 
