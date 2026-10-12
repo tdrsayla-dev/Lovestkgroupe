@@ -1066,12 +1066,26 @@
 
                 // 2. ค้นหาจากเบอร์โทร (กรณีไม่พบจาก HN หรือไม่มี HN)
                 if (!foundExistingCust && isValidPhone(pendingPhone)) {
-                    foundExistingCust = (customers || []).find(c => c && isValidPhone(c.phone) && cleanDigits(c.phone) === cleanDigits(pendingPhone));
+                    foundExistingCust = (customers || []).find(c => {
+                        if (!c || !isValidPhone(c.phone) || cleanDigits(c.phone) !== cleanDigits(pendingPhone)) return false;
+                        // 🛡️ สำคัญมาก: หาก pending มี HN มาด้วย และลูกค้าในระบบมี HN คนละเบอร์กัน ห้ามจับคู่ข้ามคนเด็ดขาด!
+                        const cHn = String(c.id || c.customer_id || c.hn || '').trim();
+                        if (pendingHn && cHn && cHn !== '-' && !window.isHnMatch(pendingHn, cHn)) return false;
+                        return true;
+                    });
                 }
 
                 // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ - หรือ --)
-                if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--') {
-                    foundExistingCust = (customers || []).find(c => c && String(c.name || '').trim().toLowerCase() === pendingName.toLowerCase());
+                // 🛡️ สำคัญมากที่สุด: หาก pending มีรหัส HN ระบุมาอย่างชัดเจน แต่ไม่พบในข้อ 1-2
+                // ห้ามจับคู่ด้วยชื่อเดี่ยวๆ เด็ดขาด! เพราะคนไข้ชื่อซ้ำกันได้ (เช่น นาง บุนมี) การค้นหาด้วยชื่อจะทำให้คนไข้ใหม่ที่มี HN เฉพาะตัว
+                // ถูกสวมสิทธิ์กลายเป็นคนไข้เก่าคนละ HN ทันที!
+                if (!foundExistingCust && (!pendingHn || pendingHn === '-' || pendingHn === '--') && pendingName && pendingName !== '-' && pendingName !== '--') {
+                    foundExistingCust = (customers || []).find(c => {
+                        if (!c || String(c.name || '').trim().toLowerCase() !== pendingName.toLowerCase()) return false;
+                        const cHn = String(c.id || c.customer_id || c.hn || '').trim();
+                        if (cHn && cHn !== '-') return false;
+                        return true;
+                    });
                 }
 
                 if (foundExistingCust) {
@@ -1086,6 +1100,8 @@
                     let resolvedCustType = normPendingType || pending.customer_type || pending.type;
                     if (pending.customer_type_manually_selected) {
                         resolvedCustType = normPendingType || pending.customer_type;
+                    } else if (resolvedCustType && resolvedCustType !== 'ลูกค้าใหม่มาตรวจ') {
+                        resolvedCustType = normPendingType || resolvedCustType;
                     } else if (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id) {
                         resolvedCustType = window.resolveVisitCustomerType(pending.visit_id, Boolean(foundExistingCust), resolvedCustType).name;
                     } else if (resolvedCustType === 'ลูกค้าใหม่มาตรวจ') {
@@ -1102,11 +1118,11 @@
 
                     setCustData(prev => ({
                         ...prev,
-                        id: foundExistingCust.id || foundExistingCust.customer_id || prev.id || pendingHn,
-                        name: foundExistingCust.name || prev.name || pendingName,
-                        phone: foundExistingCust.phone || prev.phone || pendingPhone,
-                        lineId: foundExistingCust.lineId || foundExistingCust.line_id || prev.lineId || '',
-                        symptom: foundExistingCust.symptom || foundExistingCust.symptom_disease || prev.symptom || pending.disease || '',
+                        id: pendingHn || foundExistingCust.id || foundExistingCust.customer_id || prev.id,
+                        name: pendingName || foundExistingCust.name || prev.name,
+                        phone: pendingPhone || foundExistingCust.phone || prev.phone,
+                        lineId: pending.lineId || pending.line_id || foundExistingCust.lineId || foundExistingCust.line_id || prev.lineId || '',
+                        symptom: pending.disease || pending.symptom || foundExistingCust.symptom || foundExistingCust.symptom_disease || prev.symptom || '',
                         closer: resolvedCloser || prev.closer || '',
                         closerTeam: resolvedCloserTeam || prev.closerTeam || '',
                         type: resolvedCustType
@@ -1115,12 +1131,29 @@
                         setCustMode(resolvedCustType);
                     }
 
-                    // 🛡️ หากลูกค้ามีประวัติในระบบและมีผู้ดูแลการตลาดเดิม (owner_member_id) ให้ซิงค์ผู้ขายเป็นผู้ดูแลตัวจริงอัตโนมัติ
-                    const existingOwnerId = String(foundExistingCust.owner_member_id || foundExistingCust.ownerMemberId || foundExistingCust.memberId || '').trim();
-                    if (existingOwnerId) {
-                        const matchedM = (members || []).find(m => m && safeUpper(m.id) === safeUpper(existingOwnerId));
-                        const ownerDisplay = matchedM ? `${matchedM.id} - ${matchedM.name}` : existingOwnerId;
-                        setMemberIdInput(ownerDisplay);
+                    // 🛡️ หากใบสั่งยาหรือ pending มีระบุผู้แนะนำการตลาด (recorded_by / seller_id) มาอยู่แล้ว
+                    // หรือเป็นเคสของคลินิก ให้เคารพผู้แนะนำในบิลนั้น ห้ามเขียนทับด้วย owner_member_id เดิมเด็ดขาด!
+                    const pendingSeller = String(pending.recorded_by || pending.seller_id || '').trim();
+                    const isClinicVisitCase = Boolean(pending.visit_id && pending.visit_id !== '-');
+                    if (pendingSeller && pendingSeller !== '-' && pendingSeller !== '--') {
+                        const matchedPendingM = (members || []).find(m => m && (
+                            safeUpper(m.id) === safeUpper(pendingSeller) ||
+                            safeUpper(`${m.id} - ${m.name}`) === safeUpper(pendingSeller) ||
+                            pendingSeller.toUpperCase().startsWith(safeUpper(m.id)) ||
+                            safeUpper(m.name) === safeUpper(pendingSeller) ||
+                            safeUpper(m.name).includes(safeUpper(pendingSeller)) ||
+                            safeUpper(pendingSeller).includes(safeUpper(m.name))
+                        ));
+                        const sellerDisplay = matchedPendingM ? `${matchedPendingM.id} - ${matchedPendingM.name}` : pendingSeller;
+                        setMemberIdInput(sellerDisplay);
+                    } else if (!isClinicVisitCase) {
+                        // เฉพาะกรณีไม่ใช่เคสคลินิกและไม่มีการระบุผู้แนะนำมาในบิล จึงจะซิงค์ผู้ดูแลเดิม
+                        const existingOwnerId = String(foundExistingCust.owner_member_id || foundExistingCust.ownerMemberId || foundExistingCust.memberId || '').trim();
+                        if (existingOwnerId) {
+                            const matchedM = (members || []).find(m => m && safeUpper(m.id) === safeUpper(existingOwnerId));
+                            const ownerDisplay = matchedM ? `${matchedM.id} - ${matchedM.name}` : existingOwnerId;
+                            setMemberIdInput(ownerDisplay);
+                        }
                     }
                 }
             };
@@ -1151,9 +1184,9 @@
                 const pendingSaleStr = localStorage.getItem('stk_pending_sale');
                 if (!pendingSaleStr) return;
 
-                // 🛡️ หากรายการ products ยังไม่พร้อม (กำลังโหลด) ให้รอจนกว่า products จะมีข้อมูล
-                // เพื่อให้การค้นหาชื่อสินค้า ราคา (เต็ม/สมาชิก/โปร) และรูปภาพ แมปได้ถูกต้อง 100%
-                if (!products || products.length === 0) return;
+                // 🛡️ หากรายการ products หรือ members ยังไม่พร้อม (กำลังโหลด) ให้รอจนกว่าจะมีข้อมูลครบถ้วน
+                // เพื่อให้การค้นหาชื่อสินค้า ราคา และการแมปพนักงานการตลาด (Seller/Member) ถูกต้อง 100%
+                if (!products || products.length === 0 || !members || members.length === 0) return;
 
                 hasLoadedPendingRef.current = true;
                 localStorage.removeItem('stk_pending_sale');
@@ -1161,8 +1194,29 @@
                 try {
                     const pending = JSON.parse(pendingSaleStr);
 
-                    if (pending && pending.recorded_by) {
-                        setMemberIdInput(pending.recorded_by);
+                    let initSeller = String(pending.recorded_by || pending.seller_id || '').trim();
+                    if (initSeller && initSeller !== '-' && initSeller !== '--') {
+                        const matchedInitM = (members || []).find(m => m && (
+                            safeUpper(m.id) === safeUpper(initSeller) ||
+                            safeUpper(`${m.id} - ${m.name}`) === safeUpper(initSeller) ||
+                            initSeller.toUpperCase().startsWith(safeUpper(m.id)) ||
+                            safeUpper(m.name) === safeUpper(initSeller)
+                        ));
+                        setMemberIdInput(matchedInitM ? `${matchedInitM.id} - ${matchedInitM.name}` : initSeller);
+                    } else if (pending.visit_id && pending.hn && typeof window.clinicSupabaseSelect === 'function') {
+                        // หากไม่มีผู้แนะนำส่งมาใน pending แต่เป็นบิลคลินิก ให้ค้นหาจากคลินิกทันที
+                        window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(pending.hn)}&select=referred_by&limit=1`).then(pRes => {
+                            if (Array.isArray(pRes) && pRes.length > 0 && pRes[0].referred_by) {
+                                const refStr = pRes[0].referred_by;
+                                const matchedRefM = (members || []).find(m => m && (
+                                    safeUpper(m.id) === safeUpper(refStr) ||
+                                    safeUpper(`${m.id} - ${m.name}`) === safeUpper(refStr) ||
+                                    refStr.toUpperCase().startsWith(safeUpper(m.id)) ||
+                                    safeUpper(m.name) === safeUpper(refStr)
+                                ));
+                                setMemberIdInput(matchedRefM ? `${matchedRefM.id} - ${matchedRefM.name}` : refStr);
+                            }
+                        }).catch(() => {});
                     }
 
                     if (pending && pending.visit_id) {
@@ -2348,7 +2402,8 @@
 
                     const ownerId = String(originalCust.memberId || '').trim().toUpperCase();
                     const sellerId = String(foundMember.id || '').trim().toUpperCase();
-                    if (ownerId && ownerId !== sellerId) {
+                    const isClinicVisit = Boolean(paymentNote && paymentNote.includes('VISIT:'));
+                    if (!isAdmin && !isClinicVisit && ownerId && ownerId !== sellerId) {
                         showToast(`ขออภัย! ลูกค้าท่านนี้ไม่ใช่เคสที่คุณดูแล (เป็นเคสของสมาชิก ${originalCust.memberId})`, 'error');
                         return;
                     }
@@ -3121,10 +3176,34 @@
                             const visitId = visitMatch[1].trim();
                             if (typeof window.supabaseUpdate === 'function') {
                                 try {
-                                    await window.supabaseUpdate('stk_nutrient_orders', visitId, { 
+                                    const finalCloser = custData.closer || (newCustomerObj && newCustomerObj.closer) || '';
+                                    const finalTeam = custData.closerTeam || (newCustomerObj && newCustomerObj.closerTeam) || '';
+                                    let resolvedCloserInfo = null;
+                                    if (typeof window.resolveOrderCloser === 'function') {
+                                        resolvedCloserInfo = window.resolveOrderCloser(
+                                            { closer_dr: finalCloser, closer_team: finalTeam, recorded_by: newRecord.sellerId || newRecord.sellerName },
+                                            closers, members, businessTeams
+                                        );
+                                    }
+                                    const isSelfOrder = resolvedCloserInfo ? resolvedCloserInfo.isSelf : (finalTeam && finalTeam !== 'Center');
+                                    const resolvedOrderByType = resolvedCloserInfo ? resolvedCloserInfo.orderByType : (isSelfOrder ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย');
+                                    const resolvedTeam = resolvedCloserInfo ? resolvedCloserInfo.closerTeam : (finalTeam || (isSelfOrder ? 'Marketing' : 'Center'));
+                                    const resolvedCloserName = finalCloser || (resolvedCloserInfo ? resolvedCloserInfo.closerName : '-');
+
+                                    const nutrientUpdates = { 
                                         status: 'ขายสำเร็จแล้ว',
-                                        sale_order_id: newRecord.id 
-                                    }, 'visit_id');
+                                        sale_order_id: newRecord.id,
+                                        closer_dr: resolvedCloserName,
+                                        closer_team: resolvedTeam,
+                                        order_by_type: resolvedOrderByType
+                                    };
+                                    if (newRecord.customerType || custMode) {
+                                        nutrientUpdates.customer_type = newRecord.customerType || custMode;
+                                    }
+                                    if (newRecord.sellerId || newRecord.sellerName) {
+                                        nutrientUpdates.recorded_by = newRecord.sellerId || newRecord.sellerName;
+                                    }
+                                    await window.supabaseUpdate('stk_nutrient_orders', visitId, nutrientUpdates, 'visit_id');
                                 } catch (e) {
                                     console.warn('Failed to update nutrient order status to completed:', e);
                                 }
@@ -3138,7 +3217,15 @@
                                         const itV = String(it.visit_id || (it.payment_note && it.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? it.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : '')).trim().toUpperCase();
                                         if (itV === visitId.toUpperCase()) {
                                             changed = true;
-                                            return { ...it, status: 'ขายสำเร็จแล้ว', sale_order_id: newRecord.id };
+                                            return { 
+                                                ...it, 
+                                                status: 'ขายสำเร็จแล้ว', 
+                                                sale_order_id: newRecord.id,
+                                                customer_type: newRecord.customerType || custMode || it.customer_type,
+                                                closer_dr: custData.closer || (newCustomerObj && newCustomerObj.closer) || it.closer_dr,
+                                                closer_team: custData.closerTeam || (newCustomerObj && newCustomerObj.closerTeam) || it.closer_team,
+                                                order_by_type: ((custData.closerTeam && custData.closerTeam !== 'Center') ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย')
+                                            };
                                         }
                                         return it;
                                     });

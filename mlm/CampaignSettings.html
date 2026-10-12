@@ -929,12 +929,31 @@ CREATE POLICY "Service write stk_campaigns" ON stk_campaigns FOR ALL USING (true
         loadAllData();
       }, [loadAllData]);
 
+      // Invalidate cache and broadcast to Dashboard / Reports
+      const notifyCampaignsChanged = () => {
+        try {
+          if (window.CampaignEngine && typeof window.CampaignEngine.clearClinicCache === 'function') {
+            window.CampaignEngine.clearClinicCache();
+          }
+          localStorage.removeItem('stk_campaigns_cache');
+          localStorage.removeItem('stk_selected_campaign_id');
+          if (typeof window.clearDbCache === 'function') window.clearDbCache();
+          localStorage.setItem('stk_refresh_trigger', String(Date.now()));
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('stk_mlm_channel');
+            bc.postMessage('refresh_data');
+            bc.close();
+          }
+        } catch(e) {}
+      };
+
       // Quick Toggle Status
       const handleToggleStatus = async (camp) => {
         const nextStatus = camp.status === 'active' ? 'inactive' : 'active';
         try {
           await window.supabaseUpdate('stk_campaigns', camp.campaign_id, { status: nextStatus }, 'campaign_id');
           setCampaigns(prev => prev.map(c => c.campaign_id === camp.campaign_id ? { ...c, status: nextStatus } : c));
+          notifyCampaignsChanged();
           showToast(`เปลี่ยนสถานะเป็น ${nextStatus === 'active' ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} สำเร็จ`, 'success');
         } catch (err) {
           showToast('บันทึกสถานะล้มเหลว: ' + err.message, 'error');
@@ -976,6 +995,7 @@ CREATE POLICY "Service write stk_campaigns" ON stk_campaigns FOR ALL USING (true
             ? prev.map(c => c.campaign_id === payload.campaign_id ? payload : c)
             : [...prev, payload]
           );
+          notifyCampaignsChanged();
           showToast(isEdit ? 'อัปเดตแคมเปญสำเร็จ!' : 'สร้างแคมเปญใหม่สำเร็จ!', 'success');
           setShowFormModal(false);
           setEditItem(null);
@@ -992,6 +1012,7 @@ CREATE POLICY "Service write stk_campaigns" ON stk_campaigns FOR ALL USING (true
         try {
           await window.supabaseDelete('stk_campaigns', deleteTarget.campaign_id, 'campaign_id');
           setCampaigns(prev => prev.filter(c => c.campaign_id !== deleteTarget.campaign_id));
+          notifyCampaignsChanged();
           showToast('ลบแคมเปญเรียบร้อยแล้ว', 'success');
         } catch (err) {
           showToast('ลบล้มเหลว: ' + err.message, 'error');

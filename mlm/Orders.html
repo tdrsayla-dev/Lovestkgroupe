@@ -1783,11 +1783,16 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                     <React.Fragment>
                                         <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{modalCustName ? `${viewBillDetail.customerId || ''} (${modalCustName})` : (viewBillDetail.customerName || viewBillDetail.customerId || '-')}</span></div>
                                         <div className="flex justify-between"><span className="text-slate-500">ผู้ปิดการขาย (หมอ):</span> <span className="font-bold text-emerald-700">{modalCloserName}</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-500">ผู้แนะนำการตลาด (ผู้ขาย):</span> <span className="font-bold text-amber-700">{(() => {
+                                            const targetMId = String(viewBillDetail.memberId || '').trim();
+                                            const mObj = (members || []).find(m => m && safeUpper(m.id) === safeUpper(targetMId));
+                                            return mObj ? `${mObj.id} - ${mObj.name}` : (viewBillDetail.memberName ? `${targetMId} - ${viewBillDetail.memberName}` : (targetMId || '-'));
+                                        })()}</span></div>
                                         {(cObj || nOrdModal) && (
                                             <React.Fragment>
-                                                <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{cObj?.phone || nOrdModal?.customer_phone || '-'}</span></div>
+                                                <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{nOrdModal?.customer_phone || cObj?.phone || '-'}</span></div>
                                                 {cObj?.lineId && <div className="flex justify-between"><span className="text-slate-500">LINE ID:</span> <span className="font-bold text-slate-800">{cObj.lineId}</span></div>}
-                                                {(cObj?.symptom || nOrdModal?.symptom) && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{cObj?.symptom || nOrdModal?.symptom}</span></div>}
+                                                {(nOrdModal?.symptom || cObj?.symptom) && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{nOrdModal?.symptom || cObj?.symptom}</span></div>}
                                             </React.Fragment>
                                         )}
                                     </React.Fragment>
@@ -2034,8 +2039,8 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                           )) || null;
 
                           const isCleanCustName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
-                          const cName = (isCleanCustName(custObj?.name) ? custObj.name : null) || 
-                                        (isCleanCustName(nutrientOrderRow?.customer_name) ? nutrientOrderRow.customer_name : null) || 
+                          const cName = (isCleanCustName(nutrientOrderRow?.customer_name) ? nutrientOrderRow.customer_name : null) || 
+                                        (isCleanCustName(custObj?.name) ? custObj.name : null) || 
                                         (isCleanCustName(rs.customerName || rs.customer_name) ? (rs.customerName || rs.customer_name) : '');
 
                           let custFallbackLabel = '';

@@ -474,13 +474,36 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
     const list = window.STK_CUSTOMER_TYPES_MAP || [];
     const vStr = String(visitId || '').trim().toUpperCase();
 
-    // ตรวจสอบสถานะลูกค้าเก่าจาก explicitType ร่วมด้วย
-    const hasExistingExplicit = (explicitType && (
-        String(explicitType).includes('เก่า') ||
-        String(explicitType).includes('ເກົ່າ') ||
-        String(explicitType) === 'T006' ||
-        String(explicitType) === 'T002' ||
-        String(explicitType) === 'T005'
+    // 🛡️ กฎเหล็ก: หากมีการระบุประเภทลูกค้า (explicitType) มาจากระบบคลินิกหรือผู้ใช้คีย์มาอย่างชัดเจน
+    // ให้เคารพและแปลงตาม explicitType เป็นหลักเสมอ!
+    // ยกเว้นกรณีที่เป็นค่าดีฟอลต์ทั่วไป 'ลูกค้าใหม่มาตรวจ' / 'T001' ให้ส่งผ่านไปตรวจสอบตามรูปแบบ Visit ID และประวัติลูกค้า
+    const cleanExplicit = String(explicitType || '').trim();
+    const isGenericNewVisit = (
+        !cleanExplicit ||
+        cleanExplicit === '-' ||
+        cleanExplicit === '--' ||
+        cleanExplicit === 'T001' ||
+        cleanExplicit === 'ลูกค้าใหม่มาตรวจ' ||
+        cleanExplicit === 'ລູກຄ້າໃໝ່ມາກວດ' ||
+        cleanExplicit === 'New Customer - Clinic Visit'
+    );
+
+    if (!isGenericNewVisit) {
+        if (typeof window.normalizeCustomerType === 'function') {
+            const norm = window.normalizeCustomerType(cleanExplicit, curLang, context);
+            if (norm && norm.id) {
+                return norm;
+            }
+        }
+    }
+
+    // ตรวจสอบสถานะลูกค้าเก่าจาก explicitType ร่วมด้วย (กรณีไม่มี explicitType หรือต้องวิเคราะห์จาก Visit ID)
+    const hasExistingExplicit = (cleanExplicit && (
+        cleanExplicit.includes('เก่า') ||
+        cleanExplicit.includes('ເກົ່າ') ||
+        cleanExplicit === 'T006' ||
+        cleanExplicit === 'T002' ||
+        cleanExplicit === 'T005'
     ));
     const effectiveIsExisting = Boolean(isExistingCustomer || hasExistingExplicit);
 
@@ -546,7 +569,7 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
  * @param {object} ord - ออบเจกต์ออเดอร์จาก stk_nutrient_orders หรือ stk_pending_sale
  * @returns {object} { orderByType, closerTeam, closerName, isSelf, badgeText, badgeClass }
  */
-window.resolveOrderCloser = function(ord) {
+window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeamsList) {
     const curLang = window.getCurrentLang() || 'th';
     if (!ord) {
         return {
@@ -562,36 +585,140 @@ window.resolveOrderCloser = function(ord) {
     const recordedByStr = String(ord.recorded_by || ord.seller_id || '').trim();
     const closerDrStr = String(ord.closer_dr || ord.closer || '').trim();
     const typeStr = String(ord.order_by_type || ord.prescribe_type || ord.closer_type || '').trim().toLowerCase();
-    const teamStr = String(ord.closer_team || ord.closerTeam || '').trim().toLowerCase();
+    const teamStr = String(ord.closer_team || ord.closerTeam || '').trim();
+    const teamLower = teamStr.toLowerCase();
     const closerLower = closerDrStr.toLowerCase();
+    const symptomStr = String(ord.symptom || ord.disease || '').toLowerCase();
+    const vStr = String(ord.visit_id || '').trim().toUpperCase();
 
-    // 1. ตรวจสอบความชัดเจนของทีมและรูปแบบการสั่งจ่าย (ยึดตามออเดอร์ต้นทางเป๊ะๆ ห้ามเขียนทับเด็ดขาด)
-    const isExplicitCenter = teamStr === 'center' || teamStr.includes('ส่วนกลาง') || typeStr.includes('หมอ') || typeStr.includes('ແພດ') || typeStr.includes('dr') || typeStr.includes('center');
-    const isExplicitMarketing = (teamStr === 'marketing' || teamStr.includes('การตลาด') || teamStr.includes('ຕະຫຼາດ') || typeStr.includes('เอง') || typeStr.includes('ເອງ') || typeStr.includes('ตลาด') || typeStr.includes('ຕະຫຼາດ') || typeStr.includes('self')) && !isExplicitCenter;
+    // ตรวจจับกรณีพิเศษ: MR SOUKSAKHONE LASACHAK (รหัส 99749239) เป็นนักการตลาดทีม YIA ไม่ใช่แพทย์ Souksakhone ประจำคลินิก
+    const isLasachakMarketer = closerLower.includes('lasachak') || closerLower.includes('99749239');
+    const isDoctorSouksakhone = (closerLower.includes('souksakhone') || closerLower.includes('souksakhonh')) && !isLasachakMarketer;
 
-    // 2. ตรวจสอบข้อความใน closer_dr กรณีไม่มีทีมระบุชัดเจน
-    const isCloserKeywordSelf = closerLower.includes('ປິດເອງ') || closerLower.includes('ປີດເອງ') || closerLower.includes('ສັ່ງເອງ') || closerLower.includes('ສັ່ງຈ່າຍເອງ') || closerLower.includes('ເອງ')
-        || closerLower.includes('ปิดเอง') || closerLower.includes('ตัวเองปิด') || closerLower.includes('สั่งเอง') || closerLower.includes('สั่งจ่ายเอง')
-        || closerLower.includes('self') || closerLower.includes('marketing');
+    // รายชื่อแพทย์ประจำคลินิก (Center)
+    const isDoctorName = !isLasachakMarketer && (
+        isDoctorSouksakhone ||
+        closerLower.includes('khanittha') ||
+        closerLower.includes('lava') ||
+        closerLower.includes('lavar') ||
+        closerLower.includes('nuna') ||
+        closerLower.includes('phengphan') ||
+        closerLower.includes('phaengphan') ||
+        closerLower.includes('ท่านหมอ') ||
+        closerLower.includes('ທ່ານໝໍ') ||
+        closerLower.includes('แພດ') ||
+        closerLower.includes('ແພດ') ||
+        closerLower.includes('หมอผู้เชี่ยวชาญ') ||
+        closerLower.startsWith('หมอ') ||
+        closerLower.startsWith('dr.') ||
+        closerLower.startsWith('dr ')
+    );
+
+    const pool = closersPool || window.STK_CLOSERS_CACHE || [];
+    const members = membersList || window.STK_MEMBERS_CACHE || [];
+    const teams = businessTeamsList || window.STK_TEAMS_CACHE || [];
+
+    // แผนที่แปลงรหัสทีมเป็นชื่อทีมมาตรฐาน (เช่น T05 -> TEAM NOUDAM)
+    const teamIdToName = {
+        'T01': 'Marketing',
+        'T02': 'Center',
+        'T03': 'TEAM LEE',
+        'T04': 'TEAM THAILAND',
+        'T05': 'TEAM NOUDAM',
+        'T06': 'TEAM YIA',
+        'T07': 'TEAM BOUAPHOUT',
+        'T08': 'TEAM KEE'
+    };
+    (teams || []).forEach(t => {
+        if (t && (t.team_id || t.id)) {
+            const tid = String(t.team_id || t.id).trim().toUpperCase();
+            const tname = String(t.team_name || t.name || '').trim();
+            if (tname) teamIdToName[tid] = tname;
+        }
+    });
+
+    // ค้นหาข้อมูล Closer / สมาชิกการตลาด
+    let matchedCloser = null;
+    let matchedMember = null;
+    const searchTarget = closerDrStr || recordedByStr;
+    const searchTargetUpper = searchTarget.toUpperCase();
+
+    if (searchTarget && searchTarget !== '-' && searchTarget !== 'หมอผู้เชี่ยวชาญ (Center)') {
+        const idMatch = searchTarget.match(/^([A-Za-z0-9_]+)/);
+        const prefixId = idMatch ? idMatch[1].toUpperCase() : '';
+
+        matchedCloser = (pool || []).find(c => {
+            if (!c) return false;
+            const cId = String(c.id || c.closer_id || '').trim().toUpperCase();
+            const cName = String(c.name || c.closer_name || '').trim().toUpperCase();
+            return (cId && (cId === prefixId || searchTargetUpper.startsWith(cId) || searchTargetUpper.includes(cId))) ||
+                   (cName && searchTargetUpper.includes(cName));
+        });
+
+        matchedMember = (members || []).find(m => {
+            if (!m) return false;
+            const mId = String(m.user_id || m.id || '').trim().toUpperCase();
+            const mName = String(m.name || '').trim().toUpperCase();
+            return (mId && (mId === prefixId || searchTargetUpper.startsWith(mId) || searchTargetUpper.includes(mId))) ||
+                   (mName && searchTargetUpper.includes(mName));
+        });
+    }
+
+    // 1. ตรวจสอบคีย์เวิร์ดสั่งเอง
+    const hasSelfKeyword = (
+        typeStr.includes('เอง') || typeStr.includes('ເອງ') || typeStr.includes('self') ||
+        typeStr.includes('marketing') || typeStr.includes('ตลาด') || typeStr.includes('ຕະຫຼາດ') ||
+        closerLower.includes('ປິດເອງ') || closerLower.includes('ປີດເອງ') || closerLower.includes('ສັ່ງເອງ') ||
+        closerLower.includes('ปิดเอง') || closerLower.includes('สั่งเอง') || closerLower.includes('ตัวเองปิด')
+    );
+    const hasCenterKeyword = (
+        typeStr.includes('หมอ') || typeStr.includes('ແພດ') || typeStr.includes('ส่วนกลาง') ||
+        (typeStr.includes('center') && !hasSelfKeyword)
+    );
+
+    // 2. ตรวจสอบว่าเป็นสมาชิกสายการตลาดหรือไม่
+    const isCloserFromMarketing = Boolean(
+        (matchedCloser && matchedCloser.team && matchedCloser.team.toUpperCase() !== 'CENTER') ||
+        (matchedMember && matchedMember.business_team && matchedMember.business_team.toUpperCase() !== 'T02') ||
+        (!isDoctorName && (closerDrStr.match(/^[LM0-9]/i) || (recordedByStr && closerDrStr && recordedByStr.toLowerCase() === closerDrStr.toLowerCase())))
+    );
 
     let isSelf = false;
-    if (isExplicitCenter) {
+    if (hasSelfKeyword) {
+        isSelf = true;
+    } else if (matchedCloser && matchedCloser.team && matchedCloser.team.toUpperCase() !== 'CENTER') {
+        isSelf = true;
+    } else if (matchedMember && matchedMember.business_team && matchedMember.business_team.toUpperCase() !== 'T02') {
+        isSelf = true;
+    } else if (hasCenterKeyword && isDoctorName) {
         isSelf = false;
-    } else if (isExplicitMarketing) {
+    } else if (isDoctorName) {
+        isSelf = false;
+    } else if (isCloserFromMarketing) {
         isSelf = true;
-    } else if (isCloserKeywordSelf) {
+    } else if (teamLower && teamLower !== 'center' && teamLower !== '-') {
         isSelf = true;
+    } else if (symptomStr.includes('[order]') || symptomStr.includes('ສັ່ງຊື້') || vStr.startsWith('VIS-ORD-')) {
+        isSelf = !isDoctorName;
     } else {
         isSelf = false;
     }
 
     if (isSelf) {
-        // --- กรณีสั่งจ่ายยาเอง (Marketing) ---
         const orderByType = 'สั่งจ่ายยาเอง';
-        const closerTeam = 'Marketing';
-        let closerName = '';
+        let resolvedTeam = '';
+        if (matchedCloser && matchedCloser.team && matchedCloser.team.toUpperCase() !== 'CENTER') {
+            resolvedTeam = matchedCloser.team;
+        } else if (matchedMember && matchedMember.business_team) {
+            const rawT = String(matchedMember.business_team).trim().toUpperCase();
+            resolvedTeam = teamIdToName[rawT] || rawT;
+        } else if (teamStr && teamLower !== 'center' && teamStr !== '-') {
+            resolvedTeam = teamIdToName[teamStr.toUpperCase()] || teamStr;
+        }
+        const closerTeam = resolvedTeam || 'Marketing';
 
-        if (closerDrStr && !isCloserKeywordSelf && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)') {
+        let closerName = '';
+        if (closerDrStr && !hasSelfKeyword && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)') {
             closerName = closerDrStr;
         } else if (recordedByStr && recordedByStr !== '-') {
             closerName = recordedByStr;
@@ -599,8 +726,7 @@ window.resolveOrderCloser = function(ord) {
             closerName = 'พนักงานการตลาด';
         }
 
-        const badgeText = curLang === 'lo' ? '👤 ສັ່ງເອງ (Marketing)' : (curLang === 'en' ? '👤 Self-Order (Marketing)' : '👤 สั่งเอง (Marketing)');
-
+        const badgeText = curLang === 'lo' ? `👤 ສັ່ງເອງ (${closerTeam})` : (curLang === 'en' ? `👤 Self-Order (${closerTeam})` : `👤 สั่งเอง (${closerTeam})`);
         return {
             orderByType,
             closerTeam,
@@ -610,7 +736,6 @@ window.resolveOrderCloser = function(ord) {
             badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200'
         };
     } else {
-        // --- กรณีหมอสั่งจ่าย (Center) ---
         const orderByType = 'หมอสั่งจ่าย';
         const closerTeam = 'Center';
         let closerName = (closerDrStr && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)')
@@ -618,7 +743,6 @@ window.resolveOrderCloser = function(ord) {
             : 'หมอผู้เชี่ยวชาญ (Center)';
 
         const badgeText = curLang === 'lo' ? '🩺 ທ່ານໝໍປິດ (Center)' : (curLang === 'en' ? '🩺 Doctor (Center)' : '🩺 หมอปิด (Center)');
-
         return {
             orderByType,
             closerTeam,

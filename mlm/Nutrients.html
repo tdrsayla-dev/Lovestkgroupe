@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -156,54 +156,29 @@
         badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
       };
     }
-    // 🛡️ ฟังก์ชันช่วยวิเคราะห์และป้องกันการดีดกลับของประเภทลูกค้า (VIS-ORD vs VIS-ตัวเลข)
+    // 🛡️ ฟังก์ชันช่วยวิเคราะห์และป้องกันการดีดกลับของประเภทลูกค้า (เคารพค่าจากระบบคลินิกต้นทาง 100%)
     function getAccurateCustomerTypeLocally(visitId, explicitType, isExisting) {
-        const vUp = String(visitId || '').toUpperCase();
         let baseType = String(explicitType || '').trim();
-
-        // 📌 กำหนดลิสต์ที่ถือว่าเป็น "ลูกค้าเก่า" ที่ยอมรับได้จากระบบคลินิกต้นทาง
-        const validOldTypes = [
-            'โทรปิดการขายลูกค้าเก่า', 
-            'ลูกค้าเก่ากลับมาต่อยา', 
-            'ลูกค้าเก่านำผลตรวจมาปรึกษา', 
-            'ลูกค้านำผลตรวจมาปรึกษา',
-            'ส่วนกลางใหม่' // ถ้าอนุโลมให้เป็นลูกค้าเก่าได้
-        ];
-
-        // กฎเหล็ก 1: ถ้าเป็น VIS-ORD หรือ ORD- (ออเดอร์ที่ไม่ได้มาตรวจจริงที่คลินิก)
-        if (vUp.includes('VIS-ORD') || vUp.includes('VISIT-ORD') || vUp.startsWith('ORD-')) {
-            if (isExisting) {
-                // ถ้าเป็นลูกค้าเก่า และต้นทางเลือก "หมวดลูกค้าเก่า" มาให้แล้ว => ใช้ตามต้นทาง
-                if (baseType && validOldTypes.includes(baseType)) {
-                    return baseType;
-                }
-                // ถ้าว่าง หรือส่งมาผิดหมวด (เช่น ส่ง 'ลูกค้าใหม่มาตรวจ') => บังคับตีกลับ
-                return 'โทรปิดการขายลูกค้าเก่า';
-            } else {
-                // ถ้าเป็นลูกค้าใหม่
-                if (baseType === 'โทรปิดการขายลูกค้าใหม่' || baseType === 'ลูกค้าใหม่นำผลตรวจมาปรึกษา') {
-                    return baseType; 
-                }
-                return 'โทรปิดการขายลูกค้าใหม่';
+        if (baseType && baseType !== '-' && baseType !== '--') {
+            if (typeof window.normalizeCustomerType === 'function') {
+                return window.normalizeCustomerType(baseType).name || baseType;
             }
+            return baseType;
+        }
+
+        const vUp = String(visitId || '').toUpperCase();
+        // กฎเหล็ก 1: ถ้าเป็น VIS-ORD หรือ ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์)
+        if (vUp.includes('VIS-ORD') || vUp.includes('VISIT-ORD') || vUp.startsWith('ORD-')) {
+            return isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่';
         }
 
         // กฎเหล็ก 2: ถ้าเป็น VIS-ตัวเลข แสดงว่าเป็นคนไข้คลินิกจริง
         if (/VIS(?:IT)?[:\s\-]+(?:VIS[-:\s]*)?\d+/i.test(vUp) || /VIS-\d+/i.test(vUp)) {
-            if (isExisting) {
-                if (baseType && validOldTypes.includes(baseType)) return baseType;
-                return 'ลูกค้าเก่านำผลตรวจมาปรึกษา'; 
-            } else {
-                if (baseType && (baseType === 'ลูกค้าใหม่มาตรวจ' || baseType === 'ลูกค้าใหม่นำผลตรวจมาปรึกษา')) return baseType;
-                return 'ลูกค้าใหม่มาตรวจ';
-            }
+            return isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ';
         }
 
         // Fallback
-        if (!baseType) {
-            return isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ';
-        }
-        return baseType;
+        return isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ';
     }
     // ฟังก์ชันช่วยสกัด ID / Visit ID ทุกรูปแบบที่เป็นไปได้เพื่อใช้เทียบและลบข้อมูลถาวร
     function getNormalizedIds(val) {
@@ -277,6 +252,35 @@
       });
       const [membersList, setMembersList] = useState([]);
 
+      // 🩺 ฟังก์ชันช่วยวิเคราะห์ข้อมูลผู้สั่งจ่าย / ทีมผู้ปิดการขาย โดยใช้ resolveOrderCloser สากล
+      const resolveOrderCloserInfo = (ord) => {
+        if (!ord) {
+          return {
+            orderByType: 'หมอสั่งจ่าย',
+            closerTeam: 'Center',
+            closerName: 'หมอผู้เชี่ยวชาญ (Center)',
+            isSelf: false,
+            badgeText: currentLang === 'lo' ? '🩺 ທ່ານໝໍປິດ (Center)' : (currentLang === 'en' ? '🩺 Doctor (Center)' : '🩺 หมอปิด (Center)'),
+            badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+          };
+        }
+        if (typeof window.resolveOrderCloser === 'function') {
+          return window.resolveOrderCloser(ord, window.STK_CLOSERS_CACHE, membersList, window.STK_TEAMS_CACHE);
+        }
+        const closerDrStr = String(ord.closer_dr || ord.closer || '').trim();
+        const closerDrLower = closerDrStr.toLowerCase();
+        const isCenterDoctor = closerDrLower.includes('souksakhone') || closerDrLower.includes('khanittha') || closerDrLower.includes('lava') || closerDrLower.includes('nuna') || closerDrLower.includes('phengphan');
+        const isCenter = isCenterDoctor || !closerDrStr || ord.closer_team === 'Center';
+        return {
+          orderByType: isCenter ? 'หมอสั่งจ่าย' : 'สั่งจ่ายยาเอง',
+          closerTeam: isCenter ? 'Center' : (ord.closer_team || 'Marketing'),
+          closerName: closerDrStr || (isCenter ? 'หมอผู้เชี่ยวชาญ (Center)' : 'พนักงานการตลาด'),
+          isSelf: !isCenter,
+          badgeText: isCenter ? '🩺 หมอปิด (Center)' : `👤 สั่งเอง (${ord.closer_team || 'Marketing'})`,
+          badgeClass: isCenter ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        };
+      };
+
       useEffect(() => {
         const handleLangChange = (e) => {
           if (e && e.detail && e.detail.lang) setCurrentLang(e.detail.lang);
@@ -329,16 +333,25 @@
             const isForce = forceRefresh === true || (showLoading && typeof showLoading === 'object');
             const cacheParam = isForce ? '&nocache=true' : '';
 
-            // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก
-            const [data, salesRes, custRes, membersRes, clinicPatientsRes] = await Promise.all([
+            // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย
+            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes] = await Promise.all([
               window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id').catch(() => []),
               window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone_number') : Promise.resolve([])).catch(() => [])
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone_number') : Promise.resolve([])).catch(() => []),
+              window.supabaseSelect('stk_closers').catch(() => []),
+              window.supabaseSelect('stk_business_teams').catch(() => [])
             ]);
 
+            if (Array.isArray(closersRes) && closersRes.length > 0) {
+              window.STK_CLOSERS_CACHE = closersRes;
+            }
+            if (Array.isArray(teamsRes) && teamsRes.length > 0) {
+              window.STK_TEAMS_CACHE = teamsRes;
+            }
             if (Array.isArray(membersRes) && membersRes.length > 0) {
+              window.STK_MEMBERS_CACHE = membersRes;
               setMembersList(membersRes);
             }
 
@@ -359,6 +372,12 @@
             const phoneSet = new Set();
             const nameSet = new Set();
 
+            // ⚡ แมปผู้แนะนำการตลาด (Referrer) จากระบบคลินิก และ เจ้าของเคสเดิม
+            const clinicReferrerByHn = new Map();
+            const clinicReferrerByPhone = new Map();
+            const custOwnerByHn = new Map();
+            const custOwnerByPhone = new Map();
+
             const registerHnCandidates = (rawHn) => {
               if (!rawHn) return;
               const list = (typeof window.normalizeHnCandidates === 'function')
@@ -369,23 +388,53 @@
               });
             };
 
+            const registerHnReferrer = (map, rawHn, refVal) => {
+              if (!rawHn || !refVal) return;
+              const list = (typeof window.normalizeHnCandidates === 'function')
+                ? window.normalizeHnCandidates(rawHn)
+                : [String(rawHn).trim().toUpperCase()];
+              list.forEach(item => {
+                if (item && item !== '-' && item !== '--') map.set(item, refVal);
+              });
+            };
+
             // 1. จากตาราง stk_customers
             if (Array.isArray(custRes)) {
               custRes.forEach(c => {
-                if (c.customer_id) registerHnCandidates(c.customer_id);
+                if (c.customer_id) {
+                  registerHnCandidates(c.customer_id);
+                  if (c.owner_member_id && c.owner_member_id !== '-' && c.owner_member_id !== '--') {
+                    registerHnReferrer(custOwnerByHn, c.customer_id, c.owner_member_id);
+                  }
+                }
                 const clP = String(c.phone || '').replace(/[^0-9]/g, '');
-                if (clP.length >= 7) phoneSet.add(clP);
+                if (clP.length >= 7) {
+                  phoneSet.add(clP);
+                  if (c.owner_member_id && c.owner_member_id !== '-' && c.owner_member_id !== '--') {
+                    custOwnerByPhone.set(clP, c.owner_member_id);
+                  }
+                }
                 const clN = String(c.name || '').trim().toLowerCase();
                 if (clN && clN !== '-' && clN !== '--') nameSet.add(clN);
               });
             }
 
-            // 2. จากตาราง patients ของระบบคลินิก
+            // 2. จากตาราง patients ของระบบคลินิก (ดึง referred_by เก็บเข้า Index Map อย่างแม่นยำ 100%)
             if (Array.isArray(clinicPatientsRes)) {
               clinicPatientsRes.forEach(p => {
-                if (p && p.hn) registerHnCandidates(p.hn);
+                if (p && p.hn) {
+                  registerHnCandidates(p.hn);
+                  if (p.referred_by && p.referred_by !== '-' && p.referred_by !== '--') {
+                    registerHnReferrer(clinicReferrerByHn, p.hn, p.referred_by);
+                  }
+                }
                 const pPhone = String(p.phone_number || p.phone || '').replace(/[^0-9]/g, '');
-                if (pPhone.length >= 7) phoneSet.add(pPhone);
+                if (pPhone.length >= 7) {
+                  phoneSet.add(pPhone);
+                  if (p.referred_by && p.referred_by !== '-' && p.referred_by !== '--') {
+                    clinicReferrerByPhone.set(pPhone, p.referred_by);
+                  }
+                }
               });
             }
 
@@ -412,6 +461,51 @@
               );
             };
 
+            // 🛡️ Helper: ค้นหาและแปลงรหัสผู้แนะนำ/พนักงานการตลาดให้ตรงกับฐานข้อมูล stk_members
+            const resolveReferrerMember = (rawStr) => {
+              if (!rawStr || rawStr === '-' || rawStr === '--') return '';
+              const s = String(rawStr).trim();
+              const sUp = s.toUpperCase();
+              const pool = (Array.isArray(membersRes) && membersRes.length > 0) ? membersRes : membersList;
+              const matched = (pool || []).find(m => {
+                if (!m) return false;
+                const mId = String(m.user_id || m.id || '').toUpperCase();
+                const mName = String(m.name || '').toUpperCase();
+                const mCombined = `${mId} - ${mName}`;
+                return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
+                       (mName && (sUp === mName || sUp.includes(mName))) ||
+                       (sUp === mCombined);
+              });
+              if (matched) {
+                return `${matched.user_id || matched.id} - ${matched.name}`;
+              }
+              return s;
+            };
+
+            const getBestReferrer = (targetHn, targetPhone, existingRecorded) => {
+              const hCandidates = (typeof window.normalizeHnCandidates === 'function')
+                ? window.normalizeHnCandidates(targetHn)
+                : [String(targetHn || '').trim().toUpperCase()].filter(Boolean);
+              const pClean = String(targetPhone || '').replace(/[^0-9]/g, '');
+
+              // 1. ตรวจสอบจากตาราง patients ของระบบคลินิก (priority สูงสุดสำหรับเคสคลินิก)
+              let clinicRef = hCandidates.map(c => clinicReferrerByHn.get(c)).find(Boolean) || '';
+              if (!clinicRef && pClean.length >= 7) clinicRef = clinicReferrerByPhone.get(pClean) || '';
+
+              // 2. ตรวจสอบจากค่าเดิมที่ติดมากับรายการ
+              const cleanExisting = String(existingRecorded || '').trim();
+              const isRecordedValid = cleanExisting && cleanExisting !== '-' && cleanExisting !== '--';
+
+              // 3. ตรวจสอบจากเจ้าของลูกค้าเดิมใน stk_customers
+              let custRef = hCandidates.map(c => custOwnerByHn.get(c)).find(Boolean) || '';
+              if (!custRef && pClean.length >= 7) custRef = custOwnerByPhone.get(pClean) || '';
+
+              if (clinicRef) return resolveReferrerMember(clinicRef);
+              if (isRecordedValid) return resolveReferrerMember(cleanExisting);
+              if (custRef) return resolveReferrerMember(custRef);
+              return '-';
+            };
+
             if (Array.isArray(data)) {
               dbList = data.map(item => {
                 const vUpper = String(item.visit_id || '').trim().toUpperCase();
@@ -420,14 +514,6 @@
                 const finalStatus = (item.status === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet))
                   ? 'บิลถูกยกเลิก'
                   : (isCompleted ? 'ขายสำเร็จแล้ว' : (item.status || 'รอดำเนินการ'));
-
-                // ซิงค์สถานะบิลขายสำเร็จกลับ Supabase อัตโนมัติในพื้นหลังหากยังไม่ได้อัปเดต
-                if (matchingSaleId && item.status !== 'ขายสำเร็จแล้ว' && typeof window.supabaseUpdate === 'function') {
-                  window.supabaseUpdate('stk_nutrient_orders', item.visit_id, {
-                    status: 'ขายสำเร็จแล้ว',
-                    sale_order_id: matchingSaleId
-                  }, 'visit_id').catch(() => {});
-                }
 
                 const isExisting = checkCustomerExists(item.hn || item.customer_id, item.phone || item.customer_phone, item.customer_name || item.customerName);
                 const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
@@ -440,7 +526,33 @@
                     }).name
                   : (explicit || 'ลูกค้าใหม่มาตรวจ');
 
-                const resolvedRecordedBy = item.recorded_by || item.seller_id || item.seller || item.salesperson || '-';
+                const resolvedCloserInfo = resolveOrderCloserInfo(item);
+                const resolvedRecordedBy = getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, item.recorded_by || item.seller_id);
+
+                // ซิงค์สถานะบิลขายสำเร็จ, ประเภทลูกค้า และทีมผู้สั่งจ่ายที่ถูกต้องกลับ Supabase อัตโนมัติในพื้นหลังหากยังไม่ได้อัปเดต
+                if (typeof window.supabaseUpdate === 'function' && item.visit_id && item.visit_id !== '-') {
+                  const syncUpdates = {};
+                  if (matchingSaleId && item.status !== 'ขายสำเร็จแล้ว') {
+                    syncUpdates.status = 'ขายสำเร็จแล้ว';
+                    syncUpdates.sale_order_id = matchingSaleId;
+                  }
+                  if (resolvedCustType && resolvedCustType !== item.customer_type && item.customer_type === 'ลูกค้าใหม่มาตรวจ') {
+                    syncUpdates.customer_type = resolvedCustType;
+                  }
+                  if (resolvedCloserInfo.orderByType && item.order_by_type !== resolvedCloserInfo.orderByType) {
+                    syncUpdates.order_by_type = resolvedCloserInfo.orderByType;
+                  }
+                  if (resolvedCloserInfo.closerTeam && item.closer_team !== resolvedCloserInfo.closerTeam) {
+                    syncUpdates.closer_team = resolvedCloserInfo.closerTeam;
+                  }
+                  if (resolvedRecordedBy && resolvedRecordedBy !== '-' && (!item.recorded_by || item.recorded_by === '-')) {
+                    syncUpdates.recorded_by = resolvedRecordedBy;
+                  }
+                  if (Object.keys(syncUpdates).length > 0) {
+                    window.supabaseUpdate('stk_nutrient_orders', item.visit_id, syncUpdates, 'visit_id').catch(() => {});
+                  }
+                }
+
                 return {
                   id: item.order_id || String(item.id),
                   visit_id: item.visit_id || '-',
@@ -449,10 +561,10 @@
                   phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
                   disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
                   customer_type: resolvedCustType,
-                  order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
-                  closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
+                  order_by_type: resolvedCloserInfo.orderByType || item.order_by_type,
+                  closer_team: resolvedCloserInfo.closerTeam || item.closer_team,
                   recorded_by: resolvedRecordedBy,
-                  closer_dr: item.closer_dr || '-',
+                  closer_dr: resolvedCloserInfo.closerName || item.closer_dr || '-',
                   date: item.created_at || item.date || new Date().toISOString(),
                   status: finalStatus,
                   sale_order_id: matchingSaleId || item.sale_order_id || null,
@@ -537,6 +649,10 @@
                 }).name
               : (explicit || 'ลูกค้าใหม่มาตรวจ');
 
+            const localCloserInfo = resolveOrderCloserInfo(item);
+            const localRecordedBy = (typeof getBestReferrer === 'function')
+              ? getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, item.recorded_by || item.seller_id || item.referred_by || item.referrer)
+              : (item.recorded_by || item.seller_id || '-');
             const localEntry = {
               id: orderId,
               visit_id: vId,
@@ -545,10 +661,10 @@
               phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
               disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
               customer_type: resolvedLocalCustType,
-              order_by_type: item.order_by_type || item.prescribe_type || item.prescribed_by_type || item.closer_type || item.order_type || (item.closer_team === 'Marketing' ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย'),
-              closer_team: item.closer_team || item.closerTeam || (item.order_by_type === 'สั่งจ่ายยาเอง' ? 'Marketing' : 'Center'),
-              recorded_by: item.recorded_by || item.seller_id || '-',
-              closer_dr: item.closer_dr || '-',
+              order_by_type: localCloserInfo.orderByType,
+              closer_team: localCloserInfo.closerTeam,
+              recorded_by: localRecordedBy,
+              closer_dr: localCloserInfo.closerName || item.closer_dr || '-',
               date: item.created_at || item.date || new Date().toISOString(),
               status: finalLocalStatus,
               sale_order_id: matchingSaleId || item.sale_order_id || null,
@@ -774,19 +890,38 @@
           return `<option value="${t.name}" ${isSelected}>🏷️ ${label}</option>`;
         }).join('');
 
-        const currentSellerStr = String(order.recorded_by || '').trim();
+        let currentSellerStr = String(order.recorded_by || '').trim();
+        if (!currentSellerStr || currentSellerStr === '-' || currentSellerStr === '--') {
+          const hnCand = (typeof window.normalizeHnCandidates === 'function')
+            ? window.normalizeHnCandidates(order.hn)
+            : [String(order.hn || '').trim().toUpperCase()].filter(Boolean);
+          const pCln = String(order.phone || '').replace(/[^0-9]/g, '');
+          const clinicMatch = hnCand.map(c => clinicReferrerByHn?.get(c)).find(Boolean) || (pCln.length >= 7 ? clinicReferrerByPhone?.get(pCln) : null);
+          if (clinicMatch) currentSellerStr = clinicMatch;
+        }
+
         let sellerFoundInList = false;
         const sellerOptionsHtml = (membersList || []).map(m => {
           const mId = m.user_id || m.id;
           const val = `${mId} - ${m.name}`;
-          const isSelected = currentSellerStr && (currentSellerStr.toUpperCase() === val.toUpperCase() || currentSellerStr.toUpperCase() === String(mId).toUpperCase() || currentSellerStr.toUpperCase().startsWith(String(mId).toUpperCase()));
+          const isSelected = currentSellerStr && (
+            currentSellerStr.toUpperCase() === val.toUpperCase() ||
+            currentSellerStr.toUpperCase() === String(mId).toUpperCase() ||
+            currentSellerStr.toUpperCase().startsWith(String(mId).toUpperCase()) ||
+            val.toUpperCase().startsWith(currentSellerStr.toUpperCase())
+          );
           if (isSelected) sellerFoundInList = true;
           return `<option value="${val}" ${isSelected ? 'selected' : ''}>👤 ${val}</option>`;
         }).join('');
 
-        const fullSellerSelectHtml = sellerFoundInList || !currentSellerStr || currentSellerStr === '-'
-          ? sellerOptionsHtml
-          : `<option value="${currentSellerStr}" selected>👤 ${currentSellerStr} (จากใบสั่งยา)</option>` + sellerOptionsHtml;
+        let fullSellerSelectHtml = '';
+        if (sellerFoundInList) {
+          fullSellerSelectHtml = sellerOptionsHtml;
+        } else if (currentSellerStr && currentSellerStr !== '-' && currentSellerStr !== '--') {
+          fullSellerSelectHtml = `<option value="${currentSellerStr}" selected>👤 ${currentSellerStr} (จากใบสั่งยาคลินิก)</option>` + sellerOptionsHtml;
+        } else {
+          fullSellerSelectHtml = `<option value="" disabled selected>⚠️ กรุณาเลือกผู้แนะนำ / การตลาด</option>` + sellerOptionsHtml;
+        }
 
         Swal.fire({
           title: currentLang === 'lo' ? 'ຢືນຢັນສ້າງຮ່າງໃບສັ່ງຊື້' : (currentLang === 'en' ? 'Confirm Draft Order' : 'ยืนยันสร้างร่างใบสั่งซื้อ'),
@@ -823,9 +958,20 @@
                 </select>
               </div>
               
-              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs space-y-1 mt-2">
-                <p><strong>รูปแบบสั่งจ่าย:</strong> <span class="font-bold ${closerInfo.closerTeam === 'Center' ? 'text-indigo-600' : 'text-emerald-600'}">${closerInfo.badgeText || (closerInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิดการขาย / สั่งจ่าย' : '👤 สั่งจ่ายยาเอง')} (ทีม: ${closerInfo.closerTeam})</span></p>
-                <p><strong>ผู้ปิดการขายในบิล:</strong> <span class="font-black text-slate-900">${closerInfo.closerName}</span></p>
+              <!-- Dropdown เลือกรูปแบบสั่งจ่ายและทีมผู้ปิดการขาย -->
+              <div class="bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-200 text-xs mt-2">
+                <label class="block font-bold text-slate-700 mb-1">
+                  🩺 รูปแบบสั่งจ่าย / ทีมผู้ปิดการขาย:
+                </label>
+                <select id="swal-select-order-by-type" class="w-full bg-white border border-indigo-300 rounded-lg p-2 font-bold text-slate-800 text-xs shadow-2xs focus:border-indigo-500 focus:outline-none">
+                  <option value="สั่งจ่ายยาเอง" ${closerInfo.orderByType === 'สั่งจ่ายยาเอง' ? 'selected' : ''}>
+                    👤 สั่งจ่ายยาเอง (ทีม: ${closerInfo.closerTeam !== 'Center' ? closerInfo.closerTeam : 'Marketing'})
+                  </option>
+                  <option value="หมอสั่งจ่าย" ${closerInfo.orderByType === 'หมอสั่งจ่าย' ? 'selected' : ''}>
+                    🩺 หมอสั่งจ่าย (ทีม: Center)
+                  </option>
+                </select>
+                <p class="text-[11px] text-slate-500 mt-1">ผู้ปิดการขาย: <strong class="text-slate-800">${closerInfo.closerName}</strong></p>
               </div>
 
               <hr class="my-2 border-slate-200"/>
@@ -866,15 +1012,32 @@
           preConfirm: () => {
             const selectType = document.getElementById('swal-select-customer-type');
             const selectSeller = document.getElementById('swal-select-seller');
+            const selectOrderByType = document.getElementById('swal-select-order-by-type');
+            const chosenSeller = selectSeller ? selectSeller.value : (order.recorded_by || '');
+            if (!chosenSeller || chosenSeller === '-' || chosenSeller === '--') {
+              Swal.showValidationMessage(currentLang === 'lo' ? 'ກະລຸນາເລືອກຜູ້ແນະນຳ / ການຕະຫຼາດ' : 'กรุณาเลือกผู้แนะนำ / ผู้ขาย (การตลาด)');
+              return false;
+            }
             return {
               custTypeName: selectType ? selectType.value : normCustType.name,
-              sellerName: selectSeller ? selectSeller.value : (order.recorded_by || '')
+              sellerName: chosenSeller,
+              orderByTypeVal: selectOrderByType ? selectOrderByType.value : closerInfo.orderByType
             };
           }
         }).then((result) => {
           if (result.isConfirmed) {
             const selectedCustTypeName = result.value?.custTypeName || normCustType.name;
             const selectedSeller = result.value?.sellerName || order.recorded_by;
+            const selectedOrderByVal = result.value?.orderByTypeVal || closerInfo.orderByType;
+            const isSelfOrder = selectedOrderByVal === 'สั่งจ่ายยาเอง';
+            const chosenOrderByType = isSelfOrder ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย';
+            const chosenCloserTeam = isSelfOrder
+              ? (closerInfo.closerTeam && closerInfo.closerTeam !== 'Center' ? closerInfo.closerTeam : 'Marketing')
+              : 'Center';
+            const chosenCloserName = isSelfOrder
+              ? (closerInfo.closerName && closerInfo.closerName !== 'หมอผู้เชี่ยวชาญ (Center)' ? closerInfo.closerName : (selectedSeller || 'พนักงานการตลาด'))
+              : (closerInfo.closerName || 'หมอผู้เชี่ยวชาญ (Center)');
+
             const finalCustTypeObj = (typeof window.normalizeCustomerType === 'function')
               ? window.normalizeCustomerType(selectedCustTypeName)
               : { id: normCustType.id, name: selectedCustTypeName, lo: selectedCustTypeName, th: selectedCustTypeName, en: selectedCustTypeName };
@@ -888,6 +1051,17 @@
               setCustomTypeOverrides(currentOverrides);
             } catch(e) {}
 
+            // 🚀 อัปเดตประเภทลูกค้าและผู้สั่งจ่ายลง stk_nutrient_orders ใน Supabase ทันที
+            if (typeof window.supabaseUpdate === 'function' && order.visit_id && order.visit_id !== '-') {
+              window.supabaseUpdate('stk_nutrient_orders', order.visit_id, {
+                customer_type: finalCustTypeObj.name,
+                recorded_by: selectedSeller || order.recorded_by,
+                closer_dr: chosenCloserName,
+                closer_team: chosenCloserTeam,
+                order_by_type: chosenOrderByType
+              }, 'visit_id').catch(err => console.warn('Sync draft customer_type to stk_nutrient_orders failed:', err));
+            }
+
             try {
               const pendingSale = {
                 visit_id: order.visit_id,
@@ -896,11 +1070,11 @@
                 phone: (order.phone && order.phone !== '-' && order.phone !== '--') ? order.phone : '',
                 disease: (order.disease && order.disease !== '-') ? order.disease : '',
                 recorded_by: selectedSeller || order.recorded_by,
-                closer_dr: closerInfo.closerName,
-                closer: closerInfo.closerName,
-                closer_team: closerInfo.closerTeam,
-                closerTeam: closerInfo.closerTeam,
-                order_by_type: closerInfo.orderByType,
+                closer_dr: chosenCloserName,
+                closer: chosenCloserName,
+                closer_team: chosenCloserTeam,
+                closerTeam: chosenCloserTeam,
+                order_by_type: chosenOrderByType,
                 customer_type: finalCustTypeObj.name,
                 customer_type_id: finalCustTypeObj.id,
                 customer_type_name: finalCustTypeObj.name,

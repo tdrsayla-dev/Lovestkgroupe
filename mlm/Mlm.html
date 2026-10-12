@@ -178,10 +178,10 @@
         const [clinicLogs, setClinicLogs] = useState([]);
         const [campaignCollapsedMap, setCampaignCollapsedMap] = useState({});
 
-        const loadCampaigns = useCallback(async () => {
+        const loadCampaigns = useCallback(async (forceLive = false) => {
             if (typeof window.CampaignEngine !== 'undefined' && typeof window.CampaignEngine.fetchActiveCampaigns === 'function') {
                 try {
-                    const camps = await window.CampaignEngine.fetchActiveCampaigns();
+                    const camps = await window.CampaignEngine.fetchActiveCampaigns(forceLive);
                     const activeList = Array.isArray(camps) ? camps : [];
                     setActiveCampaigns(activeList);
 
@@ -189,7 +189,7 @@
                         const minStart = activeList.reduce((min, c) => (!min || (c.start_date && c.start_date < min) ? c.start_date : min), null);
                         const maxEnd = activeList.reduce((max, c) => (!max || (c.end_date && c.end_date > max) ? c.end_date : max), null);
                         if (minStart && maxEnd) {
-                            const logs = await window.CampaignEngine.fetchClinicLogs(minStart, maxEnd);
+                            const logs = await window.CampaignEngine.fetchClinicLogs(minStart, maxEnd, forceLive);
                             setClinicLogs(Array.isArray(logs) ? logs : []);
                         }
                     }
@@ -200,7 +200,13 @@
         }, []);
 
         useEffect(() => {
+            window.refreshDashboardCampaigns = () => loadCampaigns(true);
             loadCampaigns();
+            const handleFocus = () => loadCampaigns(true);
+            window.addEventListener('focus', handleFocus);
+            return () => {
+                window.removeEventListener('focus', handleFocus);
+            };
         }, [loadCampaigns]);
 
         const campaignSections = useMemo(() => {
@@ -1788,6 +1794,12 @@
             bc.onmessage = (e) => {
                 if (e.data === 'refresh_data') {
                     if (typeof window.clearDbCache === 'function') window.clearDbCache();
+                    if (window.CampaignEngine && typeof window.CampaignEngine.clearClinicCache === 'function') {
+                        window.CampaignEngine.clearClinicCache();
+                    }
+                    if (typeof window.refreshDashboardCampaigns === 'function') {
+                        window.refreshDashboardCampaigns();
+                    }
                     if (typeof window.refreshAppDashboardData === 'function') {
                         window.refreshAppDashboardData();
                     }
@@ -1824,6 +1836,12 @@
                     const refreshTime = Number(rawRefresh);
                     if (!isNaN(refreshTime) && refreshTime > window.stkLastRefreshTime) {
                         window.stkLastRefreshTime = refreshTime;
+                        if (window.CampaignEngine && typeof window.CampaignEngine.clearClinicCache === 'function') {
+                            window.CampaignEngine.clearClinicCache();
+                        }
+                        if (typeof window.refreshDashboardCampaigns === 'function') {
+                            window.refreshDashboardCampaigns();
+                        }
                         if (typeof window.refreshAppDashboardData === 'function') {
                             window.refreshAppDashboardData();
                         }
