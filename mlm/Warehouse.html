@@ -1175,9 +1175,7 @@
               // คำนวณยอดขายหลังจากวันตรวจนับล่าสุด (หักยอดคืน/ยกเลิกบิลออก เพื่อให้ตรงกับยอดขายสุทธิของหน้าร้านจริง)
               let salesAfter = 0;
               const todayDateStr = (typeof auditDate === 'string' && auditDate) ? auditDate : new Date().toISOString().slice(0, 10);
-              if (auditDateStr < todayDateStr && dailySalesMap && dailySalesMap[pid] !== undefined) {
-                salesAfter = dailySalesMap[pid];
-              } else if (auditDateStr < todayDateStr) {
+              if (auditDateStr < todayDateStr) {
                 const salesOut = (movements || [])
                   .filter(m => {
                     const mDate = String(m.date || m.created_at || '').slice(0, 10);
@@ -1211,6 +1209,9 @@
                   .reduce((s, m) => s + Number(m.quantity || 0), 0);
 
                 salesAfter = Math.max(0, salesOut - salesReturn);
+                if (salesAfter === 0 && dailySalesMap && dailySalesMap[pid] !== undefined) {
+                  salesAfter = dailySalesMap[pid];
+                }
               }
 
               const liveFront = Math.max(0, frontBase + trfAfter - salesAfter);
@@ -1764,20 +1765,35 @@
             dateSales = Math.max(0, salesOut - salesReturn);
           }
 
-          // ยอดยกมาต้นวัน: ค้นหาจากยอดปิด "ตามระบบ" ของวันก่อนหน้าที่ใกล้ที่สุดเท่านั้น ห้ามดึงยอดนับจริงมาใช้
-          let opening = 0;
-          const prevAudit = (auditRecordsCache || [])
-            .filter(r => r.product_id === pid && r.balance_date && r.balance_date < auditDate)
-            .sort((a, b) => (b.balance_date || '').localeCompare(a.balance_date || ''))[0];
-          if (prevAudit) {
-            opening = Number(prevAudit.system_closing_qty || 0);
-          } else {
-            // Fallback: ถ้ายังไม่เคยนับสต๊อก ให้คำนวณย้อนกลับจากสต๊อกหน้าร้านปัจจุบัน
-            opening = Math.max(0, (item.frontStock || 0) - dateTransfersIn + dateSales);
-          }
+          // ตรวจสอบว่าวันที่เลือก (auditDate) มีการบันทึกปิดยอดไว้แล้วหรือไม่
+          const existingAudit = (auditRecordsCache || []).find(r => r.product_id === pid && r.balance_date === auditDate);
 
-          // สต๊อกห้องขายหน้าร้านตามระบบ = ยอดยกมา + เบิกเข้า - ขาย
-          const systemClosing = Math.max(0, opening + dateTransfersIn - dateSales);
+          let opening = 0;
+          let systemClosing = 0;
+          let finalTransferIn = dateTransfersIn;
+          let finalSales = dateSales;
+
+          if (existingAudit) {
+            // 1. กรณีวันที่นี้มีประวัติการบันทึกกระทบยอดไว้แล้ว: แสดงตาม Snapshot ที่บันทึกไว้ในประวัติ
+            opening = Number(existingAudit.opening_qty !== undefined && existingAudit.opening_qty !== null ? existingAudit.opening_qty : 0);
+            if (existingAudit.transfer_in_qty !== undefined && existingAudit.transfer_in_qty !== null) {
+              finalTransferIn = Number(existingAudit.transfer_in_qty);
+            }
+            if (existingAudit.sales_qty !== undefined && existingAudit.sales_qty !== null) {
+              finalSales = Number(existingAudit.sales_qty);
+            }
+            systemClosing = Number(existingAudit.system_closing_qty !== undefined && existingAudit.system_closing_qty !== null 
+              ? existingAudit.system_closing_qty 
+              : Math.max(0, opening + finalTransferIn - finalSales));
+          } else {
+            // 2. กรณียังไม่ได้บันทึกปิดยอด (เช่น วันนี้ หรือวันที่สุ่มตรวจนับ):
+            // ดึง "สต็อกห้องขายหน้าร้านปัจจุบัน (item.frontStock)" จากแท็บ 1 เป็นฐานหลัก (Single Source of Truth) ตรงกัน 100%
+            systemClosing = Math.max(0, Number(item.frontStock || 0));
+
+            // คำนวณยอดยกมาต้นวันแบบ Auto-Backtrack: ยอดยกมา = สต็อกหน้าร้านปัจจุบัน - เบิกเข้าวันนี้ + ขายวันนี้
+            // สูตรนี้จะดูดซับยอดเคลื่อนไหวของวันที่ไม่ได้ปิดยอด (เช่น วันอาทิตย์หยุดทำการ) เข้าสู่ยอดยกมาต้นวันโดยอัตโนมัติ
+            opening = Math.max(0, systemClosing - finalTransferIn + finalSales);
+          }
 
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
@@ -1789,8 +1805,8 @@
             productId: pid,
             name: item.product.name,
             openingQty: opening,
-            transferInQty: dateTransfersIn,
-            salesQty: dateSales,
+            transferInQty: finalTransferIn,
+            salesQty: finalSales,
             systemClosingQty: systemClosing,
             frontStockQty: systemClosing,
             mainStockQty: Number(item.mainStock || 0),
@@ -1930,13 +1946,31 @@
         if (rowsForDate.length > 0) {
           items = rowsForDate.map(b => {
             const p = (products || []).find(prod => prod.product_id === b.product_id);
+            const stockSummaryItem = (productStockSummary || []).find(s => s.product?.product_id === b.product_id);
+            const frontStock = Number(b.system_closing_qty || 0);
+            let mainStock = 0;
+            let totalStock = 0;
+
+            if (stockSummaryItem) {
+              mainStock = Number(stockSummaryItem.mainStock || 0);
+              totalStock = Number(stockSummaryItem.totalStock || 0);
+            } else {
+              totalStock = (lots || [])
+                .filter(l => l.product_id === b.product_id && (l.status || 'ACTIVE') === 'ACTIVE')
+                .reduce((sum, l) => sum + Number(l.remaining_qty || 0), 0);
+              mainStock = Math.max(0, totalStock - frontStock);
+            }
+
             return {
               productId: b.product_id,
               name: p?.name || b.product_id,
               openingQty: Number(b.opening_qty || 0),
               transferInQty: Number(b.transfer_in_qty || 0),
               transferOutQty: Number((b.transfer_out_qty || 0) + (b.sales_qty || 0)),
-              systemClosingQty: Number(b.system_closing_qty || 0),
+              systemClosingQty: frontStock,
+              frontStockQty: frontStock,
+              mainStockQty: mainStock,
+              totalStockQty: totalStock,
               physicalCountQty: b.physical_count_qty !== null && b.physical_count_qty !== undefined ? Number(b.physical_count_qty) : null,
               diffQty: Number(b.diff_qty || 0),
               status: b.audit_status || 'PENDING'
@@ -1950,6 +1984,9 @@
             transferInQty: Number(r.transferInQty || 0),
             transferOutQty: Number(r.salesQty || 0),
             systemClosingQty: Number(r.systemClosingQty || 0),
+            frontStockQty: Number(r.frontStockQty || r.systemClosingQty || 0),
+            mainStockQty: Number(r.mainStockQty || 0),
+            totalStockQty: Number(r.totalStockQty || 0),
             physicalCountQty: r.physicalCount,
             diffQty: Number(r.diff || 0),
             status: r.physicalCount !== null ? (r.diff === 0 ? 'BALANCED' : 'DISCREPANCY') : 'PENDING'
@@ -1964,7 +2001,7 @@
           notes: selectedSession?.notes || rowsForDate[0]?.audit_notes || '',
           items: items
         });
-      }, [auditHistorySessions, ledgerDate, auditRecordsCache, ledgerBalances, products, auditDate, dailyReconciliation, currentUser]);
+      }, [auditHistorySessions, ledgerDate, auditRecordsCache, ledgerBalances, products, auditDate, dailyReconciliation, currentUser, productStockSummary, lots]);
 
       // Safeguard: Reset scroll position before printing
       useEffect(() => {
@@ -1987,7 +2024,9 @@
         const totalOpening = items.reduce((s, it) => s + (it.openingQty || 0), 0);
         const totalIn = items.reduce((s, it) => s + (it.transferInQty || 0), 0);
         const totalOut = items.reduce((s, it) => s + (it.transferOutQty || 0), 0);
-        const totalSystem = items.reduce((s, it) => s + (it.systemClosingQty || 0), 0);
+        const totalFront = items.reduce((s, it) => s + (it.frontStockQty ?? it.systemClosingQty ?? 0), 0);
+        const totalMain = items.reduce((s, it) => s + (it.mainStockQty || 0), 0);
+        const totalSystemAll = items.reduce((s, it) => s + (it.totalStockQty || 0), 0);
         const totalPhysical = items.reduce((s, it) => s + (it.physicalCountQty !== null && it.physicalCountQty !== undefined ? it.physicalCountQty : 0), 0);
         const totalDiff = items.reduce((s, it) => s + (it.diffQty || 0), 0);
         const hasDiscrepancy = items.some(it => it.physicalCountQty !== null && it.physicalCountQty !== undefined && it.diffQty !== 0);
@@ -2023,9 +2062,11 @@
                 <div style="font-family: monospace; font-size: 9.5px; color: #64748b; margin-top: 1px;">${escape(it.productId)}</div>
               </td>
               <td style="padding: 5px 6px; text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">${Number(it.openingQty || 0).toLocaleString()}</td>
-              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 700; color: #047857; border-right: 1px solid #cbd5e1;">+${Number(it.transferInQty || 0).toLocaleString()}</td>
-              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 700; color: #b91c1c; border-right: 1px solid #cbd5e1;">-${Number(it.transferOutQty || 0).toLocaleString()}</td>
-              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 800; color: #1d4ed8; background-color: #eff6ff !important; border-right: 1px solid #cbd5e1;">${Number(it.systemClosingQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 700; color: #047857; border-right: 1px solid #cbd5e1;">${Number(it.transferInQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 700; color: #b91c1c; border-right: 1px solid #cbd5e1;">${Number(it.transferOutQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 5px; text-align: center; font-family: monospace; font-weight: 700; color: #1d4ed8; background-color: #eff6ff !important; border-right: 1px solid #cbd5e1;">${Number(it.frontStockQty ?? it.systemClosingQty ?? 0).toLocaleString()}</td>
+              <td style="padding: 5px 5px; text-align: center; font-family: monospace; font-weight: 700; color: #4338ca; background-color: #eef2ff !important; border-right: 1px solid #cbd5e1;">${Number(it.mainStockQty || 0).toLocaleString()}</td>
+              <td style="padding: 5px 5px; text-align: center; font-family: monospace; font-weight: 800; color: #0f172a; background-color: #f8fafc !important; border-right: 1px solid #cbd5e1;">${Number(it.totalStockQty || 0).toLocaleString()}</td>
               <td style="padding: 5px 6px; text-align: center; font-family: monospace; font-weight: 800; color: #0f172a; border-right: 1px solid #cbd5e1;">
                 ${it.physicalCountQty !== null && it.physicalCountQty !== undefined ? Number(it.physicalCountQty).toLocaleString() : '-'}
               </td>
@@ -2039,7 +2080,7 @@
           `;
         }).join('') : `
           <tr>
-            <td colspan="9" style="padding: 30px; text-align: center; color: #94a3b8; font-weight: 700;">ยังไม่มีข้อมูลบันทึกตรวจนับปิดยอดประจำวัน (${escape(d.date)}) ในระบบ</td>
+            <td colspan="11" style="padding: 30px; text-align: center; color: #94a3b8; font-weight: 700;">ยังไม่มีข้อมูลบันทึกตรวจนับปิดยอดประจำวัน (${escape(d.date)}) ในระบบ</td>
           </tr>
         `;
 
@@ -2286,15 +2327,17 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th style="width: 32px; text-align: center;">#</th>
+          <th style="width: 28px; text-align: center;">#</th>
           <th style="text-align: left;">รหัส / รายการสินค้า</th>
-          <th style="width: 70px; text-align: center;">ยอดยกมา</th>
-          <th style="width: 70px; text-align: center;">รับเข้า (+)</th>
-          <th style="width: 70px; text-align: center;">จ่ายออก (-)</th>
-          <th style="width: 80px; text-align: center; background-color: #dbeafe !important;">สต๊อกระบบ</th>
-          <th style="width: 70px; text-align: center;">นับจริง</th>
-          <th style="width: 70px; text-align: center;">ผลต่าง</th>
-          <th style="width: 70px; text-align: center;">สถานะ</th>
+          <th style="width: 55px; text-align: center;">ยอดยกมา</th>
+          <th style="width: 55px; text-align: center; color: #047857;">รับเข้า</th>
+          <th style="width: 55px; text-align: center; color: #b91c1c;">จ่ายออก</th>
+          <th style="width: 65px; text-align: center; background-color: #dbeafe !important;">สต็อกหน้าร้าน</th>
+          <th style="width: 65px; text-align: center; background-color: #e0e7ff !important;">สต็อกคลังใหญ่</th>
+          <th style="width: 75px; text-align: center; background-color: #f1f5f9 !important;">สต็อกรวมทั้งระบบ</th>
+          <th style="width: 65px; text-align: center;">นับจริงหน้าร้าน</th>
+          <th style="width: 55px; text-align: center;">ผลต่าง</th>
+          <th style="width: 55px; text-align: center;">สถานะ</th>
         </tr>
       </thead>
       <tbody>
@@ -2304,9 +2347,11 @@
         <tr>
           <td colspan="2" style="text-align: right; border-right: 1px solid #cbd5e1;">รวมทั้งสิ้น (${items.length} รายการ):</td>
           <td style="text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">${totalOpening.toLocaleString()}</td>
-          <td style="text-align: center; font-family: monospace; color: #047857; border-right: 1px solid #cbd5e1;">+${totalIn.toLocaleString()}</td>
-          <td style="text-align: center; font-family: monospace; color: #b91c1c; border-right: 1px solid #cbd5e1;">-${totalOut.toLocaleString()}</td>
-          <td style="text-align: center; font-family: monospace; color: #1d4ed8; background-color: #eff6ff !important; border-right: 1px solid #cbd5e1;">${totalSystem.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; color: #047857; border-right: 1px solid #cbd5e1;">${totalIn.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; color: #b91c1c; border-right: 1px solid #cbd5e1;">${totalOut.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; color: #1d4ed8; background-color: #eff6ff !important; border-right: 1px solid #cbd5e1;">${totalFront.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; color: #4338ca; background-color: #eef2ff !important; border-right: 1px solid #cbd5e1;">${totalMain.toLocaleString()}</td>
+          <td style="text-align: center; font-family: monospace; font-weight: 900; color: #0f172a; background-color: #f8fafc !important; border-right: 1px solid #cbd5e1;">${totalSystemAll.toLocaleString()}</td>
           <td style="text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">${totalPhysical.toLocaleString()}</td>
           <td style="text-align: center; font-family: monospace; border-right: 1px solid #cbd5e1;">
             ${totalDiff === 0 ? '±0' : (totalDiff > 0 ? '+' + totalDiff : totalDiff)}
@@ -5218,10 +5263,12 @@
                               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase font-black text-[10px] tracking-wider">
                                 <th className="py-3 px-4">รหัส / สินค้า</th>
                                 <th className="py-3 px-4 text-center">ยอดยกมา</th>
-                                <th className="py-3 px-4 text-center">เบิกเข้า (+)</th>
-                                <th className="py-3 px-4 text-center">ยอดออก (-)</th>
-                                <th className="py-3 px-4 text-center bg-blue-50/50 dark:bg-blue-950/20">สต๊อกตามระบบ</th>
-                                <th className="py-3 px-4 text-center">นับจริง</th>
+                                <th className="py-3 px-4 text-center text-emerald-600 dark:text-emerald-400">เบิกเข้า</th>
+                                <th className="py-3 px-4 text-center text-rose-600 dark:text-rose-400">ยอดออก</th>
+                                <th className="py-3 px-4 text-center bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300">สต็อกหน้าร้าน</th>
+                                <th className="py-3 px-4 text-center bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300">สต็อกคลังใหญ่</th>
+                                <th className="py-3 px-4 text-center bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">สต็อกรวมทั้งระบบ</th>
+                                <th className="py-3 px-4 text-center">นับจริงหน้าร้าน</th>
                                 <th className="py-3 px-4 text-center">ผลต่าง (Diff)</th>
                                 <th className="py-3 px-4 text-center">สถานะ</th>
                               </tr>
@@ -5230,6 +5277,19 @@
                               {ledgerBalances.length > 0 ? (
                                 ledgerBalances.map(b => {
                                   const p = products.find(prod => prod.product_id === b.product_id);
+                                  const stockSummaryItem = (productStockSummary || []).find(s => s.product?.product_id === b.product_id);
+                                  const frontStock = Number(b.system_closing_qty || 0);
+                                  let mainStock = 0;
+                                  let totalStock = 0;
+                                  if (stockSummaryItem) {
+                                    mainStock = Number(stockSummaryItem.mainStock || 0);
+                                    totalStock = Number(stockSummaryItem.totalStock || 0);
+                                  } else {
+                                    totalStock = (lots || [])
+                                      .filter(l => l.product_id === b.product_id && (l.status || 'ACTIVE') === 'ACTIVE')
+                                      .reduce((sum, l) => sum + Number(l.remaining_qty || 0), 0);
+                                    mainStock = Math.max(0, totalStock - frontStock);
+                                  }
                                   const diff = Number(b.diff_qty || 0);
                                   return (
                                     <tr key={b.id || b.product_id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
@@ -5241,13 +5301,19 @@
                                         {Number(b.opening_qty || 0).toLocaleString()}
                                       </td>
                                       <td className="py-3 px-4 text-center font-bold text-emerald-600 dark:text-emerald-400">
-                                        +{Number(b.transfer_in_qty || 0).toLocaleString()}
+                                        {Number(b.transfer_in_qty || 0).toLocaleString()}
                                       </td>
                                       <td className="py-3 px-4 text-center font-bold text-rose-600 dark:text-rose-400">
-                                        -{Number((b.transfer_out_qty || 0) + (b.sales_qty || 0)).toLocaleString()}
+                                        {Number((b.transfer_out_qty || 0) + (b.sales_qty || 0)).toLocaleString()}
                                       </td>
                                       <td className="py-3 px-4 text-center font-black text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20 text-sm">
-                                        {Number(b.system_closing_qty || 0).toLocaleString()}
+                                        {frontStock.toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4 text-center font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 text-sm">
+                                        {mainStock.toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4 text-center font-black text-slate-800 dark:text-slate-100 bg-slate-100/50 dark:bg-slate-800/40 text-sm">
+                                        {totalStock.toLocaleString()}
                                       </td>
                                       <td className="py-3 px-4 text-center font-bold text-slate-800 dark:text-slate-200">
                                         {b.physical_count_qty !== null && b.physical_count_qty !== undefined ? Number(b.physical_count_qty).toLocaleString() : '-'}
@@ -5277,7 +5343,7 @@
                                 })
                               ) : (
                                 <tr>
-                                  <td colSpan="8" className="py-8 text-center text-slate-400 font-bold text-xs">
+                                  <td colSpan="10" className="py-8 text-center text-slate-400 font-bold text-xs">
                                     ยังไม่มีข้อมูลบันทึกตรวจนับปิดยอดประจำวัน ({ledgerDate}) ในตาราง stk_daily_balance
                                   </td>
                                 </tr>
@@ -5994,7 +6060,9 @@
                     const totalOpening = items.reduce((s, it) => s + (it.openingQty || 0), 0);
                     const totalIn = items.reduce((s, it) => s + (it.transferInQty || 0), 0);
                     const totalOut = items.reduce((s, it) => s + (it.transferOutQty || 0), 0);
-                    const totalSystem = items.reduce((s, it) => s + (it.systemClosingQty || 0), 0);
+                    const totalFront = items.reduce((s, it) => s + (it.frontStockQty ?? it.systemClosingQty ?? 0), 0);
+                    const totalMain = items.reduce((s, it) => s + (it.mainStockQty || 0), 0);
+                    const totalSystemAll = items.reduce((s, it) => s + (it.totalStockQty || 0), 0);
                     const totalPhysical = items.reduce((s, it) => s + (it.physicalCountQty !== null ? it.physicalCountQty : 0), 0);
                     const totalDiff = items.reduce((s, it) => s + (it.diffQty || 0), 0);
                     const hasDiscrepancy = items.some(it => it.physicalCountQty !== null && it.diffQty !== 0);
@@ -6004,34 +6072,38 @@
                         <table className="w-full border-collapse border border-slate-300 text-left my-3 text-xs sm:text-sm">
                           <thead>
                             <tr className="bg-slate-100 border-b-2 border-slate-300 text-slate-700 font-black">
-                              <th className="p-2.5 border-r border-slate-300 text-center w-10">#</th>
-                              <th className="p-2.5 border-r border-slate-300">รหัส / รายการสินค้า</th>
-                              <th className="p-2.5 border-r border-slate-300 text-center w-20">ยอดยกมา</th>
-                              <th className="p-2.5 border-r border-slate-300 text-center w-20">รับเข้า (+)</th>
-                              <th className="p-2.5 border-r border-slate-300 text-center w-20">จ่ายออก (-)</th>
-                              <th className="p-2.5 border-r border-slate-300 text-center w-24 bg-blue-50/50">สต๊อกระบบ</th>
-                              <th className="p-2.5 border-r border-slate-300 text-center w-20">นับจริง</th>
-                              <th className="p-2.5 border-r border-slate-300 text-center w-20">ผลต่าง</th>
-                              <th className="p-2.5 text-center w-20">สถานะ</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-8">#</th>
+                              <th className="p-2 border-r border-slate-300">รหัส / รายการสินค้า</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-16">ยอดยกมา</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-16 text-emerald-800">รับเข้า</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-16 text-rose-800">จ่ายออก</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-20 bg-blue-50/60 text-blue-800">สต็อกหน้าร้าน</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-20 bg-indigo-50/60 text-indigo-800">สต็อกคลังใหญ่</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-20 bg-slate-200/60 text-slate-800 font-black">สต็อกรวมทั้งระบบ</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-20">นับจริงหน้าร้าน</th>
+                              <th className="p-2 border-r border-slate-300 text-center w-16">ผลต่าง</th>
+                              <th className="p-2 text-center w-16">สถานะ</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
                             {items.length > 0 ? (
                               items.map((it, idx) => (
                                 <tr key={idx} className="hover:bg-slate-50/50">
-                                  <td className="p-2.5 border-r border-slate-300 text-center font-bold text-slate-500">{idx + 1}</td>
-                                  <td className="p-2.5 border-r border-slate-300 font-bold">
+                                  <td className="p-2 border-r border-slate-300 text-center font-bold text-slate-500">{idx + 1}</td>
+                                  <td className="p-2 border-r border-slate-300 font-bold">
                                     <div className="text-xs sm:text-sm font-bold text-slate-900">{it.name}</div>
                                     <span className="font-mono text-[10px] text-slate-400 font-normal">{it.productId}</span>
                                   </td>
-                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono">{Number(it.openingQty || 0).toLocaleString()}</td>
-                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-emerald-700">+{Number(it.transferInQty || 0).toLocaleString()}</td>
-                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-rose-700">-{Number(it.transferOutQty || 0).toLocaleString()}</td>
-                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-black text-blue-700 bg-blue-50/30">{Number(it.systemClosingQty || 0).toLocaleString()}</td>
-                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-black text-slate-900">
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono">{Number(it.openingQty || 0).toLocaleString()}</td>
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono font-bold text-emerald-700">{Number(it.transferInQty || 0).toLocaleString()}</td>
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono font-bold text-rose-700">{Number(it.transferOutQty || 0).toLocaleString()}</td>
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono font-bold text-blue-700 bg-blue-50/30">{Number(it.frontStockQty ?? it.systemClosingQty ?? 0).toLocaleString()}</td>
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono font-bold text-indigo-700 bg-indigo-50/30">{Number(it.mainStockQty || 0).toLocaleString()}</td>
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono font-black text-slate-900 bg-slate-100/50">{Number(it.totalStockQty || 0).toLocaleString()}</td>
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono font-black text-slate-900">
                                     {it.physicalCountQty !== null ? Number(it.physicalCountQty).toLocaleString() : '-'}
                                   </td>
-                                  <td className="p-2.5 border-r border-slate-300 text-center font-mono font-bold">
+                                  <td className="p-2 border-r border-slate-300 text-center font-mono font-bold">
                                     {it.physicalCountQty === null ? (
                                       <span className="text-slate-400 text-xs">-</span>
                                     ) : it.diffQty === 0 ? (
@@ -6042,7 +6114,7 @@
                                       <span className="text-amber-700 font-black">+{it.diffQty}</span>
                                     )}
                                   </td>
-                                  <td className="p-2.5 text-center text-xs">
+                                  <td className="p-2 text-center text-xs">
                                     {it.physicalCountQty === null ? (
                                       <span className="text-slate-400">ปิดตามระบบ</span>
                                     ) : it.diffQty === 0 ? (
@@ -6055,7 +6127,7 @@
                               ))
                             ) : (
                               <tr>
-                                <td colSpan="9" className="p-8 text-center text-slate-400 font-bold">
+                                <td colSpan="11" className="p-8 text-center text-slate-400 font-bold">
                                   ยังไม่มีข้อมูลบันทึกตรวจนับปิดยอดประจำวัน ({printLedgerData.date}) ในระบบ
                                 </td>
                               </tr>
@@ -6063,16 +6135,18 @@
                           </tbody>
                           <tfoot>
                             <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs sm:text-sm">
-                              <td colSpan="2" className="p-2.5 text-right border-r border-slate-300">รวมทั้งสิ้น ({items.length} รายการ):</td>
-                              <td className="p-2.5 text-center border-r border-slate-300 font-mono">{totalOpening.toLocaleString()}</td>
-                              <td className="p-2.5 text-center border-r border-slate-300 font-mono text-emerald-700">+{totalIn.toLocaleString()}</td>
-                              <td className="p-2.5 text-center border-r border-slate-300 font-mono text-rose-700">-{totalOut.toLocaleString()}</td>
-                              <td className="p-2.5 text-center border-r border-slate-300 font-mono text-blue-700">{totalSystem.toLocaleString()}</td>
-                              <td className="p-2.5 text-center border-r border-slate-300 font-mono">{totalPhysical.toLocaleString()}</td>
-                              <td className="p-2.5 text-center border-r border-slate-300 font-mono">
+                              <td colSpan="2" className="p-2 text-right border-r border-slate-300">รวมทั้งสิ้น ({items.length} รายการ):</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono">{totalOpening.toLocaleString()}</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono text-emerald-700">{totalIn.toLocaleString()}</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono text-rose-700">{totalOut.toLocaleString()}</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono text-blue-700 bg-blue-50/30">{totalFront.toLocaleString()}</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono text-indigo-700 bg-indigo-50/30">{totalMain.toLocaleString()}</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono text-slate-900 bg-slate-100/50">{totalSystemAll.toLocaleString()}</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono">{totalPhysical.toLocaleString()}</td>
+                              <td className="p-2 text-center border-r border-slate-300 font-mono">
                                 {totalDiff === 0 ? '±0' : (totalDiff > 0 ? `+${totalDiff}` : totalDiff)}
                               </td>
-                              <td className="p-2.5 text-center font-bold">
+                              <td className="p-2 text-center font-bold">
                                 {hasDiscrepancy ? <span className="text-rose-700">พบผลต่าง</span> : <span className="text-emerald-700">เรียบร้อย</span>}
                               </td>
                             </tr>
