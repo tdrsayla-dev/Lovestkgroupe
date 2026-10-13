@@ -102,6 +102,29 @@
                 } catch (e) { }
             };
             const [saleTab, setSaleTab] = useState('B2M');
+            const [zeroCart, setZeroCart] = useState([]);
+            const [zeroSearch, setZeroSearch] = useState('');
+            const [zeroForm, setZeroForm] = useState({
+                date: new Date().toISOString().split('T')[0],
+                requesterId: '',
+                requesterName: '',
+                target: '',
+                notes: ''
+            });
+            const [requesterSearch, setRequesterSearch] = useState('');
+            const [isRequesterDropdownOpen, setIsRequesterDropdownOpen] = useState(false);
+            const [isSubmittingZero, setIsSubmittingZero] = useState(false);
+            const requesterDropdownRef = useRef(null);
+
+            useEffect(() => {
+                const handleClickOutside = (e) => {
+                    if (requesterDropdownRef.current && !requesterDropdownRef.current.contains(e.target)) {
+                        setIsRequesterDropdownOpen(false);
+                    }
+                };
+                document.addEventListener('mousedown', handleClickOutside);
+                return () => document.removeEventListener('mousedown', handleClickOutside);
+            }, []);
 
             const formatOrderTime = (saleObj) => {
                 if (!saleObj) return '';
@@ -3353,6 +3376,633 @@
                 )
             };
 
+            const zeroFilteredProducts = useMemo(() => {
+                const search = zeroSearch.trim().toLowerCase();
+                return (products || [])
+                    .filter(p => p && p.status !== 'เลิกขาย')
+                    .map(p => {
+                        if (p.isBundle || p.is_bundle) {
+                            const baseP = (products || []).find(bp => bp.name === (p.baseProduct || p.base_product));
+                            const bQty = Number(p.bundleQty || p.bundle_qty) || 1;
+                            const realStock = baseP ? Math.floor((baseP.stock || 0) / bQty) : 0;
+                            return { ...p, stock: realStock };
+                        }
+                        return p;
+                    })
+                    .filter(p => {
+                        if (!search) return true;
+                        return String(p.name || '').toLowerCase().includes(search) ||
+                            String(p.id || '').toLowerCase().includes(search) ||
+                            String(p.barcode || '').toLowerCase().includes(search) ||
+                            (p.category && String(p.category || '').toLowerCase().includes(search));
+                    });
+            }, [products, zeroSearch]);
+
+            const handleZeroBarcodeScan = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const search = (zeroSearch || '').trim().toLowerCase();
+                    if (!search) return;
+
+                    let matched = (products || []).find(p => p && p.status !== 'เลิกขาย' && (
+                        String(p.id || '').toLowerCase() === search ||
+                        String(p.name || '').toLowerCase() === search ||
+                        String(p.barcode || '').toLowerCase() === search
+                    ));
+                    if (!matched) {
+                        const matches = zeroFilteredProducts;
+                        if (matches && matches.length === 1) matched = matches[0];
+                    }
+
+                    if (matched) {
+                        setZeroCart(prev => {
+                            const existing = prev.find(it => it.productId === matched.id || it.productName === matched.name);
+                            if (existing) {
+                                return prev.map(it => (it.productId === matched.id || it.productName === matched.name) ? { ...it, qty: it.qty + 1 } : it);
+                            }
+                            return [...prev, {
+                                productId: matched.id,
+                                productName: matched.name,
+                                stock: matched.stock,
+                                qty: 1
+                            }];
+                        });
+                        setZeroSearch('');
+                        showToast(`เพิ่ม ${matched.name} ลงรายการเบิกแล้ว`, 'success');
+                    } else {
+                        showToast(`ไม่พบสินค้าหรือบาร์โค้ด: "${search}"`, 'error');
+                    }
+                }
+            };
+
+            const handleZeroPriceSubmit = async (e) => {
+                if (e && e.preventDefault) e.preventDefault();
+                if (!zeroCart || zeroCart.length === 0) {
+                    showToast('กรุณาเลือกสินค้าที่จะเบิกตัดศูนย์อย่างน้อย 1 รายการ', 'error');
+                    return;
+                }
+
+                setIsSubmittingZero(true);
+                try {
+                    const dateVal = zeroForm.date || new Date().toISOString().split('T')[0];
+                    const dateParts = dateVal.split('-');
+                    const datePrefix = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
+
+                    let dbMaxRun = 0;
+                    try {
+                        const dbSales = await supabaseSelect(
+                            'stk_sales',
+                            `order_id=like.${datePrefix}*&select=order_id&order=order_id.desc&limit=50`
+                        );
+                        if (Array.isArray(dbSales) && dbSales.length > 0) {
+                            dbSales.forEach(s => {
+                                const parts = String(s.order_id || '').split('-');
+                                if (parts.length === 2) {
+                                    const runNum = parseInt(parts[1], 10);
+                                    if (!isNaN(runNum) && runNum > dbMaxRun) dbMaxRun = runNum;
+                                }
+                            });
+                        }
+                    } catch (err) {
+                        const prefixSales = (sales || []).filter(s => String(s.id).startsWith(datePrefix));
+                        prefixSales.forEach(s => {
+                            const parts = String(s.id).split('-');
+                            if (parts.length === 2) {
+                                const runNum = parseInt(parts[1], 10);
+                                if (!isNaN(runNum) && runNum > dbMaxRun) dbMaxRun = runNum;
+                            }
+                        });
+                    }
+
+                    let finalRun = dbMaxRun + 1;
+                    let idCheckAttempts = 0;
+                    while (idCheckAttempts < 5) {
+                        try {
+                            const existCheck = await supabaseSelect(
+                                'stk_sales',
+                                `order_id=eq.${datePrefix}-${String(finalRun).padStart(3, '0')}&select=order_id`
+                            );
+                            if (!Array.isArray(existCheck) || existCheck.length === 0) {
+                                break;
+                            }
+                            finalRun++;
+                        } catch (_) {
+                            break;
+                        }
+                        idCheckAttempts++;
+                    }
+                    const billId = `${datePrefix}-${String(finalRun).padStart(3, '0')}`;
+
+                    const totalBottles = zeroCart.reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                    const zeroItemsJson = zeroCart.map(item => {
+                        const prodObj = (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName || p.id === item.productId)) || {};
+                        return {
+                            qty: parseInt(item.qty) || 0,
+                            prod: item.productName,
+                            productName: item.productName,
+                            type: 'ราคาศูนย์',
+                            priceType: 'ราคาศูนย์',
+                            id: item.productId || prodObj.id || prodObj.product_id || '',
+                            price: 0,
+                            unitPrice: 0,
+                            total: 0
+                        };
+                    });
+
+                    const requesterMember = (members || []).find(m => m.id === zeroForm.requesterId || m.name === zeroForm.requesterName);
+                    const requesterId = requesterMember ? requesterMember.id : (currentUser?.id || 'STAFF');
+                    const requesterName = requesterMember ? requesterMember.name : (zeroForm.requesterName || currentUser?.name || 'เจ้าหน้าที่');
+
+                    const noteText = (zeroForm.notes || '').trim();
+                    const newRecord = {
+                        customerName: noteText ? `เบิกตัดศูนย์ (${noteText})` : `เบิกตัดศูนย์ (${requesterName})`,
+                        customerType: 'เบิกตัดศูนย์',
+                        id: billId,
+                        date: dateVal,
+                        created_at: new Date().toISOString(),
+                        memberId: requesterId,
+                        memberName: requesterName,
+                        customerId: 'INTERNAL',
+                        recordedBy: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'เจ้าหน้าที่',
+                        saleType: 'ตัดศูนย์สินค้า',
+                        totalAmount: 0,
+                        paymentNote: `เบิกตัดศูนย์หน้าร้าน | ผู้เบิก: ${requesterName}${noteText ? ` | หมายเหตุ: ${noteText}` : ''}`,
+                        items_json: zeroItemsJson
+                    };
+
+                    const allProductNamesToSave = [...new Set([
+                        ...activeProductsList,
+                        ...zeroCart.map(item => item.productName)
+                    ])];
+                    allProductNamesToSave.forEach(product => {
+                        const zQty = zeroCart.filter(item => item.productName === product).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+                        newRecord[`${product}_ราคาเต็ม`] = 0;
+                        newRecord[`${product}_ราคาโปร`] = 0;
+                        newRecord[`${product}_ราคาสมาชิก`] = 0;
+                        newRecord[`${product}_ราคาศูนย์`] = zQty;
+                    });
+                    newRecord['รวมชิ้นราคาเต็ม'] = 0;
+                    newRecord['รวมชิ้นราคาโปร'] = 0;
+                    newRecord['รวมชิ้นราคาสมาชิก'] = 0;
+                    newRecord['รวมชิ้นราคาศูนย์'] = totalBottles;
+                    newRecord['ยอดรวมชิ้นทั้งหมด'] = totalBottles;
+
+                    const supaSalesData = {
+                        order_id: billId,
+                        date: dateVal,
+                        seller_id: requesterId,
+                        customer_id: 'INTERNAL',
+                        sale_type: 'ตัดศูนย์สินค้า',
+                        total_amount: 0,
+                        total_bottles: totalBottles,
+                        status: 'Completed',
+                        recorded_by: newRecord.recordedBy,
+                        items_json: zeroItemsJson,
+                        payment_note: newRecord.paymentNote
+                    };
+
+                    let saleInsertSuccess = false;
+                    let saleRetryCount = 0;
+                    let currentSaleId = billId;
+
+                    while (!saleInsertSuccess && saleRetryCount < 5) {
+                        supaSalesData.order_id = currentSaleId;
+                        try {
+                            await supabaseInsert('stk_sales', supaSalesData);
+                            saleInsertSuccess = true;
+                            newRecord.id = currentSaleId;
+                        } catch (e1) {
+                            const errMsg = String(e1.message || '').toLowerCase();
+                            if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                                const parts = currentSaleId.split('-');
+                                if (parts.length === 2) {
+                                    currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                                } else { break; }
+                                saleRetryCount++;
+                            } else {
+                                const fallbackData = { ...supaSalesData };
+                                delete fallbackData.payment_note;
+                                try {
+                                    await supabaseInsert('stk_sales', fallbackData);
+                                    saleInsertSuccess = true;
+                                    newRecord.id = currentSaleId;
+                                } catch (e2) {
+                                    const e2Msg = String(e2.message || '').toLowerCase();
+                                    if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
+                                        const parts = currentSaleId.split('-');
+                                        if (parts.length === 2) {
+                                            currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                                        } else { break; }
+                                        saleRetryCount++;
+                                    } else {
+                                        throw e2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!saleInsertSuccess) throw new Error("รหัสบิลชนกัน ระบบไม่สามารถบันทึกได้ กรุณาลองใหม่อีกครั้ง");
+
+                    // 📦 ตัดสต็อกสินค้าผ่าน StockLogic (สร้าง Movement และตัด stk_products ทันที)
+                    if (window.StockLogic) {
+                        const stockChangeRes = await window.StockLogic.applyBillStockChange({
+                            oldBill: null,
+                            newBill: newRecord,
+                            productsList: products || [],
+                            actor: newRecord.recordedBy,
+                            billId: newRecord.id,
+                            billDate: newRecord.date
+                        });
+                        if (stockChangeRes && stockChangeRes.details && setProducts) {
+                            setProducts(prev => (prev || []).map(p => {
+                                const matched = stockChangeRes.details.find(d => d.productId === p.id);
+                                return matched ? { ...p, stock: matched.newStock } : p;
+                            }));
+                        }
+                    }
+
+                    setSales(prev => [newRecord, ...(prev || [])]);
+                    triggerGlobalRefresh();
+
+                    // รีเซ็ตฟอร์ม
+                    setZeroCart([]);
+                    setZeroForm(prev => ({
+                        ...prev,
+                        target: '',
+                        notes: ''
+                    }));
+
+                    setIsSubmittingZero(false);
+                    handleSuccessFinish(newRecord);
+                    try {
+                        handlePrintReceiptPopup(newRecord);
+                    } catch (ePrint) {
+                        console.warn('Auto print receipt error:', ePrint);
+                    }
+                } catch (err) {
+                    console.error("Zero Price Save Error:", err);
+                    showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
+                    setIsSubmittingZero(false);
+                }
+            };
+
+            const renderZeroPriceForm = () => {
+                const totalZeroBottles = zeroCart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+                const filteredRequesterMembers = (members || []).filter(m => {
+                    if (!requesterSearch) return true;
+                    const q = requesterSearch.trim().toLowerCase();
+                    return String(m.name || '').toLowerCase().includes(q) ||
+                        String(m.id || '').toLowerCase().includes(q) ||
+                        String(m.phone || m.phone_number || '').includes(q);
+                });
+
+                return (
+                    <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[calc(100vh-120px)] xl:min-h-[640px] mb-0 relative">
+                        {/* ซ้าย (50%): ข้อมูลการเบิกจ่ายสินค้า */}
+                        <div className="w-full xl:w-1/2 flex flex-col gap-3 xl:h-full relative">
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col gap-3.5 flex-1">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                    <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                                        <FileText size={18} className="text-purple-600" /> ข้อมูลการเบิกจ่ายสินค้า
+                                    </h4>
+                                    <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">
+                                        สต็อกหน้าร้าน (0฿)
+                                    </span>
+                                </div>
+
+                                {/* วันที่เบิก */}
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 block mb-1">วันที่ทำรายการ</label>
+                                    <input
+                                        type="date"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-purple-500 outline-none transition-all shadow-sm"
+                                        value={zeroForm.date}
+                                        onChange={(e) => setZeroForm({ ...zeroForm, date: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* ผู้ขอเบิก / ผู้ทำรายการ */}
+                                <div className="relative" ref={requesterDropdownRef}>
+                                    <label className="text-xs font-bold text-slate-600 block mb-1">ผู้ขอเบิก / ผู้ทำรายการ</label>
+                                    {zeroForm.requesterId ? (
+                                        <div className="flex items-center justify-between p-2.5 bg-purple-50/70 border border-purple-200 rounded-xl transition-all">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+                                                    {zeroForm.requesterName ? zeroForm.requesterName.charAt(0) : 'U'}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="text-xs font-black text-purple-900 truncate">{zeroForm.requesterName}</div>
+                                                    <div className="text-[10px] font-bold text-purple-600">รหัส: {zeroForm.requesterId}</div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setZeroForm(prev => ({ ...prev, requesterId: '', requesterName: '' }));
+                                                    setRequesterSearch('');
+                                                    setIsRequesterDropdownOpen(true);
+                                                }}
+                                                className="text-[11px] font-bold text-purple-700 hover:text-white hover:bg-purple-600 px-2.5 py-1 bg-white rounded-lg border border-purple-200 transition-colors shadow-sm shrink-0"
+                                            >
+                                                เปลี่ยน
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:bg-white focus-within:border-purple-500 transition-all shadow-sm">
+                                                <SearchIcon size={16} className="text-slate-400 mr-2 shrink-0" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="พิมพ์ชื่อ หรือ รหัสผู้ขอเบิก..."
+                                                    className="w-full bg-transparent border-none outline-none text-xs font-bold text-slate-800 placeholder-slate-400"
+                                                    value={requesterSearch}
+                                                    onFocus={() => setIsRequesterDropdownOpen(true)}
+                                                    onChange={(e) => {
+                                                        setRequesterSearch(e.target.value);
+                                                        setIsRequesterDropdownOpen(true);
+                                                    }}
+                                                />
+                                                {requesterSearch && (
+                                                    <button type="button" onClick={() => setRequesterSearch('')} className="text-slate-400 hover:text-slate-600 p-0.5">
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Dropdown ผลการค้นหา */}
+                                            {isRequesterDropdownOpen && (
+                                                <div className="absolute top-[100%] left-0 w-full mt-1 bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[220px] overflow-y-auto py-1 z-50 custom-scrollbar divide-y divide-slate-100">
+                                                    {currentUser && (
+                                                        <div
+                                                            onClick={() => {
+                                                                setZeroForm(prev => ({
+                                                                    ...prev,
+                                                                    requesterId: currentUser.id || 'STAFF',
+                                                                    requesterName: currentUser.name || currentUser.username || 'เจ้าหน้าที่'
+                                                                }));
+                                                                setRequesterSearch('');
+                                                                setIsRequesterDropdownOpen(false);
+                                                            }}
+                                                            className="px-3 py-2 hover:bg-purple-50 cursor-pointer flex items-center justify-between transition-colors bg-purple-50/40"
+                                                        >
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="text-purple-600 font-bold text-xs">👤 บัญชีฉันเอง:</span>
+                                                                <span className="text-xs font-bold text-slate-800 truncate">{currentUser.name || currentUser.username}</span>
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full shrink-0">เข้าสู่ระบบอยู่</span>
+                                                        </div>
+                                                    )}
+                                                    {filteredRequesterMembers.length > 0 ? (
+                                                        filteredRequesterMembers.slice(0, 30).map(m => (
+                                                            <div
+                                                                key={m.id}
+                                                                onClick={() => {
+                                                                    setZeroForm(prev => ({
+                                                                        ...prev,
+                                                                        requesterId: m.id,
+                                                                        requesterName: m.name
+                                                                    }));
+                                                                    setRequesterSearch('');
+                                                                    setIsRequesterDropdownOpen(false);
+                                                                }}
+                                                                className="px-3 py-2 hover:bg-purple-50 cursor-pointer flex items-center justify-between transition-colors"
+                                                            >
+                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold flex items-center justify-center shrink-0">
+                                                                        {m.name ? m.name.charAt(0) : 'U'}
+                                                                    </div>
+                                                                    <span className="text-xs font-bold text-slate-800 truncate">{m.name}</span>
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded shrink-0">#{m.id}</span>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="px-3 py-3 text-center text-xs text-slate-400 font-bold">ไม่พบรายชื่อ</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* หมายเหตุ / รายละเอียดการเบิก */}
+                                <div className="flex-1 flex flex-col min-h-0">
+                                    <label className="text-xs font-bold text-slate-600 block mb-1">หมายเหตุ / รายละเอียดการเบิก</label>
+                                    <textarea
+                                        rows="4"
+                                        placeholder="ระบุหมายเหตุหรือรายละเอียดเพิ่มเติม เช่น แผนกที่เบิกไปใช้, วัตถุประสงค์ (ถ้ามี)..."
+                                        className="w-full flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:bg-white focus:border-purple-500 outline-none transition-all shadow-sm resize-none"
+                                        value={zeroForm.notes}
+                                        onChange={(e) => setZeroForm({ ...zeroForm, notes: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ขวา (50%): กล่องค้นหา/สแกนบาร์โค้ด + ตะกร้าสินค้า + ปุ่มบันทึก */}
+                        <div className="w-full xl:w-1/2 flex flex-col gap-3 xl:h-full relative">
+                            {/* Search & Barcode Scan Bar */}
+                            <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm shrink-0 relative z-40">
+                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:bg-white focus-within:border-purple-500 transition-all">
+                                    <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                                    <input
+                                        type="text"
+                                        className="w-full bg-transparent border-none outline-none text-xs sm:text-sm font-bold text-slate-800 placeholder-slate-400"
+                                        placeholder="ค้นหาสินค้า (พิมพ์ชื่อ, รหัส หรือ ยิงบาร์โค้ด แล้วกด Enter)..."
+                                        value={zeroSearch}
+                                        onChange={(e) => setZeroSearch(e.target.value)}
+                                        onKeyDown={handleZeroBarcodeScan}
+                                    />
+                                    {zeroSearch && (
+                                        <button type="button" onClick={() => setZeroSearch('')} className="text-slate-400 hover:text-red-500 p-1">
+                                            <X size={16} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Floating Dropdown Results */}
+                                {zeroSearch.trim() !== '' && (
+                                    <div className="absolute top-[110%] left-0 w-full bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[300px] overflow-y-auto py-1.5 z-50 custom-scrollbar divide-y divide-slate-100">
+                                        {zeroFilteredProducts.length > 0 ? (
+                                            zeroFilteredProducts.map(p => {
+                                                const inCart = zeroCart.find(it => it.productId === p.id || it.productName === p.name);
+                                                const isOutOfStock = p.stock <= 0;
+                                                return (
+                                                    <div
+                                                        key={p.id}
+                                                        className={`flex items-center justify-between p-2.5 transition-all ${inCart ? 'bg-purple-50/70' : 'hover:bg-slate-50'}`}
+                                                    >
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                                                {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover" /> : <PackageIcon size={18} className="text-purple-400" />}
+                                                            </div>
+                                                            <div className="min-w-0 truncate">
+                                                                <div className="font-bold text-xs text-slate-800 truncate">{p.name}</div>
+                                                                <div className={`text-[11px] font-bold ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                                    คงเหลือ: {p.stock} ชิ้น
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setZeroCart(prev => {
+                                                                    const existing = prev.find(it => it.productId === p.id || it.productName === p.name);
+                                                                    if (existing) {
+                                                                        return prev.map(it => (it.productId === p.id || it.productName === p.name) ? { ...it, qty: it.qty + 1 } : it);
+                                                                    }
+                                                                    return [...prev, {
+                                                                        productId: p.id,
+                                                                        productName: p.name,
+                                                                        stock: p.stock,
+                                                                        qty: 1
+                                                                    }];
+                                                                });
+                                                                setZeroSearch('');
+                                                            }}
+                                                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all shrink-0 flex items-center gap-1 active:scale-95"
+                                                        >
+                                                            <Plus size={14} /> เพิ่ม 0฿
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="text-center py-5 text-xs text-slate-400 font-bold">ไม่พบสินค้าที่ค้นหา</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Cart List Card */}
+                            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col flex-1 min-h-[360px]">
+                                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <ShoppingCart size={16} className="text-purple-600" />
+                                        <h4 className="font-bold text-xs sm:text-sm text-slate-800">
+                                            รายการสินค้าที่จะเบิก ({zeroCart.length})
+                                        </h4>
+                                    </div>
+                                    {zeroCart.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setZeroCart([])}
+                                            className="text-[11px] font-bold text-red-500 hover:text-red-700 hover:underline"
+                                        >
+                                            ล้างรายการ
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Items Container */}
+                                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+                                    {zeroCart.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-16 text-slate-300 gap-2 h-full">
+                                            <ShoppingCart size={40} className="stroke-1 text-slate-300" />
+                                            <span className="text-xs font-bold text-slate-400">ยังไม่มีสินค้าในรายการเบิก</span>
+                                            <span className="text-[11px] text-slate-400">พิมพ์ค้นหาหรือยิงบาร์โค้ดด้านบนเพื่อเพิ่มสินค้า</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            {zeroCart.map((item, idx) => {
+                                                const prod = (products || []).find(p => p.id === item.productId || p.name === item.productName);
+                                                return (
+                                                    <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                                                {prod?.imageUrl ? <img src={prod.imageUrl} className="w-full h-full object-cover" /> : <PackageIcon size={16} className="text-purple-400" />}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <div className="font-bold text-xs text-slate-800 truncate">{item.productName}</div>
+                                                                <div className="text-[10px] text-purple-600 font-bold">ราคาศูนย์ ฿0</div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (item.qty > 1) {
+                                                                            setZeroCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty - 1 } : it));
+                                                                        } else {
+                                                                            setZeroCart(prev => prev.filter((_, i) => i !== idx));
+                                                                        }
+                                                                    }}
+                                                                    className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-l-lg font-black text-sm"
+                                                                >
+                                                                    -
+                                                                </button>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    value={item.qty}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                                        setZeroCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: val } : it));
+                                                                    }}
+                                                                    className="w-10 text-center font-bold text-xs text-slate-800 border-none outline-none"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setZeroCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it));
+                                                                    }}
+                                                                    className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-r-lg font-black text-sm"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setZeroCart(prev => prev.filter((_, i) => i !== idx))}
+                                                                className="text-slate-400 hover:text-red-500 p-1 rounded-lg transition-colors"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Clean Bottom Summary & Submit */}
+                                <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col gap-2 shrink-0">
+                                    <div className="flex justify-between items-center px-1">
+                                        <span className="text-xs font-bold text-slate-600">รวมเบิก: <strong className="text-purple-700 text-sm">{totalZeroBottles}</strong> ชิ้น</span>
+                                        <span className="text-xs font-bold text-slate-400">มูลค่าบิล ฿0.00</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={zeroCart.length === 0 || isSubmittingZero}
+                                        onClick={handleZeroPriceSubmit}
+                                        className={`w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md flex items-center justify-center gap-2 transition-all ${
+                                            zeroCart.length === 0 || isSubmittingZero
+                                                ? 'bg-slate-300 shadow-none cursor-not-allowed'
+                                                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-98'
+                                        }`}
+                                    >
+                                        {isSubmittingZero ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                กำลังบันทึก...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle size={16} /> ยืนยันบันทึกเบิกตัดศูนย์ (ตัดสต็อกทันที)
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
             const renderSalesForm = () => {
                 const cTHB = parseFloat(payCashTHB) || 0;
                 const cLAK = parseFloat(payCashLAK) || 0;
@@ -4019,40 +4669,17 @@
                     {!editingSaleId && (
                         <div className="w-full flex flex-col h-full min-h-0">
                             <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between border-b border-slate-200 pb-0 mb-4 gap-3">
-                                <h3 className="text-lg font-bold flex items-center gap-2 text-blue-700 px-2 pb-2 shrink-0"><Plus size={20} /> บันทึกรายการขายใหม่ (New Sale Entry)</h3>
+                                <h3 className="text-lg font-bold flex items-center gap-2 text-blue-700 px-2 pb-2 shrink-0">
+                                    {saleTab === 'ZERO_PRICE' ? <PackageIcon size={20} className="text-purple-600" /> : <Plus size={20} />} 
+                                    {saleTab === 'ZERO_PRICE' ? 'เบิก / ตัดศูนย์สินค้า (Stock Clearance & Requisition)' : 'บันทึกรายการขายใหม่ (New Sale Entry)'}
+                                </h3>
                                 <div className="flex gap-1.5 px-2 sm:px-0 pb-2">
-                                    <button onClick={() => setSaleTab('B2M')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2M' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-500/30' : 'bg-white text-slate-500 hover:bg-blue-50 border border-slate-200'}`}>B2M (ปลีก)</button>
-                                    <button onClick={() => setSaleTab('B2N')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2N' ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-indigo-500/30' : 'bg-white text-slate-500 hover:bg-indigo-50 border border-slate-200'}`}>B2N (ตัวแทน)</button>
-                                    <button onClick={() => window.location.href = 'B2B.html'} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2B' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-emerald-500/30' : 'bg-white text-slate-500 hover:bg-emerald-50 border border-slate-200'}`}>B2B (ส่ง)</button>
-                                    {isAdmin && (
-                                        <button onClick={() => setSaleTab('OLD_SYSTEM')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'OLD_SYSTEM' ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-amber-500/30' : 'bg-white text-slate-500 hover:bg-amber-50 border border-slate-200'}`}>ป้อนยอดระบบเก่า</button>
-                                    )}
+                                    <button onClick={() => setSaleTab('B2M')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2M' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-500/30' : 'bg-white text-slate-500 hover:bg-blue-50 border border-slate-200'}`}>🛒 ขายสินค้าปกติ (B2M)</button>
+                                    <button onClick={() => setSaleTab('ZERO_PRICE')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'ZERO_PRICE' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-purple-500/30' : 'bg-white text-slate-500 hover:bg-purple-50 border border-slate-200'}`}>🎁 เบิก / ตัดศูนย์สินค้า</button>
                                 </div>
                             </div>
 
-                            {saleTab === 'B2M' || (saleTab === 'OLD_SYSTEM' && isAdmin) ? renderSalesForm() : (
-                                saleTab === 'B2B' ? (
-                                    <div className="flex flex-col items-center justify-center bg-white border border-dashed border-emerald-300 rounded-3xl py-20 px-6 gap-6 mb-6 shadow-sm">
-                                        <span className="text-6xl drop-shadow-md">📦</span>
-                                        <div className="text-center max-w-md">
-                                            <h2 className="text-2xl font-black text-slate-800 mb-2">ระบบการขายส่ง B2B (Wholesale Portal)</h2>
-                                            <p className="text-slate-500 font-bold text-[13px] leading-relaxed">ระบบขายส่งแยกเฉพาะเพื่อคำนวณเรทราคาตามจำนวนชิ้น (Tier Pricing) รองรับการเปิดบิลให้ตัวแทน/พนักงาน และตัดสต็อกคลังสินค้าจริง</p>
-                                        </div>
-                                        <button onClick={() => window.location.href = 'B2B.html'} className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black px-8 py-3 rounded-xl shadow-lg shadow-emerald-500/25 text-sm flex items-center gap-2 transition-all active:scale-98">
-                                            เปิดเข้าระบบขายส่ง B2B ทันที ➔
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center bg-white border border-dashed border-slate-300 rounded-3xl py-24 px-6 gap-6 mb-6 shadow-sm">
-                                        <span className="text-6xl drop-shadow-md">🚀</span>
-                                        <div className="text-center">
-                                            <h2 className="text-2xl font-black text-slate-800 mb-2">โหมดการขาย {saleTab}</h2>
-                                            <p className="text-slate-500 font-bold text-[13px]">ระบบกำลังอยู่ในช่วงการพัฒนาและออกแบบ UI/UX สำหรับโหมดนี้</p>
-                                        </div>
-                                        <span className="bg-slate-100 text-slate-400 px-6 py-2 rounded-full font-bold border border-slate-200 text-[11px]">Coming Soon...</span>
-                                    </div>
-                                )
-                            )}
+                            {saleTab === 'ZERO_PRICE' ? renderZeroPriceForm() : renderSalesForm()}
                         </div>
                     )}
                 </div>
