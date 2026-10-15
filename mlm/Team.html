@@ -61,6 +61,71 @@
     const Briefcase = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
     const EyeOff = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;
 
+    // 📅 Date Helpers
+    const getLocalISODate = (d = new Date()) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const normalizeISODate = (val) => {
+      if (!val || val === '-') return getLocalISODate();
+      const s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+      if (s.includes('/')) {
+        const parts = s.split('/');
+        if (parts.length === 3) {
+          let p0 = parseInt(parts[0], 10);
+          let p1 = parseInt(parts[1], 10);
+          let y = parseInt(parts[2], 10);
+          if (y < 100) y += 2000;
+          const d = new Date(y, p0 - 1, p1);
+          if (!isNaN(d.getTime())) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          }
+        }
+      }
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+      return getLocalISODate();
+    };
+
+    const formatFullThaiDate = (val) => {
+      if (!val || val === '-') return '-';
+      try {
+        const s = String(val).trim();
+        let d = null;
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+          const parts = s.substring(0, 10).split('-');
+          d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else if (s.includes('/')) {
+          const parts = s.split('/');
+          if (parts.length === 3) {
+            let p0 = parseInt(parts[0], 10);
+            let p1 = parseInt(parts[1], 10);
+            let y = parseInt(parts[2], 10);
+            if (y < 100) y += 2000;
+            d = new Date(y, p0 - 1, p1);
+          }
+        }
+        if (!d || isNaN(d.getTime())) d = new Date(s);
+        if (isNaN(d.getTime())) return String(val);
+
+        return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+      } catch (e) {
+        return String(val);
+      }
+    };
+
     // ==========================================
     // 📌 ส่วนจัดการข้อมูลพนักงาน (Team Management View)
     // ==========================================
@@ -268,7 +333,7 @@
               team: member.team || member.business_team || 'T01',
               role: member.role || member.permission_role || member.Permission_Role || 'พนักงานทั่วไป',
               password: member.password || member.password_hash || '1234',
-              startDate: member.startDate || getLocalISODate(),
+              startDate: normalizeISODate(member.startDate || member.created_date || member.start_date || member.created_at),
               status: member.status || 'ทำงานอยู่',
               profileUrl: member.profileUrl || '',
               referrer: member.referrer || '',
@@ -357,10 +422,14 @@
             setIsSubmitting(true);
 
             try {
+                const finalIdDoc = idDocFileBase64 !== null ? idDocFileBase64 : (idDocPreviewImage ? formData.idCardDocUrl : '');
+                const finalProfile = imageFileBase64 !== null ? imageFileBase64 : (previewImage ? formData.profileUrl : '');
+
                 const finalData = {
                     ...formData, 
-                    profileUrl: imageFileBase64 || formData.profileUrl, 
-                    idCardDocUrl: idDocFileBase64 || formData.idCardDocUrl,
+                    startDate: formData.startDate || getLocalISODate(),
+                    profileUrl: finalProfile, 
+                    idCardDocUrl: finalIdDoc,
                     accumulatedE: 250000, 
                     accumulatedPV: 150 
                 };
@@ -372,9 +441,10 @@
                     name: finalData.name,
                     business_team: finalData.team || finalData.businessTeam || 'T01',
                     permission_role: finalData.role || 'พนักงานการตลาด',
+                    created_date: finalData.startDate || getLocalISODate(), // ✅ บันทึกวันที่เริ่มงานลง DB
                     status: finalData.status || 'ทำงานอยู่',
                     sponsor_id: finalData.referrer || finalData.sponsorId || '',
-                    id_card_url: finalData.profileUrl || finalData.idCardDocUrl || '',
+                    id_card_url: finalIdDoc || finalProfile || '', // ✅ หากถูกลบออก จะเคลียร์เป็นค่าว่างใน DB ทันที
                     phone_number: finalData.phone || finalData.phoneNumber || '',
                     email: finalData.email || '',
                     line_id: finalData.lineId || '',
@@ -384,7 +454,6 @@
                     bank_account_name: finalData.bankAccountName || '',
                     bank_account_status: finalData.bankAccountStatus || 'รอตรวจสอบ',
                     accumulated_pv: finalData.accumulatedPv || finalData.accumulatedPV || 0
-                    
                 };
 
                 if (isEditing) {
@@ -779,7 +848,15 @@
                                       onClick={() => {
                                           setIdDocPreviewImage(null);
                                           setIdDocFileBase64(null);
-                                          setFormData({ ...formData, idCardDocUrl: '' });
+                                          setFormData(prev => ({
+                                              ...prev,
+                                              idCardDocUrl: '',
+                                              ...(prev.profileUrl === prev.idCardDocUrl ? { profileUrl: '' } : {})
+                                          }));
+                                          if (previewImage === idDocPreviewImage) {
+                                              setPreviewImage(null);
+                                              setImageFileBase64(null);
+                                          }
                                       }}
                                       className="mt-2 text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-lg transition-colors"
                                   >
@@ -802,8 +879,29 @@
                         <input type="file" accept="image/*" onChange={handleImageChange} className="w-full text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:transition-colors file:shadow-md cursor-pointer file:cursor-pointer bg-white border border-slate-200 rounded-xl" />
                       </div>
                       {previewImage && (
-                        <div className="shrink-0 bg-white p-2 rounded-full shadow-md border border-slate-200">
-                           <img src={previewImage} className="w-20 h-20 rounded-full object-cover" alt="Preview" />
+                        <div className="shrink-0 flex flex-col items-center gap-1.5">
+                           <div className="bg-white p-1 rounded-full shadow-md border border-slate-200">
+                              <img src={previewImage} className="w-16 h-16 rounded-full object-cover" alt="Preview" />
+                           </div>
+                           <button 
+                              type="button" 
+                              onClick={() => {
+                                  setPreviewImage(null);
+                                  setImageFileBase64(null);
+                                  setFormData(prev => ({ 
+                                      ...prev, 
+                                      profileUrl: '',
+                                      ...(prev.idCardDocUrl === prev.profileUrl ? { idCardDocUrl: '' } : {})
+                                  }));
+                                  if (idDocPreviewImage === previewImage) {
+                                      setIdDocPreviewImage(null);
+                                      setIdDocFileBase64(null);
+                                  }
+                              }}
+                              className="text-[11px] font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-0.5 rounded-lg transition-colors cursor-pointer"
+                           >
+                              ลบรูปออก
+                           </button>
                         </div>
                       )}
                   </div>
@@ -1077,8 +1175,8 @@
                         </div>
                         <div>
                           <span className="text-slate-400 font-bold block uppercase leading-none text-[9px] mb-1">เริ่มงาน</span>
-                          <span className="text-slate-700 font-extrabold">
-                            {m?.startDate ? new Date(m.startDate).toLocaleDateString('th-TH', { year: '2-digit', month: 'short' }) : '-'}
+                          <span className="text-slate-700 font-extrabold text-[11px] leading-tight block" title={m?.startDate ? new Date(m.startDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}>
+                            {formatFullThaiDate(m?.startDate)}
                           </span>
                         </div>
                       </div>
@@ -1435,7 +1533,7 @@
 
       const fetchData = () => {
         Promise.all([
-            supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,created_at,id_card_url,password_hash').catch(() => []),
+            supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,created_at,created_date,id_card_url,password_hash').catch(() => []),
             supabaseSelect('stk_business_teams').catch(() => [])
         ]).then(([members, businessTeams]) => {
             let initialCache = {};
@@ -1504,7 +1602,7 @@
                bankAccountStatus: m.bank_account_status || m.bankAccountStatus || 'รอตรวจสอบ',
                idCardNumber: m.id_card_number || m.idCardNumber || '',
                password: m.password_hash || m.password || '1234', // <--- เพิ่ม 1
-               startDate: m.start_date || m.startDate || m.created_at || getLocalISODate() // <--- เพิ่ม 2
+               startDate: normalizeISODate(m.created_date || m.start_date || m.startDate || m.created_at)
              })));
            }
            if (Array.isArray(response.customers)) setCustomers(response.customers);

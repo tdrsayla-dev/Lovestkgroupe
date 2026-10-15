@@ -936,3 +936,72 @@ input, select, textarea, button {
   to { opacity: 1; }
 }
 
+/* ==========================================================================
+   ✨ MODERN ANIMATED LOGIN & HUD ENHANCEMENTS (Inspired by 21st.dev / shadcn)
+   ========================================================================== */
+@keyframes stkRipple {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: var(--ripple-opacity, 0.25);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(0.92);
+    opacity: calc(var(--ripple-opacity, 0.25) * 0.65);
+  }
+}
+
+@keyframes stkOrbit {
+  0% {
+    transform: rotate(0deg) translateY(calc(var(--orbit-radius, 100) * 1px)) rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg) translateY(calc(var(--orbit-radius, 100) * 1px)) rotate(-360deg);
+  }
+}
+
+@keyframes stkOrbitReverse {
+  0% {
+    transform: rotate(360deg) translateY(calc(var(--orbit-radius, 100) * 1px)) rotate(-360deg);
+  }
+  100% {
+    transform: rotate(0deg) translateY(calc(var(--orbit-radius, 100) * 1px)) rotate(0deg);
+  }
+}
+
+@keyframes stkFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-stk-ripple {
+  animation: stkRipple 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-stk-orbit {
+  animation: stkOrbit calc(var(--orbit-duration, 20) * 1s) linear infinite;
+}
+
+.animate-stk-orbit-reverse {
+  animation: stkOrbitReverse calc(var(--orbit-duration, 20) * 1s) linear infinite;
+}
+
+.animate-stk-float {
+  animation: stkFloat 4s ease-in-out infinite;
+}
+
+.stk-login-glass {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+html[data-theme="dark"] .stk-login-glass {
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+

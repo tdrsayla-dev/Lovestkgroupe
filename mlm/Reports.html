@@ -197,10 +197,143 @@
         }
     };
 
-    const ReportsView = ({ sales, members, closers = [], customers, activeCustomerTypes, products, systemSettings, businessTeams, currentUser, isAdmin, onRefreshData, stockMovements, payoutLogs = [] }) => {
+    const formatRawSaleRecord = (s, custList) => {
+        let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
+        let itemsList = [];
+        if (s.items_json) {
+            try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+        }
+        
+        if (Array.isArray(itemsList) && itemsList.length > 0) {
+            itemsList.forEach(it => {
+                const typeStr = String(it.type || '').trim();
+                const qtyNum = Number(it.qty || it.quantity || 1);
+                const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
+                s[`${pName}_${typeStr}`] = qtyNum;
+                
+                if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
+                else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
+                else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
+                else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
+                else sumM += qtyNum;
+            });
+        } else {
+            Object.keys(s).forEach(k => {
+                if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาสมาชิก' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                    if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                    else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
+                    else if (k.endsWith('_ราคาโปร') || k.endsWith('_โปรโมชั่น')) sumP += (parseInt(s[k]) || 0);
+                    else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                }
+            });
+        }
+        
+        s['id'] = s.id || s.order_id || s.sale_id || s.receipt_id || s.bill_id || '';
+        s['order_id'] = s['id'];
+        s['memberId'] = s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.user_id || s.created_by || s.marketing || '';
+        s['sellerId'] = s['memberId'];
+        s['sellerName'] = s.sellerName || s.seller_name || s.member_name || s.marketing_name || s['memberId'];
+        s['customerType'] = s.customer_type || s.customerType || s.custType || '';
+        
+        // 📌 ดึงชื่อลูกค้าและผู้ปิดการขายให้ถูกต้อง
+        const rawCustId = String(s.customerId || s.customer_id || s.client_id || s.cust_id || s.hn || '').trim().toUpperCase();
+        let resolvedCustName = s.customerName || s.customer_name || s.custName || s.client_name || '';
+        let resolvedCloser = s.closer || s.closer_id || '';
+        
+        const effectiveCustList = custList || [];
+        if (rawCustId && effectiveCustList.length > 0) {
+            const foundCust = effectiveCustList.find(c => c && (
+                String(c.id || '').trim().toUpperCase() === rawCustId || 
+                String(c.customer_id || '').trim().toUpperCase() === rawCustId ||
+                String(c.hn || '').trim().toUpperCase() === rawCustId
+            ));
+            if (foundCust) {
+                if (foundCust.name || foundCust.customer_name || foundCust.Name) {
+                    resolvedCustName = foundCust.name || foundCust.customer_name || foundCust.Name;
+                }
+                if (!resolvedCloser) {
+                    let cExtra = {};
+                    if (foundCust.extra_details_json) {
+                        try { cExtra = typeof foundCust.extra_details_json === 'string' ? JSON.parse(foundCust.extra_details_json) : foundCust.extra_details_json; } catch(e){}
+                    }
+                    resolvedCloser = foundCust.closer || foundCust.closer_id || foundCust.closer_name || foundCust.Closer || cExtra.closer || cExtra.closer_id || '';
+                }
+            }
+        }
+        
+        s['customerId'] = rawCustId;
+        s['customerName'] = resolvedCustName || (rawCustId ? `ลูกค้า (${rawCustId})` : 'ไม่ระบุชื่อ');
+        s['closer'] = resolvedCloser;
+        s['saleType'] = s.sale_type || s.saleType || '';
+        s['payMode'] = s.sale_type || s.saleType || s.payMode || s.pay_mode || s.payment_method || s.payment || 'เงินโอน';
+        s['currency'] = s.currency || s.สกุลเงิน || s.Currency || '';
+        
+        const dbTotalBottles = Number(s.total_bottles || s.totalQty || 0);
+        if (sumF + sumM + sumP + sumZ === 0 && dbTotalBottles > 0) {
+            sumM = dbTotalBottles;
+        } else if (sumF + sumM + sumP + sumZ === 0 && Number(s.total_amount || s.totalAmount || 0) > 0) {
+            const estimated = Math.max(1, Math.round(Number(s.total_amount || s.totalAmount || 0) / 1000));
+            sumM = estimated;
+        }
+
+        s['รวมชิ้นราคาเต็ม'] = sumF; 
+        s['รวมชิ้นราคาสมาชิก'] = sumM;
+        s['รวมชิ้นราคาโปร'] = sumP; 
+        s['รวมชิ้นราคาศูนย์'] = sumZ;
+        s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
+        
+        s['_items'] = itemsList;
+        if (!s['ยอดขายรวม']) {
+            s['ยอดขายรวม'] = Number(s.total_amount || s.grand_total || s.totalAmount || s.grandTotal || s.amount || 0);
+        }
+        
+        const rawDate = String(s.date || s.sale_date || s.created_at || '');
+        s['date'] = rawDate.split('T')[0].split(' ')[0];
+        
+        return s;
+    };
+
+    const ReportsView = ({ sales, setSales, members, closers = [], customers, activeCustomerTypes, products, systemSettings, businessTeams, currentUser, isAdmin, onRefreshData, stockMovements, payoutLogs = [] }) => {
         const todayStr = getLocalISODate();
         const [startDate, setStartDate] = useState(todayStr);
         const [endDate, setEndDate] = useState(todayStr);
+
+        // ⚡ Smart On-Demand Date Fetcher: ดึงบิลย้อนหลังตามช่วงวันที่ผู้ใช้เลือก ป้องกันยอดเดือนเก่าหายและประหยัด Egress
+        const fetchedDateRangesRef = useRef(new Set());
+        const dateFetchDebounceRef = useRef(null);
+
+        const fetchRangeSalesSmart = useCallback((start, end) => {
+            if (!start || !end || typeof window.supabaseSelect !== 'function' || typeof setSales !== 'function') return;
+            const rangeKey = `${start}_${end}`;
+            if (fetchedDateRangesRef.current.has(rangeKey)) return;
+
+            if (dateFetchDebounceRef.current) clearTimeout(dateFetchDebounceRef.current);
+            dateFetchDebounceRef.current = setTimeout(async () => {
+                try {
+                    const query = `date=gte.${start}&date=lte.${end}&order=order_id.desc&limit=10000`;
+                    const res = await window.supabaseSelect('stk_sales', query);
+                    fetchedDateRangesRef.current.add(rangeKey);
+                    if (Array.isArray(res) && res.length > 0) {
+                        const cleanNew = res.map(s => formatRawSaleRecord(s, customers));
+                        setSales(prev => {
+                            const map = new Map((prev || []).map(x => [String(x.order_id || x.id), x]));
+                            cleanNew.forEach(x => {
+                                map.set(String(x.order_id || x.id), x);
+                            });
+                            return Array.from(map.values()).sort((a, b) => String(b.order_id || b.id || '').localeCompare(String(a.order_id || a.id || '')));
+                        });
+                    }
+                } catch(err) {
+                    console.warn('Smart fetchRangeSales error in Reports:', err);
+                }
+            }, 300);
+        }, [customers, setSales]);
+
+        useEffect(() => {
+            if (startDate && endDate) {
+                fetchRangeSalesSmart(startDate, endDate);
+            }
+        }, [startDate, endDate, fetchRangeSalesSmart]);
 
         const [activeGroup, setActiveGroup] = useState(() => {
             const params = new URLSearchParams(window.location.search);
@@ -2251,99 +2384,7 @@
                 
                 let processedSales = [];
                 if (Array.isArray(saleRes)) {
-                    processedSales = saleRes.map(s => {
-                        let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
-                        let itemsList = [];
-                        if (s.items_json) {
-                            try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
-                        }
-                        
-                        if (Array.isArray(itemsList) && itemsList.length > 0) {
-                            itemsList.forEach(it => {
-                                const typeStr = String(it.type || '').trim();
-                                const qtyNum = Number(it.qty || it.quantity || 1);
-                                const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
-                                s[`${pName}_${typeStr}`] = qtyNum;
-                                
-                                if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
-                                else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
-                                else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
-                                else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
-                                else sumM += qtyNum;
-                            });
-                        } else {
-                            Object.keys(s).forEach(k => {
-                                if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาสมาชิก' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-                                    if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-                                    else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
-                                    else if (k.endsWith('_ราคาโปร') || k.endsWith('_โปรโมชั่น')) sumP += (parseInt(s[k]) || 0);
-                                    else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
-                                }
-                            });
-                        }
-                        
-                        s['id'] = s.id || s.order_id || s.sale_id || s.receipt_id || s.bill_id || '';
-                        s['memberId'] = s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.user_id || s.created_by || s.marketing || '';
-                        s['sellerId'] = s['memberId'];
-                        s['sellerName'] = s.sellerName || s.seller_name || s.member_name || s.marketing_name || s['memberId'];
-                        s['customerType'] = s.customer_type || s.customerType || s.custType || '';
-                        
-                        // 📌 ดึงชื่อลูกค้าและผู้ปิดการขายให้ถูกต้อง
-                        const rawCustId = String(s.customerId || s.customer_id || s.client_id || s.cust_id || s.hn || '').trim().toUpperCase();
-                        let resolvedCustName = s.customerName || s.customer_name || s.custName || s.client_name || '';
-                        let resolvedCloser = s.closer || s.closer_id || '';
-                        
-                        if (rawCustId && (custRes || []).length > 0) {
-                            const foundCust = (custRes || []).find(c => c && (
-                                String(c.id || '').trim().toUpperCase() === rawCustId || 
-                                String(c.customer_id || '').trim().toUpperCase() === rawCustId ||
-                                String(c.hn || '').trim().toUpperCase() === rawCustId
-                            ));
-                            if (foundCust) {
-                                if (foundCust.name || foundCust.customer_name || foundCust.Name) {
-                                    resolvedCustName = foundCust.name || foundCust.customer_name || foundCust.Name;
-                                }
-                                if (!resolvedCloser) {
-                                    let cExtra = {};
-                                    if (foundCust.extra_details_json) {
-                                        try { cExtra = typeof foundCust.extra_details_json === 'string' ? JSON.parse(foundCust.extra_details_json) : foundCust.extra_details_json; } catch(e){}
-                                    }
-                                    resolvedCloser = foundCust.closer || foundCust.closer_id || foundCust.closer_name || foundCust.Closer || cExtra.closer || cExtra.closer_id || '';
-                                }
-                            }
-                        }
-                        
-                        s['customerId'] = rawCustId;
-                        s['customerName'] = resolvedCustName || (rawCustId ? `ลูกค้า (${rawCustId})` : 'ไม่ระบุชื่อ');
-                        s['closer'] = resolvedCloser;
-                        s['saleType'] = s.sale_type || s.saleType || '';
-                        s['payMode'] = s.sale_type || s.saleType || s.payMode || s.pay_mode || s.payment_method || s.payment || 'เงินโอน';
-                        s['currency'] = s.currency || s.สกุลเงิน || s.Currency || '';
-                        
-                        const dbTotalBottles = Number(s.total_bottles || s.totalQty || 0);
-                        if (sumF + sumM + sumP + sumZ === 0 && dbTotalBottles > 0) {
-                            sumM = dbTotalBottles;
-                        } else if (sumF + sumM + sumP + sumZ === 0 && Number(s.total_amount || s.totalAmount || 0) > 0) {
-                            const estimated = Math.max(1, Math.round(Number(s.total_amount || s.totalAmount || 0) / 1000));
-                            sumM = estimated;
-                        }
-
-                        s['รวมชิ้นราคาเต็ม'] = sumF; 
-                        s['รวมชิ้นราคาสมาชิก'] = sumM;
-                        s['รวมชิ้นราคาโปร'] = sumP; 
-                        s['รวมชิ้นราคาศูนย์'] = sumZ;
-                        s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
-                        
-                        s['_items'] = itemsList;
-                        if (!s['ยอดขายรวม']) {
-                            s['ยอดขายรวม'] = Number(s.total_amount || s.grand_total || s.totalAmount || s.grandTotal || s.amount || 0);
-                        }
-                        
-                        const rawDate = String(s.date || s.sale_date || s.created_at || '');
-                        s['date'] = rawDate.split('T')[0].split(' ')[0];
-                        
-                        return s;
-                    });
+                    processedSales = saleRes.map(s => formatRawSaleRecord(s, formattedCustomers));
                     setSales(processedSales);
                 } else {
                     setSales([]);
@@ -2441,6 +2482,7 @@
                         ) : isLoggedIn ? (
                             <ReportsView 
                                 sales={sales} 
+                                setSales={setSales}
                                 members={members} 
                                 closers={closers}
                                 customers={customers} 

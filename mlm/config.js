@@ -196,6 +196,27 @@
         cleanQuery = (cleanQuery ? cleanQuery + '&' : '') + 'select=' + DEFAULT_TABLE_SELECT[table];
       }
 
+      // 🛡️ Auto Schema Normalizer: ป้องกันการเรียกชื่อคอลัมน์ผิดข้าม Database อัตโนมัติ ป้องกัน Error 400 และ Egress รั่วไหล
+      if (table === 'stk_sales' && cleanQuery) {
+        cleanQuery = cleanQuery
+          .replace(/\bselect=id\b/g, 'select=order_id')
+          .replace(/\bselect=id,/g, 'select=order_id,')
+          .replace(/,id,/g, ',order_id,')
+          .replace(/,id&/g, ',order_id&')
+          .replace(/,id$/g, ',order_id')
+          .replace(/\bbill_id\b/g, 'order_id');
+      } else if (table === 'stk_customers' && cleanQuery) {
+        cleanQuery = cleanQuery
+          .replace(/,member_id,/g, ',')
+          .replace(/,member_id&/g, '&')
+          .replace(/,member_id$/g, '')
+          .replace(/,member_name,/g, ',')
+          .replace(/,member_name&/g, '&')
+          .replace(/,member_name$/g, '');
+      } else if (table === 'patients' && cleanQuery) {
+        cleanQuery = cleanQuery.replace(/\bphone_number\b/g, 'phone');
+      }
+
       const cacheKey = table + (cleanQuery ? '?' + cleanQuery : '');
       const ttl = CACHE_TTL_CONFIG[table] || 0;
 
@@ -246,6 +267,12 @@
     window.clinicSupabaseSelect = async function (table, query) {
       const isNoCache = query && (query.includes('nocache=true') || query.includes('nocache=1'));
       let cleanQuery = query ? query.replace(/[?&]?nocache=[^&]+&?/g, '&').replace(/[?&]?_t=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
+
+      // 🛡️ Auto Schema Normalizer: ป้องกันคอลัมน์คลินิกผิดพลาด (เช่น phone_number -> phone)
+      if (table === 'patients' && cleanQuery) {
+        cleanQuery = cleanQuery.replace(/\bphone_number\b/g, 'phone');
+      }
+
       const cacheKey = 'clinic_' + table + (cleanQuery ? '?' + cleanQuery : '');
       const ttl = 60 * 1000; // 1 นาที
 

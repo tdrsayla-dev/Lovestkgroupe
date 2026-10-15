@@ -339,7 +339,7 @@
               window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id').catch(() => []),
               window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone_number') : Promise.resolve([])).catch(() => []),
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone') : Promise.resolve([])).catch(() => []),
               window.supabaseSelect('stk_closers').catch(() => []),
               window.supabaseSelect('stk_business_teams').catch(() => [])
             ]);

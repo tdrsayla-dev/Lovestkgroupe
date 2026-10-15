@@ -230,11 +230,16 @@
                 return { lakAmt: 0, thbAmt: amt, isLakBill: false, isThbBill: true };
             };
 
-            const handlePrintReceiptPopup = (saleRecord) => {
+            const handlePrintReceiptPopup = (saleRecord, targetWindow = null) => {
                 if (!saleRecord) return;
-                const printWindow = window.open('', '_blank');
+                let printWindow = targetWindow;
+                if (!printWindow || printWindow.closed) {
+                    try {
+                        printWindow = window.open('', '_blank');
+                    } catch (_) {}
+                }
                 if (!printWindow) {
-                    showToast('เบราว์เซอร์บล็อกหน้าต่าง Popup กรุณาอนุญาต (Allow Pop-ups) ก่อนพิมพ์ใบเสร็จ', 'error');
+                    showToast('เบราว์เซอร์บล็อกหน้าต่าง Popup กรุณากดปุ่ม "พิมพ์ใบเสร็จ" ที่หน้าต่างแจ้งเตือน', 'warning');
                     return;
                 }
 
@@ -561,6 +566,8 @@
                 .btn-primary { background: #2563eb; color: white; } .btn-primary:hover { background: #1d4ed8; }
                 .btn-size { background: #334155; color: #f8fafc; border: 1px solid #475569; }
                 .btn-size.active { background: #3b82f6; color: white; border-color: #60a5fa; }
+                .btn-close { background: #334155; color: #f8fafc; border: 1px solid #475569; display: inline-flex; align-items: center; gap: 6px; }
+                .btn-close:hover { background: #ef4444; border-color: #dc2626; color: white; }
                 
                 .paper-container { display: flex; justify-content: center; padding: 24px; }
                 .receipt-paper { background: white; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); border-radius: 8px; box-sizing: border-box; transition: all 0.3s; }
@@ -615,6 +622,7 @@
                   <button class="btn btn-size" id="btn-a4" onclick="setSize('a4')">📅 กระดาษ A4</button>
                 </div>
                 <div class="control-group">
+                  <button class="btn btn-close" onclick="window.close()" title="ปิดหน้าต่างนี้ (Esc)" style="font-size: 14px; padding: 10px 18px;">✕ ปิดหน้านี้</button>
                   <button class="btn btn-primary" onclick="window.print()" style="font-size: 15px; padding: 10px 24px;">🐾 สั่งพิมพ์ใบเสร็จ</button>
                 </div>
               </div>
@@ -687,6 +695,11 @@
                     btnA4.className = 'btn btn-size';
                   }
                 }
+                window.addEventListener('keydown', function(e) {
+                  if (e.key === 'Escape') {
+                    window.close();
+                  }
+                });
               <\/script>
             </body>
             </html>
@@ -1087,13 +1100,14 @@
                     });
                 }
 
-                // 2. ค้นหาจากเบอร์โทร (กรณีไม่พบจาก HN หรือไม่มี HN)
-                if (!foundExistingCust && isValidPhone(pendingPhone)) {
+                // 2. ค้นหาจากเบอร์โทร (ทำได้เฉพาะกรณีไม่มีรหัส HN ระบุมา)
+                // 🛡️ หาก pending มีรหัส HN ระบุมาอย่างชัดเจน ห้ามค้นหาด้วยเบอร์โทรเด็ดขาด!
+                // เพื่อป้องกันคนไข้คนละคนกันที่ใช้เบอร์เดียวกัน (เช่น คนในครอบครัว หรือเบอร์คลินิก) ถูกจับคู่ทับซ้อนกัน
+                if (!foundExistingCust && (!pendingHn || pendingHn === '-' || pendingHn === '--') && isValidPhone(pendingPhone)) {
                     foundExistingCust = (customers || []).find(c => {
                         if (!c || !isValidPhone(c.phone) || cleanDigits(c.phone) !== cleanDigits(pendingPhone)) return false;
-                        // 🛡️ สำคัญมาก: หาก pending มี HN มาด้วย และลูกค้าในระบบมี HN คนละเบอร์กัน ห้ามจับคู่ข้ามคนเด็ดขาด!
                         const cHn = String(c.id || c.customer_id || c.hn || '').trim();
-                        if (pendingHn && cHn && cHn !== '-' && !window.isHnMatch(pendingHn, cHn)) return false;
+                        if (cHn && cHn !== '-' && cHn !== '--') return false;
                         return true;
                     });
                 }
@@ -1862,8 +1876,53 @@
                         closer: cName || prev.closer || '',
                         closerTeam: cTeam || prev.closerTeam || ''
                     }));
+                    // 🛡️ ซิงค์ผู้แนะนำ/ผู้ขายเดิมของลูกค้ารายนี้อัตโนมัติ ไม่ปล่อยให้ผู้ขายบิลก่อนหน้าค้างอยู่
+                    const ownerId = foundCust.owner_member_id || foundCust.ownerMemberId || foundCust.memberId || '';
+                    if (ownerId && ownerId !== '-' && ownerId !== '--') {
+                        const matchedM = (members || []).find(m => m && (safeUpper(m.id) === safeUpper(ownerId) || safeUpper(m.user_id) === safeUpper(ownerId)));
+                        if (matchedM) {
+                            setMemberIdInput(`${matchedM.id || matchedM.user_id} - ${matchedM.name}`);
+                        }
+                    } else if (String(searchId).toUpperCase().startsWith('HN-') && typeof window.clinicSupabaseSelect === 'function') {
+                        window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(searchId)}&select=referred_by&limit=1`).then(pRes => {
+                            if (Array.isArray(pRes) && pRes.length > 0 && pRes[0].referred_by) {
+                                const refStr = pRes[0].referred_by;
+                                const matchedRefM = (members || []).find(m => m && (
+                                    safeUpper(m.id) === safeUpper(refStr) ||
+                                    safeUpper(m.user_id) === safeUpper(refStr) ||
+                                    safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(refStr) ||
+                                    refStr.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
+                                    safeUpper(m.name) === safeUpper(refStr)
+                                ));
+                                if (matchedRefM) setMemberIdInput(`${matchedRefM.id || matchedRefM.user_id} - ${matchedRefM.name}`);
+                            }
+                        }).catch(() => {});
+                    }
                 } else {
                     setCustData(prev => ({ ...prev, id: searchId }));
+                    if (String(searchId).toUpperCase().startsWith('HN-') && typeof window.clinicSupabaseSelect === 'function') {
+                        window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(searchId)}&select=patient_name,phone,referred_by&limit=1`).then(pRes => {
+                            if (Array.isArray(pRes) && pRes.length > 0) {
+                                const p = pRes[0];
+                                setCustData(prev => ({
+                                    ...prev,
+                                    name: p.patient_name || prev.name,
+                                    phone: p.phone || prev.phone
+                                }));
+                                if (p.referred_by) {
+                                    const refStr = p.referred_by;
+                                    const matchedRefM = (members || []).find(m => m && (
+                                        safeUpper(m.id) === safeUpper(refStr) ||
+                                        safeUpper(m.user_id) === safeUpper(refStr) ||
+                                        safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(refStr) ||
+                                        refStr.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
+                                        safeUpper(m.name) === safeUpper(refStr)
+                                    ));
+                                    if (matchedRefM) setMemberIdInput(`${matchedRefM.id || matchedRefM.user_id} - ${matchedRefM.name}`);
+                                }
+                            }
+                        }).catch(() => {});
+                    }
                 }
             };
 
@@ -2115,8 +2174,74 @@
                         }
                     }
 
+                    // 📜 บันทึกประวัติบิลถูกยกเลิก (stk_deleted_sales) เพื่อ Audit Log ที่ถูกต้องสมบูรณ์
+                    if (saleToCancel && typeof supabaseInsert === 'function') {
+                        let itemsSummaryText = '';
+                        if (itemsList.length > 0) {
+                            itemsSummaryText = itemsList.map(it => {
+                                const pName = String(it.prod || it.productName || it.name || 'สินค้า').trim();
+                                const q = it.qty || it.quantity || 1;
+                                const pType = it.type || it.priceType || '';
+                                return `${pName} x${q}${pType ? ` (${pType})` : ''}`;
+                            }).join(', ');
+                        } else {
+                            itemsSummaryText = 'บิลสินค้า';
+                        }
+
+                        const rawCustId = String(saleToCancel.customerId || saleToCancel.customer_id || '').trim();
+                        const isZeroCutBill = (saleToCancel.saleType === 'ตัดศูนย์สินค้า' || saleToCancel.sale_type === 'ตัดศูนย์สินค้า' || rawCustId === 'INTERNAL');
+                        let cNameLog = '-';
+                        if (isZeroCutBill) {
+                            const noteStr = String(saleToCancel.paymentNote || saleToCancel.payment_note || '').trim();
+                            const reqMatch = noteStr.match(/ผู้เบิก:\s*([^\|\n]+)/);
+                            const requester = reqMatch ? reqMatch[1].trim() : (saleToCancel.recordedBy || saleToCancel.recorded_by || 'เจ้าหน้าที่');
+                            cNameLog = `เบิกตัดศูนย์ (${requester})`;
+                        } else {
+                            const foundCust = (customers || []).find(c => c && (c.id === rawCustId || c.customer_id === rawCustId));
+                            cNameLog = foundCust?.name || saleToCancel.customerName || saleToCancel.customer_name || rawCustId || '-';
+                        }
+
+                        const rawMemberId = String(saleToCancel.memberId || saleToCancel.sellerId || saleToCancel.seller_id || saleToCancel.seller || '').trim();
+                        const foundMember = (members || []).find(m => m && (m.id === rawMemberId || m.user_id === rawMemberId || m.member_id === rawMemberId));
+                        const mNameLog = foundMember?.name || saleToCancel.memberName || saleToCancel.member_name || rawMemberId || '-';
+
+                        let rawAmt = saleToCancel.totalAmount !== undefined ? saleToCancel.totalAmount : saleToCancel.total_amount;
+                        let parsedAmt = 0;
+                        if (typeof rawAmt === 'string') {
+                            parsedAmt = parseFloat(rawAmt.replace(/,/g, '')) || 0;
+                        } else if (typeof rawAmt === 'number') {
+                            parsedAmt = rawAmt;
+                        }
+
+                        if (parsedAmt === 0 && !isZeroCutBill && Array.isArray(itemsList) && itemsList.length > 0) {
+                            parsedAmt = itemsList.reduce((sum, it) => {
+                                const q = Number(it.qty || it.quantity || 1);
+                                const p = Number(it.price || it.unitPrice || it.unit_price || 0);
+                                return sum + (q * p);
+                            }, 0);
+                        }
+
+                        const sType = saleToCancel.saleType || saleToCancel.sale_type || (isZeroCutBill ? 'ตัดศูนย์สินค้า' : 'เงินสด');
+                        const origDate = saleToCancel.date || saleToCancel.sale_date || (saleToCancel.created_at ? saleToCancel.created_at.split('T')[0] : '');
+
+                        const deletedRecord = {
+                            id: confirmDelete.id || saleToCancel.id || saleToCancel.order_id,
+                            deleted_at: new Date().toISOString(),
+                            deleted_by: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'Admin',
+                            customer_name: cNameLog,
+                            customer_id: rawCustId,
+                            member_name: mNameLog,
+                            member_id: rawMemberId,
+                            total_amount: parsedAmt,
+                            items_summary: itemsSummaryText,
+                            original_date: origDate,
+                            reason: isZeroCutBill ? 'ยกเลิกรายการเบิกตัดศูนย์' : (sType ? `ยกเลิกบิล (${sType})` : 'ยกเลิก/ลบบิลจากระบบ')
+                        };
+
+                        supabaseInsert('stk_deleted_sales', deletedRecord).catch(e => console.warn('stk_deleted_sales insert error:', e));
+                    }
+
                     await supabaseDelete('stk_sales', confirmDelete.id, 'order_id').catch(() => { });
-                    await supabaseDelete('sales', confirmDelete.id, 'order_id').catch(() => { });
 
                     if (saleToCancel && (saleToCancel.customerId || saleToCancel.customer_id || saleToCancel.customer)) {
                         const custId = saleToCancel.customerId || saleToCancel.customer_id || saleToCancel.customer;
@@ -2131,8 +2256,6 @@
 
                             if (!otherSales || otherSales.length === 0) {
                                 try { await supabaseDelete('stk_customers', custId, 'customer_id'); } catch (e) { }
-                                try { await supabaseDelete('customers', custId, 'id'); } catch (e) { }
-                                try { await supabaseDelete('customers', custId, 'customer_id'); } catch (e) { }
                             }
                         }
                     }
@@ -2322,20 +2445,31 @@
                         const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
                             ? window.normalizeHnCandidates(finalCustomerId)
                             : [targetId];
-                        const candSet = new Set(hnCandidates.map(c => safeUpper(c)));
+                        const candSet = new Set(hnCandidates.map(c => safeUpper(c)).filter(c => c && c !== '-' && c !== '--'));
 
-                        let matched = (customers || []).find(c => {
-                            if (!c) return false;
-                            const cId = safeUpper(c.id || c.customer_id);
-                            const cHn = safeUpper(c.hn);
-                            return candSet.has(cId) || (cHn && candSet.has(cHn));
-                        });
-                        if (matched) return matched;
-
-                        const pDigits = String(custData.phone || '').replace(/\D/g, '');
-                        if (pDigits.length >= 7) {
-                            matched = (customers || []).find(c => c && String(c.phone || '').replace(/\D/g, '') === pDigits);
+                        let matched = null;
+                        if (candSet.size > 0) {
+                            matched = (customers || []).find(c => {
+                                if (!c) return false;
+                                const cId = safeUpper(c.id || c.customer_id);
+                                const cHn = safeUpper(c.hn);
+                                return candSet.has(cId) || (cHn && candSet.has(cHn));
+                            });
                             if (matched) return matched;
+                        }
+
+                        // 🛡️ ค้นหาด้วยเบอร์โทร: ทำได้เฉพาะเมื่อไม่มีการระบุรหัสลูกค้า/HN มา (หรือระบุเป็น -)
+                        // หากมีรหัสลูกค้า/HN มาด้วย ห้ามจับคู่ข้ามคนเด็ดขาด! เพื่อป้องกันการเขียนทับชื่อคนอื่น
+                        if (!matched && (!finalCustomerId || finalCustomerId === '-' || finalCustomerId === '--')) {
+                            const pDigits = String(custData.phone || '').replace(/\D/g, '');
+                            if (pDigits.length >= 7) {
+                                matched = (customers || []).find(c => {
+                                    if (!c) return false;
+                                    const cPhoneDigits = String(c.phone || '').replace(/\D/g, '');
+                                    return cPhoneDigits === pDigits;
+                                });
+                                if (matched) return matched;
+                            }
                         }
                         return null;
                     };
@@ -2348,7 +2482,7 @@
                                 ? window.normalizeHnCandidates(finalCustomerId)
                                 : [finalCustomerId];
                             const candParam = hnCandidates.map(c => encodeURIComponent(c)).join(',');
-                            const dbCheck = await supabaseSelect('stk_customers', `customer_id=in.(${candParam})&select=customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,member_id,member_name,extra_details_json&limit=1`);
+                            const dbCheck = await supabaseSelect('stk_customers', `customer_id=in.(${candParam})&select=customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,extra_details_json&limit=1`);
                             if (Array.isArray(dbCheck) && dbCheck.length > 0) {
                                 const c = dbCheck[0];
                                 originalCust = {
@@ -2360,8 +2494,8 @@
                                     symptom: c.symptom_disease || '',
                                     closer: c.closer_id || '',
                                     closerTeam: c.extra_details_json?.closerTeam || '',
-                                    memberId: c.owner_member_id || c.member_id || '',
-                                    memberName: c.member_name || c.extra_details_json?.memberName || ''
+                                    memberId: c.owner_member_id || '',
+                                    memberName: c.extra_details_json?.memberName || ''
                                 };
                             }
                         } catch (e) {
@@ -2377,14 +2511,14 @@
                                     ? window.normalizeHnCandidates(finalCustomerId)
                                     : [finalCustomerId];
                                 const candParam = hnCandidates.map(c => encodeURIComponent(c)).join(',');
-                                const pCheck = await window.clinicSupabaseSelect('patients', `hn=in.(${candParam})&select=hn,patient_name,first_name,last_name,phone_number,phone,line_id,referred_by&limit=1`);
+                                const pCheck = await window.clinicSupabaseSelect('patients', `hn=in.(${candParam})&select=hn,patient_name,first_name,last_name,phone,line_id,referred_by&limit=1`);
                                 if (Array.isArray(pCheck) && pCheck.length > 0) {
                                     const p = pCheck[0];
                                     const pName = p.patient_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || custData.name;
                                     originalCust = {
                                         id: finalCustomerId,
                                         name: pName,
-                                        phone: p.phone_number || p.phone || custData.phone || '',
+                                        phone: p.phone || custData.phone || '',
                                         lineId: p.line_id || custData.lineId || '',
                                         type: custMode,
                                         symptom: custData.symptom || '',
@@ -2414,6 +2548,9 @@
                             memberId: foundMember ? foundMember.id : '',
                             memberName: foundMember ? foundMember.name : ''
                         };
+                        // 🛡️ สำคัญมาก: กำหนด newCustomerObj เพื่อให้ถูก INSERT บันทึกลงตาราง stk_customers ทันที
+                        // ป้องกันไม่ให้รหัส HN นี้กลายเป็นลูกค้าที่ไม่มีตัวตนในระบบ ซึ่งจะทำให้บิลถัดไปค้นหาไม่เจอและเกิดปัญหาชื่อทับกันอีก!
+                        newCustomerObj = { ...originalCust, isExistingCustomer: false };
                     }
 
                     if (!originalCust) {
@@ -2431,9 +2568,14 @@
                         return;
                     }
 
-                    if (originalCust.name !== custData.name || originalCust.closer !== custData.closer || originalCust.type !== custMode || originalCust.phone !== custData.phone || originalCust.lineId !== custData.lineId || originalCust.symptom !== custData.symptom) {
-                        const updatedCust = { ...originalCust, name: custData.name, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom, isExistingCustomer: true };
-                        newCustomerObj = updatedCust;
+                    // 🛡️ อัปเดตข้อมูลลูกค้าเดิม: อัปเดตเฉพาะเมื่อรหัสลูกค้าตรงกัน และชื่อใหม่ไม่ว่างเปล่า
+                    const safeNewName = (custData.name && custData.name !== '-' && custData.name !== '--') ? custData.name.trim() : originalCust.name;
+                    if (originalCust && (originalCust.name !== safeNewName || originalCust.closer !== custData.closer || originalCust.type !== custMode || originalCust.phone !== custData.phone || originalCust.lineId !== custData.lineId || originalCust.symptom !== custData.symptom)) {
+                        const isSameCustomer = (safeUpper(originalCust.id) === safeUpper(finalCustomerId) || !finalCustomerId || finalCustomerId === '-');
+                        if (isSameCustomer) {
+                            const updatedCust = { ...originalCust, name: safeNewName, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom, isExistingCustomer: true };
+                            newCustomerObj = updatedCust;
+                        }
                     }
                 }
 
@@ -3443,6 +3585,14 @@
                 }
 
                 setIsSubmittingZero(true);
+                let preOpenedPrintWin = null;
+                try {
+                    preOpenedPrintWin = window.open('about:blank', '_blank');
+                    if (preOpenedPrintWin && preOpenedPrintWin.document) {
+                        preOpenedPrintWin.document.write('<!DOCTYPE html><html><head><title>กำลังพิมพ์ใบเสร็จ...</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8fafc;color:#475569;font-size:14px;font-weight:bold;}</style></head><body><div style="text-align:center;"><div>กำลังเตรียมเอกสารใบเสร็จ/เบิกสินค้า...</div><div style="font-size:12px;color:#94a3b8;margin-top:6px;">ระบบกำลังบันทึกข้อมูลและตัดสต๊อก</div></div></body></html>');
+                    }
+                } catch (_) {}
+
                 try {
                     const dateVal = zeroForm.date || new Date().toISOString().split('T')[0];
                     const dateParts = dateVal.split('-');
@@ -3495,14 +3645,17 @@
 
                     const totalBottles = zeroCart.reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
                     const zeroItemsJson = zeroCart.map(item => {
-                        const prodObj = (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName || p.id === item.productId)) || {};
+                        const prodObj = (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName || p.id === item.productId || p.product_id === item.productId)) || {};
+                        const effectivePid = item.productId || prodObj.product_id || prodObj.id || '';
                         return {
                             qty: parseInt(item.qty) || 0,
                             prod: item.productName,
                             productName: item.productName,
                             type: 'ราคาศูนย์',
                             priceType: 'ราคาศูนย์',
-                            id: item.productId || prodObj.id || prodObj.product_id || '',
+                            id: effectivePid,
+                            productId: effectivePid,
+                            product_id: effectivePid,
                             price: 0,
                             unitPrice: 0,
                             total: 0
@@ -3612,18 +3765,36 @@
                             productsList: products || [],
                             actor: newRecord.recordedBy,
                             billId: newRecord.id,
-                            billDate: newRecord.date
+                            billDate: newRecord.date,
+                            preferredWarehouse: 'FRONT_STORE',
+                            saleType: 'ตัดศูนย์สินค้า',
+                            reasonNote: `ตัดสต๊อกเบิกตัดศูนย์หน้าร้าน บิล ${newRecord.id}`
                         });
                         if (stockChangeRes && stockChangeRes.details && setProducts) {
                             setProducts(prev => (prev || []).map(p => {
-                                const matched = stockChangeRes.details.find(d => d.productId === p.id);
-                                return matched ? { ...p, stock: matched.newStock } : p;
+                                const matched = stockChangeRes.details.find(d => d.productId === (p.product_id || p.id));
+                                return matched ? { ...p, stock: matched.newStock, current_stock: matched.newStock } : p;
                             }));
                         }
                     }
 
                     setSales(prev => [newRecord, ...(prev || [])]);
                     triggerGlobalRefresh();
+
+                    // ซิงก์และล้างแคชสต๊อกข้ามหน้าต่างทันที
+                    if (typeof window.invalidateTableCache === 'function') {
+                        window.invalidateTableCache('stk_sales');
+                        window.invalidateTableCache('stk_products');
+                        window.invalidateTableCache('stk_stock_movements');
+                        window.invalidateTableCache('stk_lots');
+                    }
+                    try {
+                        sessionStorage.removeItem('stk_warehouse_products');
+                        sessionStorage.removeItem('stk_warehouse_movements');
+                        sessionStorage.removeItem('stk_warehouse_lots');
+                        sessionStorage.removeItem('stk_warehouse_audit_cache');
+                        localStorage.removeItem('stk_warehouse_cache');
+                    } catch (_) {}
 
                     // รีเซ็ตฟอร์ม
                     setZeroCart([]);
@@ -3635,12 +3806,18 @@
 
                     setIsSubmittingZero(false);
                     handleSuccessFinish(newRecord);
-                    try {
-                        handlePrintReceiptPopup(newRecord);
-                    } catch (ePrint) {
-                        console.warn('Auto print receipt error:', ePrint);
+                    if (preOpenedPrintWin && !preOpenedPrintWin.closed) {
+                        try {
+                            handlePrintReceiptPopup(newRecord, preOpenedPrintWin);
+                        } catch (ePrint) {
+                            console.warn('Auto print receipt error:', ePrint);
+                            try { preOpenedPrintWin.close(); } catch(_) {}
+                        }
                     }
                 } catch (err) {
+                    if (preOpenedPrintWin && !preOpenedPrintWin.closed) {
+                        try { preOpenedPrintWin.close(); } catch(_) {}
+                    }
                     console.error("Zero Price Save Error:", err);
                     showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
                     setIsSubmittingZero(false);
@@ -4801,8 +4978,8 @@
                         supabaseSelect('stk_customer_types').catch(e => { console.warn('stk_customer_types fetch:', e); return []; }),
                         supabaseSelect('stk_closers').catch(e => { console.warn('stk_closers fetch:', e); return []; }),
                         supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name,id_card_url').catch(e => { console.warn('stk_members fetch:', e); return []; }),
-                        supabaseSelect('stk_customers', 'order=customer_id.desc&limit=800').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
-                        supabaseSelect('stk_sales', 'order=order_id.desc&limit=400').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
+                        supabaseSelect('stk_customers', 'order=customer_id.desc&limit=1500').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
+                        supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
                         supabaseSelect('stk_business_teams').catch(e => { console.warn('stk_business_teams fetch:', e); return []; })
                     ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
                         const resObj = {

@@ -206,6 +206,21 @@
     React.createElement('path', { d: "M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" }),
     React.createElement('circle', { cx: "12", cy: "12", r: "3" })
   );
+  const EyeOff = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('path', { d: "M9.88 9.88a3 3 0 1 0 4.24 4.24" }),
+    React.createElement('path', { d: "M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" }),
+    React.createElement('path', { d: "M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" }),
+    React.createElement('line', { x1: "2", x2: "22", y1: "2", y2: "22" })
+  );
+  const Lock = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('rect', { width: "18", height: "11", x: "3", y: "11", rx: "2", ry: "2" }),
+    React.createElement('path', { d: "M7 11V7a5 5 0 0 1 10 0v4" })
+  );
+  const Sparkles = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('path', { d: "m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" }),
+    React.createElement('path', { d: "M5 3v4" }),
+    React.createElement('path', { d: "M19 17v4" })
+  );
   const Tags = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
     React.createElement('path', { d: "M9 5H2v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L9 5Z" }),
     React.createElement('path', { d: "M6 9.01V9" })
@@ -586,7 +601,7 @@
 
     const defaultRolePermissions = {
         'พนักงานการตลาด': {
-            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', orders: 'view', customers: 'none',
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', orders: 'view', customers: 'view',
             team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
             exchange_rate: 'none', system_users: 'none', notification_settings: 'none'
         },
@@ -1426,6 +1441,7 @@
   const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
     const [username, setUsername] = React.useState('');
     const [password, setPassword] = React.useState('');
+    const [showPassword, setShowPassword] = React.useState(false);
     const [rememberMe, setRememberMe] = React.useState(false);
     const [error, setError] = React.useState('');
     const [isLoading, setIsLoading] = React.useState(false);
@@ -1490,7 +1506,7 @@
           } catch (fetchErr) {
             console.warn("REST query with id_card_url failed, trying lightweight query:", fetchErr);
             fetchErrorDetail = fetchErr.message || String(fetchErr);
-            // Retry แบบ Lightweight (ตัด id_card_url 35KB+ ออก เพื่อความเร็วและความเสถียรบนเครือข่าย Tablet/Mobile)
+            // Retry แบบ Lightweight
             try {
               const lightQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash&nocache=true`;
               const matchedLight = await window.supabaseSelect('stk_members', lightQuery);
@@ -1534,7 +1550,7 @@
           }
         }
 
-        // 4. Fallback โหมดออฟไลน์ (Local/Session Cache): กรณีแท็บเล็ตสัญญาณเน็ตหลุด ให้ตรวจใน Local Cache
+        // 4. Fallback โหมดออฟไลน์ (Local/Session Cache)
         if (!members || members.length === 0) {
           try {
             const cachedApp = localStorage.getItem('stk_app_cache_data');
@@ -1586,39 +1602,271 @@
       }
     };
 
-    return React.createElement('div', {
-      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-2 sm:p-4 animation-fade-in"
-    }, React.createElement('div', {
-      className: "bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5 sm:p-8 animation-pop border border-slate-100 relative overflow-hidden",
-      onClick: e => e.stopPropagation()
-    },
-      React.createElement('div', { className: "absolute -top-16 -right-16 w-32 h-32 bg-blue-500 rounded-full blur-3xl opacity-20" }),
-      React.createElement('div', { className: "absolute -bottom-16 -left-16 w-32 h-32 bg-fuchsia-500 rounded-full blur-3xl opacity-20" }),
-      React.createElement('div', { className: "text-center mb-8 relative z-10" },
-        React.createElement('div', { className: "w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm" }, React.createElement(UserCircle, { size: 36 })),
-        React.createElement('h3', { className: "text-2xl font-black text-slate-800" }, t('title_login', 'เข้าสู่ระบบ')),
-        React.createElement('p', { className: "text-slate-500 text-sm font-medium mt-1" }, t('subtitle_login', 'STK Sales Management'))
-      ),
-      React.createElement('form', { onSubmit: handleLogin, className: "space-y-4 relative z-10" },
-        error ? React.createElement('div', { className: "bg-red-50 text-red-500 text-sm font-bold p-3 rounded-xl border border-red-100 text-center" }, error) : null,
-        React.createElement('div', null,
-          React.createElement('label', { className: labelClassHud }, "Username"),
-          React.createElement('input', { type: "text", required: true, className: inputClassHud, placeholder: t('placeholder_username', 'กรอก Username'), value: username, onChange: e => setUsername(e.target.value) })
-        ),
-        React.createElement('div', null,
-          React.createElement('label', { className: labelClassHud }, "Password"),
-          React.createElement('input', { type: "password", required: true, className: inputClassHud, placeholder: t('placeholder_password', 'กรอก Password'), value: password, onChange: e => setPassword(e.target.value) })
-        ),
-        React.createElement('div', { className: "flex items-center gap-2 mt-1 mb-2 pl-1" },
-          React.createElement('input', { type: "checkbox", id: "rememberMe", checked: rememberMe, onChange: e => setRememberMe(e.target.checked), className: "w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" }),
-          React.createElement('label', { htmlFor: "rememberMe", className: "text-[13px] font-bold text-slate-600 cursor-pointer select-none" }, t('label_remember_pass', 'จดจำรหัสผ่าน'))
-        ),
-        React.createElement('button', { type: "submit", disabled: isLoading, className: `${btnClassPrimary} w-full mt-2` },
-          isLoading ? t('msg_checking', 'กำลังตรวจสอบ...') : t('btn_login_submit', 'เข้าสู่ระบบ')
+    // 🌟 Interactive Spotlight Glow Input (shadcn & 21st.dev style)
+    const SpotlightInput = ({ type, id, value, onChange, placeholder, required, icon, rightAction }) => {
+      const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 });
+      const [isHovered, setIsHovered] = React.useState(false);
+
+      const handleMouseMove = (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      };
+
+      return React.createElement('div', {
+        onMouseMove: handleMouseMove,
+        onMouseEnter: () => setIsHovered(true),
+        onMouseLeave: () => setIsHovered(false),
+        style: {
+          background: isHovered
+            ? `radial-gradient(120px circle at ${mousePos.x}px ${mousePos.y}px, rgba(59, 130, 246, 0.75), transparent 80%)`
+            : 'transparent'
+        },
+        className: 'group/input rounded-xl p-[2px] transition duration-300'
+      },
+        React.createElement('div', {
+          className: 'relative flex items-center bg-slate-50 dark:bg-slate-800/90 rounded-[10px] border border-slate-200 dark:border-slate-700/80 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all'
+        },
+          icon ? React.createElement('div', { className: 'pl-3.5 pr-1 text-slate-400 dark:text-slate-500 shrink-0 pointer-events-none' }, icon) : null,
+          React.createElement('input', {
+            id: id,
+            type: type,
+            required: required,
+            value: value,
+            onChange: onChange,
+            placeholder: placeholder,
+            className: 'w-full py-2.5 px-3 bg-transparent text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none'
+          }),
+          rightAction ? React.createElement('div', { className: 'pr-3 shrink-0' }, rightAction) : null
         )
-      ),
-      React.createElement('button', { onClick: onClose, className: "absolute top-4 right-4 text-slate-400 hover:text-slate-700 bg-slate-50 p-1.5 rounded-lg border border-slate-200 transition-colors z-20" }, React.createElement(X, { size: 18 }))
-    ));
+      );
+    };
+
+    // Data for Left Side Tech Orbit & Ripple Display
+    const orbitItems = [
+      { icon: React.createElement(ShoppingCart, { size: 16 }), radius: 75, duration: 18, delay: 0 },
+      { icon: React.createElement(Users, { size: 16 }), radius: 75, duration: 18, delay: -9 },
+      { icon: React.createElement(ShieldCheck, { size: 16 }), radius: 130, duration: 25, delay: 0, reverse: true },
+      { icon: React.createElement(BarChart3, { size: 16 }), radius: 130, duration: 25, delay: -8.3, reverse: true },
+      { icon: React.createElement(PackageIcon, { size: 16 }), radius: 130, duration: 25, delay: -16.6, reverse: true }
+    ];
+
+    const rippleCircles = [
+      { size: 100, opacity: 0.28, delay: '0s' },
+      { size: 160, opacity: 0.22, delay: '0.2s' },
+      { size: 220, opacity: 0.16, delay: '0.4s' },
+      { size: 280, opacity: 0.11, delay: '0.6s' },
+      { size: 340, opacity: 0.07, delay: '0.8s' }
+    ];
+
+    return React.createElement('div', {
+      className: "fixed inset-0 bg-slate-950/70 backdrop-blur-xl z-[1000] flex items-center justify-center p-3 sm:p-6 animation-fade-in"
+    },
+      React.createElement('div', {
+        className: "stk-login-glass w-full max-w-4xl rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.35)] border border-slate-200/80 dark:border-slate-800/80 flex flex-col lg:flex-row overflow-hidden relative animation-pop",
+        onClick: e => e.stopPropagation()
+      },
+        // Close Button
+        React.createElement('button', {
+          onClick: onClose,
+          className: "absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 p-2 rounded-full border border-slate-200 dark:border-slate-700 transition-all z-30 cursor-pointer shadow-sm active:scale-95"
+        }, React.createElement(X, { size: 18 })),
+
+        // LEFT PANEL: Tech Orbit & Ripple Display (Hidden on mobile, visible on desktop)
+        React.createElement('div', {
+          className: "hidden lg:flex lg:w-5/12 relative bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white flex-col items-center justify-between p-8 overflow-hidden select-none border-r border-slate-800/80 min-h-[500px]"
+        },
+          // Ambient background glow
+          React.createElement('div', { className: "absolute -top-24 -left-24 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" }),
+          React.createElement('div', { className: "absolute -bottom-24 -right-24 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" }),
+
+          // Top Header & Platform Title
+          React.createElement('div', { className: "text-center relative z-10 w-full pt-2" },
+            React.createElement('h4', { className: "text-sm font-black tracking-widest uppercase bg-gradient-to-r from-blue-300 via-white to-cyan-200 bg-clip-text text-transparent" }, "STK SALES MANAGEMENT"),
+            React.createElement('p', { className: "text-[11px] text-slate-400 mt-1 max-w-[220px] font-medium leading-relaxed mx-auto" }, "Enterprise Sales, Warehouse & Team Intelligence Platform")
+          ),
+
+          // Central Orbiting Arena (Perfect containment for ripple & orbits)
+          React.createElement('div', { className: "relative w-52 h-52 flex items-center justify-center my-auto" },
+            // Ripple Circles
+            rippleCircles.map((circle, i) =>
+              React.createElement('span', {
+                key: i,
+                style: {
+                  width: `${circle.size * 0.65}px`,
+                  height: `${circle.size * 0.65}px`,
+                  '--ripple-opacity': circle.opacity,
+                  animationDelay: circle.delay
+                },
+                className: "absolute top-1/2 left-1/2 rounded-full border border-blue-400/30 animate-stk-ripple pointer-events-none"
+              })
+            ),
+
+            // SVG Orbit Path Lines
+            React.createElement('svg', { className: "absolute inset-0 w-full h-full pointer-events-none opacity-20" },
+              React.createElement('circle', { cx: "50%", cy: "50%", r: "45", fill: "none", stroke: "#38bdf8", strokeWidth: "1", strokeDasharray: "4 4" }),
+              React.createElement('circle', { cx: "50%", cy: "50%", r: "80", fill: "none", stroke: "#818cf8", strokeWidth: "1", strokeDasharray: "6 6" })
+            ),
+
+            // Orbiting Icon Nodes
+            orbitItems.map((item, idx) =>
+              React.createElement('div', {
+                key: idx,
+                style: {
+                  '--orbit-radius': item.radius === 75 ? 45 : 80,
+                  '--orbit-duration': item.duration,
+                  animationDelay: `${item.delay}s`
+                },
+                className: `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${item.reverse ? 'animate-stk-orbit-reverse' : 'animate-stk-orbit'} pointer-events-none`
+              },
+                React.createElement('div', {
+                  className: "w-7 h-7 rounded-lg bg-slate-900/90 border border-slate-700/80 text-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/20 backdrop-blur-md"
+                }, item.icon)
+              )
+            ),
+
+            // Center Emblem Core
+            React.createElement('div', {
+              className: "relative z-10 w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-[2px] shadow-2xl shadow-blue-500/30 animate-stk-float"
+            },
+              React.createElement('div', {
+                className: "w-full h-full bg-slate-950/95 rounded-[14px] flex flex-col items-center justify-center text-center p-1 backdrop-blur-md"
+              },
+                React.createElement(Sparkles, { size: 14, className: "text-cyan-400 mb-0.5" }),
+                React.createElement('span', { className: "text-base font-black bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-300 bg-clip-text text-transparent tracking-wider" }, "STK"),
+                React.createElement('span', { className: "text-[7.5px] font-black text-slate-400 tracking-widest" }, "SALES")
+              )
+            )
+          ),
+
+          // Bottom Security Status Pill
+          React.createElement('div', { className: "text-center relative z-10 w-full pb-2" },
+            React.createElement('div', { className: "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-[10px] font-bold text-slate-400" },
+              React.createElement('span', { className: "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" }),
+              React.createElement('span', null, "System Online & Protected")
+            )
+          )
+        ),
+
+        // RIGHT PANEL: Modern Animated Login Form
+        React.createElement('div', {
+          className: "w-full lg:w-7/12 p-6 sm:p-10 flex flex-col justify-center relative z-10"
+        },
+          // Soft decorative gradient blobs
+          React.createElement('div', { className: "absolute -top-12 -right-12 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" }),
+          React.createElement('div', { className: "absolute -bottom-12 -left-12 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" }),
+
+          // Header
+          React.createElement('div', { className: "mb-6" },
+            React.createElement('div', {
+              className: "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/80 text-blue-600 dark:text-blue-400 text-xs font-bold mb-3 shadow-xs"
+            },
+              React.createElement('span', { className: "w-2 h-2 rounded-full bg-blue-500 animate-pulse" }),
+              React.createElement('span', null, "STK SECURE LOGIN")
+            ),
+            React.createElement('h3', { className: "text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight" },
+              t('title_login', 'เข้าสู่ระบบ')
+            ),
+            React.createElement('p', { className: "text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1" },
+              t('subtitle_login', 'ยินดีต้อนรับกลับมา กรุณากรอกบัญชีผู้ใช้เพื่อดำเนินการ')
+            )
+          ),
+
+          // Form
+          React.createElement('form', { onSubmit: handleLogin, className: "space-y-4" },
+            error ? React.createElement('div', {
+              className: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-bold p-3 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center gap-2.5 animate-shake"
+            },
+              React.createElement('span', { className: "text-base" }, "⚠️"),
+              React.createElement('span', { className: "flex-1" }, error)
+            ) : null,
+
+            // Username Field
+            React.createElement('div', { className: "space-y-1.5" },
+              React.createElement('label', { htmlFor: "loginUsername", className: "block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider" },
+                "Username / ชื่อผู้ใช้",
+                React.createElement('span', { className: "text-red-500 ml-1" }, "*")
+              ),
+              React.createElement(SpotlightInput, {
+                id: "loginUsername",
+                type: "text",
+                required: true,
+                value: username,
+                onChange: e => setUsername(e.target.value),
+                placeholder: t('placeholder_username', 'กรอก Username หรือ User ID'),
+                icon: React.createElement(UserCircle, { size: 18 })
+              })
+            ),
+
+            // Password Field
+            React.createElement('div', { className: "space-y-1.5" },
+              React.createElement('label', { htmlFor: "loginPassword", className: "block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider" },
+                "Password / รหัสผ่าน",
+                React.createElement('span', { className: "text-red-500 ml-1" }, "*")
+              ),
+              React.createElement(SpotlightInput, {
+                id: "loginPassword",
+                type: showPassword ? "text" : "password",
+                required: true,
+                value: password,
+                onChange: e => setPassword(e.target.value),
+                placeholder: t('placeholder_password', 'กรอก Password'),
+                icon: React.createElement(Lock, { size: 18 }),
+                rightAction: React.createElement('button', {
+                  type: "button",
+                  onClick: () => setShowPassword(!showPassword),
+                  tabIndex: -1,
+                  className: "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer p-1"
+                }, showPassword ? React.createElement(EyeOff, { size: 18 }) : React.createElement(Eye, { size: 18 }))
+              })
+            ),
+
+            // Remember Me
+            React.createElement('div', { className: "flex items-center justify-between pt-1" },
+              React.createElement('label', { className: "flex items-center gap-2 cursor-pointer select-none group" },
+                React.createElement('input', {
+                  type: "checkbox",
+                  id: "rememberMe",
+                  checked: rememberMe,
+                  onChange: e => setRememberMe(e.target.checked),
+                  className: "w-4 h-4 text-blue-600 rounded border-slate-300 dark:border-slate-600 focus:ring-blue-500 cursor-pointer transition-all"
+                }),
+                React.createElement('span', { className: "text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors" },
+                  t('label_remember_pass', 'จดจำรหัสผ่านในเครื่องนี้')
+                )
+              ),
+              React.createElement('span', { className: "text-[11px] text-slate-400 dark:text-slate-500 select-none hidden sm:inline" },
+                "Admin: admin / 1234"
+              )
+            ),
+
+            // Submit Button with BottomGradient sweep
+            React.createElement('div', { className: "pt-2" },
+              React.createElement('button', {
+                type: "submit",
+                disabled: isLoading,
+                className: "relative group/btn w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all overflow-hidden cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              },
+                React.createElement('div', { className: "flex items-center justify-center gap-2 relative z-10" },
+                  isLoading ? [
+                    React.createElement('svg', { key: "spin", className: "animate-spin h-4 w-4 text-white", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24" },
+                      React.createElement('circle', { className: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "4" }),
+                      React.createElement('path', { className: "opacity-75", fill: "currentColor", d: "M4 12a8 8 0 018-8v8H4z" })
+                    ),
+                    React.createElement('span', { key: "txt" }, t('msg_checking', 'กำลังตรวจสอบ...'))
+                  ] : [
+                    React.createElement('span', { key: "txt" }, t('btn_login_submit', 'เข้าสู่ระบบ')),
+                    React.createElement('span', { key: "arr", className: "transition-transform duration-300 group-hover/btn:translate-x-1" }, "→")
+                  ]
+                ),
+                // BottomGradient Line Sweep
+                React.createElement('span', { className: "group-hover/btn:opacity-100 block transition duration-500 opacity-0 absolute h-[2px] w-full -bottom-px inset-x-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent z-20" }),
+                React.createElement('span', { className: "group-hover/btn:opacity-100 blur-xs block transition duration-500 opacity-0 absolute h-[3px] w-3/4 mx-auto -bottom-px inset-x-10 bg-gradient-to-r from-transparent via-sky-300 to-transparent z-20" })
+              )
+            )
+          )
+        )
+      )
+    );
   };
 
   // Export to Global Window Scope
@@ -1638,6 +1886,10 @@
   window.Save = Save;
   window.Info = Info;
   window.PackageIcon = PackageIcon;
+  window.Eye = Eye;
+  window.EyeOff = EyeOff;
+  window.Lock = Lock;
+  window.Sparkles = Sparkles;
 
   window.compressImageFile = function (file, maxWidth = 500, maxHeight = 500, quality = 0.75) {
     return new Promise((resolve) => {

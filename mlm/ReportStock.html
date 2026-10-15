@@ -51,7 +51,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useMemo, useEffect, useCallback, useReducer } = React;
+    const { useState, useMemo, useEffect, useCallback, useReducer, useRef } = React;
     const { 
         Sidebar, LoginModal, Toast, EditModal, 
         PackageIcon, Activity, FileText, Archive, Eye, Info, SearchIcon 
@@ -206,6 +206,54 @@
         const todayStr = getLocalISODate();
         const [startDate, setStartDate] = useState(todayStr);
         const [endDate, setEndDate] = useState(todayStr);
+
+        // ⚡ Smart On-Demand Date Range Fetcher: ดึงยอดขายและ Stock Movements ประจำช่วงวันที่เลือกอัตโนมัติ
+        const fetchedDateRangesRef = useRef(new Set());
+        const dateFetchDebounceRef = useRef(null);
+
+        const fetchRangeSalesSmart = useCallback((start, end) => {
+            if (!start || !end || typeof window.supabaseSelect !== 'function') return;
+            const rangeKey = `${start}_${end}`;
+            if (fetchedDateRangesRef.current.has(rangeKey)) return;
+
+            if (dateFetchDebounceRef.current) clearTimeout(dateFetchDebounceRef.current);
+            dateFetchDebounceRef.current = setTimeout(async () => {
+                try {
+                    const [resSales, resMoves] = await Promise.all([
+                        window.supabaseSelect('stk_sales', `date=gte.${start}&date=lte.${end}&order=order_id.desc&limit=10000`).catch(() => []),
+                        window.supabaseSelect('stk_stock_movements', `date=gte.${start}&date=lte.${end}&order=created_at.desc&limit=10000`).catch(() => [])
+                    ]);
+                    fetchedDateRangesRef.current.add(rangeKey);
+                    if (Array.isArray(resSales) && resSales.length > 0) {
+                        setSales(prev => {
+                            const map = new Map((prev || []).map(x => [String(x.order_id || x.id), x]));
+                            resSales.forEach(x => {
+                                map.set(String(x.order_id || x.id), x);
+                            });
+                            return Array.from(map.values()).sort((a, b) => String(b.order_id || b.id || '').localeCompare(String(a.order_id || a.id || '')));
+                        });
+                    }
+                    if (Array.isArray(resMoves) && resMoves.length > 0) {
+                        setStockMovements(prev => {
+                            const map = new Map((prev || []).map(x => [String(x.movement_id || x.id), x]));
+                            resMoves.forEach(x => {
+                                map.set(String(x.movement_id || x.id), x);
+                            });
+                            return Array.from(map.values()).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+                        });
+                    }
+                } catch(err) {
+                    console.warn('Smart fetchRangeSales error in ReportStock:', err);
+                }
+            }, 300);
+        }, []);
+
+        useEffect(() => {
+            if (startDate && endDate) {
+                fetchRangeSalesSmart(startDate, endDate);
+            }
+        }, [startDate, endDate, fetchRangeSalesSmart]);
+
         const [subTab, setSubTabState] = useState(() => {
             try {
                 const params = new URLSearchParams(window.location.search);

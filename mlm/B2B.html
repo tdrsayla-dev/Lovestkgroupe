@@ -542,6 +542,8 @@
               .btn-primary { background: #10b981; color: white; } .btn-primary:hover { background: #059669; }
               .btn-size { background: #065f46; color: #ecfdf5; border: 1px solid #10b981; }
               .btn-size.active { background: #047857; color: white; border-color: #34d399; font-weight: 800; }
+              .btn-close { background: #1e293b; color: #f8fafc; border: 1px solid #475569; display: inline-flex; align-items: center; gap: 6px; }
+              .btn-close:hover { background: #ef4444; border-color: #dc2626; color: white; }
               
               .paper-container { display: flex; justify-content: center; padding: 24px; }
               .receipt-paper { background: white; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); border-radius: 8px; box-sizing: border-box; transition: all 0.3s; }
@@ -596,6 +598,7 @@
                 <button class="btn btn-size" id="btn-a4" onclick="setSize('a4')">📅 กระดาษ A4 (ใบส่งสินค้า/ใบเสร็จ)</button>
               </div>
               <div class="control-group">
+                <button class="btn btn-close" onclick="window.close()" title="ปิดหน้าต่างนี้ (Esc)" style="font-size: 14px; padding: 10px 18px;">✕ ปิดหน้านี้</button>
                 <button class="btn btn-primary" onclick="window.print()" style="font-size: 15px; padding: 10px 24px;">🖨️ สั่งพิมพ์ใบเสร็จขายส่ง</button>
               </div>
             </div>
@@ -687,6 +690,11 @@
                   btnA4.className = 'btn btn-size';
                 }
               }
+              window.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                  window.close();
+                }
+              });
             <\/script>
           </body>
           </html>

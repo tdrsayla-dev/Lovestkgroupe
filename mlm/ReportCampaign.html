@@ -275,11 +275,11 @@
         if (!forceLive && hasValidCache) {
           try {
             const [latestSale, latestClinic] = await Promise.all([
-              (window.supabaseSelect ? window.supabaseSelect('stk_sales', 'select=id,created_at&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => []),
+              (window.supabaseSelect ? window.supabaseSelect('stk_sales', 'select=order_id,created_at&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => []),
               (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('commission_logs', 'select=id,created_at&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => [])
             ]);
 
-            const currentSaleId = latestSale?.[0]?.id || null;
+            const currentSaleId = latestSale?.[0]?.order_id || latestSale?.[0]?.id || null;
             const currentClinicId = latestClinic?.[0]?.id || null;
 
             // ถ้าไม่มีบิลขายใหม่ และไม่มีคนไข้คลินิกใหม่ -> ถือว่าไม่มีข้อมูลใหม่ ไม่ต้องคำนวณซ้ำ ประหยัด Egress 100%
@@ -378,7 +378,7 @@
             }
           } catch (e) {}
 
-          let salesQuery = 'select=id,order_id,date,seller_id,customer_id,customer_name,total_amount,total_bottles,status,items_json,payment_note,created_at&order=created_at.desc';
+          let salesQuery = 'select=order_id,date,seller_id,customer_id,customer_name,total_amount,total_bottles,status,items_json,payment_note,created_at&order=created_at.desc&limit=10000';
           if (startDate) salesQuery += `&date=gte.${startDate}`;
           if (endDate) salesQuery += `&date=lte.${endDate}`;
 
@@ -386,7 +386,7 @@
             (window.supabaseSelect ? window.supabaseSelect('stk_sales', salesQuery) : Promise.resolve([])).catch(() => []),
             (!membersRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_members', 'order=user_id.asc').catch(() => []) : Promise.resolve(membersRes),
             (!teamsRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_business_teams').catch(() => []) : Promise.resolve(teamsRes),
-            (window.supabaseSelect ? window.supabaseSelect('stk_sales', 'select=id&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => []),
+            (window.supabaseSelect ? window.supabaseSelect('stk_sales', 'select=order_id&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => []),
             (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('commission_logs', 'select=id&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => [])
           ]);
 
@@ -406,7 +406,7 @@
 
             const payloadToSave = {
               timestamp: Date.now(),
-              lastSaleId: latestSaleSentinel?.[0]?.id || null,
+              lastSaleId: latestSaleSentinel?.[0]?.order_id || latestSaleSentinel?.[0]?.id || null,
               lastClinicId: latestClinicSentinel?.[0]?.id || null,
               data: evaluated
             };

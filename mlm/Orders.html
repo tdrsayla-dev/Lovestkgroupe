@@ -97,14 +97,20 @@
 
     const OrdersView = ({ sales, setSales, members, customers, setCustomers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [], nutrientOrders = [], loading }) => {
         // ⚡ สร้าง Index Map สำหรับดึงชื่อลูกค้าและผู้ปิดการขายจากใบสั่งจ่ายยา (stk_nutrient_orders)
+        // 🛡️ สำคัญมาก: Map เฉพาะคีย์ที่ระบุเจาะจงระดับบิล/ใบสั่งยาเท่านั้น (sale_order_id, visit_id, order_id)
+        // ห้าม map ด้วย hn หรือ customer_id เดี่ยวๆ เด็ดขาด! เพราะคนไข้ 1 คนมีหลาย visit
+        // การ map ด้วย hn หรือค่าว่าง/'-' จะทำให้ออเดอร์หนึ่งไปทับชื่อของออเดอร์อื่นๆ ทั้งหมดทันที!
         const nutrientOrdersMap = useMemo(() => {
             const map = new Map();
             (nutrientOrders || []).forEach(no => {
                 if (!no) return;
-                if (no.sale_order_id) map.set(String(no.sale_order_id).trim().toUpperCase(), no);
-                if (no.visit_id) map.set(String(no.visit_id).trim().toUpperCase(), no);
-                if (no.order_id) map.set(String(no.order_id).trim().toUpperCase(), no);
-                if (no.hn) map.set(String(no.hn).trim().toUpperCase(), no);
+                const sId = String(no.sale_order_id || '').trim().toUpperCase();
+                const vId = String(no.visit_id || '').trim().toUpperCase();
+                const oId = String(no.order_id || '').trim().toUpperCase();
+
+                if (sId && sId !== '-' && sId !== '--') map.set(sId, no);
+                if (vId && vId !== '-' && vId !== '--') map.set(vId, no);
+                if (oId && oId !== '-' && oId !== '--') map.set(oId, no);
             });
             return map;
         }, [nutrientOrders]);
@@ -644,9 +650,11 @@
                    const sNote = s.paymentNote ? s.paymentNote.toLowerCase() : '';
 
                    const cObj = (customers || []).find(c => c && String(c.id || c.customer_id || '').toLowerCase() === sCustId);
+                   const vMatch = sNote.match(/VIS-[A-Z0-9-]+/i) || sNote.match(/VISIT:\s*([^\)\s]+)/i);
+                   const vIdStr = vMatch ? (vMatch[1] || vMatch[0]).trim().toUpperCase() : '';
                    const nOrd = (nutrientOrdersMap && (
                        (s.id && nutrientOrdersMap.get(String(s.id).toUpperCase())) ||
-                       (sCustId && nutrientOrdersMap.get(sCustId.toUpperCase()))
+                       (vIdStr && nutrientOrdersMap.get(vIdStr))
                    )) || null;
                    const sCustName = (cObj?.name || nOrd?.customer_name || s.customerName || s.customer_name || '').toLowerCase();
 
@@ -770,8 +778,7 @@
             }) || {};
 
             const nutrientOrderReceipt = (saleRecord.id && nutrientOrdersMap.get(String(saleRecord.id).toUpperCase())) ||
-                                         (visitIdReceipt && nutrientOrdersMap.get(visitIdReceipt)) ||
-                                         (targetSaleCustId && nutrientOrdersMap.get(targetSaleCustId)) || null;
+                                         (visitIdReceipt && nutrientOrdersMap.get(visitIdReceipt)) || null;
 
             const isCleanReceiptName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
             const custName = (isCleanReceiptName(custObj.name) ? custObj.name : null) || 
@@ -1096,6 +1103,8 @@
                 .btn-primary { background: #2563eb; color: white; } .btn-primary:hover { background: #1d4ed8; }
                 .btn-size { background: #334155; color: #f8fafc; border: 1px solid #475569; }
                 .btn-size.active { background: #3b82f6; color: white; border-color: #60a5fa; }
+                .btn-close { background: #334155; color: #f8fafc; border: 1px solid #475569; display: inline-flex; align-items: center; gap: 6px; }
+                .btn-close:hover { background: #ef4444; border-color: #dc2626; color: white; }
                 
                 .paper-container { display: flex; justify-content: center; padding: 24px; }
                 .receipt-paper { background: white; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); border-radius: 8px; box-sizing: border-box; transition: all 0.3s; }
@@ -1150,6 +1159,7 @@
                   <button class="btn btn-size" id="btn-a4" onclick="setSize('a4')">📑 กระดาษ A4</button>
                 </div>
                 <div class="control-group">
+                  <button class="btn btn-close" onclick="window.close()" title="ปิดหน้าต่างนี้ (Esc)" style="font-size: 14px; padding: 10px 18px;">✕ ปิดหน้านี้</button>
                   <button class="btn btn-primary" onclick="window.print()" style="font-size: 15px; padding: 10px 24px;">🖨️ สั่งพิมพ์ใบเสร็จ</button>
                 </div>
               </div>
@@ -1222,6 +1232,11 @@
                     btnA4.className = 'btn btn-size';
                   }
                 }
+                window.addEventListener('keydown', function(e) {
+                  if (e.key === 'Escape') {
+                    window.close();
+                  }
+                });
               <\/script>
             </body>
             </html>
@@ -1363,39 +1378,80 @@
                     }
                 }
 
-                                // 📜 บันทึกประวัติบิลถูกยกเลิก (Deleted Order Audit Log)
+                // 📜 บันทึกประวัติบิลถูกยกเลิก (Deleted Order Audit Log) - ปรับปรุงข้อมูลให้ถูกต้องสมบูรณ์ 100%
                 let itemsSummaryText = '';
                 if (itemsList.length > 0) {
-                    itemsSummaryText = itemsList.map(it => `${it.prod || it.productName || 'สินค้า'} x${it.qty || 1}`).join(', ');
+                    itemsSummaryText = itemsList.map(it => {
+                        const pName = String(it.prod || it.productName || it.name || 'สินค้า').trim();
+                        const q = it.qty || it.quantity || 1;
+                        const pType = it.type || it.priceType || '';
+                        return `${pName} x${q}${pType ? ` (${pType})` : ''}`;
+                    }).join(', ');
                 } else {
                     itemsSummaryText = 'บิลสินค้า';
                 }
 
-                const cNameLog = (customers || []).find(c => c && c.id === saleToCancel.customerId)?.name || saleToCancel.customerName || saleToCancel.customerId || '-';
-                const mNameLog = (members || []).find(m => m && m.id === saleToCancel.memberId)?.name || saleToCancel.memberName || saleToCancel.memberId || '-';
+                // ดึงรหัสลูกค้าและชื่อลูกค้าให้ถูกต้อง (รวมทั้งกรณีเบิกตัดศูนย์ INTERNAL)
+                const rawCustId = String(saleToCancel.customerId || saleToCancel.customer_id || '').trim();
+                const isZeroCutBill = (saleToCancel.saleType === 'ตัดศูนย์สินค้า' || saleToCancel.sale_type === 'ตัดศูนย์สินค้า' || rawCustId === 'INTERNAL');
+                let cNameLog = '-';
+                if (isZeroCutBill) {
+                    const noteStr = String(saleToCancel.paymentNote || saleToCancel.payment_note || '').trim();
+                    const reqMatch = noteStr.match(/ผู้เบิก:\s*([^\|\n]+)/);
+                    const requester = reqMatch ? reqMatch[1].trim() : (saleToCancel.recordedBy || saleToCancel.recorded_by || 'เจ้าหน้าที่');
+                    cNameLog = `เบิกตัดศูนย์ (${requester})`;
+                } else {
+                    const foundCust = (customers || []).find(c => c && (c.id === rawCustId || c.customer_id === rawCustId));
+                    cNameLog = foundCust?.name || saleToCancel.customerName || saleToCancel.customer_name || rawCustId || '-';
+                }
+
+                // ดึงรหัสผู้ขายและชื่อผู้ขายให้ถูกต้อง
+                const rawMemberId = String(saleToCancel.memberId || saleToCancel.sellerId || saleToCancel.seller_id || saleToCancel.seller || '').trim();
+                const foundMember = (members || []).find(m => m && (m.id === rawMemberId || m.user_id === rawMemberId || m.member_id === rawMemberId));
+                const mNameLog = foundMember?.name || saleToCancel.memberName || saleToCancel.member_name || rawMemberId || '-';
+
+                // คำนวณยอดเงินรวมให้ถูกต้อง 100% (รองรับทั้งตัวเลข, ข้อความติด comma, และคำนวณจาก items หากบิลมีมูลค่า)
+                let rawAmt = saleToCancel.totalAmount !== undefined ? saleToCancel.totalAmount : saleToCancel.total_amount;
+                let parsedAmt = 0;
+                if (typeof rawAmt === 'string') {
+                    parsedAmt = parseFloat(rawAmt.replace(/,/g, '')) || 0;
+                } else if (typeof rawAmt === 'number') {
+                    parsedAmt = rawAmt;
+                }
+
+                // ถ้าเป็นบิลปกติแต่ยอดเงินดึงมาเป็น 0 ให้คำนวณยอดรวมจากรายการสินค้าจริง
+                if (parsedAmt === 0 && !isZeroCutBill && Array.isArray(itemsList) && itemsList.length > 0) {
+                    parsedAmt = itemsList.reduce((sum, it) => {
+                        const q = Number(it.qty || it.quantity || 1);
+                        const p = Number(it.price || it.unitPrice || it.unit_price || 0);
+                        return sum + (q * p);
+                    }, 0);
+                }
+
+                const sType = saleToCancel.saleType || saleToCancel.sale_type || (isZeroCutBill ? 'ตัดศูนย์สินค้า' : 'เงินสด');
+                const origDate = saleToCancel.date || saleToCancel.sale_date || (saleToCancel.created_at ? saleToCancel.created_at.split('T')[0] : '');
 
                 const deletedRecord = {
-                    id: saleToCancel.id,
+                    id: confirmDelete.id || saleToCancel.id || saleToCancel.order_id,
                     deleted_at: new Date().toISOString(),
                     deleted_by: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'Admin',
                     customer_name: cNameLog,
-                    customer_id: saleToCancel.customerId || '',
+                    customer_id: rawCustId,
                     member_name: mNameLog,
-                    member_id: saleToCancel.memberId || '',
-                    total_amount: Number(saleToCancel.totalAmount || saleToCancel.total_amount || 0),
+                    member_id: rawMemberId,
+                    total_amount: parsedAmt,
                     items_summary: itemsSummaryText,
-                    original_date: saleToCancel.date,
-                    reason: 'ยกเลิก/ลบบิลจากระบบ'
+                    original_date: origDate,
+                    reason: isZeroCutBill ? 'ยกเลิกรายการเบิกตัดศูนย์' : (sType ? `ยกเลิกบิล (${sType})` : 'ยกเลิก/ลบบิลจากระบบ')
                 };
 
                 const updatedLogs = [deletedRecord, ...deletedOrdersLog];
                 saveDeletedLog(updatedLogs);
 
-                // 🛠️ FIX: ใช้คำสั่ง Insert ตามเดิม แต่ดักจับและซ่อน Error 409 (Conflict) 
-                // หากขึ้น 409 แปลว่าประวัตินี้ถูกบันทึกไปแล้ว (เช่น กดเบิ้ล) ก็ให้ระบบทำงานต่อเงียบๆ ได้เลย
+                // 🛠️ บันทึกลงตาราง stk_deleted_sales ใน Database
                 if (typeof supabaseInsert === 'function') {
                     supabaseInsert('stk_deleted_sales', deletedRecord).catch((err) => {
-                        console.log('ℹ️ หมายเหตุ: ประวัติการยกเลิกบิลนี้มีอยู่ในระบบแล้ว (หรือสิทธิ์ RLS จำกัด)');
+                        console.log('ℹ️ หมายเหตุ: ประวัติการยกเลิกบิลนี้มีอยู่ในระบบแล้ว (หรือสิทธิ์ RLS จำกัด):', err);
                     });
                 }
 
@@ -1644,8 +1700,8 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                 <tr>
                                     <th className="p-3 font-black text-slate-600">เลขที่บิล</th>
-                                    <th className="p-3 font-black text-slate-600">เวลายกเลิก</th>
-                                    <th className="p-3 font-black text-slate-600">ลูกค้า / ผู้ขาย</th>
+                                    <th className="p-3 font-black text-slate-600">วัน/เวลายกเลิก</th>
+                                    <th className="p-3 font-black text-slate-600">ลูกค้า / ผู้ขอเบิก</th>
                                     <th className="p-3 font-black text-slate-600">รายการสินค้า</th>
                                     <th className="p-3 font-black text-slate-600 text-right">ยอดรวม</th>
                                     <th className="p-3 font-black text-slate-600">ผู้ลบ</th>
@@ -1658,6 +1714,8 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                         const term = deletedSearchTerm.toLowerCase();
                                         return String(l.id || '').toLowerCase().includes(term) ||
                                                String(l.customer_name || '').toLowerCase().includes(term) ||
+                                               String(l.member_name || '').toLowerCase().includes(term) ||
+                                               String(l.items_summary || '').toLowerCase().includes(term) ||
                                                String(l.deleted_by || '').toLowerCase().includes(term);
                                     });
 
@@ -1665,7 +1723,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                         return (
                                             <tr>
                                                 <td colSpan="6" className="text-center py-8 text-slate-400 font-bold">
-                                                    {deletedOrdersLog.length === 0 ? 'ยังไม่มีประวัติการยกเลิกบิล' : 'ไม่พบข้อมูลที่ตรงกับคำค้นหา'}
+                                                    {deletedOrdersLog.length === 0 ? 'ไม่มีประวัติบิลถูกยกเลิกในวันที่นี้' : 'ไม่พบข้อมูลที่ตรงกับคำค้นหา'}
                                                 </td>
                                             </tr>
                                         );
@@ -1673,23 +1731,45 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
                                     return filteredLogs.map((log, idx) => (
                                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                            <td className="p-3 font-mono font-bold text-rose-600">{log.id}</td>
-                                            <td className="p-3 text-slate-500 whitespace-nowrap">
-                                                {log.deleted_at ? new Date(log.deleted_at).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) + ' น.' : '-'}
+                                            <td className="p-3 font-mono font-bold text-rose-600 whitespace-nowrap">{log.id}</td>
+                                            <td className="p-3 text-slate-600 whitespace-nowrap">
+                                                <div className="font-bold text-slate-800">
+                                                    {log.deleted_at ? new Date(log.deleted_at).toLocaleDateString('th-TH', {day: '2-digit', month: '2-digit', year: 'numeric'}) : '-'}
+                                                </div>
+                                                <div className="text-[11px] text-slate-500 font-medium">
+                                                    {log.deleted_at ? new Date(log.deleted_at).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) + ' น.' : '-'}
+                                                </div>
+                                                {log.original_date && (
+                                                    <div className="text-[10px] text-slate-400 mt-0.5">บิลวันที่: {log.original_date}</div>
+                                                )}
                                             </td>
                                             <td className="p-3">
-                                                <div className="font-bold text-slate-800">{log.customer_name}</div>
-                                                <div className="text-[10px] text-slate-400">ผู้ขาย: {log.member_name}</div>
+                                                <div className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                                    {String(log.customer_name || '').includes('เบิกตัดศูนย์') ? (
+                                                        <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-black shrink-0">เบิกตัดศูนย์</span>
+                                                    ) : null}
+                                                    <span>{log.customer_name || '-'}</span>
+                                                </div>
+                                                <div className="text-[11px] text-slate-500 mt-0.5">ผู้ขาย/ผู้ทำรายการ: <span className="font-semibold text-slate-700">{log.member_name || '-'}</span></div>
                                             </td>
-                                            <td className="p-3 text-slate-600 max-w-xs truncate" title={log.items_summary}>
-                                                {log.items_summary}
+                                            <td className="p-3 text-slate-600 max-w-xs" title={log.items_summary}>
+                                                <div className="font-medium text-[11px] line-clamp-2">{log.items_summary || '-'}</div>
                                             </td>
-                                            <td className="p-3 text-right font-black text-slate-800 whitespace-nowrap">
-                                                ฿{Number(log.total_amount || 0).toLocaleString()}
+                                            <td className="p-3 text-right whitespace-nowrap">
+                                                {Number(log.total_amount || 0) === 0 ? (
+                                                    <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold text-[11px] border border-slate-200">
+                                                        <span>฿0</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">(ตัดศูนย์)</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="font-black text-slate-900 text-[13px]">
+                                                        ฿{Number(log.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </div>
+                                                )}
                                             </td>
-                                            <td className="p-3">
-                                                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[10px]">
-                                                    {log.deleted_by}
+                                            <td className="p-3 whitespace-nowrap">
+                                                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[10px] border border-slate-200">
+                                                    {log.deleted_by || 'Admin'}
                                                 </span>
                                             </td>
                                         </tr>
@@ -1747,8 +1827,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                 });
 
                                 const nOrdModal = (viewBillDetail.id && nutrientOrdersMap.get(String(viewBillDetail.id).toUpperCase())) ||
-                                                  (visitIdModal && nutrientOrdersMap.get(visitIdModal)) ||
-                                                  (targetModalCustId && nutrientOrdersMap.get(targetModalCustId)) || null;
+                                                  (visitIdModal && nutrientOrdersMap.get(visitIdModal)) || null;
 
                                 const isCleanModalName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
                                 const modalCustName = (isCleanModalName(cObj?.name) ? cObj.name : null) || 
@@ -2034,13 +2113,12 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
                           const nutrientOrderRow = (nutrientOrdersMap && (
                               (rs.id && nutrientOrdersMap.get(String(rs.id).trim().toUpperCase())) ||
-                              (visitIdRow && nutrientOrdersMap.get(visitIdRow)) ||
-                              (targetCustId && nutrientOrdersMap.get(targetCustId))
+                              (visitIdRow && nutrientOrdersMap.get(visitIdRow))
                           )) || null;
 
                           const isCleanCustName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
-                          const cName = (isCleanCustName(nutrientOrderRow?.customer_name) ? nutrientOrderRow.customer_name : null) || 
-                                        (isCleanCustName(custObj?.name) ? custObj.name : null) || 
+                          const cName = (isCleanCustName(custObj?.name) ? custObj.name : null) || 
+                                        (isCleanCustName(nutrientOrderRow?.customer_name) ? nutrientOrderRow.customer_name : null) || 
                                         (isCleanCustName(rs.customerName || rs.customer_name) ? (rs.customerName || rs.customer_name) : '');
 
                           let custFallbackLabel = '';
@@ -2295,16 +2373,19 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
           }
                     if (data.systemSettings) setSystemSettings(data.systemSettings);
 
-          // ⚡ ดึงประวัติบิลที่ถูกยกเลิกจากเฉพาะตาราง stk_deleted_sales ใน Database
+          // ⚡ ดึงประวัติบิลที่ถูกยกเลิกเฉพาะของวันนี้จากตาราง stk_deleted_sales ใน Database (ประหยัด Egress)
           if (typeof supabaseSelect === 'function') {
-              supabaseSelect('stk_deleted_sales', 'order=deleted_at.desc&limit=500').then(dbDeletedSales => {
+              const todayIsoPrefix = (typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0]);
+              supabaseSelect('stk_deleted_sales', `deleted_at=gte.${todayIsoPrefix}T00:00:00Z&order=deleted_at.desc&limit=100`).then(dbDeletedSales => {
                   if (Array.isArray(dbDeletedSales)) {
                       const formatted = dbDeletedSales.map(d => ({
                           id: d.id || d.sale_id || d.order_id,
                           deleted_at: d.deleted_at || d.created_at,
                           deleted_by: d.deleted_by || 'Admin',
                           customer_name: d.customer_name || '-',
+                          customer_id: d.customer_id || '',
                           member_name: d.member_name || '-',
+                          member_id: d.member_id || '',
                           total_amount: Number(d.total_amount || 0),
                           items_summary: d.items_summary || '-',
                           original_date: d.original_date || '',

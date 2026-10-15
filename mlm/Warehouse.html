@@ -595,7 +595,7 @@
           const fetchSalesPromise = (async () => {
             if (auditDate && typeof window.supabaseSelect === 'function') {
               try {
-                return await window.supabaseSelect('stk_sales', `select=date,items_json,status&date=eq.${auditDate}&limit=300` + cacheParam);
+                return await window.supabaseSelect('stk_sales', `select=date,items_json,status&date=eq.${auditDate}&limit=3000` + cacheParam);
               } catch(e) {
                 console.warn('fetchSales error:', e);
               }
@@ -801,8 +801,8 @@
               setAuditSavedInfo(null);
             }
 
-            // 2. ดึงยอดขายประจำวัน เฉพาะคอลัมน์จำเป็นและจำกัดขอบเขต
-            const salesRes = await window.supabaseSelect('stk_sales', `date=eq.${auditDate}&select=bill_id,date,items_json,status&limit=500`).catch(() => []);
+            // 2. ดึงยอดขายประจำวัน เฉพาะคอลัมน์จำเป็นและจำกัดขอบเขต (รักษา Egress ต่ำสุด)
+            const salesRes = await window.supabaseSelect('stk_sales', `date=eq.${auditDate}&select=order_id,date,items_json,status&limit=3000`).catch(() => []);
             if (Array.isArray(salesRes)) {
               const sMap = {};
               salesRes.forEach(bill => {
@@ -1122,10 +1122,12 @@
           const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
           if (isMainWh) return;
 
+          const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
           const isSaleOut = m.type === 'OUT' && (
              subType.includes('ขาย') || subType.includes('ตัดสต๊อก') || subType.includes('sale') ||
              notesStr.includes('ขาย') || notesStr.includes('sale') || notesStr.includes('บิล') ||
-             subType.includes('ปรับปรุง') || notesStr.includes('ปรับปรุง') || subType.includes('audit')
+             subType.includes('ปรับปรุง') || notesStr.includes('ปรับปรุง') || subType.includes('audit') ||
+             isZeroOut
           ) && !subType.includes('เบิกย้าย');
 
           const isSaleReturn = m.type === 'IN' && (
@@ -1185,10 +1187,11 @@
                     const notesStr = String(m.notes || '').toLowerCase();
                     const whId = String(m.warehouse_id || '').toUpperCase();
                     const isMain = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                    const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                    const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
+                    const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                     const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
 
-                    return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale')) && !isTransfer && !isGrn && !isMain;
+                    return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMain;
                   })
                   .reduce((s, m) => s + Number(m.quantity || 0), 0);
 
@@ -1201,7 +1204,8 @@
                     const notesStr = String(m.notes || '').toLowerCase();
                     const whId = String(m.warehouse_id || '').toUpperCase();
                     const isMain = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                    const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                    const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
+                    const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                     const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
 
                     return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMain;
@@ -1738,10 +1742,11 @@
                 
                 // ดักจับ: ต้องไม่ใช่คลังใหญ่ และต้องไม่ใช่ใบเบิก หรือใบรับเข้า
                 const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
+                const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                 const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
 
-                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale')) && !isTransfer && !isGrn && !isMainWh;
+                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMainWh;
               })
               .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
 
@@ -1755,7 +1760,8 @@
                 const whId = String(m.warehouse_id || '').toUpperCase();
                 
                 const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                const isTransfer = subType.includes('เบิก') || notesStr.includes('เบิก') || m.type === 'TRANSFER';
+                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
+                const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                 const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
 
                 return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMainWh;
