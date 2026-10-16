@@ -4,6 +4,11 @@
 // window.SUPABASE_HEADERS, window.supabaseSelect — พร้อมใช้งานทั้งหมด
 
 async function supabaseSelect(table, query) {
+  // 🛡️ บล็อกการยิง Request ทันทีถ้าไม่มี Session ที่ถูกต้อง
+  if (typeof window.isCeoAuthenticated === 'function' && !window.isCeoAuthenticated()) {
+    console.warn(`[CEO-Dashboard] supabaseSelect blocked for '${table}': Session expired or not logged in`);
+    return null;
+  }
   // ใช้ supabaseSelect จาก config.js ถ้ามี ไม่งั้น fallback ทำเอง
   if (window.supabaseSelect && window.supabaseSelect !== supabaseSelect) {
     return window.supabaseSelect(table, query);
@@ -2613,6 +2618,13 @@ function closeStockDetailModal() {
 let _lastDashboardFetchTime = 0;
 
 async function loadCeoDashboardData() {
+  // 🛡️ EGRESS PROTECTION: ตรวจสอบความถูกต้องของเซสชันก่อนดึงข้อมูลทุกครั้ง
+  // หากผู้ใช้ออกจากระบบแล้ว หรือไม่มีการใช้งานจนหมดเวลา จะไม่ดึงข้อมูลเด็ดขาด
+  if (typeof window.isCeoAuthenticated === 'function' && !window.isCeoAuthenticated()) {
+    console.warn('[CEO-Dashboard] 🛑 Data load aborted: User is not authenticated or session timed out (Egress Saved)');
+    return;
+  }
+
   _lastDashboardFetchTime = Date.now();
   const lastUpdatedEl = document.getElementById('lastUpdated');
   if (lastUpdatedEl) {
@@ -3037,6 +3049,10 @@ function initCeoEvents() {
 
   // โหลดใหม่เมื่อสลับกลับมาที่หน้าต่าง เฉพาะกรณีที่ผ่านไปแล้วอย่างน้อย 2 นาที เพื่อประหยัด Egress และไม่ดึงข้อมูลซ้ำซ้อน
   window.addEventListener('focus', () => {
+    // 🛡️ ไม่ดึงข้อมูลถ้าออกจากระบบแล้ว
+    if (typeof window.isCeoAuthenticated === 'function' && !window.isCeoAuthenticated()) {
+      return;
+    }
     if (Date.now() - _lastDashboardFetchTime > 2 * 60 * 1000) {
       loadCeoDashboardData();
     }
@@ -3050,8 +3066,7 @@ function handleCeoLogout() {
   if (modal) {
     modal.style.display = 'flex';
   } else if (confirm('คุณต้องการออกจากระบบ CEO Dashboard หรือไม่?')) {
-    localStorage.removeItem('stk_ceo_session');
-    window.location.href = 'ceo-login.html';
+    confirmCeoLogout();
   }
 }
 
@@ -3061,8 +3076,17 @@ function closeCeoLogoutModal() {
 }
 
 function confirmCeoLogout() {
-  localStorage.removeItem('stk_ceo_session');
-  window.location.href = 'ceo-login.html';
+  if (typeof window.performCeoAutoLogout === 'function') {
+    window.performCeoAutoLogout('manual');
+  } else {
+    try {
+      localStorage.removeItem('stk_ceo_session');
+      localStorage.removeItem('stk_ceo_last_activity');
+      localStorage.removeItem('stk_ceo_last_activity_date');
+      sessionStorage.setItem('stk_ceo_logout_reason', 'manual');
+    } catch (e) {}
+    window.location.href = 'ceo-login.html';
+  }
 }
 
 if (document.readyState === 'loading') {

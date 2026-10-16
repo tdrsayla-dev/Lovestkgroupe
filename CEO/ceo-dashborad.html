@@ -8,10 +8,29 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Sukhumvit+Set:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+  <!-- ⚙️ CEO Config — แยกอิสระเฉพาะระบบ CEO พร้อมระบบ Auto-Logout & ป้องกัน Egress -->
+  <script src="ceo-config.js"></script>
   <script>
     // 🔒 ระบบตรวจสอบสิทธิ์การเข้าสู่ระบบ CEO Dashboard
     (function checkAuth() {
       try {
+        if (typeof window.isCeoAuthenticated === 'function' && !window.isCeoAuthenticated()) {
+          const sessionStr = localStorage.getItem('stk_ceo_session');
+          if (sessionStr) {
+            // หมดเวลาหรือข้ามวัน
+            const lastDate = localStorage.getItem('stk_ceo_last_activity_date');
+            const d = new Date();
+            const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const reason = (lastDate && lastDate !== todayStr) ? 'cross_day' : 'inactivity';
+            localStorage.removeItem('stk_ceo_session');
+            localStorage.removeItem('stk_ceo_last_activity');
+            localStorage.removeItem('stk_ceo_last_activity_date');
+            sessionStorage.setItem('stk_ceo_logout_reason', reason);
+          }
+          window.location.replace('ceo-login.html');
+          return;
+        }
+
         const sessionStr = localStorage.getItem('stk_ceo_session');
         if (!sessionStr) {
           window.location.replace('ceo-login.html');
@@ -1037,7 +1056,6 @@
   </div>
 </div>
 
-<script src="ceo-config.js"></script>
 <script src="ceo-function.js"></script>
 </body>
 </html>
