@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.10.19.05';
+  const APP_VERSION = '2026.10.19.09';
   window.APP_VERSION = APP_VERSION;
 
   // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
@@ -20,9 +20,10 @@
       localStorage.removeItem('stk_app_cache_time');
       localStorage.removeItem('stk_clinic_doctors_cache');
       sessionStorage.removeItem('stk_admin_products_full');
+      sessionStorage.removeItem('stk_warehouse_audit_cache');
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const k = sessionStorage.key(i);
-        if (k && k.startsWith('stk_qc_')) sessionStorage.removeItem(k);
+        if (k && (k.startsWith('stk_qc_') || k.startsWith('stk_warehouse_'))) sessionStorage.removeItem(k);
         if (k && k.startsWith('stk_campaign_eval_')) sessionStorage.removeItem(k);
       }
       for (let i = localStorage.length - 1; i >= 0; i--) {

@@ -1217,12 +1217,12 @@
                     const notesStr = String(m.notes || '').toLowerCase();
                     const whId = String(m.warehouse_id || '').toUpperCase();
                     const isMain = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                    const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
+                    const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out');
                     const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                     const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
 
                     const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
-                    return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMain && !isAdjustment;
+                    return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMain && (!isAdjustment || isZeroOut);
                   })
                   .reduce((s, m) => s + Number(m.quantity || 0), 0);
 
@@ -1783,12 +1783,12 @@
                 
                 // ดักจับ: ต้องไม่ใช่คลังใหญ่ และต้องไม่ใช่ใบเบิก หรือใบรับเข้า หรือรายการปรับสต๊อก
                 const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
+                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out');
                 const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                 const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
                 const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
 
-                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMainWh && !isAdjustment;
+                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMainWh && (!isAdjustment || isZeroOut);
               })
               .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
 
@@ -1856,7 +1856,9 @@
 
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
-            : null;
+            : (existingAudit && existingAudit.physical_count_qty !== null && existingAudit.physical_count_qty !== undefined
+                ? Number(existingAudit.physical_count_qty)
+                : null);
           
           const diff = physCount !== null ? (physCount - systemClosing) : 0;
           const diffDelta = (physCount !== null && prevDiff !== null) ? (diff - prevDiff) : null;
@@ -5180,7 +5182,7 @@
                                         type="number"
                                         min="0"
                                         placeholder="0"
-                                        value={physicalCounts[r.productId] ?? ''}
+                                        value={physicalCounts[r.productId] ?? r.physicalCount ?? ''}
                                         onChange={e => handlePhysicalCountChange(r.productId, e.target.value)}
                                         className="w-20 text-center py-1 px-2 rounded-lg bg-slate-50 hover:bg-white focus:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 placeholder:font-normal"
                                       />
