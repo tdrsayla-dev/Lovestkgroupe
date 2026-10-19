@@ -4304,23 +4304,25 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
                 rowsHtml += `
                     <tr class="bg-light border-bottom opacity-75">
-                        <td class="ps-3 py-3 text-center text-muted fw-semibold align-top" style="width: 45px; min-width: 45px;">${idx + 1}</td>
-                        <td class="py-3 text-secondary align-top">
-                            <div class="d-flex align-items-center mb-1">
-                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill me-2 fw-semibold" style="font-size: 0.72rem;">
-                                    <i class="bi bi-box-seam me-1"></i>ແພັກເກຈ
-                                </span>
-                                <span class="fw-bold text-dark fs-6">${itemDetails.name}</span>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle ms-2 px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ຈ່າຍແລ້ວ (ບິນກ່ອນໜ້າ)</span>
+                        <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-top" style="width: 45px; min-width: 45px;">${idx + 1}</td>
+                        <td class="py-2.5 text-secondary align-top">
+                            <div class="mb-1.5">
+                                <div class="fw-bold text-dark fs-6 mb-1 text-wrap" style="line-height: 1.4;">${itemDetails.name}</div>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill fw-semibold" style="font-size: 0.72rem;">
+                                        <i class="bi bi-box-seam me-1"></i>ແພັກເກຈ
+                                    </span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ຈ່າຍແລ້ວ (ບິນກ່ອນໜ້າ)</span>
+                                </div>
                             </div>
-                            <div class="p-2 rounded-3 bg-white border ms-1">
+                            <div class="p-2 rounded-3 bg-white border">
                                 <div class="d-flex flex-wrap gap-1">
                                     ${subItemsHtml}
                                 </div>
                             </div>
                         </td>
-                        <td class="py-3 text-end align-top" style="white-space: nowrap !important;">${priceBadge}</td>
-                        <td class="pe-3 py-3 text-center align-top text-muted small" style="width: 45px;">-</td>
+                        <td class="py-2.5 text-end align-top" style="white-space: nowrap !important;">${priceBadge}</td>
+                        <td class="pe-3 py-2.5 text-center align-top text-muted small" style="width: 45px;">-</td>
                     </tr>
                 `;
             } else {
@@ -4328,7 +4330,10 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                     <tr class="bg-light border-bottom opacity-75">
                         <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-middle" style="width: 45px; min-width: 45px;">${idx + 1}</td>
                         <td class="py-2.5 text-secondary fw-semibold align-middle">
-                            ${itemDetails.name}                            <span class="badge bg-success-subtle text-success border border-success-subtle ms-2 px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ຈ່າຍແລ້ວ (ບິນກ່ອນໜ້າ)</span>
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-1.5">
+                                <span class="text-dark text-wrap">${itemDetails.name}</span>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ຈ່າຍແລ້ວ (ບິນກ່ອນໜ້າ)</span>
+                            </div>
                         </td>
                         <td class="py-2.5 text-end align-middle" style="white-space: nowrap !important;">${priceBadge}</td>
                         <td class="pe-3 py-2.5 text-center align-middle text-muted small" style="width: 45px;">-</td>
@@ -4356,17 +4361,19 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
                 rowsHtml += `
                     <tr class="bg-white border-bottom">
-                        <td class="ps-3 py-3 text-center text-muted fw-semibold align-top" style="width: 45px; min-width: 45px;">${idx + 1}</td>
-                        <td class="py-3 text-dark align-top">
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill me-2 fw-semibold" style="font-size: 0.75rem;">
-                                    <i class="bi bi-box-seam me-1"></i>ແພັກເກຈ
-                                </span>
-                                <span class="fw-bold text-dark fs-6">${itemDetails.name}</span>
-                                ${newBadge}
+                        <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-top" style="width: 45px; min-width: 45px;">${idx + 1}</td>
+                        <td class="py-2.5 text-dark align-top">
+                            <div class="mb-1.5">
+                                <div class="fw-bold text-dark fs-6 mb-1 text-wrap" style="line-height: 1.4;">${itemDetails.name}</div>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 rounded-pill fw-semibold" style="font-size: 0.75rem;">
+                                        <i class="bi bi-box-seam me-1"></i>ແພັກເກຈ
+                                    </span>
+                                    ${newBadge}
+                                </div>
                             </div>
-                            <div class="p-2.5 rounded-3 bg-light border ms-1">
-                                <div class="text-muted extra-small fw-bold mb-2" style="font-size: 0.75rem; color: #475569;">
+                            <div class="p-2 rounded-3 bg-light border">
+                                <div class="text-muted extra-small fw-bold mb-1.5" style="font-size: 0.75rem; color: #475569;">
                                     <i class="bi bi-diagram-3 me-1 text-primary"></i>ລາຍການກວດຍ່ອຍໃນແພັກເກຈ (${itemDetails.subItems.length} ລາຍການ):
                                 </div>
                                 <div class="d-flex flex-wrap gap-1">
@@ -4374,8 +4381,8 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                                 </div>
                             </div>
                         </td>
-                        <td class="py-3 text-end text-primary fw-bold fs-6 align-top" style="white-space: nowrap !important;">${priceDisplay}</td>
-                        <td class="pe-3 py-3 text-center align-top" style="width: 45px;">
+                        <td class="py-2.5 text-end text-primary fw-bold fs-6 align-top" style="white-space: nowrap !important;">${priceDisplay}</td>
+                        <td class="pe-3 py-2.5 text-center align-top" style="width: 45px;">
                             <button type="button" class="btn btn-sm btn-outline-danger p-1 rounded-2 shadow-none border-0 mt-1" 
                                 title="ຍົກເລີກ/ລົບແພັກເກດນີ້" 
                                 onclick="event.stopPropagation(); removeTestItemFromVisit('${visitId}', '${safeTestParam}', '${safeTestName}')">
@@ -4389,8 +4396,10 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                     <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-light'} border-bottom">
                         <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-middle" style="width: 45px; min-width: 45px;">${idx + 1}</td>
                         <td class="py-2.5 text-dark fw-semibold align-middle">
-                            ${itemDetails.name}
-                            ${newBadge}
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-1.5">
+                                <span class="text-wrap">${itemDetails.name}</span>
+                                ${newBadge}
+                            </div>
                         </td>
                         <td class="py-2.5 text-end text-primary fw-bold align-middle" style="white-space: nowrap !important;">${priceDisplay}</td>
                         <td class="pe-3 py-2.5 text-center align-middle" style="width: 45px;">
@@ -4525,7 +4534,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                     ${reorderBanner}
 
                     <!-- ຕາຕະລາງລາຍການສົ່ງກວດ -->
-                    <div class="table-responsive rounded-3 border mb-2.5" style="max-height: 250px; overflow-y: auto;">
+                    <div class="table-responsive rounded-3 border mb-2.5" style="max-height: 330px; overflow-y: auto;">
                         <table class="table table-borderless table-sm mb-0 align-middle">
                             <thead class="bg-light border-bottom sticky-top">
                                 <tr class="text-secondary small fw-bold">
@@ -4724,7 +4733,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     Swal.fire({
         title: '<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-card-text me-2"></i>ລາຍລະອຽດການຊຳລະເງິນ</h5>',
         html: modalContentHtml,
-        width: '1080px',
+        width: '1200px',
         showCloseButton: true,
         showConfirmButton: false,
         allowOutsideClick: false,
