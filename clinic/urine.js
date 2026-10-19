@@ -420,4 +420,91 @@
             }
         });
     }
+
+    // ລະບົບ Keyboard Navigation (Up, Down, Left, Right, Enter)
+    function initTableKeyboardNavigation(root = document) {
+        root.addEventListener('keydown', function (e) {
+            const isUp = (e.key === 'ArrowUp') || (e.key === 'Enter' && e.shiftKey);
+            const isDown = (e.key === 'ArrowDown') || (e.key === 'Enter' && !e.shiftKey);
+            const isLeft = (e.key === 'ArrowLeft');
+            const isRight = (e.key === 'ArrowRight');
+
+            if (!isUp && !isDown && !isLeft && !isRight) return;
+
+            const el = e.target;
+            if (!el || el.tagName !== 'INPUT') return;
+            if (el.readOnly || el.disabled || el.type === 'button') return;
+
+            const tr = el.closest('tr');
+            if (!tr) return;
+
+            const table = tr.closest('table') || tr.closest('tbody');
+            if (!table) return;
+
+            const rows = Array.from(table.querySelectorAll('tr')).filter(r => {
+                if (r.closest('thead')) return false;
+                return r.querySelector('input:not([disabled]):not([readonly])');
+            });
+            const rowIndex = rows.indexOf(tr);
+            if (rowIndex === -1) return;
+
+            const currentInputs = Array.from(tr.querySelectorAll('input:not([disabled]):not([readonly])'));
+            const colIndex = currentInputs.indexOf(el);
+            if (colIndex === -1) return;
+
+            let targetEl = null;
+
+            if (isDown) {
+                if (rowIndex < rows.length - 1) {
+                    const nextTr = rows[rowIndex + 1];
+                    const nextInputs = Array.from(nextTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    if (nextInputs.length > 0) targetEl = nextInputs[Math.min(colIndex, nextInputs.length - 1)];
+                }
+            } else if (isUp) {
+                if (rowIndex > 0) {
+                    const prevTr = rows[rowIndex - 1];
+                    const prevInputs = Array.from(prevTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    if (prevInputs.length > 0) targetEl = prevInputs[Math.min(colIndex, prevInputs.length - 1)];
+                }
+            } else if (isLeft) {
+                const val = el.value || '';
+                const isAtStart = (el.selectionStart === 0 && el.selectionEnd === 0);
+                const isAllSelected = (el.selectionStart === 0 && el.selectionEnd === val.length);
+                if (!isAtStart && !isAllSelected) return;
+
+                if (colIndex > 0) {
+                    targetEl = currentInputs[colIndex - 1];
+                } else if (rowIndex > 0) {
+                    const prevTr = rows[rowIndex - 1];
+                    const prevInputs = Array.from(prevTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    if (prevInputs.length > 0) targetEl = prevInputs[prevInputs.length - 1];
+                }
+            } else if (isRight) {
+                const val = el.value || '';
+                const isAtEnd = (el.selectionStart === val.length && el.selectionEnd === val.length);
+                const isAllSelected = (el.selectionStart === 0 && el.selectionEnd === val.length);
+                if (!isAtEnd && !isAllSelected) return;
+
+                if (colIndex < currentInputs.length - 1) {
+                    targetEl = currentInputs[colIndex + 1];
+                } else if (rowIndex < rows.length - 1) {
+                    const nextTr = rows[rowIndex + 1];
+                    const nextInputs = Array.from(nextTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    if (nextInputs.length > 0) targetEl = nextInputs[0];
+                }
+            }
+
+            if (targetEl) {
+                e.preventDefault();
+                targetEl.focus();
+                if (typeof targetEl.select === 'function') {
+                    try { targetEl.select(); } catch (err) { }
+                }
+                if (typeof targetEl.scrollIntoView === 'function') {
+                    try { targetEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { }
+                }
+            }
+        });
+    }
+    initTableKeyboardNavigation();
 })();

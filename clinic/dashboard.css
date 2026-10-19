@@ -1068,3 +1068,25 @@ body.standalone-mode {
         justify-content: space-between;
     }
 }
+
+/* 🌟 ICD-10 Diagnosis Dropdown Styles */
+#rxIcd10DropdownList {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+    border-radius: 10px !important;
+}
+#rxIcd10DropdownList .dropdown-item {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+#rxIcd10DropdownList .dropdown-item:hover {
+    background-color: #f0f9ff;
+    color: #0369a1;
+}
+#rxIcd10DropdownList::-webkit-scrollbar {
+    width: 6px;
+}
+#rxIcd10DropdownList::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+

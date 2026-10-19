@@ -276,3 +276,12 @@ textarea.form-control {
   body { padding: 16px 14px 40px; }
   .s-card-body { padding: 16px; }
 }
+
+/* ── ICD-10 Table Styles ────────────────────────────────────── */
+#diseasesTable tbody tr:hover {
+  background-color: #f8fafc;
+}
+.cursor-pointer {
+  cursor: pointer;
+}
+

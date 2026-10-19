@@ -292,6 +292,136 @@
         </div>
       </div>
     </div>
+  <!-- TIER 4: ຈັດການລະຫັດພະຍາດ ICD-10 (ICD-10 Diseases Management) -->
+  <div class="s-card mb-4" id="icd10Section">
+    <div class="s-card-hdr d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2.5">
+        <div class="hdr-icon" style="background:#e0f2fe;color:#0284c7;"><i class="bi bi-clipboard2-pulse"></i></div>
+        <div class="hdr-info">
+          <h5>ຈັດການລະຫັດພະຍາດ ICD-10 (ICD-10 Diseases Master Data)</h5>
+          <p>ເພີ່ມ, ແກ້ໄຂ, ລົບ ແລະ ກຳນົດພະຍາດທີ່ພົບບ່ອຍ ສຳລັບໃຊ້ໃນຫ້ອງກວດແພດ</p>
+        </div>
+      </div>
+      <div>
+        <button type="button" class="btn btn-primary px-3.5 py-1.5 rounded-pill fw-semibold shadow-xs" onclick="openAddDiseaseModal()">
+          <i class="bi bi-plus-circle me-1"></i> ເພີ່ມພະຍາດໃໝ່
+        </button>
+      </div>
+    </div>
+    <div class="s-card-body">
+      <!-- Toolbar: Search & Filter -->
+      <div class="row g-2 mb-3 align-items-center">
+        <div class="col-md-5">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="diseaseSearchInput" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ພະຍາດ (ລາວ/ໄທ/Eng)..." oninput="filterDiseasesTable()">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <select class="form-select form-select-sm" id="diseaseCategoryFilter" onchange="filterDiseasesTable()">
+            <option value="">-- ທຸກໝວດໝູ່ (All Categories) --</option>
+          </select>
+        </div>
+        <div class="col-md-3 text-md-end">
+          <span class="badge bg-light text-secondary border px-2.5 py-1.5" id="diseaseCountBadge" style="font-size: 0.8rem;">
+            ທັງໝົດ: <strong class="text-primary" id="diseaseTotalCount">0</strong> ລາຍການ
+          </span>
+        </div>
+      </div>
+
+      <!-- Diseases Table -->
+      <div class="table-responsive border rounded-3" style="max-height: 480px; overflow-y: auto;">
+        <table class="table table-hover align-middle mb-0" id="diseasesTable" style="font-size: 0.88rem;">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th width="90">ລະຫັດ</th>
+              <th>ຊື່ພະຍາດ (ພາສາລາວ)</th>
+              <th>ชื่อภาษาไทย</th>
+              <th>English Name</th>
+              <th width="140">ໝວດໝູ່</th>
+              <th width="110" class="text-center">ພົບບ່ອຍ</th>
+              <th width="100" class="text-center">ຈັດການ</th>
+            </tr>
+          </thead>
+          <tbody id="diseasesTableBody">
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                <span class="spinner-border spinner-border-sm me-2"></span> ກຳລັງໂຫຼດຂໍ້ມູນພະຍາດ...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: ເພີ່ມ / ແກ້ໄຂ ພະຍາດ ICD-10 -->
+  <div class="modal fade" id="diseaseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-bottom py-3">
+          <h5 class="modal-title fw-bold" id="diseaseModalTitle">
+            <i class="bi bi-clipboard2-plus text-primary me-2"></i>ເພີ່ມພະຍາດໃໝ່
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <input type="hidden" id="modalDiseaseId" value="">
+          <div class="mb-3">
+            <label class="form-label fw-semibold"><span class="text-danger">*</span> ລະຫັດ ICD-10 Code</label>
+            <input type="text" class="form-control" id="modalDiseaseCode" placeholder="ຕົວຢ່າງ: J00, I10, E11.9" required>
+            <div class="form-text">ລະຫັດມາດຕະຖານສາກົນ (ຫ້າມຊ້ຳກັນ)</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold"><span class="text-danger">*</span> ຊື່ພະຍາດ (ພາສາລາວ)</label>
+            <input type="text" class="form-control" id="modalDiseaseNameLa" placeholder="ຕົວຢ່າງ: ໄຂ້ຫວັດທຳມະດາ" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">ຊື່ພະຍາດ (ພາສາໄທ)</label>
+            <input type="text" class="form-control" id="modalDiseaseNameTh" placeholder="ตัวอย่าง: ไข้หวัดเฉียบพลัน">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">English Name</label>
+            <input type="text" class="form-control" id="modalDiseaseNameEn" placeholder="e.g. Acute nasopharyngitis">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-8">
+              <label class="form-label fw-semibold">ໝວດໝູ່ (Category)</label>
+              <input type="text" class="form-control" id="modalDiseaseCategory" placeholder="ຕົວຢ່າງ: ລະບົບຫາຍໃຈ" list="categoryDatalist">
+              <datalist id="categoryDatalist">
+                <option value="ລະບົບຫາຍໃຈ">
+                <option value="ລະບົບຫົວໃຈ ແລະ ຫຼອດເລືອດ">
+                <option value="ລະບົບຕ່ອມໄຮ້ທໍ່ ແລະ ເມຕາບອລິຊຶມ">
+                <option value="ລະບົບທາງເດີນອາຫານ">
+                <option value="ກ້າມຊີ້ນ ແລະ ຂໍ້ຕໍ່">
+                <option value="ລະບົບປະສາດ ແລະ ອາການທົ່ວໄປ">
+                <option value="ລະບົບຜິວໜັງ">
+                <option value="ລະບົບທາງເດີນຍ່ຽວ">
+                <option value="ຕາ ແລະ ຫູ">
+                <option value="ກວດສຸຂະພາບທົ່ວໄປ">
+              </datalist>
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold">ລຳດັບ (Sort)</label>
+              <input type="number" class="form-control" id="modalDiseaseSort" value="0" min="0">
+            </div>
+          </div>
+          <div class="form-check form-switch p-3 bg-light rounded-3">
+            <input class="form-check-input ms-0 me-2.5" type="checkbox" role="switch" id="modalDiseaseIsCommon" checked>
+            <label class="form-check-label fw-semibold" for="modalDiseaseIsCommon">
+              <i class="bi bi-lightning-charge-fill text-warning me-1"></i>ຕັ້ງເປັນ "ພະຍາດທີ່ພົບບ່ອຍ"
+            </label>
+            <div class="text-muted small ps-4" style="font-size:0.75rem;">(ຈະສະແດງເປັນປຸ່ມລັດໃຫ້ແພດກົດເລືອກໄດ້ທັນທີໃນຫ້ອງກວດ)</div>
+          </div>
+        </div>
+        <div class="modal-footer border-top py-2.5">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">ຍົກເລີກ</button>
+          <button type="button" class="btn btn-primary px-4 fw-semibold" id="btnSaveDisease" onclick="saveDiseaseData()">
+            <i class="bi bi-check-lg me-1"></i> ບັນທຶກ
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
 </div><!-- /.s-body -->
@@ -575,7 +705,256 @@ window.loadClinicSettings = async function() {
   } catch { return {}; }
 };
 
-document.addEventListener('DOMContentLoaded', loadSettings);
+// ================================================================
+//  ICD-10 DISEASES MANAGEMENT  —  setting.html
+//  Table: public.icd10_diseases
+// ================================================================
+let allDiseasesList = [];
+
+async function loadIcd10Diseases() {
+  const tbody = document.getElementById('diseasesTableBody');
+  if (!tbody) return;
+  try {
+    const { data, error } = await _sb
+      .from('icd10_diseases')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('code', { ascending: true });
+
+    if (error) {
+      console.warn('Error loading icd10_diseases:', error);
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-exclamation-circle text-warning me-1"></i> ຍັງບໍ່ທັນມີຂໍ້ມູນ ຫຼື ບໍ່ສາມາດເຊື່ອມຕໍ່ຕາຕະລາງ icd10_diseases (ກະລຸນາກວດສອບ SQL)</td></tr>`;
+      return;
+    }
+
+    allDiseasesList = data || [];
+    populateCategoryFilter();
+    renderDiseasesTable(allDiseasesList);
+  } catch (err) {
+    console.error('loadIcd10Diseases err:', err);
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດ: ${err.message}</td></tr>`;
+  }
+}
+
+function populateCategoryFilter() {
+  const sel = document.getElementById('diseaseCategoryFilter');
+  if (!sel) return;
+  const currentVal = sel.value;
+  const cats = [...new Set(allDiseasesList.map(d => d.category).filter(Boolean))].sort();
+  let optHtml = '<option value="">-- ທຸກໝວດໝູ່ (All Categories) --</option>';
+  cats.forEach(c => {
+    optHtml += `<option value="${c}" ${c === currentVal ? 'selected' : ''}>${c}</option>`;
+  });
+  sel.innerHTML = optHtml;
+}
+
+function renderDiseasesTable(list) {
+  const tbody = document.getElementById('diseasesTableBody');
+  const countEl = document.getElementById('diseaseTotalCount');
+  if (countEl) countEl.innerText = (list || []).length;
+  if (!tbody) return;
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">ບໍ່ພົບຂໍ້ມູນພະຍາດ</td></tr>`;
+    return;
+  }
+
+  let html = '';
+  list.forEach(item => {
+    const isCommon = Boolean(item.is_common);
+    const starBadge = isCommon
+      ? `<span class="badge bg-warning text-dark px-2.5 py-1 rounded-pill cursor-pointer" onclick="toggleDiseaseCommon(${item.id}, false)" title="ກົດເພື່ອຍົກເລີກພົບບ່ອຍ" style="cursor:pointer;"><i class="bi bi-star-fill text-dark me-1"></i> ພົບບ່ອຍ</span>`
+      : `<span class="badge bg-light text-muted border px-2.5 py-1 rounded-pill cursor-pointer" onclick="toggleDiseaseCommon(${item.id}, true)" title="ກົດເພື່ອຕັ້ງເປັນພົບບ່ອຍ" style="cursor:pointer;"><i class="bi bi-star me-1"></i> ທຳມະດາ</span>`;
+
+    html += `
+      <tr>
+        <td>
+          <span class="badge bg-primary px-2.5 py-1 fw-bold" style="font-size:0.84rem;">${item.code || '-'}</span>
+        </td>
+        <td>
+          <strong class="text-dark">${item.name_la || '-'}</strong>
+        </td>
+        <td>
+          <span class="text-secondary">${item.name_th || '-'}</span>
+        </td>
+        <td>
+          <span class="text-muted small">${item.name_en || '-'}</span>
+        </td>
+        <td>
+          <span class="badge bg-light text-secondary border">${item.category || 'ທົ່ວໄປ'}</span>
+        </td>
+        <td class="text-center">
+          ${starBadge}
+        </td>
+        <td class="text-center">
+          <div class="d-inline-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary border-0 rounded-circle py-1 px-2" title="ແກ້ໄຂ" onclick="openEditDiseaseModal(${item.id})">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-circle py-1 px-2" title="ລົບ" onclick="deleteDisease(${item.id}, '${item.code}', '${(item.name_la || '').replace(/'/g, "\\'")}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function filterDiseasesTable() {
+  const search = (document.getElementById('diseaseSearchInput')?.value || '').trim().toLowerCase();
+  const cat = document.getElementById('diseaseCategoryFilter')?.value || '';
+
+  const filtered = allDiseasesList.filter(d => {
+    const matchSearch = !search ||
+      (d.code && d.code.toLowerCase().includes(search)) ||
+      (d.name_la && d.name_la.toLowerCase().includes(search)) ||
+      (d.name_th && d.name_th.toLowerCase().includes(search)) ||
+      (d.name_en && d.name_en.toLowerCase().includes(search));
+
+    const matchCat = !cat || d.category === cat;
+    return matchSearch && matchCat;
+  });
+
+  renderDiseasesTable(filtered);
+}
+
+function openAddDiseaseModal() {
+  document.getElementById('diseaseModalTitle').innerHTML = '<i class="bi bi-clipboard2-plus text-primary me-2"></i>ເພີ່ມພະຍາດໃໝ່';
+  document.getElementById('modalDiseaseId').value = '';
+  document.getElementById('modalDiseaseCode').value = '';
+  document.getElementById('modalDiseaseNameLa').value = '';
+  document.getElementById('modalDiseaseNameTh').value = '';
+  document.getElementById('modalDiseaseNameEn').value = '';
+  document.getElementById('modalDiseaseCategory').value = 'ລະບົບຫາຍໃຈ';
+  document.getElementById('modalDiseaseSort').value = allDiseasesList.length + 1;
+  document.getElementById('modalDiseaseIsCommon').checked = true;
+
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('diseaseModal'));
+  modal.show();
+}
+
+function openEditDiseaseModal(id) {
+  const item = allDiseasesList.find(d => d.id === id);
+  if (!item) return;
+
+  document.getElementById('diseaseModalTitle').innerHTML = '<i class="bi bi-pencil-square text-primary me-2"></i>ແກ້ໄຂຂໍ້ມູນພະຍາດ';
+  document.getElementById('modalDiseaseId').value = item.id;
+  document.getElementById('modalDiseaseCode').value = item.code || '';
+  document.getElementById('modalDiseaseNameLa').value = item.name_la || '';
+  document.getElementById('modalDiseaseNameTh').value = item.name_th || '';
+  document.getElementById('modalDiseaseNameEn').value = item.name_en || '';
+  document.getElementById('modalDiseaseCategory').value = item.category || '';
+  document.getElementById('modalDiseaseSort').value = item.sort_order || 0;
+  document.getElementById('modalDiseaseIsCommon').checked = Boolean(item.is_common);
+
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('diseaseModal'));
+  modal.show();
+}
+
+async function saveDiseaseData() {
+  const id = document.getElementById('modalDiseaseId').value;
+  const code = (document.getElementById('modalDiseaseCode').value || '').trim().toUpperCase();
+  const nameLa = (document.getElementById('modalDiseaseNameLa').value || '').trim();
+  const nameTh = (document.getElementById('modalDiseaseNameTh').value || '').trim();
+  const nameEn = (document.getElementById('modalDiseaseNameEn').value || '').trim();
+  const category = (document.getElementById('modalDiseaseCategory').value || '').trim();
+  const sortOrder = parseInt(document.getElementById('modalDiseaseSort').value || '0', 10);
+  const isCommon = document.getElementById('modalDiseaseIsCommon').checked;
+
+  if (!code || !nameLa) {
+    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາລະບຸ ລະຫັດ ICD-10 ແລະ ຊື່ພະຍາດ (ພາສາລາວ)', 'warning');
+    return;
+  }
+
+  const payload = {
+    code: code,
+    name_la: nameLa,
+    name_th: nameTh,
+    name_en: nameEn,
+    category: category,
+    sort_order: sortOrder,
+    is_common: isCommon,
+    is_active: true
+  };
+
+  const btn = document.getElementById('btnSaveDisease');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> ກຳລັງບັນທຶກ...';
+
+  try {
+    if (id) {
+      const { error } = await _sb.from('icd10_diseases').update(payload).eq('id', id);
+      if (error) throw error;
+      Swal.fire({ icon: 'success', title: 'ແກ້ໄຂສຳເລັດ!', timer: 1500, showConfirmButton: false });
+    } else {
+      const { error } = await _sb.from('icd10_diseases').insert([payload]);
+      if (error) throw error;
+      Swal.fire({ icon: 'success', title: 'ເພີ່ມພະຍາດສຳເລັດ!', timer: 1500, showConfirmButton: false });
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('diseaseModal')).hide();
+    await loadIcd10Diseases();
+
+    // Trigger update in parent examination window if open
+    if (window.parent && window.parent.loadIcd10DiseasesFromDb) {
+      window.parent.loadIcd10DiseasesFromDb();
+    }
+  } catch (err) {
+    Swal.fire('ເກີດຂໍ້ຜິດພາດ', err.message || 'ບໍ່ສາມາດບັນທຶກໄດ້', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> ບັນທຶກ';
+  }
+}
+
+async function toggleDiseaseCommon(id, newVal) {
+  try {
+    const { error } = await _sb.from('icd10_diseases').update({ is_common: newVal }).eq('id', id);
+    if (error) throw error;
+    const item = allDiseasesList.find(d => d.id === id);
+    if (item) item.is_common = newVal;
+    filterDiseasesTable();
+    if (window.parent && window.parent.loadIcd10DiseasesFromDb) {
+      window.parent.loadIcd10DiseasesFromDb();
+    }
+  } catch (err) {
+    console.error('toggleDiseaseCommon error:', err);
+  }
+}
+
+async function deleteDisease(id, code, name) {
+  const res = await Swal.fire({
+    title: 'ຢືນຢັນການລົບ?',
+    html: `ທ່ານຕ້ອງການລົບພະຍາດ <strong>${code} - ${name}</strong> ແທ້ບໍ່?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    confirmButtonText: 'ລົບທັນທີ',
+    cancelButtonText: 'ຍົກເລີກ'
+  });
+
+  if (!res.isConfirmed) return;
+
+  try {
+    const { error } = await _sb.from('icd10_diseases').delete().eq('id', id);
+    if (error) throw error;
+    Swal.fire({ icon: 'success', title: 'ລົບສຳເລັດ!', timer: 1200, showConfirmButton: false });
+    await loadIcd10Diseases();
+    if (window.parent && window.parent.loadIcd10DiseasesFromDb) {
+      window.parent.loadIcd10DiseasesFromDb();
+    }
+  } catch (err) {
+    Swal.fire('ເກີດຂໍ້ຜິດພາດ', err.message, 'error');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  loadIcd10Diseases();
+});
 </script>
 </body>
 </html>

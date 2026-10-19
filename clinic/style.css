@@ -453,6 +453,15 @@ h5 {
     background-color: var(--secondary-color) !important;
 }
 
+.custom-input.is-invalid,
+.form-select.is-invalid,
+.form-control.is-invalid {
+    border-color: #dc3545 !important;
+    background-color: #fff8f8 !important;
+    box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.15) !important;
+}
+
+
 /* Custom Checkboxes */
 .custom-checkbox {
     display: flex;

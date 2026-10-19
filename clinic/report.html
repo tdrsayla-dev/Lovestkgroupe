@@ -18,6 +18,15 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=1.0"></script>
+  <script>
+    window.addEventListener('unhandledrejection', function (e) {
+      const msg = String(e.reason?.message || e.reason || '');
+      if (msg.includes('NETWORK_CHANGED') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('AbortError')) {
+        e.preventDefault();
+        console.warn('Network state shift caught gracefully:', msg);
+      }
+    });
+  </script>
   
   <!-- Custom Reporting Stylesheet -->
   <link rel="stylesheet" href="report.css?v=4.6">
@@ -91,7 +100,7 @@
     </div>
   </header>
 
-  <!-- Main Navigation Tabs (ສັ່ງອາຫານເສີມ, ຜູ້ປ່ວຍ) -->
+  <!-- Main Navigation Tabs (ສັ່ງອາຫານເສີມ, ຜູ້ປ່ວຍ, ປະເພດການກວດ) -->
   <div class="report-nav-tabs no-print">
     <button type="button" class="r-nav-tab active" data-tab="nutrients" onclick="switchReportTab('nutrients')">
       <i class="ph-fill ph-pill"></i>
@@ -100,6 +109,10 @@
     <button type="button" class="r-nav-tab" data-tab="patients" onclick="switchReportTab('patients')">
       <i class="ph-fill ph-users-three"></i>
       <span>ຜູ້ປ່ວຍ</span>
+    </button>
+    <button type="button" class="r-nav-tab" data-tab="labPackages" onclick="switchReportTab('labPackages')">
+      <i class="ph-fill ph-flask"></i>
+      <span>ປະເພດການກວດ</span>
     </button>
   </div>
 
@@ -348,7 +361,104 @@
     </div>
   </div>
 
+  <!-- ================================================================
+       TAB 3: ປະເພດການກວດ & ແພັກເກດ Lab (Health Exam & Lab Packages Report)
+       ================================================================ -->
+  <div id="tabLabPackages" class="r-tab-content">
+    <!-- Lab Packages KPI Grid (Hidden on Print) -->
+    <section class="kpi-grid no-print">
+      <!-- 1. Total Patients Tested -->
+      <div class="kpi-card revenue">
+        <div class="kpi-header">
+          <span class="kpi-title">ຄົນເຈັບມາກວດທັງໝົດ</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-users"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiLabTotalPatients">0</div>
+        <div class="kpi-footer">
+          <span id="kpiLabTotalVisits">0 ເທື່ອກວດ</span>
+        </div>
+      </div>
+
+      <!-- 2. ກວດຄົບວົງຈອນ -->
+      <div class="kpi-card profit">
+        <div class="kpi-header">
+          <span class="kpi-title">ກວດຄົບວົງຈອນ</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-check-circle"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiLabFullPackage">0</div>
+        <div class="kpi-footer">
+          <span id="kpiLabFullPackagePct">0% ຂອງຜູ້ມາກວດ</span>
+        </div>
+      </div>
+
+      <!-- 3. ກວດ ABI & ASI -->
+      <div class="kpi-card orders">
+        <div class="kpi-header">
+          <span class="kpi-title">ກວດ ABI & ASI</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-heartbeat"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiLabAbiAsi">0</div>
+        <div class="kpi-footer">
+          <span id="kpiLabAbiAsiPct">0% ຂອງຜູ້ມາກວດ</span>
+        </div>
+      </div>
+
+      <!-- 4. ກວດ ABI -->
+      <div class="kpi-card margin">
+        <div class="kpi-header">
+          <span class="kpi-title">ກວດ ABI (ດ່ຽວ)</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-activity"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiLabAbi">0</div>
+        <div class="kpi-footer">
+          <span id="kpiLabAbiPct">0% ຂອງຜູ້ມາກວດ</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lab Packages Table (ສະຫຼຸບສະເພາະລາຍການກວດ) -->
+    <div class="mb-4">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+          <i class="ph-fill ph-flask text-success fs-5"></i>
+          <span>ຕາຕະລາງສະຫຼຸບສະເພາະລາຍການກວດ (Examination Packages Summary)</span>
+        </h6>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button type="button" class="btn-print" onclick="printReport()">
+            <i class="bi bi-printer"></i> ພິມລາຍງານ A4
+          </button>
+          <button type="button" class="btn-export" onclick="exportCSV()">
+            <i class="bi bi-file-earmark-excel"></i> Export CSV
+          </button>
+          <span class="badge bg-light text-primary border px-3 py-1" id="labPackageFilterStatusBadge">ສະແດງທັງໝົດ</span>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+          <table class="doctor-breakdown-table table-hover mb-0" id="labPackagesTable">
+            <thead>
+              <tr>
+                <th style="width: 60px;" class="text-center">#</th>
+                <th>ລາຍການກວດ / ແພັກເກດ</th>
+                <th style="width: 170px;" class="text-center">ຈຳນວນກວດ (ເທື່ອ)</th>
+                <th style="width: 170px;" class="text-center">ຈຳນວນຄົນເຈັບ (ຄົນ)</th>
+                <th style="width: 240px;">ສັດສ່ວນ (%)</th>
+              </tr>
+            </thead>
+            <tbody id="labPackagesTableBody">
+              <!-- Injected via JS -->
+            </tbody>
+            <tfoot id="labPackagesTableFoot">
+              <!-- Injected via JS -->
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Report Logic -->
-  <script src="report.js?v=5.1"></script>
+  <script src="report.js?v=5.9"></script>
 </body>
 </html>

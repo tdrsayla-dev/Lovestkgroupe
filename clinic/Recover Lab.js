@@ -223,6 +223,9 @@
     // 2. OCR รูปภาพ (Tesseract.js Fallback)
     // -------------------------------------------------------
     async function _ocrImageUrl(imageUrl) {
+        if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.startsWith('combinedlab:') || imageUrl.startsWith('FILE-')) {
+            return '';
+        }
         if (typeof Tesseract === 'undefined') {
             console.warn('[RecoverLab] Tesseract.js not available');
             return '';
@@ -717,6 +720,9 @@
     // -------------------------------------------------------
     async function _extractLabRows(labFileUrl, defaultCategory) {
         if (!labFileUrl) return { rows: [], rawText: '' };
+        if (typeof labFileUrl === 'string' && (labFileUrl.startsWith('combinedlab:') || labFileUrl.startsWith('FILE-COMBINED-') || labFileUrl.startsWith('FILE-CBC-') || labFileUrl.startsWith('FILE-URINE-') || labFileUrl.startsWith('FILE-BIOCHEM-'))) {
+            return { rows: [], rawText: '' };
+        }
 
         let allRows = [];
         let fullRawText = '';
@@ -815,6 +821,49 @@
                 }
                 return res;
             }
+        }
+
+        // 2.5 ค้นหาจาก Combined Lab data
+        if (visitData && visitData.lab_note && /\[?ผลตรวจ\s*Combined\s*Lab\]?/i.test(visitData.lab_note)) {
+            try {
+                const m = visitData.lab_note.match(/(?:\[ผลตรวจ Combined Lab\]|ผลตรวจ Combined Lab)\s*([\s\S]*?)(?:\[\/ผลตรวจ Combined Lab\]|$)/i);
+                if (m && m[1]) {
+                    const c = JSON.parse(m[1].trim());
+                    if (c && c.bloodGroup && c.bloodGroup !== '-' && c.bloodGroup !== 'null') return c.bloodGroup.trim().toUpperCase().replace(/0/g, 'O');
+                }
+            } catch (e) { }
+        }
+        try {
+            const vId = (visitData && (visitData.visit_id || visitData.visit_no)) || '';
+            if (vId) {
+                const cachedCombMap = JSON.parse(localStorage.getItem('clinic_combined_lab_results') || '{}');
+                const c = cachedCombMap[vId] || cachedCombMap[String(vId).replace('VIS-', '')];
+                if (c && c.bloodGroup && c.bloodGroup !== '-' && c.bloodGroup !== 'null') return c.bloodGroup.trim().toUpperCase().replace(/0/g, 'O');
+            }
+        } catch (e) { }
+
+        // 2.6 ค้นหาจาก CBC payload
+        if (visitData && visitData.lab_note && /\[?ผลตรวจ\s*CBC\]?/i.test(visitData.lab_note)) {
+            try {
+                const m = visitData.lab_note.match(/(?:\[ผลตรวจ CBC\]|ผลตรวจ CBC)\s*([\s\S]*?)(?:\[\/ผลตรวจ CBC\]|$)/i);
+                if (m && m[1]) {
+                    const c = JSON.parse(m[1].trim());
+                    if (c && c.blood_group && c.blood_group !== '-' && c.blood_group !== 'null') return c.blood_group.trim().toUpperCase().replace(/0/g, 'O');
+                }
+            } catch (e) { }
+        }
+        try {
+            const vId = (visitData && (visitData.visit_id || visitData.visit_no)) || '';
+            if (vId) {
+                const cachedCbcMap = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
+                const c = cachedCbcMap[vId] || cachedCbcMap[String(vId).replace('VIS-', '')];
+                if (c && c.blood_group && c.blood_group !== '-' && c.blood_group !== 'null') return c.blood_group.trim().toUpperCase().replace(/0/g, 'O');
+            }
+        } catch (e) { }
+
+        if (typeof document !== 'undefined') {
+            const domBg = document.getElementById('bloodGroupInput')?.value?.trim() || document.getElementById('cbcBloodGroupInput')?.value?.trim();
+            if (domBg && domBg !== '-' && domBg !== 'null') return domBg.toUpperCase().replace(/0/g, 'O');
         }
 
         // 3. ดึงจากฐานข้อมูลผู้ป่วยในระบบ (เฉพาะกรณีที่ในเอกสารไม่มีจริง ๆ)
@@ -928,12 +977,15 @@
         let lastSection = null;
 
         rows.forEach((item, i) => {
-            if (item.section && item.section !== lastSection) {
+            if (item.section && item.section !== lastSection && item.section !== 'Biochemistry Analysis Report') {
                 lastSection = item.section;
+                const displaySecName = item.section.startsWith('Biochemistry — ')
+                    ? item.section.replace('Biochemistry — ', '')
+                    : item.section;
                 tableRowsHtml += `
                     <tr style="background:#f1f5f9;border-top:1.5px solid #cbd5e1;border-bottom:1.5px solid #cbd5e1;height:22px;">
-                        <td colspan="6" style="padding:2.5px 8px;font-weight:800;color:#0b3c73;font-size:10.5px;letter-spacing:0.3px;">
-                            <i class="bi bi-clipboard2-pulse me-1 text-primary"></i> ${item.section}
+                        <td colspan="6" style="padding:2.5px 8px;font-weight:800;color:#0b3c73;font-size:10px;letter-spacing:0.3px;">
+                            <i class="bi bi-clipboard2-pulse me-1 text-primary"></i> ${displaySecName}
                         </td>
                     </tr>`;
             }
@@ -1316,6 +1368,69 @@
     }
 
     // -------------------------------------------------------
+    // SECTION: OTHER LABORATORY TESTS / RAPID TEST
+    // -------------------------------------------------------
+    function _buildOtherSectionHtml(otherRows) {
+        if (!otherRows || otherRows.length === 0) return '';
+
+        let tableRowsHtml = '';
+        otherRows.forEach((item, i) => {
+            const isEven = i % 2 === 1;
+            const bgColor = isEven ? '#f8fafc' : '#ffffff';
+            const isPos = /^(positive|reactive|detected|abnormal|pos|\+|ຜິດປົກກະຕິ)/i.test(item.result) ||
+                          /^(positive|reactive|detected|abnormal|h|hh)/i.test(item.flag);
+            const isLow = /^(l|ll)/i.test(item.flag);
+
+            let flagBadge = '';
+            if (isPos) {
+                const label = item.flag || (item.result === 'Positive' ? 'Positive' : 'H');
+                flagBadge = `<span style="background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:6px;font-weight:800;font-size:9.5px;display:inline-block;">${label}</span>`;
+            } else if (isLow) {
+                flagBadge = `<span style="background:#dbeafe;color:#2563eb;padding:1px 6px;border-radius:6px;font-weight:800;font-size:9.5px;display:inline-block;">${item.flag || 'L'}</span>`;
+            } else if (item.flag) {
+                flagBadge = `<span style="color:#64748b;font-weight:700;">${item.flag}</span>`;
+            }
+
+            const resultColor = isPos ? '#dc2626' : (isLow ? '#2563eb' : '#0f172a');
+
+            tableRowsHtml += `
+                <tr style="background:${bgColor};border-bottom:1px solid #e2e8f0;height:21px;line-height:1.2;">
+                    <td style="padding:3px 10px;font-weight:700;color:#1e293b;font-size:10px;width:38%;">${item.test}</td>
+                    <td style="padding:3px 10px;text-align:left;font-weight:800;color:${resultColor};font-size:10.5px;width:32%;">${item.result}</td>
+                    <td style="padding:3px 10px;text-align:center;font-size:9.5px;width:15%;">${flagBadge || '-'}</td>
+                    <td style="padding:3px 10px;color:#475569;font-size:9.5px;font-weight:600;width:15%;">${item.ref || '-'}</td>
+                </tr>`;
+        });
+
+        return `
+        <div style="margin-top:10px;margin-bottom:14px;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;page-break-inside:avoid;break-inside:avoid;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+            <div style="background:linear-gradient(90deg,#0b3c73,#1e40af);color:#ffffff;padding:5px 12px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <span style="font-size:12px;font-weight:800;letter-spacing:0.3px;">Other Laboratory Tests / Rapid Test</span>
+                    <span style="font-size:10px;margin-left:8px;color:#e2e8f0;font-weight:500;">ກວດພະຍາດອື່ນໆ / Rapid Test</span>
+                </div>
+                <span style="background:rgba(255,255,255,0.2);padding:1px 8px;border-radius:12px;font-size:9px;font-weight:700;letter-spacing:0.5px;">OTHER TESTS</span>
+            </div>
+            <div style="background:#f1f5f9;padding:3px 12px;font-size:9.5px;font-weight:700;color:#0b3c73;border-bottom:1px solid #e2e8f0;">
+                | Other Tests & Rapid Test (ລາຍການກວດອື່ນໆ)
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:10px;">
+                <thead>
+                    <tr style="background:#f8fafc;border-bottom:1px solid #cbd5e1;height:22px;color:#475569;font-weight:700;">
+                        <th style="padding:3px 10px;text-align:left;width:38%;">Test (ລາຍການກວດ)</th>
+                        <th style="padding:3px 10px;text-align:left;width:32%;">Result (ຜົນກວດ)</th>
+                        <th style="padding:3px 10px;text-align:center;width:15%;">Flag</th>
+                        <th style="padding:3px 10px;text-align:left;width:15%;">Reference (ຄ່າອ້າງອີງ)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+            </table>
+        </div>`;
+    }
+
+    // -------------------------------------------------------
     // COMBINED MULTI-SECTION DISPATCHER
     // -------------------------------------------------------
     function _buildCombinedLabHtml(allRows, meta = {}) {
@@ -1338,6 +1453,7 @@
         const vascRows = [];
         const cytoRows = [];
         const chemRows = [];
+        const otherRows = [];
 
         const cbcRegex = /^(wbc|rbc|hgb|hb|hct|mcv|mch|mchc|plt|platelet|platelets|lym%|lymph%|lym#|lymph#|mid%|mono%|mid#|mono#|gran%|neut%|gran#|neut#|rdw|rdw_cv|rdw-cv|rdw_sd|rdw-sd|mpv|pct|p_lcr|p-lcr|p_lcc|p-lcc|pdw|pdw_sd|pdw-sd|pdw_cv|pdw-cv)$/i;
         const urineRegex = /^(color|appearance|clarity|turbidity|leukocyte|leukocytes|nitrite|urobilinogen|protein|ph|blood|occult\s*blood|specific\s*gravity|sg|s\.g\.|ketone|ketones|bilirubin|glucose|sugar|ascorbic|ascorbic\s*acid|stool|stool\s*exam)/i;
@@ -1349,41 +1465,35 @@
             const testName = (r.test || '').trim();
             const smp = (r.sample || '').toUpperCase();
 
+            // 1. Cytology
             if (sec.includes('cytology') || sec.includes('pap') || smp === 'CYTO' || cytoRegex.test(testName)) {
                 cytoRows.push(r);
-            } else if (sec.includes('urine') || sec.includes('ຍ່ຽວ') || sec.includes('urinalysis') || smp === 'URINE') {
+            }
+            // 2. Urine
+            else if (sec.includes('urine') || sec.includes('ຍ່ຽວ') || sec.includes('urinalysis') || smp === 'URINE' || smp === 'STOOL' || urineRegex.test(testName)) {
                 urineRows.push(r);
-            } else if (sec.includes('cbc') || sec.includes('hematology') || sec.includes('ເລືອດสมบูรณ์') || smp === 'EDTA' || smp === 'WB') {
-                cbcRows.push(r);
-            } else if (sec.includes('vascular') || sec.includes('sclerosis') || smp === 'VASC' || vascRegex.test(testName)) {
+            }
+            // 3. Other Laboratory Tests
+            else if (sec.includes('other') || sec.includes('rapid') || sec.includes('ອື່ນໆ')) {
+                otherRows.push(r);
+            }
+            // 4. Vascular
+            else if (sec.includes('vascular') || sec.includes('sclerosis') || smp === 'VASC' || vascRegex.test(testName)) {
                 vascRows.push(r);
-            } else if (cbcRegex.test(testName)) {
+            }
+            // 5. CBC (Exclude HbA1c and general biochemistry)
+            else if ((sec.includes('cbc') || sec.includes('hematology') || sec.includes('ເລືອດสมบูรณ์') || smp === 'EDTA' || cbcRegex.test(testName)) && !/^hba1c$/i.test(testName) && !sec.includes('biochem')) {
                 cbcRows.push(r);
-            } else if (urineRegex.test(testName) && (/negative|normal/i.test(r.ref || r.result) || smp === 'URINE')) {
-                urineRows.push(r);
-            } else {
+            }
+            // 6. Biochemistry & General Chemistry
+            else {
                 chemRows.push(r);
             }
         }
 
         let html = '';
 
-        // 1. External Blood Chemistry / Serology Table
-        if (chemRows.length > 0) {
-            html += _buildChemistryTableHtml(chemRows, categoryName);
-        }
-
-        // 2. Cervical Cytology / Pap Smear Report
-        if (cytoRows.length > 0) {
-            html += _buildCytologySectionHtml(cytoRows);
-        }
-
-        // 3. Urine Examination Report
-        if (urineRows.length > 0) {
-            html += _buildUrineSectionHtml(urineRows);
-        }
-
-        // 4. Hematology Analysis Report (CBC with Histograms)
+        // 1. Hematology Analysis Report (CBC with Histograms) — ຂຶ້ນອັນດັບ 1 ຕາມຟອມລວມ
         if (cbcRows.length > 0) {
             html += _buildCbcSectionHtml(cbcRows, {
                 visitNoDisplay,
@@ -1393,7 +1503,27 @@
             });
         }
 
-        // 5. Vascular Analysis Report
+        // 2. External Blood Chemistry / Serology Table — ຂຶ້ນອັນດັບ 2 ຕາມຟອມລວມ
+        if (chemRows.length > 0) {
+            html += _buildChemistryTableHtml(chemRows, categoryName);
+        }
+
+        // 3. Urine Examination Report — ຂຶ້ນອັນດັບ 3 ຕາມຟອມລວມ
+        if (urineRows.length > 0) {
+            html += _buildUrineSectionHtml(urineRows);
+        }
+
+        // 4. Other Laboratory Tests / Rapid Test — ຂຶ້ນອັນດັບ 4 ຕາມຟອມລວມ
+        if (otherRows.length > 0) {
+            html += _buildOtherSectionHtml(otherRows);
+        }
+
+        // 5. Cervical Cytology / Pap Smear Report
+        if (cytoRows.length > 0) {
+            html += _buildCytologySectionHtml(cytoRows);
+        }
+
+        // 6. Vascular Analysis Report
         if (vascRows.length > 0) {
             html += _buildVascularSectionHtml(vascRows);
         }
@@ -1418,9 +1548,11 @@
         if (window.clinicSettings && typeof window.clinicSettings === 'object') {
             s = Object.assign({}, window.clinicSettings);
         }
-        if (window.parent && window.parent.clinicSettings && typeof window.parent.clinicSettings === 'object') {
-            s = Object.assign({}, window.parent.clinicSettings, s);
-        }
+        try {
+            if (window.parent && window.parent !== window && window.parent.clinicSettings && typeof window.parent.clinicSettings === 'object') {
+                s = Object.assign({}, window.parent.clinicSettings, s);
+            }
+        } catch (e) { }
 
         // 1. ดึงจาก localStorage แคช
         try {
@@ -1636,7 +1768,8 @@
             hnDisplay, visitNoDisplay, patNameDisplay,
             patPhoneDisplay, patAgeDisplay, bloodGroupDisplay,
             testDateDisplay, reportDateDisplay,
-            doctorNameDisplay, labTableHtml, labFileUrl, visitId
+            doctorNameDisplay, labTableHtml, labFileUrl, visitId,
+            doctorAdviceDisplay
         } = opts;
 
         // กำหนด URL ของรายงานฉบับแปลงแล้ว (Cloud Digital PDF)
@@ -1789,9 +1922,10 @@
                         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;">
                             <div style="font-weight:700;color:#0b3c73;font-size:10.5px;margin-bottom:2px;">ຄຳແນະນຳຈາກແພດ / Doctor's Recommendation</div>
                             <div style="font-size:9px;line-height:1.45;color:#334155;">
+                                ${doctorAdviceDisplay ? `<div>• ${doctorAdviceDisplay.replace(/\n+/g, '</div><div>• ')}</div>` : `
                                 <div>• ຮັບປະທານອາຫານໃຫ້ຄົບ 5 ໝູ່, ຫຼຸດຜ່ອນອາຫານຫວານ, ມັນ, ເຄັມ</div>
                                 <div>• ອອກກຳລັງກາຍຢ່າງສະໝ່ຳສະເໝີ, ພັກຜ່ອນໃຫ້ພຽງພໍ 7-8 ຊົ່ວໂມງ/ມື້</div>
-                                <div>• ກວດສຸຂະພາບປະຈຳປີ ທຸກໆ 1 ປີ ຫຼື ຕາມຄຳແນະນຳຂອງທ່ານໝໍ</div>
+                                <div>• ກວດສຸຂະພາບປະຈຳປີ ທຸກໆ 1 ປີ ຫຼື ຕາມຄຳແນະນຳຂອງທ່ານໝໍ</div>`}
                             </div>
                         </div>
                     </div>
@@ -1852,44 +1986,55 @@
             const patName = visitData.patient_name || patientNameArg || '';
             const pData = (await _loadPatientData(curHn, patName)) || visitData;
 
+            let parentSettings = {};
+            try {
+                if (window.parent && window.parent !== window && window.parent.clinicSettings) {
+                    parentSettings = window.parent.clinicSettings;
+                }
+            } catch (e) { }
+
             const clinicLogo = clinicSettings['clinic_logo_url'] 
                 || clinicSettings['clinic_logo'] 
-                || (window.parent && window.parent.clinicSettings && (window.parent.clinicSettings.clinic_logo_url || window.parent.clinicSettings.clinic_logo))
+                || parentSettings.clinic_logo_url 
+                || parentSettings.clinic_logo
                 || localStorage.getItem('clinic_logo_url') 
                 || localStorage.getItem('clinic_logo') 
                 || '';
 
             const clinicStamp = clinicSettings['clinic_stamp_url'] 
                 || clinicSettings['clinic_stamp'] 
-                || (window.parent && window.parent.clinicSettings && (window.parent.clinicSettings.clinic_stamp_url || window.parent.clinicSettings.clinic_stamp))
+                || parentSettings.clinic_stamp_url 
+                || parentSettings.clinic_stamp
                 || localStorage.getItem('clinic_stamp_url') 
                 || localStorage.getItem('clinic_stamp') 
                 || '';
 
             const clinicNameLa = clinicSettings['clinic_name_la'] 
-                || (window.parent && window.parent.clinicSettings && window.parent.clinicSettings.clinic_name_la)
+                || parentSettings.clinic_name_la
                 || localStorage.getItem('clinic_name_la') 
                 || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
 
             const clinicNameEn = clinicSettings['clinic_name_en'] 
-                || (window.parent && window.parent.clinicSettings && window.parent.clinicSettings.clinic_name_en)
+                || parentSettings.clinic_name_en
                 || localStorage.getItem('clinic_name_en') 
                 || 'Love STK Medical And Treatment Center';
 
-            const clinicAddress = clinicSettings['clinic_address'] 
-                || (window.parent && window.parent.clinicSettings && window.parent.clinicSettings.clinic_address)
-                || localStorage.getItem('clinic_address') 
-                || 'ITECC Mall ຊັ້ນ 6, ນະຄອນຫຼວງວຽງຈັນ, ສປປ ລາວ';
+            let recAddrParts = [];
+            const rRawAddr = clinicSettings['clinic_address'] || '';
+            const rDist = clinicSettings['clinic_district'] || '';
+            const rProv = clinicSettings['clinic_province'] || '';
+            const rCtry = clinicSettings['clinic_country'] || '';
+            if (rRawAddr) recAddrParts.push(rRawAddr.trim());
+            if (rDist && !recAddrParts.some(p => p.includes(rDist))) recAddrParts.push(`ເມືອງ ${rDist.replace(/^(ເມືອງ|District)\s*/i, '').trim()}`);
+            if (rProv && !recAddrParts.some(p => p.includes(rProv))) recAddrParts.push(rProv.trim());
+            if (rCtry && !recAddrParts.some(p => p.includes(rCtry))) recAddrParts.push(rCtry.trim());
+            const clinicAddress = recAddrParts.join(', ') || rRawAddr || 'ນະຄອນຫຼວງວຽງຈັນ, ສ.ປ.ປ. ລາວ';
 
-            const clinicPhone = clinicSettings['clinic_phone'] 
-                || (window.parent && window.parent.clinicSettings && window.parent.clinicSettings.clinic_phone)
-                || localStorage.getItem('clinic_phone') 
-                || '020 xxxxxxxxx';
+            const rPhone1 = (clinicSettings['clinic_phone'] || '').trim();
+            const rPhone2 = (clinicSettings['clinic_phone2'] || '').trim();
+            const clinicPhone = [rPhone1, rPhone2].filter(Boolean).join(' / ') || '020-xx xxx xxx';
 
-            const clinicWebsite = clinicSettings['clinic_website'] 
-                || (window.parent && window.parent.clinicSettings && window.parent.clinicSettings.clinic_website)
-                || localStorage.getItem('clinic_website') 
-                || 'www.lovestk.com';
+            const clinicWebsite = (clinicSettings['clinic_website'] || clinicSettings['clinic_email'] || '').replace(/^https?:\/\//i, '').replace(/\/$/, '') || 'www.clinic.com';
 
             const patNameDisplay = pData.name || visitData.patient_name || patName || '-';
             const hnDisplay = pData.hn || visitData.hn || curHn || '-';
@@ -1905,14 +2050,17 @@
             let targetFiles = labFiles;
             let isCbcSelected = false;
             let isUrineSelected = false;
+            let isBiochemSelected = false;
+            let isCombinedSelected = false;
             let isVascSelected = false;
 
             if (isCustomMode) {
-                // กรองเฉพาะไฟล์จริง ไม่เอา stub จำลองอย่าง CBC_Report_ หรือ Urine_Report_
+                // กรองเฉพาะไฟล์จริง ไม่เอา stub จำลองอย่าง CBC_Report_, Urine_Report_, Biochem_Report_ หรือ Combined_Lab_Report_
                 targetFiles = customSelectedItems.filter(it => 
                     it && it.type === 'file' && it.url && 
-                    !String(it.url).startsWith('FILE-CBC-') && !String(it.url).startsWith('FILE-URINE-') &&
-                    !String(it.fileName || '').startsWith('CBC_Report_') && !String(it.fileName || '').startsWith('Urine_Report_')
+                    !String(it.url).startsWith('FILE-CBC-') && !String(it.url).startsWith('FILE-URINE-') && !String(it.url).startsWith('FILE-BIOCHEM-') && !String(it.url).startsWith('FILE-COMBINED-') && !String(it.url).startsWith('combinedlab:') &&
+                    !String(it.fileName || '').startsWith('CBC_Report_') && !String(it.fileName || '').startsWith('Urine_Report_') && !String(it.fileName || '').startsWith('Biochem_Report_') && !String(it.fileName || '').startsWith('Combined_Lab_Report_') &&
+                    it.category !== 'Combined Lab' && it.category !== 'ຜົນກວດລວມ'
                 );
                 isCbcSelected = customSelectedItems.some(it => 
                     it && (it.type === 'cbc' || it.category === 'CBC' || String(it.fileName || '').startsWith('CBC_Report_') || String(it.url || '').startsWith('FILE-CBC-'))
@@ -1920,17 +2068,27 @@
                 isUrineSelected = customSelectedItems.some(it => 
                     it && (it.type === 'urine' || it.category === 'Urine' || String(it.fileName || '').startsWith('Urine_Report_') || String(it.url || '').startsWith('FILE-URINE-'))
                 );
+                isBiochemSelected = customSelectedItems.some(it => 
+                    it && (it.type === 'biochem' || it.category === 'Biochemistry' || it.category === 'Biochemistry Report' || String(it.fileName || '').startsWith('Biochem_Report_') || String(it.url || '').startsWith('FILE-BIOCHEM-'))
+                );
+                isCombinedSelected = customSelectedItems.some(it => 
+                    it && (it.type === 'combined' || it.category === 'Combined Lab' || it.category === 'ຜົນກວດລວມ' || String(it.fileName || '').startsWith('Combined_Lab_Report_') || String(it.url || '').startsWith('FILE-COMBINED-') || String(it.url || '').startsWith('combinedlab:'))
+                );
                 isVascSelected = customSelectedItems.some(it => 
                     it && (it.type === 'vascular' || String(it.fileName || '').includes('Vascular') || String(it.category || '').includes('ເສັ້ນເລືອດ'))
                 );
             } else {
                 if (!targetFiles || targetFiles.length === 0) {
                     const singleUrl = await _resolveLabFileUrl(visitId, categoryName);
-                    if (singleUrl) targetFiles = [{ url: singleUrl, category: categoryName }];
+                    if (singleUrl && !singleUrl.startsWith('combinedlab:') && !singleUrl.startsWith('FILE-COMBINED-')) {
+                        targetFiles = [{ url: singleUrl, category: categoryName }];
+                    }
                 }
                 const chkNote = (visitData && visitData.lab_note) || (window.currentHistoryDetailVisit && window.currentHistoryDetailVisit.lab_note) || '';
                 isCbcSelected = /\[?ผลตรวจ\s*CBC\]?/i.test(chkNote) || /cbc/i.test(categoryName || '');
                 isUrineSelected = /\[?ผลตรวจ\s*Urine\]?/i.test(chkNote) || /urine|ปัสสาวะ/i.test(categoryName || '');
+                isBiochemSelected = /\[?ผลตรวจ\s*Biochem\]?/i.test(chkNote) || /biochem|chemistry|เคมี/i.test(categoryName || '');
+                isCombinedSelected = /\[?ผลตรวจ\s*Combined\s*Lab\]?/i.test(chkNote) || /combined|ຜົນກວດລວມ/i.test(categoryName || '');
                 isVascSelected = /ผลตรวจหลอดเลือด|vascular/i.test(chkNote) || /vascular|ເສັ້ນເລືອດ/i.test(categoryName || '');
             }
 
@@ -1938,6 +2096,120 @@
             let fullRawText = '';
 
             const currentNote = (visitData && visitData.lab_note) || (window.currentHistoryDetailVisit && window.currentHistoryDetailVisit.lab_note) || '';
+
+            // 0. ดึงผลตรวจรวม Combined Lab (ถ้ามีการเลือกไว้ หรือพบข้อมูลในระบบ)
+            let combData = null;
+            if (isCombinedSelected || /\[?ผลตรวจ\s*Combined\s*Lab\]?/i.test(currentNote)) {
+                try {
+                    if (/ผลตรวจ\s*Combined\s*Lab/i.test(currentNote)) {
+                        const mComb = currentNote.match(/(?:\[ผลตรวจ Combined Lab\]|ผลตรวจ Combined Lab)\s*([\s\S]*?)(?:\[\/ผลตรวจ Combined Lab\]|$)/i);
+                        if (mComb && mComb[1]) {
+                            try { combData = JSON.parse(mComb[1].trim()); } catch (e) { }
+                        }
+                    }
+                    if (!combData) {
+                        try {
+                            const cachedCombMap = JSON.parse(localStorage.getItem('clinic_combined_lab_results') || '{}');
+                            combData = cachedCombMap[visitId] || cachedCombMap[String(visitId).replace('VIS-', '')] || cachedCombMap['VIS-' + String(visitId).replace(/\D/g, '')];
+                        } catch (e) { }
+                    }
+                } catch (e) { console.warn('[RecoverLab] Combined lab parse error:', e); }
+            }
+
+            if (combData) {
+                // 0.1 ดึง CBC จาก Combined Lab
+                if (combData.cbc && Array.isArray(combData.cbc)) {
+                    combData.cbc.forEach(it => {
+                        if (!it || it.section) return;
+                        const valStr = String(it.value !== undefined ? it.value : (it.val !== undefined ? it.val : (it.result || ''))).trim();
+                        if (!valStr) return;
+                        const minStr = it.min !== undefined ? String(it.min) : '';
+                        const maxStr = it.max !== undefined ? String(it.max) : '';
+                        const refStr = it.ref || (minStr && maxStr ? `${minStr} - ${maxStr}` : (minStr || maxStr || '-'));
+                        allRows.push({
+                            test: it.name || it.test || 'CBC Item',
+                            sample: 'EDTA',
+                            result: valStr,
+                            flag: _computeFlag(valStr, refStr, it.status || it.flag || ''),
+                            unit: it.unit || '',
+                            ref: refStr,
+                            section: 'Hematology Analysis Report'
+                        });
+                    });
+                }
+
+                // 0.2 ดึง Biochem จาก Combined Lab
+                if (combData.biochem && Array.isArray(combData.biochem)) {
+                    combData.biochem.forEach(it => {
+                        if (!it) return;
+                        const valStr = String(it.value !== undefined ? it.value : (it.val !== undefined ? it.val : (it.result || ''))).trim();
+                        if (!valStr && valStr !== '0') return;
+                        const minStr = it.min !== undefined ? String(it.min) : '';
+                        const maxStr = it.max !== undefined ? String(it.max) : '';
+                        const refStr = it.ref || (minStr && maxStr ? `${minStr} - ${maxStr}` : (minStr || maxStr || '-'));
+                        allRows.push({
+                            test: it.test || it.name || 'Biochem Item',
+                            sample: it.sample || 'SER',
+                            result: valStr,
+                            flag: _computeFlag(valStr, refStr, it.flag || it.status || ''),
+                            unit: it.unit || '',
+                            ref: refStr,
+                            section: it.category ? `Biochemistry — ${it.category}` : 'Biochemistry Analysis Report'
+                        });
+                    });
+                }
+
+                // 0.3 ดึง Urine จาก Combined Lab
+                if (combData.urine) {
+                    if (Array.isArray(combData.urine)) {
+                        combData.urine.forEach(it => {
+                            if (!it) return;
+                            const valStr = String(it.val !== undefined ? it.val : (it.value !== undefined ? it.value : (it.result || ''))).trim();
+                            if (!valStr && valStr !== '0') return;
+                            allRows.push({
+                                test: it.test || 'Urine Item',
+                                sample: it.isStool ? 'STOOL' : 'URINE',
+                                result: valStr,
+                                flag: _computeFlag(valStr, it.ref || '', ''),
+                                unit: it.unit || '',
+                                ref: it.ref || '-',
+                                section: 'Urinalysis'
+                            });
+                        });
+                    }
+                }
+
+                // 0.4 ดึง Other Lab จาก Combined Lab
+                let otherItems = [];
+                if (combData.other) {
+                    otherItems = Array.isArray(combData.other) ? combData.other : (combData.other.items || []);
+                }
+                if ((!otherItems || otherItems.length === 0) && /\[?ผลตรวจ\s*Other\s*Lab\]?/i.test(currentNote)) {
+                    try {
+                        const mOther = currentNote.match(/(?:\[ผลตรวจ Other Lab\]|ผลตรวจ Other Lab)\s*([\s\S]*?)(?:\[\/ผลตรวจ Other Lab\]|$)/i);
+                        if (mOther && mOther[1]) {
+                            const parsedOther = JSON.parse(mOther[1].trim());
+                            otherItems = Array.isArray(parsedOther) ? parsedOther : (parsedOther.items || []);
+                        }
+                    } catch (e) { }
+                }
+
+                (otherItems || []).forEach(it => {
+                    if (!it) return;
+                    const valStr = String(it.result || it.val || it.value || '').trim();
+                    if (!valStr && valStr !== '0') return;
+                    const refStr = it.ref || '-';
+                    allRows.push({
+                        test: it.test || it.name || 'Other Test',
+                        sample: it.sample || 'SPEC',
+                        result: valStr,
+                        flag: _computeFlag(valStr, refStr, it.flag || it.status || ''),
+                        unit: it.unit || '',
+                        ref: refStr,
+                        section: 'Other Laboratory Tests'
+                    });
+                });
+            }
 
             // 1. ดึงผลตรวจ CBC (ถ้ามีเลือกไว้)
             if (isCbcSelected) {
@@ -2063,6 +2335,63 @@
                 } catch (e) { console.warn('[RecoverLab] Urine extract notice:', e); }
             }
 
+            // 2.5 ดึงผลตรวจเคมีคลินิก Biochemistry (ถ้ามีเลือกไว้)
+            if (isBiochemSelected) {
+                try {
+                    let bioItems = [];
+                    // 2.5.1 ดึงจาก currentNote หรือ lab_note
+                    if (/ผลตรวจ\s*Biochem/i.test(currentNote)) {
+                        const m = currentNote.match(/(?:\[ผลตรวจ Biochem\]|ผลตรวจ Biochem)\s*([\s\S]*?)(?:\[\/ผลตรวจ Biochem\]|$)/i);
+                        if (m && m[1]) {
+                            try {
+                                const parsed = JSON.parse(m[1].trim());
+                                bioItems = parsed.items || (Array.isArray(parsed) ? parsed : []);
+                            } catch (e) { }
+                        }
+                    }
+
+                    // 2.5.2 ดึงจาก localStorage clinic_biochem_results
+                    if (!bioItems || bioItems.length === 0) {
+                        try {
+                            const cachedMap = JSON.parse(localStorage.getItem('clinic_biochem_results') || '{}');
+                            const cached = cachedMap[visitId] || cachedMap[String(visitId).replace('VIS-', '')] || cachedMap['VIS-' + String(visitId).replace(/\D/g, '')];
+                            if (cached) {
+                                bioItems = cached.items || (Array.isArray(cached) ? cached : []);
+                            }
+                        } catch (e) { }
+                    }
+
+                    // 2.5.3 ดึงจาก direct localStorage key
+                    if (!bioItems || bioItems.length === 0) {
+                        try {
+                            const direct = JSON.parse(localStorage.getItem(`stk-biochem-report:${visitId}`) || 'null');
+                            if (direct && direct.items) bioItems = direct.items;
+                        } catch (e) { }
+                    }
+
+                    // 2.5.4 เพิ่มผลตรวจเคมีคลินิกลงใน allRows สำหรับแสดงในตาราง Biochemistry Analysis Report
+                    if (Array.isArray(bioItems) && bioItems.length > 0) {
+                        bioItems.forEach(it => {
+                            if (!it) return;
+                            const valStr = String(it.value !== undefined ? it.value : (it.val !== undefined ? it.val : (it.result || ''))).trim();
+                            if (!valStr && valStr !== '0') return;
+                            const minStr = it.min !== undefined ? String(it.min) : '';
+                            const maxStr = it.max !== undefined ? String(it.max) : '';
+                            const refStr = it.ref || (minStr && maxStr ? `${minStr} - ${maxStr}` : (minStr || maxStr || '-'));
+                            allRows.push({
+                                test: it.name || it.test || 'Biochem Item',
+                                sample: it.sample || 'SER',
+                                result: valStr,
+                                flag: _computeFlag(valStr, refStr, it.flag || ''),
+                                unit: it.unit || '',
+                                ref: refStr,
+                                section: 'Biochemistry Analysis Report'
+                            });
+                        });
+                    }
+                } catch (e) { console.warn('[RecoverLab] Biochem extract notice:', e); }
+            }
+
             // 3. ดึงผลตรวจหลอดเลือด Vascular (ถ้ามีเลือกไว้)
             if (isVascSelected) {
                 try {
@@ -2151,18 +2480,37 @@
             // Deduplicate: รักษารายการตรวจที่ไม่ซ้ำในแต่ละหมวด และเลือกแถวที่มีข้อมูลละเอียดที่สุด
             const dedupMap = new Map();
             for (const r of allRows) {
-                const key = `${r.section || ''}_${r.test.trim().toUpperCase()}`;
+                const normSec = (r.section || '').startsWith('Biochemistry') ? 'BIOCHEM' : (r.section || '');
+                const key = `${normSec}_${r.test.trim().toUpperCase()}`;
                 if (!dedupMap.has(key)) {
                     dedupMap.set(key, r);
                 } else {
                     const existing = dedupMap.get(key);
-                    if ((!existing.ref || existing.ref === '-') && (r.ref && r.ref !== '-')) {
+                    if ((!existing.section || !existing.section.includes('—')) && (r.section && r.section.includes('—'))) {
+                        dedupMap.set(key, r);
+                    } else if ((!existing.ref || existing.ref === '-') && (r.ref && r.ref !== '-')) {
                         dedupMap.set(key, r);
                     }
                 }
             }
             const labRows = Array.from(dedupMap.values());
             const bloodGroupDisplay = _extractBloodGroup(labRows, fullRawText, pData, visitData);
+
+            let doctorAdviceDisplay = '';
+            if (combData && combData.comment) doctorAdviceDisplay = combData.comment.trim();
+            if (!doctorAdviceDisplay && currentNote && /\[?ผลตรวจ\s*Combined\s*Lab\]?/i.test(currentNote)) {
+                const m = currentNote.match(/(?:\[ผลตรวจ Combined Lab\]|ผลตรวจ Combined Lab)\s*([\s\S]*?)(?:\[\/ผลตรวจ Combined Lab\]|$)/i);
+                if (m && m[1]) {
+                    try {
+                        const parsed = JSON.parse(m[1].trim());
+                        if (parsed.comment) doctorAdviceDisplay = parsed.comment.trim();
+                    } catch (e) { }
+                }
+            }
+            if (!doctorAdviceDisplay && visitData && visitData.doctor_comment) {
+                doctorAdviceDisplay = visitData.doctor_comment.trim();
+            }
+
             const labTableHtml = _buildCombinedLabHtml(labRows, {
                 visitNoDisplay,
                 hnDisplay,
@@ -2179,7 +2527,8 @@
                 hnDisplay, visitNoDisplay, patNameDisplay,
                 patPhoneDisplay, patAgeDisplay, bloodGroupDisplay,
                 testDateDisplay, reportDateDisplay,
-                doctorNameDisplay, labTableHtml, labFileUrl: primaryLabUrl, visitId
+                doctorNameDisplay, labTableHtml, labFileUrl: primaryLabUrl, visitId,
+                doctorAdviceDisplay
             });
 
             // ฟังก์ชันแปลงรายงานเป็น PDF แล้วอัปโหลดขึ้น Cloud (Supabase Storage: lab-results)

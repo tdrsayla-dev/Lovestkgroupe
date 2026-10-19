@@ -512,7 +512,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=3.9.79" title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=3.9.80" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -1593,6 +1593,24 @@
                             onchange="loadPatientHistory()">
                     </div>
 
+                    <!-- ตัวกรองประเภทรายการ (ทั้งหมด / 🩺 ตรวจรักษา / 📦 สั่งซื้อยาเดิม) -->
+                    <div class="btn-group shadow-xs" role="group" id="historyTypeFilterGroup" style="height: 38px;">
+                        <button type="button" class="btn btn-primary fw-semibold px-3" id="btnHistTypeAll"
+                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
+                            onclick="setHistoryTypeFilter('all')">
+                            <span>ทั้งหมด</span>
+                        </button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" id="btnHistTypeVisit"
+                            style="font-size: 0.85rem;" onclick="setHistoryTypeFilter('visit')">
+                            <i class="ph ph-stethoscope text-primary me-1"></i> <span>ตรวจรักษา</span>
+                        </button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" id="btnHistTypeOrder"
+                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
+                            onclick="setHistoryTypeFilter('order')">
+                            <i class="ph ph-package text-success me-1"></i> <span>สั่งซื้อยาเดิม</span>
+                        </button>
+                    </div>
+
                     <!-- ช่องค้นหา Text -->
                     <input type="text" id="searchHistoryInput"
                         class="form-control custom-input py-2 rounded-pill shadow-xs"
@@ -1831,6 +1849,11 @@
                                 <i class="ph ph-hand-coins fs-6"></i> <span>จ่ายเงินปันผลที่เลือก (<span
                                         id="selectedCommCount">0</span>)</span>
                             </button>
+                            <button type="button"
+                                class="btn btn-outline-danger rounded-pill px-3.5 py-2 fw-semibold d-none align-items-center gap-1.5 shadow-sm"
+                                id="btnBatchDeleteCommLogs" onclick="batchDeleteCommissionLogs()">
+                                <i class="bi bi-trash fs-6"></i> <span>ลบที่เลือก (<span id="selectedCommDeleteCount">0</span>)</span>
+                            </button>
                         </div>
 
                         <!-- Date & Search Filter Capsule -->
@@ -1902,7 +1925,7 @@
                                     <th class="text-end">ยอดปันผล แบบรายการ</th>
                                     <th class="text-end text-primary fw-bold">ยอดรวม</th>
                                     <th class="text-center">สถานะ</th>
-                                    <th class="text-center pe-4">จัดการ / โอนเงิน</th>
+                                    <th class="text-center pe-3" style="min-width: 210px;">จัดการ / โอนเงิน</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3077,7 +3100,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" data-src="report.html?v=5.2" src="" loading="lazy"
+            <iframe id="doctorReportFrame" data-src="report.html?v=5.9" src=""
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -3292,12 +3315,32 @@
                     <form id="patientForm" onsubmit="event.preventDefault(); submitPatient();">
                         <input type="hidden" id="patientEditHn" value="">
                         <div class="row mb-3">
-                            <div class="col-md-8">
-                                <label class="form-label fw-bold"><span data-i18n="reg_modal_name">ຊື່-ນາມສະກຸນ</span>
-                                    <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control custom-input" name="FullName" required>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_prefix">ຄຳນຳໜ້າ</span></label>
+                                <select class="form-select custom-input" name="Prefix" id="patientPrefixSelect" onchange="onPatientPrefixChange(this.value)">
+                                    <option value="">-- ເລືອກ --</option>
+                                    <option value="ທ້າວ">ທ້າວ</option>
+                                    <option value="ນາງ">ນາງ</option>
+                                    <option value="ດ.ຊ.">ດ.ຊ.</option>
+                                    <option value="ດ.ຍ.">ດ.ຍ.</option>
+                                    <option value="ທ່ານ">ທ່ານ</option>
+                                    <option value="ອື່ນໆ">ອື່ນໆ</option>
+                                </select>
                             </div>
                             <div class="col-md-4">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_name">ຊື່-ນາມສະກຸນ</span>
+                                    <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" name="FullName" id="patientFullNameInput" placeholder="ຊື່ ແລະ ນາມສະກຸນ" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_gender">ເພດ</span> <span class="text-danger">*</span></label>
+                                <select class="form-select custom-input" name="Gender" id="patientGenderSelect" required>
+                                    <option value="">-- ເລືອກເພດ --</option>
+                                    <option value="ຊາຍ">ຊາຍ</option>
+                                    <option value="ຍິງ">ຍິງ</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label class="form-label fw-bold"><span data-i18n="reg_modal_age">ອາຍຸ (ປີ)</span> <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control custom-input" name="Age" min="0" max="150"
                                     placeholder="ອາຍຸ" data-i18n-placeholder="reg_modal_age_ph" required>
@@ -3331,7 +3374,9 @@
                             <div class="col-md-4">
                                 <label class="form-label fw-bold"><span data-i18n="reg_modal_phone">ເບີໂທລະສັບ</span>
                                     <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control custom-input" name="Tel" required>
+                                <input type="tel" class="form-control custom-input" name="Tel" id="patientTelInput"
+                                    placeholder="020XXXXXXXX" maxlength="16"
+                                    oninput="handlePatientPhoneInput(this)" onfocus="handlePatientPhoneFocus(this)" required>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-bold"><span
@@ -3423,57 +3468,57 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius: 16px; border: none;">
                 <div class="modal-header bg-white">
-                    <h5 class="modal-title fw-bold">บันทึกข้อมูลจุดคัดกรอง</h5><button type="button" class="btn-close"
+                    <h5 class="modal-title fw-bold" data-i18n="triage_modal_title">บันทึกข้อมูลจุดคัดกรอง</h5><button type="button" class="btn-close"
                         data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-white">
-                    <form id="triageForm" onsubmit="event.preventDefault(); submitTriage();">
+                    <form id="triageForm" onsubmit="event.preventDefault(); submitTriage();" novalidate>
                         <input type="hidden" id="triageVisitId" name="visitId">
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label small fw-bold">อุณหภูมิ (°C)</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_temp">อุณหภูมิ (°C)</span> <span class="text-danger">*</span></label>
                                 <input type="number" step="0.1" class="form-control custom-input" name="temp"
-                                    placeholder="เช่น 36.5">
+                                    placeholder="เช่น 36.5" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small fw-bold">ความดัน (mmHg)</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_bp">ความดัน (mmHg)</span> <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control custom-input" name="bp"
-                                    placeholder="เช่น 120/80">
+                                    placeholder="เช่น 120/80" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small fw-bold" data-i18n="triage_pr">การเต้นของหัวใจ</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_pr">การเต้นของหัวใจ</span> <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control custom-input" name="pulse"
-                                    placeholder="เช่น 80">
+                                    placeholder="เช่น 80" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small fw-bold">น้ำหนัก (กก.)</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_weight">น้ำหนัก (กก.)</span> <span class="text-danger">*</span></label>
                                 <input type="number" step="0.1" class="form-control custom-input" id="triageWeight"
-                                    name="weight" oninput="calculateBMI()" placeholder="เช่น 60.5">
+                                    name="weight" oninput="calculateBMI()" placeholder="เช่น 60.5" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small fw-bold">ส่วนสูง (ซม.)</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_height">ส่วนสูง (ซม.)</span> <span class="text-danger">*</span></label>
                                 <input type="number" step="0.1" class="form-control custom-input" id="triageHeight"
-                                    name="height" oninput="calculateBMI()" placeholder="เช่น 165">
+                                    name="height" oninput="calculateBMI()" placeholder="เช่น 165" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small fw-bold">BMI</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_bmi">BMI</span></label>
                                 <input type="text" class="form-control custom-input bg-light text-muted" id="triageBMI"
                                     name="bmi" readonly placeholder="คำนวณอัตโนมัติ">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small fw-bold">ค่าออกซิเจน (%)</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_spo2">ค่าออกซิเจน (%)</span> <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control custom-input" name="spo2"
-                                    placeholder="เช่น 98">
+                                    placeholder="เช่น 98" required>
                             </div>
                             <div class="col-md-8">
-                                <label class="form-label small fw-bold">อาการเบื้องต้น</label>
+                                <label class="form-label small fw-bold"><span data-i18n="triage_symptom">อาการเบื้องต้น</span> <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control custom-input" name="symptom"
-                                    placeholder="เช่น ปวดหัว มีไข้ น้ำมูกไหล...">
+                                    placeholder="เช่น ปวดหัว มีไข้ น้ำมูกไหล..." required>
                             </div>
                         </div>
                         <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
-                                class="btn btn-light border px-4" data-bs-dismiss="modal">ยกเลิก</button><button
-                                type="submit" class="btn btn-primary px-4">ส่งเข้าห้องตรวจ</button></div>
+                                class="btn btn-light border px-4" data-bs-dismiss="modal" data-i18n="cancel">ยกเลิก</button><button
+                                type="submit" class="btn btn-primary px-4" data-i18n="triage_send_to_doctor">ส่งเข้าห้องตรวจ</button></div>
                     </form>
                 </div>
             </div>
@@ -3487,7 +3532,7 @@
                 style="border-radius: 16px; border: none; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);">
                 <div class="modal-header bg-white px-4 pt-4 pb-2 border-0">
                     <h5 class="modal-title fw-bold text-dark fs-5">บันทึกข้อมูลส่งแล็บ (Lab Order)</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" tabindex="-1" onpointerdown="this.blur()" onclick="this.blur()"></button>
                 </div>
                 <div class="modal-body px-4 py-2 bg-white">
                     <form id="labOrderForm" onsubmit="event.preventDefault(); submitLabOrder();">
@@ -3684,18 +3729,36 @@
                                 <i class="bi bi-heart-pulse-fill me-1.5 text-warning"></i>ກວດເສັ້ນເລືອດ
                             </button>
 
-                            <!-- ปุ่มพิเศษ (CBC) -->
-                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm" id="cbcCategoryBtn"
-                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"
+                            <!-- ปุ่มพิเศษ (CBC, Urine, Biochem, Other Lab - ซ่อนไว้เนื่องจากใช้ระบบออกผลตรวจรวม Combined Lab แล้ว) -->
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm d-none" id="cbcCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73; display: none !important;"
                                 onclick="if(typeof openCbcPage==='function'){openCbcPage(undefined, 'lab');}else{window.open('cbc.html?mode=lab','_blank');}">
                                 <i class="bi bi-droplet-half me-1.5 text-danger"></i>CBC
                             </button>
 
-                            <!-- ปุ่มพิเศษ (Urine) -->
-                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm" id="urineCategoryBtn"
-                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm d-none" id="urineCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73; display: none !important;"
                                 onclick="if(typeof openUrinePage==='function'){openUrinePage(undefined, 'lab');}else{window.open('urine.html','_blank');}">
                                 <i class="bi bi-eyedropper me-1.5 text-warning"></i>Urine
+                            </button>
+
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm d-none" id="biochemCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73; display: none !important;"
+                                onclick="if(typeof openBiochemPage==='function'){openBiochemPage(undefined, 'lab');}else{window.open('biochem.html','_blank');}">
+                                <i class="bi bi-droplet-half me-1.5 text-info"></i>Biochem
+                            </button>
+
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm d-none" id="otherLabCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73; display: none !important;"
+                                onclick="if(typeof openOtherLabPage==='function'){openOtherLabPage(undefined, 'lab');}else{window.open('other-lab.html?mode=lab','_blank');}">
+                                <i class="bi bi-journal-medical me-1.5 text-success"></i>ຜົນກວດອື່ນໆ
+                            </button>
+
+                            <!-- ปุ่มพิเศษ (Combined Lab / ອອກຜົນກວດລວມ) -->
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm" id="combinedLabCategoryBtn"
+                                style="border-radius: 8px; background: linear-gradient(135deg, #1e3a8a 0%, #0b3c73 100%); border-color: #0b3c73;"
+                                onclick="if(typeof openCombinedLabPage==='function'){openCombinedLabPage(undefined, 'lab');}else{window.open('combined-lab.html?mode=lab','_blank');}" title="ລວມຜົນກວດທຸກໝວດໄວ້ໃນໄຟລ໌ດຽວ">
+                                <i class="bi bi-file-earmark-medical-fill me-1.5 text-warning"></i>📑 ອອກຜົນກວດລວມ
                             </button>
                         </div>
 
@@ -3778,22 +3841,64 @@
                     </div>
                     <!-- กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
                     <div id="rxDoctorLabNoteBox"
-                        class="alert alert-warning py-2.5 px-3 mb-3 border-warning border align-items-start gap-2 shadow-xs rounded-3"
+                        class="alert alert-warning py-2 px-3 mb-2.5 border-warning border align-items-start gap-2 shadow-xs rounded-3"
                         style="display: none; font-size: 0.88rem; background-color: #fffbeb;">
                         <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
                         <div class="w-100">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <strong class="text-dark d-flex align-items-center gap-1.5" style="font-size: 0.88rem;">
-                                    <i class="bi bi-pencil-square text-primary"></i> ໝາຍເຫດ/ຂໍ້ແນະນຳຈາກແພດ (Lab
-                                    Note):
+                                    <i class="bi bi-chat-square-text-fill text-primary"></i> ໝາຍເຫດ / ຂໍ້ແນະນຳຈາກຫ້ອງກວດ (Lab Note):
                                 </strong>
-                                <span class="badge bg-warning text-dark px-2 py-0.5 rounded-pill"
-                                    style="font-size: 0.72rem;">ข้อความจากห้องตรวจ</span>
+                                <span class="badge bg-warning text-dark px-2.5 py-1 rounded-pill fw-bold"
+                                    style="font-size: 0.72rem;"><i class="bi bi-bell-fill me-1"></i> ຂໍ້ຄວາມຈາກຫ້ອງກວດ</span>
                             </div>
                             <div id="rxDoctorLabNoteText" class="text-dark fw-medium"
-                                style="white-space: pre-wrap; line-height: 1.5; color: #1e293b;">-</div>
+                                style="line-height: 1.5; color: #1e293b;">-</div>
                         </div>
                     </div>
+                    <!-- 🌟 ส่วนที่ 4: การวินิจฉัยโรค / ວິນິດໄສພະຍາດ (ICD-10 Diagnosis) - แถว Dropdown ค้นหาและเลือกโรค -->
+                    <div class="card border mb-3 shadow-xs" style="border-radius: 12px; border-color: #cbd5e1 !important; background: #f8fafc; overflow: visible;">
+                        <div class="card-body p-2.5">
+                            <input type="hidden" id="rxIcd10Code" value="">
+                            <input type="hidden" id="rxIcd10Name" value="">
+                            <div class="row g-2 align-items-center">
+                                <!-- ป้ายชื่อหัวข้อ -->
+                                <div class="col-md-3">
+                                    <label class="fw-bold text-dark d-flex align-items-center gap-1.5 mb-0" style="font-size: 0.88rem;">
+                                        <i class="bi bi-clipboard2-pulse-fill text-primary fs-5"></i>
+                                        <span>ການວິນິດໄສ (ICD-10):</span>
+                                    </label>
+                                </div>
+                                <!-- Drop-down ค้นหาและเลือกโรค -->
+                                <div class="col-md-5 position-relative">
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-white border-end-0 text-muted" style="height: 40px;"><i class="bi bi-search text-primary"></i></span>
+                                        <input type="text" id="rxIcd10SearchInput" class="form-control border-start-0 border-end-0 custom-input fw-medium text-truncate"
+                                            placeholder="-- 🔍 ເລືອກ ຫຼື ພິມຄົ້ນຫາພະຍາດ --"
+                                            autocomplete="off" style="height: 40px; font-size: 0.88rem;"
+                                            oninput="onRxIcd10SearchInput(this.value)"
+                                            onfocus="showRxIcd10Dropdown()"
+                                            onclick="showRxIcd10Dropdown()">
+                                        <button class="btn btn-outline-secondary border-start-0 bg-white" type="button" id="rxIcd10ClearBtn" onclick="clearRxDiagnosis()" title="ລ້າງ" style="display: none; height: 40px;">
+                                            <i class="bi bi-x-circle-fill text-danger"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary bg-light" type="button" onclick="toggleRxIcd10Dropdown()" title="ສະແດງລາຍການ" style="height: 40px;">
+                                            <i class="bi bi-chevron-down text-secondary"></i>
+                                        </button>
+                                    </div>
+                                    <!-- Search / Select Dropdown List -->
+                                    <div id="rxIcd10DropdownList" class="dropdown-menu w-100 shadow-lg border p-1" style="max-height: 280px; overflow-y: auto; display: none; position: absolute; z-index: 1060; left: 0; top: 100%;"></div>
+                                </div>
+                                <!-- ช่องหมายเหตุเพิ่มเติมของแพทย์ (Doctor Note) -->
+                                <div class="col-md-4">
+                                    <input type="text" id="rxIcd10NoteInput" class="form-control custom-input"
+                                        placeholder="📝 ໝາຍເຫດການວິນິດໄສ (Doctor note)..."
+                                        maxlength="255" style="height: 40px; font-size: 0.88rem; border-radius: 8px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <h6 class="fw-bold mb-0 text-dark" style="font-size: 1rem;"><i
                                 class="bi bi-capsule-pill text-primary me-2 fs-5"></i>ລາຍການຈ່າຍຢາ</h6>
@@ -4313,6 +4418,21 @@
                         <p class="mb-0 text-dark" id="histSymptom">-</p>
                     </div>
 
+                    <!-- 🌟 การวินิจฉัยโรคทางการแพทย์ (ICD-10 Diagnosis) -->
+                    <div id="histDiagnosisContainer" class="p-3 border rounded mb-4" style="display: none; background: #fff5f5; border-color: #fecdd3 !important;">
+                        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                            <h6 class="fw-bold mb-0 text-danger d-flex align-items-center gap-2">
+                                <i class="bi bi-heart-pulse-fill"></i>
+                                <span>ການບົ່ງມະຕິພະຍາດ / การวินิจฉัยโรค (ICD-10)</span>
+                            </h6>
+                            <span id="histIcd10CodeBadge" class="badge bg-danger text-white font-monospace px-2.5 py-1 rounded-pill shadow-xs" style="font-size: 0.82rem; letter-spacing: 0.5px;">-</span>
+                        </div>
+                        <div id="histDiagnosisName" class="fw-bold text-dark fs-6">-</div>
+                        <div id="histDiagnosisNoteBox" class="mt-2 pt-2 border-top border-danger-subtle small" style="display: none;">
+                            <i class="bi bi-chat-left-text me-1 text-danger"></i><span class="fw-semibold text-secondary">ໝາຍເຫດແພດ / หมายเหตุแพทย์: </span><span id="histDiagnosisNote" class="text-dark fw-medium"></span>
+                        </div>
+                    </div>
+
                     <div id="histLabContainer" class="p-3 border rounded mb-4"
                         style="display: none; background: #fafafa;">
                         <h6 class="fw-bold mb-2 text-primary"><i class="bi bi-flask me-1"></i>ผลการตรวจทางห้องแล็บ &
@@ -4778,12 +4898,17 @@
                         .cbc-status-low { background: #fef3c7; color: #b45309; }
                         .cbc-status-high { background: #fee2e2; color: #b91c1c; }
                         .cbc-status-empty { background: #f1f5f9; color: #64748b; }
-                        .cbc-hist-card { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 6px 10px 4px; margin-bottom: 8px; }
-                        .cbc-hist-title { font-weight: 700; font-size: 11.5px; color: #1e293b; margin-bottom: 2px; }
-                        .cbc-hist-card svg { display: block; width: 100%; height: auto; max-height: 75px; }
-                        .cbc-hist-card .axis-line { stroke: #64748b; stroke-width: 1.2; }
-                        .cbc-hist-card .gate { stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 3,3; }
-                        .cbc-hist-card .trace { fill: none; stroke: #0369a1; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+                        .cbc-hist-card { border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; padding: 7px 10px 5px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.2s ease; }
+                        .cbc-hist-card:hover { border-color: #cbd5e1; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+                        .cbc-hist-title { font-weight: 700; font-size: 11.5px; letter-spacing: 0.2px; }
+                        .cbc-hist-range { font-size: 10px; color: #64748b; font-weight: 500; }
+                        .cbc-hist-card svg { display: block; width: 100%; height: auto; max-height: 80px; }
+                        .cbc-hist-card .axis-line { stroke: #94a3b8; stroke-width: 1.2; }
+                        .cbc-hist-card .gate { stroke: #cbd5e1; stroke-width: 0.9; stroke-dasharray: 3,3; }
+                        .cbc-hist-card .trace { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+                        .cbc-hist-card .trace-wbc { stroke: #2563eb !important; }
+                        .cbc-hist-card .trace-rbc { stroke: #dc2626 !important; }
+                        .cbc-hist-card .trace-plt { stroke: #059669 !important; }
                     </style>
 
                     <!-- Container สำหรับพิมพ์/สร้าง PDF -->
@@ -4921,6 +5046,84 @@
                 </div>
                 <div class="modal-body p-0" style="background-color: #f0f5fc; height: 84vh; min-height: 600px;">
                     <iframe id="urineModalFrame" src="about:blank" style="width: 100%; height: 100%; border: none; display: block;" title="Urine Examination Report"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: ฟอร์มผลตรวจ Biochem (Biochemistry Popup Modal) -->
+    <div class="modal fade" id="biochemLabModal" tabindex="-1" style="z-index: 1065;" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1020px;">
+            <div class="modal-content"
+                style="border-radius: 16px; border: none; box-shadow: 0 12px 35px rgba(0,0,0,0.18); overflow: hidden;">
+                <div class="modal-header bg-white border-bottom py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <h5 class="modal-title fw-bold m-0" style="color: #0b3c73; font-size: 1.15rem;">
+                            <i class="bi bi-droplet-half text-primary me-2"></i><span id="biochemModalTitleText">ໃບລາຍງານຜົນກວດເຄມີຄລີນິກ (Biochemistry Analysis Report)</span>
+                        </h5>
+                        <span id="biochemModalPatientInfo" class="badge bg-light text-primary border fw-semibold" style="font-size: 0.85rem;"></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openBiochemInNewTab()" title="เปิดในแท็บใหม่">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>เปิดแท็บใหม่
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-0" style="background-color: #f0f5fc; height: 86vh; min-height: 620px;">
+                    <iframe id="biochemModalFrame" src="about:blank" style="width: 100%; height: 100%; border: none; display: block;" title="Biochemistry Analysis Report"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Other Lab (ຜົນກວດວິເຄາະອື່ນໆ) -->
+    <div class="modal fade" id="otherLabModal" tabindex="-1" style="z-index: 1065;" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1020px;">
+            <div class="modal-content"
+                style="border-radius: 16px; border: none; box-shadow: 0 12px 35px rgba(0,0,0,0.18); overflow: hidden;">
+                <div class="modal-header bg-white border-bottom py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <h5 class="modal-title fw-bold m-0" style="color: #0b3c73; font-size: 1.15rem;">
+                            <i class="bi bi-journal-medical text-success me-2"></i><span id="otherLabModalTitleText">ໃບລາຍງານຜົນກວດອື່ນໆ (Other Lab Report)</span>
+                        </h5>
+                        <span id="otherLabModalPatientInfo" class="badge bg-light text-primary border fw-semibold" style="font-size: 0.85rem;"></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openOtherLabInNewTab()" title="เปิดในแท็บใหม่">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>เปิดแท็บใหม่
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-0" style="background-color: #f0f5fc; height: 86vh; min-height: 620px;">
+                    <iframe id="otherLabModalFrame" src="about:blank" style="width: 100%; height: 100%; border: none; display: block;" title="Other Laboratory Report"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Comprehensive Lab Report (ໃບລາຍງານຜົນກວດລວມ) -->
+    <div class="modal fade" id="combinedLabModal" tabindex="-1" style="z-index: 1065;" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1040px;">
+            <div class="modal-content"
+                style="border-radius: 16px; border: none; box-shadow: 0 12px 35px rgba(0,0,0,0.18); overflow: hidden;">
+                <div class="modal-header bg-white border-bottom py-2.5 px-3 d-flex align-items-center justify-content-between gap-2" style="flex-wrap: nowrap;">
+                    <div class="d-flex align-items-center flex-wrap gap-2 text-truncate" style="min-width: 0; flex: 1;">
+                        <h5 class="modal-title fw-bold m-0 text-truncate" style="color: #0b3c73; font-size: 1.15rem;">
+                            <i class="bi bi-file-earmark-medical-fill text-primary me-2"></i><span id="combinedLabModalTitleText">ໃບລາຍງານຜົນກວດວິເຄາະລວມ (Comprehensive Laboratory Report)</span>
+                        </h5>
+                        <span id="combinedLabModalPatientInfo" class="badge bg-light text-primary border fw-semibold text-truncate" style="font-size: 0.85rem;"></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-auto">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openCombinedLabInNewTab()" title="ເປີດໃນແທັບໃໝ່">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>ເປີດແທັບໃໝ່
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-0" style="background-color: #f0f5fc; height: 88vh; min-height: 640px;">
+                    <iframe id="combinedLabModalFrame" src="about:blank" style="width: 100%; height: 100%; border: none; display: block;" title="Comprehensive Laboratory Report"></iframe>
                 </div>
             </div>
         </div>
@@ -5067,9 +5270,9 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=5.4"></script>
+    <script src="function.js?v=6.6"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
-    <script src="Recover Lab.js?v=7.5"></script>
+    <script src="Recover Lab.js?v=7.8"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
@@ -5089,9 +5292,21 @@
     </script>
     <!-- Fix: Blocked aria-hidden on focused element in Bootstrap Modals -->
     <script>
+        document.addEventListener('pointerdown', function (e) {
+            const btn = e.target && e.target.closest && e.target.closest('[data-bs-dismiss="modal"], .btn-close');
+            if (btn) btn.blur();
+        }, true);
+        document.addEventListener('click', function (e) {
+            const btn = e.target && e.target.closest && e.target.closest('[data-bs-dismiss="modal"], .btn-close');
+            if (btn) btn.blur();
+        }, true);
         document.addEventListener('hide.bs.modal', function (e) {
             if (document.activeElement && e.target && e.target.contains(document.activeElement)) {
                 document.activeElement.blur();
+            }
+            if (e.target) {
+                const focused = e.target.querySelector(':focus');
+                if (focused) focused.blur();
             }
         }, true);
 

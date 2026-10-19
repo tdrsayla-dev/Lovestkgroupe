@@ -232,8 +232,8 @@
     }
 
     // ฟังก์ชันช่วยสร้าง SVG กราฟเส้นโค้ง
-    function generatePath(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY) {
-        if (!points || points.length === 0) return '';
+    function generatePathData(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY) {
+        if (!points || points.length === 0) return { line: '', area: '' };
         const innerW = width - padX * 2;
         const innerH = height - padY * 2;
 
@@ -247,11 +247,20 @@
             return (height - padY) - (clampedY / maxY) * innerH;
         };
 
-        let d = `M ${scaleX(points[0][0])} ${scaleY(points[0][1])}`;
+        const baseY = height - padY;
+        const firstX = scaleX(points[0][0]);
+        const lastX = scaleX(points[points.length - 1][0]);
+
+        let line = `M ${firstX.toFixed(1)} ${scaleY(points[0][1]).toFixed(1)}`;
         for (let i = 1; i < points.length; i++) {
-            d += ` L ${scaleX(points[i][0])} ${scaleY(points[i][1])}`;
+            line += ` L ${scaleX(points[i][0]).toFixed(1)} ${scaleY(points[i][1]).toFixed(1)}`;
         }
-        return d;
+        const area = `${line} L ${lastX.toFixed(1)} ${baseY.toFixed(1)} L ${firstX.toFixed(1)} ${baseY.toFixed(1)} Z`;
+        return { line, area };
+    }
+
+    function generatePath(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY) {
+        return generatePathData(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY).line;
     }
 
     // วาดกราฟเส้นจำลอง Histogram (WBC, RBC, PLT)
@@ -333,56 +342,113 @@
         }
 
         const w = 310;
-        const h = 75;
+        const h = 76;
+        const padX = 20;
+        const padY = 14;
+        const baseY = h - padY; // 62
 
-        const wbcPathD = generatePath(wbcPoints, w, h, 20, 14, 30, 450, 150);
-        const rbcPathD = generatePath(rbcPoints, w, h, 20, 14, 20, 250, 130);
-        const pltPathD = generatePath(pltPoints, w, h, 20, 14, 0.5, 32, 160);
+        const wbcData = generatePathData(wbcPoints, w, h, padX, padY, 30, 450, 150);
+        const rbcData = generatePathData(rbcPoints, w, h, padX, padY, 20, 250, 130);
+        const pltData = generatePathData(pltPoints, w, h, padX, padY, 0.5, 32, 160);
 
         const pathWbc = document.getElementById('histPathWbc');
         const pathRbc = document.getElementById('histPathRbc');
         const pathPlt = document.getElementById('histPathPlt');
+        const areaWbc = document.getElementById('histAreaWbc');
+        const areaRbc = document.getElementById('histAreaRbc');
+        const areaPlt = document.getElementById('histAreaPlt');
 
-        if (pathWbc && pathRbc && pathPlt) {
-            pathWbc.setAttribute('d', wbcPathD);
-            pathRbc.setAttribute('d', rbcPathD);
-            pathPlt.setAttribute('d', pltPathD);
+        if (pathWbc && pathRbc && pathPlt && areaWbc && areaRbc && areaPlt) {
+            pathWbc.setAttribute('d', wbcData.line);
+            areaWbc.setAttribute('d', wbcData.area);
+
+            pathRbc.setAttribute('d', rbcData.line);
+            areaRbc.setAttribute('d', rbcData.area);
+
+            pathPlt.setAttribute('d', pltData.line);
+            areaPlt.setAttribute('d', pltData.area);
         } else {
             container.innerHTML = `
+                <!-- 1. WBC Histogram (Blue) -->
                 <div class="hist-plot">
-                    <div class="hist-title">WBC Histogram (40 - 450 fL)</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                        <span class="hist-title" style="color:#0b3c73;">WBC Histogram</span>
+                        <span class="hist-range" style="font-size:10px;color:#64748b;">(40 - 450 fL)</span>
+                    </div>
                     <svg viewBox="0 0 ${w} ${h}">
-                        <line class="axis-line" x1="20" y1="62" x2="${w - 10}" y2="62" />
-                        <line class="gate" stroke-dasharray="3,3" x1="75" y1="10" x2="75" y2="62" />
-                        <line class="gate" stroke-dasharray="3,3" x1="125" y1="10" x2="125" y2="62" />
-                        <path class="trace" id="histPathWbc" d="${wbcPathD}" />
-                        <text x="20" y="73">50</text>
-                        <text x="135" y="73">200</text>
-                        <text x="${w - 35}" y="73">400</text>
+                        <defs>
+                            <linearGradient id="gradWbcCbc" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.45"/>
+                                <stop offset="60%" stop-color="#3b82f6" stop-opacity="0.18"/>
+                                <stop offset="100%" stop-color="#60a5fa" stop-opacity="0.02"/>
+                            </linearGradient>
+                        </defs>
+                        <line x1="20" y1="20" x2="${w - 10}" y2="20" stroke="#f1f5f9" stroke-width="1" />
+                        <line x1="20" y1="36" x2="${w - 10}" y2="36" stroke="#f1f5f9" stroke-width="1" />
+                        <line x1="20" y1="50" x2="${w - 10}" y2="50" stroke="#f1f5f9" stroke-width="1" />
+                        <line class="axis-line" x1="20" y1="${baseY}" x2="${w - 10}" y2="${baseY}" stroke="#94a3b8" stroke-width="1.2" />
+                        <path id="histAreaWbc" d="${wbcData.area}" fill="url(#gradWbcCbc)" />
+                        <path class="trace trace-wbc" id="histPathWbc" d="${wbcData.line}" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                        <text x="24" y="${h - 2}">40</text>
+                        <text x="75" y="${h - 2}" text-anchor="middle">100</text>
+                        <text x="145" y="${h - 2}" text-anchor="middle">200</text>
+                        <text x="215" y="${h - 2}" text-anchor="middle">300</text>
+                        <text x="${w - 12}" y="${h - 2}" text-anchor="end">450 fL</text>
                     </svg>
                 </div>
+
+                <!-- 2. RBC Histogram (Red) -->
                 <div class="hist-plot">
-                    <div class="hist-title">RBC Histogram (25 - 250 fL)</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                        <span class="hist-title" style="color:#991b1b;">RBC Histogram</span>
+                        <span class="hist-range" style="font-size:10px;color:#64748b;">(25 - 250 fL)</span>
+                    </div>
                     <svg viewBox="0 0 ${w} ${h}">
-                        <line class="axis-line" x1="20" y1="62" x2="${w - 10}" y2="62" />
-                        <line class="gate" stroke-dasharray="3,3" x1="50" y1="10" x2="50" y2="62" />
-                        <line class="gate" stroke-dasharray="3,3" x1="${w - 50}" y1="10" x2="${w - 50}" y2="62" />
-                        <path class="trace" id="histPathRbc" d="${rbcPathD}" />
-                        <text x="20" y="73">50</text>
-                        <text x="${w / 2 - 10}" y="73">100</text>
-                        <text x="${w - 35}" y="73">200</text>
+                        <defs>
+                            <linearGradient id="gradRbcCbc" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#dc2626" stop-opacity="0.45"/>
+                                <stop offset="60%" stop-color="#ef4444" stop-opacity="0.18"/>
+                                <stop offset="100%" stop-color="#f87171" stop-opacity="0.02"/>
+                            </linearGradient>
+                        </defs>
+                        <line x1="20" y1="20" x2="${w - 10}" y2="20" stroke="#f1f5f9" stroke-width="1" />
+                        <line x1="20" y1="36" x2="${w - 10}" y2="36" stroke="#f1f5f9" stroke-width="1" />
+                        <line x1="20" y1="50" x2="${w - 10}" y2="50" stroke="#f1f5f9" stroke-width="1" />
+                        <line class="axis-line" x1="20" y1="${baseY}" x2="${w - 10}" y2="${baseY}" stroke="#94a3b8" stroke-width="1.2" />
+                        <path id="histAreaRbc" d="${rbcData.area}" fill="url(#gradRbcCbc)" />
+                        <path class="trace trace-rbc" id="histPathRbc" d="${rbcData.line}" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                        <text x="24" y="${h - 2}">25</text>
+                        <text x="65" y="${h - 2}" text-anchor="middle">50</text>
+                        <text x="125" y="${h - 2}" text-anchor="middle">100</text>
+                        <text x="185" y="${h - 2}" text-anchor="middle">150</text>
+                        <text x="${w - 12}" y="${h - 2}" text-anchor="end">250 fL</text>
                     </svg>
                 </div>
+
+                <!-- 3. PLT Histogram (Green) -->
                 <div class="hist-plot">
-                    <div class="hist-title">PLT Histogram (2 - 30 fL)</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                        <span class="hist-title" style="color:#065f46;">PLT Histogram</span>
+                        <span class="hist-range" style="font-size:10px;color:#64748b;">(2 - 30 fL)</span>
+                    </div>
                     <svg viewBox="0 0 ${w} ${h}">
-                        <line class="axis-line" x1="20" y1="62" x2="${w - 10}" y2="62" />
-                        <line class="gate" stroke-dasharray="3,3" x1="30" y1="10" x2="30" y2="62" />
-                        <line class="gate" stroke-dasharray="3,3" x1="${w - 40}" y1="10" x2="${w - 40}" y2="62" />
-                        <path class="trace" id="histPathPlt" d="${pltPathD}" />
-                        <text x="20" y="73">2</text>
-                        <text x="${w / 2 - 10}" y="73">10</text>
-                        <text x="${w - 35}" y="73">20</text>
+                        <defs>
+                            <linearGradient id="gradPltCbc" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#059669" stop-opacity="0.45"/>
+                                <stop offset="60%" stop-color="#10b981" stop-opacity="0.18"/>
+                                <stop offset="100%" stop-color="#34d399" stop-opacity="0.02"/>
+                            </linearGradient>
+                        </defs>
+                        <line x1="20" y1="20" x2="${w - 10}" y2="20" stroke="#f1f5f9" stroke-width="1" />
+                        <line x1="20" y1="36" x2="${w - 10}" y2="36" stroke="#f1f5f9" stroke-width="1" />
+                        <line x1="20" y1="50" x2="${w - 10}" y2="50" stroke="#f1f5f9" stroke-width="1" />
+                        <line class="axis-line" x1="20" y1="${baseY}" x2="${w - 10}" y2="${baseY}" stroke="#94a3b8" stroke-width="1.2" />
+                        <path id="histAreaPlt" d="${pltData.area}" fill="url(#gradPltCbc)" />
+                        <path class="trace trace-plt" id="histPathPlt" d="${pltData.line}" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                        <text x="24" y="${h - 2}">2</text>
+                        <text x="100" y="${h - 2}" text-anchor="middle">10</text>
+                        <text x="190" y="${h - 2}" text-anchor="middle">20</text>
+                        <text x="${w - 12}" y="${h - 2}" text-anchor="end">30 fL</text>
                     </svg>
                 </div>
             `;
@@ -464,11 +530,40 @@
                 } catch (oErr) { }
             }
 
-            showToast('บันทึกผลตรวจ CBC ลงในผลตรวจทั้งหมดเรียบร้อยแล้ว');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ບັນທຶກຜົນກວດ CBC ສຳເລັດ!',
+                    html: `
+                        <div style="text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; margin: 6px 0 10px 0;">
+                            <div>Visit: <strong style="color: #2563eb;">${currentVisitInfo.visit_id || '-'}</strong> | HN: <strong style="color: #0b3c73;">${currentVisitInfo.hn || '-'}</strong></div>
+                            <div style="margin-top: 4px;">ຊື່ຄົນເຈັບ: <strong>${currentVisitInfo.name || '-'}</strong></div>
+                            <div style="font-size: 12px; color: #16a34a; font-weight: 700; margin-top: 8px;">
+                                <i class="bi bi-cloud-check-fill me-1"></i> ບັນທຶກ ແລະ ຊິງຄ໌ຜົນກວດ CBC ລົງໃນລະບົບຮຽບຮ້ອຍແລ້ວ
+                            </div>
+                        </div>
+                    `,
+                    confirmButtonText: 'ຕົກລົງ (OK)',
+                    confirmButtonColor: '#2563eb',
+                    timer: 3000,
+                    timerProgressBar: true
+                });
+            } else {
+                showToast('ບັນທຶກຜົນກວດ CBC ສຳເລັດແລ້ວ');
+            }
             return true;
         } catch (e) {
             console.error('Save CBC Error:', e);
-            showToast('เกิดข้อผิดพลาดในการบันทึก');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ເກີດຂໍ້ຜິດພາດ!',
+                    text: 'ບໍ່ສາມາດບັນທຶກຂໍ້ມູນໄດ້: ' + (e.message || e),
+                    confirmButtonColor: '#ef4444'
+                });
+            } else {
+                showToast('ເກີດຂໍ້ຜິດພາດໃນການບັນທຶກ');
+            }
             return false;
         }
     }
@@ -661,6 +756,97 @@
             renderTable(DEFAULT_CBC_DATA);
         }
         setupEvents();
+        initTableKeyboardNavigation();
     });
+
+    // ລະບົບ Keyboard Navigation (Up, Down, Left, Right, Enter)
+    function initTableKeyboardNavigation(root = document) {
+        root.addEventListener('keydown', function (e) {
+            const isUp = (e.key === 'ArrowUp') || (e.key === 'Enter' && e.shiftKey);
+            const isDown = (e.key === 'ArrowDown') || (e.key === 'Enter' && !e.shiftKey);
+            const isLeft = (e.key === 'ArrowLeft');
+            const isRight = (e.key === 'ArrowRight');
+
+            if (!isUp && !isDown && !isLeft && !isRight) return;
+
+            const el = e.target;
+            if (!el || el.tagName !== 'INPUT') return;
+            if (el.readOnly || el.disabled || el.type === 'button' || el.type === 'file') return;
+
+            const tr = el.closest('tr');
+            if (!tr) return;
+
+            const table = tr.closest('table') || tr.closest('tbody');
+            if (!table) return;
+
+            const rows = Array.from(table.querySelectorAll('tr')).filter(r => {
+                if (r.closest('thead')) return false;
+                return r.querySelector('input:not([disabled]):not([readonly])');
+            });
+            const rowIndex = rows.indexOf(tr);
+            if (rowIndex === -1) return;
+
+            const currentInputs = Array.from(tr.querySelectorAll('input:not([disabled]):not([readonly])'));
+            const colIndex = currentInputs.indexOf(el);
+            if (colIndex === -1) return;
+
+            let targetEl = null;
+
+            if (isDown) {
+                if (rowIndex < rows.length - 1) {
+                    const nextTr = rows[rowIndex + 1];
+                    const nextInputs = Array.from(nextTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    const dataKey = el.getAttribute('data-key');
+                    if (dataKey) targetEl = nextTr.querySelector(`[data-key="${dataKey}"]:not([disabled]):not([readonly])`);
+                    if (!targetEl && nextInputs.length > 0) targetEl = nextInputs[Math.min(colIndex, nextInputs.length - 1)];
+                }
+            } else if (isUp) {
+                if (rowIndex > 0) {
+                    const prevTr = rows[rowIndex - 1];
+                    const prevInputs = Array.from(prevTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    const dataKey = el.getAttribute('data-key');
+                    if (dataKey) targetEl = prevTr.querySelector(`[data-key="${dataKey}"]:not([disabled]):not([readonly])`);
+                    if (!targetEl && prevInputs.length > 0) targetEl = prevInputs[Math.min(colIndex, prevInputs.length - 1)];
+                }
+            } else if (isLeft) {
+                const val = el.value || '';
+                const isAtStart = (el.selectionStart === 0 && el.selectionEnd === 0);
+                const isAllSelected = (el.selectionStart === 0 && el.selectionEnd === val.length);
+                if (!isAtStart && !isAllSelected) return;
+
+                if (colIndex > 0) {
+                    targetEl = currentInputs[colIndex - 1];
+                } else if (rowIndex > 0) {
+                    const prevTr = rows[rowIndex - 1];
+                    const prevInputs = Array.from(prevTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    if (prevInputs.length > 0) targetEl = prevInputs[prevInputs.length - 1];
+                }
+            } else if (isRight) {
+                const val = el.value || '';
+                const isAtEnd = (el.selectionStart === val.length && el.selectionEnd === val.length);
+                const isAllSelected = (el.selectionStart === 0 && el.selectionEnd === val.length);
+                if (!isAtEnd && !isAllSelected) return;
+
+                if (colIndex < currentInputs.length - 1) {
+                    targetEl = currentInputs[colIndex + 1];
+                } else if (rowIndex < rows.length - 1) {
+                    const nextTr = rows[rowIndex + 1];
+                    const nextInputs = Array.from(nextTr.querySelectorAll('input:not([disabled]):not([readonly])'));
+                    if (nextInputs.length > 0) targetEl = nextInputs[0];
+                }
+            }
+
+            if (targetEl) {
+                e.preventDefault();
+                targetEl.focus();
+                if (typeof targetEl.select === 'function') {
+                    try { targetEl.select(); } catch (err) { }
+                }
+                if (typeof targetEl.scrollIntoView === 'function') {
+                    try { targetEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { }
+                }
+            }
+        });
+    }
 
 })();

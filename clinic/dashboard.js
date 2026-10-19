@@ -37,17 +37,29 @@ if (!_mlmSupabase && typeof supabase !== 'undefined' && cfg.MLM_SUPABASE_URL && 
 }
 
 // 2. Navigation & Parent Bridge
+function getSafeParent() {
+    try {
+        if (window.parent && window.parent !== window) {
+            const _ = window.parent.document;
+            return window.parent;
+        }
+    } catch (e) { }
+    return null;
+}
+
 window.showPage = function(pageId, element) {
-    if (window.parent && window.parent !== window && typeof window.parent.showPage === 'function') {
-        window.parent.showPage(pageId, element);
+    const p = getSafeParent();
+    if (p && typeof p.showPage === 'function') {
+        p.showPage(pageId, element);
     } else {
         window.location.href = 'Clinic.html?page=' + encodeURIComponent(pageId);
     }
 };
 
 window.logoutUser = function() {
-    if (window.parent && window.parent !== window && typeof window.parent.logoutUser === 'function') {
-        window.parent.logoutUser();
+    const p = getSafeParent();
+    if (p && typeof p.logoutUser === 'function') {
+        p.logoutUser();
     } else {
         if (typeof Swal !== 'undefined') {
             Swal.fire({
@@ -96,8 +108,9 @@ window.setClinicLanguage = function(lang) {
     if (typeof setLanguage === 'function') {
         setLanguage(lang);
     }
-    if (window.parent && window.parent !== window && typeof window.parent.setClinicLanguage === 'function') {
-        try { window.parent.setClinicLanguage(lang); } catch (e) {}
+    const p = getSafeParent();
+    if (p && typeof p.setClinicLanguage === 'function') {
+        try { p.setClinicLanguage(lang); } catch (e) {}
     }
 };
 
@@ -317,12 +330,13 @@ async function fetchSyncedBillsStats(startStr, endStr) {
     // 1. ตรวจสอบว่าใน parent window มีข้อมูล bills ที่ตรงกับช่วงวันที่นี้อยู่แล้วหรือไม่ (ถ้ามีสามารถนำมาใช้ได้ทันทีโดยไม่ไปยุ่งกับช่องวันที่ของหน้า Bill)
     let billsList = [];
     try {
-        if (window.parent && Array.isArray(window.parent.allBillsData) && window.parent.allBillsData.length > 0) {
-            const pDoc = window.parent.document;
+        const p = getSafeParent();
+        if (p && Array.isArray(p.allBillsData) && p.allBillsData.length > 0) {
+            const pDoc = p.document;
             const pStart = (pDoc.getElementById('billStartDate') || {}).value;
             const pEnd = (pDoc.getElementById('billEndDate') || {}).value;
             if (pStart === startStr && pEnd === endStr) {
-                billsList = window.parent.allBillsData;
+                billsList = p.allBillsData;
             }
         }
     } catch (e) { }
@@ -358,7 +372,8 @@ async function fetchSyncedBillsStats(startStr, endStr) {
                 return false;
             };
 
-            const client = (typeof _supabase !== 'undefined' ? _supabase : (window.parent && window.parent._supabase));
+            const p = getSafeParent();
+            const client = (typeof _supabase !== 'undefined' ? _supabase : (p && p._supabase));
             if (client) {
                 const [{ data: bData }, { data: vData }] = await Promise.all([
                     client.from('bills').select('*').gte('created_at', startTimestamp).lte('created_at', endTimestamp).order('created_at', { ascending: false }),
@@ -458,9 +473,14 @@ async function fetchSyncedBillsStats(startStr, endStr) {
         let itemsTotal = 0;
         labItems.forEach(function (item) {
             let price = parseFloat(item.price || 0);
-            if (price === 0 && typeof window.parent?.getTestItemDetails === 'function') {
-                const details = window.parent.getTestItemDetails(item.name);
-                if (details && details.price > 0) price = details.price;
+            if (price === 0) {
+                try {
+                    const p = getSafeParent();
+                    if (p && typeof p.getTestItemDetails === 'function') {
+                        const details = p.getTestItemDetails(item.name);
+                        if (details && details.price > 0) price = details.price;
+                    }
+                } catch (e) { }
             }
             itemsTotal += price * (parseInt(item.qty || 1));
         });

@@ -26,6 +26,20 @@ const state = {
   }
 };
 
+// Global Transient Network Error Handler (ERR_NETWORK_CHANGED / Fetch Drops)
+window.addEventListener('unhandledrejection', function (e) {
+  const reasonStr = String(e.reason?.message || e.reason || '');
+  if (
+    reasonStr.includes('NETWORK_CHANGED') ||
+    reasonStr.includes('Failed to fetch') ||
+    reasonStr.includes('NetworkError') ||
+    reasonStr.includes('AbortError')
+  ) {
+    e.preventDefault();
+    console.warn('Network change/reconnect handled gracefully:', reasonStr);
+  }
+});
+
 // Supabase Clients Initialization
 const cfg = (typeof CONFIG !== 'undefined') ? CONFIG : {
   SUPABASE_URL: window.SUPABASE_URL || '',
@@ -130,7 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ]);
 });
 
-// Switch Active Tab (ສັ່ງອາຫານເສີມ, ຜູ້ປ່ວຍ)
+// Switch Active Tab (ສັ່ງອາຫານເສີມ, ຜູ້ປ່ວຍ, ປະເພດການກວດ)
 function switchReportTab(tabName) {
   state.activeTab = tabName;
 
@@ -142,7 +156,8 @@ function switchReportTab(tabName) {
   // Update tab content displays
   const tabs = {
     nutrients: document.getElementById('tabNutrients'),
-    patients: document.getElementById('tabPatients')
+    patients: document.getElementById('tabPatients'),
+    labPackages: document.getElementById('tabLabPackages')
   };
 
   Object.keys(tabs).forEach(k => {
@@ -156,6 +171,7 @@ function switchReportTab(tabName) {
   if (titleEl) {
     if (tabName === 'nutrients') titleEl.textContent = 'ລາຍງານການສັ່ງອາຫານເສີມ & ຈ່າຍຢາ';
     else if (tabName === 'patients') titleEl.textContent = 'ລາຍງານຂໍ້ມູນຄົນເຈັບ & ການກວດ';
+    else if (tabName === 'labPackages') titleEl.textContent = 'ລາຍງານປະເພດການກວດ & ແພັກເກດ';
   }
 }
 
@@ -224,6 +240,30 @@ function withTimeout(promise, ms = 2500, fallbackVal = null) {
     promise,
     new Promise(resolve => setTimeout(() => resolve(fallbackVal), ms))
   ]);
+}
+
+// 🚀 Helper: Auto-Retry async network requests with backoff on ERR_NETWORK_CHANGED / transient socket drops
+async function withNetworkRetry(taskFn, maxRetries = 2, delayMs = 600) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await taskFn();
+      if (res && res.error) {
+        const errMsg = String(res.error.message || '').toLowerCase();
+        if ((errMsg.includes('network') || errMsg.includes('fetch') || errMsg.includes('connection')) && attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+          continue;
+        }
+      }
+      return res;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+      } else {
+        console.warn('Network request recovered gracefully after retries:', err);
+        return { data: null, error: err };
+      }
+    }
+  }
 }
 
 // Load Clinic Branding / Settings (Instant from Cache + Async Sync)
@@ -314,27 +354,27 @@ async function loadReportData() {
   }
 
   try {
-    // 🚀 Parallel Fetch:
+    // 🚀 Parallel Fetch with Network Retry & Timeout Guard:
     // 1. Visits for selected date range (only required columns)
     // 2. Bills for selected date range (only for doctor resolution fallback)
     // 3. Raw Nutrient Orders (filtered by date range at DB level)
     // 4. Staff Users (filter Role = Doctor)
     const [resVisits, resBills, rawNutrientOrders, resStaffUsers] = await Promise.all([
-      sbClient.from('visits')
-        .select('visit_id, hn, patient_name, doctor_name, status, symptom, meds, created_at')
+      withNetworkRetry(() => sbClient.from('visits')
+        .select('visit_id, hn, patient_name, doctor_name, status, symptom, lab_tests, meds, created_at')
         .gte('created_at', queryStartISO)
         .lte('created_at', queryEndISO)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })),
 
-      sbClient.from('bills')
+      withNetworkRetry(() => sbClient.from('bills')
         .select('visit_id, created_by, created_at')
         .gte('created_at', queryStartISO)
-        .lte('created_at', queryEndISO),
+        .lte('created_at', queryEndISO)),
 
       fetchRawNutrientOrders(queryStartISO, queryEndISO),
 
-      sbClient.from('staff_users')
-        .select('id, emp_code, full_name, email, role, is_active')
+      withNetworkRetry(() => sbClient.from('staff_users')
+        .select('id, emp_code, full_name, email, role, is_active'))
     ]);
 
     // 👨‍⚕️ Filter ONLY users from staff_users where role is Doctor (doctor, แพทย์, หมอ, ທ່ານໝໍ)
@@ -365,13 +405,24 @@ async function loadReportData() {
       } catch (e) {}
     }
 
-    // Filter visits by exact local date (UTC+7)
-    const rawVisits = resVisits.data || [];
+    // Filter visits by exact local date (UTC+7) + Cache fallback
+    let rawVisits = resVisits?.data;
+    if (!resVisits?.error && Array.isArray(rawVisits)) {
+      try {
+        localStorage.setItem('clinic_visits_report_cache', JSON.stringify(rawVisits));
+      } catch (e) {}
+    } else if (resVisits?.error) {
+      try {
+        rawVisits = JSON.parse(localStorage.getItem('clinic_visits_report_cache') || '[]');
+      } catch (e) {}
+    }
+    rawVisits = rawVisits || [];
+
     state.visits = rawVisits.filter(v => {
       const d = toLocalDateStr(v.created_at);
       return !d || (d >= state.startDate && d <= state.endDate);
     });
-    state.bills = resBills.data || [];
+    state.bills = resBills?.data || [];
 
     // 🚀 Process Nutrient Orders with visits data
     processNutrientOrders(rawNutrientOrders, state.visits);
@@ -387,10 +438,10 @@ async function loadReportData() {
       state.patientCache = state.patientCache || {};
       const missingHns = visitHns.filter(hn => !state.patientCache[hn]);
       if (missingHns.length > 0) {
-        const { data: patData } = await sbClient
+        const { data: patData } = await withNetworkRetry(() => sbClient
           .from('patients')
           .select('*')
-          .in('hn', missingHns);
+          .in('hn', missingHns));
         (patData || []).forEach(p => {
           if (p.hn) state.patientCache[p.hn] = p;
         });
@@ -405,6 +456,9 @@ async function loadReportData() {
 
     // Render Tab 2: Patients & Visits
     renderPatientsTab();
+
+    // Render Tab 3: Lab Packages & Health Exams
+    renderLabPackagesTab();
 
     // Ensure active tab header and view are synced
     switchReportTab(state.activeTab || 'nutrients');
@@ -1500,7 +1554,7 @@ function populateDoctorFilter(doctors) {
     const count = state.doctorStatsMap[dr]?.orderCount || 0;
     const opt = document.createElement('option');
     opt.value = dr;
-    opt.textContent = `${dr} (${count} ໃບສັ່ງ)`;
+    opt.textContent = dr;
     select.appendChild(opt);
   });
 
@@ -1831,6 +1885,46 @@ function isConsultedVisit(v) {
   return true;
 }
 
+// 🌟 ແຍກປະເພດການກວດ / ແພັກເກດ Lab (ກວດຄົບວົງຈອນ, ABI, ABI & ASI, ແລະ ອື່ນໆ)
+function parseLabTestPackages(rawLabTests) {
+  if (!rawLabTests || typeof rawLabTests !== 'string') return [];
+  const text = rawLabTests.trim();
+  if (!text || text === '-' || text === 'null' || text === 'undefined') return [];
+
+  const foundCategories = [];
+  const lower = text.toLowerCase();
+
+  // 1. ກວດ ABI & ASI
+  if (text.includes('ABI & ASI') || text.includes('ABI&ASI') || lower.includes('abi & asi') || lower.includes('abi&asi')) {
+    foundCategories.push('ກວດ ABI & ASI');
+  } 
+  // 2. ກວດ ABI (ດ່ຽວ)
+  else if (text.includes('ABI') || lower.includes('abi')) {
+    foundCategories.push('ກວດ ABI');
+  }
+
+  // 3. ກວດຄົບວົງຈອນ
+  if (text.includes('ຄົບວົງຈອນ') || text.includes('ครบวงจร')) {
+    foundCategories.push('ກວດຄົບວົງຈອນ');
+  }
+
+  // 4. ສ່ວນລາຍການກວດຍ່ອຍອື່ນໆ (H-pylori, CBC, etc.)
+  const parts = text.split(/[,;\n+]/).map(s => s.trim()).filter(Boolean);
+  parts.forEach(p => {
+    if (p.includes('ແຖມ') || p.includes('ຫຼຸດ') || p.includes('19 ລາຍການ')) return;
+    if (p.includes('ຄົບວົງຈອນ') || p.includes('ABI') || p.toLowerCase().includes('abi')) return;
+    if (p.length > 1 && !foundCategories.includes(p)) {
+      foundCategories.push(p);
+    }
+  });
+
+  if (foundCategories.length === 0 && text.length > 0) {
+    foundCategories.push(text.length > 30 ? text.slice(0, 30) + '...' : text);
+  }
+
+  return foundCategories;
+}
+
 // 🌟 ກວດສອບວ່າ Visit ນີ້ເປັນການສັ່ງຊື້ຢາ/ອາຫານເສີມ (Order) ຫຼື ເຂົ້າມາກວດກັບທ່ານໝໍ (ມາກວດ)
 function isOrderVisit(v) {
   if (!v) return false;
@@ -1930,6 +2024,7 @@ function renderPatientsTab() {
       newPatientSet: new Set(),
       oldPatientSet: new Set(),
       diseaseMap: {},
+      labTestMap: {}, // 🌟 สถิติประเภทการตรวจ / แพ็กเกจ Lab
       visitsList: []
     };
   });
@@ -1964,6 +2059,15 @@ function renderPatientsTab() {
       } else {
         ds.diseaseMap[sym] = (ds.diseaseMap[sym] || 0) + 1;
       }
+    }
+
+    // 🌟 Extract Lab Test Packages / Types (ກວດຄົບວົງຈອນ, ABI, ABI & ASI, etc.)
+    const labPkgs = parseLabTestPackages(v.lab_tests);
+    v._labPackages = labPkgs;
+    if (labPkgs.length > 0) {
+      labPkgs.forEach(pkg => {
+        ds.labTestMap[pkg] = (ds.labTestMap[pkg] || 0) + 1;
+      });
     }
 
     ds.visitsList.push(v);
@@ -2038,7 +2142,7 @@ function populatePatientDoctorFilter(doctors) {
     const visits = state.patientDoctorStats[dr]?.totalVisits || 0;
     const opt = document.createElement('option');
     opt.value = dr;
-    opt.textContent = `👨‍⚕️ ${dr} (${visits} ເທື່ອກວດ)`;
+    opt.textContent = `👨‍⚕️ ${dr}`;
     if (dr === targetVal) opt.selected = true;
     select.appendChild(opt);
   });
@@ -2098,12 +2202,70 @@ function onPatientDoctorSelectChange() {
           v.symptoms,
           v.symptom,
           v.diagnosis,
+          v.lab_tests,
           d.doctor
         ].join(' ').toLowerCase();
         return drMatch || text.includes(query);
       });
       return { ...d, visitsList: matchingVisits };
     }).filter(d => d.visitsList.length > 0);
+  }
+
+  // 🌟 Calculate and update 4 KPI Cards for Patients Tab (ตรงกับภาพตารางด้านล่าง)
+  const elTotalPat = document.getElementById('kpiTotalPatients');
+  const elPeriodVisits = document.getElementById('kpiPeriodVisitsSub');
+  const elNewPat = document.getElementById('kpiNewPatients');
+  const elNewPct = document.getElementById('kpiNewPatientsPct');
+  const elOldPat = document.getElementById('kpiOldPatients');
+  const elOldPct = document.getElementById('kpiOldPatientsPct');
+  const elActiveDoc = document.getElementById('kpiTreatingDoctors');
+
+  let totalVisitsCount = 0;
+  const uniquePatients = new Set();
+  const uniqueNewPatients = new Set();
+  const uniqueOldPatients = new Set();
+  const activeDoctorsSet = new Set();
+
+  filtered.forEach(d => {
+    totalVisitsCount += (d.totalVisits || 0);
+    (d.patientSet || new Set()).forEach(p => uniquePatients.add(p));
+    (d.newPatientSet || new Set()).forEach(p => uniqueNewPatients.add(p));
+    (d.oldPatientSet || new Set()).forEach(p => uniqueOldPatients.add(p));
+    if ((d.totalVisits || 0) > 0) {
+      activeDoctorsSet.add(d.doctor);
+    }
+  });
+
+  const totPatCount = uniquePatients.size;
+  const newPatCount = uniqueNewPatients.size;
+  const oldPatCount = uniqueOldPatients.size;
+  const newPct = totPatCount > 0 ? Math.round((newPatCount / totPatCount) * 100) : 0;
+  const oldPct = totPatCount > 0 ? Math.round((oldPatCount / totPatCount) * 100) : 0;
+
+  if (elTotalPat) elTotalPat.textContent = formatNumber(totPatCount);
+  if (elPeriodVisits) elPeriodVisits.textContent = `${formatNumber(totalVisitsCount)} ເທື່ອກວດ (Visits)`;
+  if (elNewPat) elNewPat.textContent = formatNumber(newPatCount);
+  if (elNewPct) elNewPct.textContent = `${newPct}% ຂອງຄົນເຈັບ`;
+  if (elOldPat) elOldPat.textContent = formatNumber(oldPatCount);
+  if (elOldPct) elOldPct.textContent = `${oldPct}% ຂອງຄົນເຈັບ`;
+  if (elActiveDoc) {
+    if (selectedDoctor !== 'all') {
+      elActiveDoc.textContent = `1 ທ່ານ (ເລືອກຢູ່)`;
+    } else {
+      elActiveDoc.textContent = `${activeDoctorsSet.size} ທ່ານ`;
+    }
+  }
+
+  // Update Status Badge
+  const statusBadge = document.getElementById('doctorPatientFilterStatusBadge');
+  if (statusBadge) {
+    if (selectedDoctor !== 'all') {
+      statusBadge.textContent = `ສະແດງສະເພາະ: 👨‍⚕️ ${selectedDoctor}`;
+      statusBadge.className = 'badge bg-primary text-white border px-3 py-1';
+    } else {
+      statusBadge.textContent = `ສະແດງທຸກທ່ານໝໍ (${filtered.length} ທ່ານ)`;
+      statusBadge.className = 'badge bg-light text-primary border px-3 py-1';
+    }
   }
 
   renderDoctorPatientCards(filtered);
@@ -2134,20 +2296,6 @@ function renderDoctorPatientCards(doctorList) {
   });
 
   container.innerHTML = doctorList.map((ds) => {
-    // Sort diseases by frequency
-    const topDiseases = Object.entries(ds.diseaseMap || {})
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
-
-    const diseaseTagsHtml = topDiseases.length > 0
-      ? topDiseases.map(([dName, count]) => `
-          <span class="disease-tag">
-            <i class="ph-fill ph-stethoscope text-primary"></i> ${dName}
-            <span class="disease-tag-count">${count}</span>
-          </span>
-        `).join('')
-      : '<span class="text-muted small">ກວດສຸຂະພາບທົ່ວໄປ</span>';
-
     const patientRows = ds.visitsList.map((v, idx) => {
       const p = patMap[v.hn] || {};
       const name = p.name || v.patient_name || 'ບໍ່ລະບຸຊື່';
@@ -2158,6 +2306,20 @@ function renderDoctorPatientCards(doctorList) {
       const typeBadge = isOrder
         ? `<span class="badge-service-order"><i class="ph-fill ph-package"></i> Order</span>`
         : `<span class="badge-service-exam"><i class="ph-fill ph-stethoscope"></i> ມາກວດ</span>`;
+
+      // 🌟 ແພັກເກດ / ປະເພດການກວດ (ແບບທີ 2: ຄໍລຳໃນຕາຕະລາງ)
+      const labPkgs = v._labPackages || parseLabTestPackages(v.lab_tests);
+      const labCellHtml = (labPkgs && labPkgs.length > 0)
+        ? `
+          <div class="d-flex flex-wrap gap-1 align-items-center">
+            ${labPkgs.map(pkg => `
+              <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle text-wrap text-start fw-medium py-1 px-2" style="font-size: 0.73rem; line-height: 1.35; max-width: 210px;">
+                <i class="ph-bold ph-check me-0.5"></i>${pkg}
+              </span>
+            `).join('')}
+          </div>
+        `
+        : `<span class="text-muted small">-</span>`;
 
       // 🌟 ຜູ້ແນະນຳ / ຜູ້ Order
       let referrerOrOrderer = '-';
@@ -2241,6 +2403,7 @@ function renderDoctorPatientCards(doctorList) {
           <td class="fw-semibold text-dark">${name}</td>
           <td class="align-middle">${refBadge}</td>
           <td class="text-center align-middle">${typeBadge}</td>
+          <td class="align-middle">${labCellHtml}</td>
           <td class="align-middle"><span class="badge bg-light text-dark border">${genderAge}</span></td>
           <td class="small font-monospace align-middle">${phone}</td>
           <td class="small align-middle" style="max-width: 240px;">
@@ -2276,29 +2439,20 @@ function renderDoctorPatientCards(doctorList) {
             </div>
           </div>
 
-          <!-- Top Diseases / Symptoms Diagnosed by Doctor -->
-          <div class="px-3 py-2 bg-light border-bottom d-flex align-items-center gap-2 flex-wrap">
-            <span class="small fw-bold text-muted text-nowrap">
-              <i class="ph-fill ph-heartbeat text-danger me-1"></i>ພະຍາດ & ອາການທີ່ພົບ:
-            </span>
-            <div class="d-flex align-items-center gap-1 flex-wrap">
-              ${diseaseTagsHtml}
-            </div>
-          </div>
-
           <div class="table-responsive">
             <table class="doctor-breakdown-table table-hover">
               <thead>
                 <tr>
-                  <th style="width: 45px;" class="text-center">#</th>
+                  <th style="width: 40px;" class="text-center">#</th>
                   <th style="width: 105px;">HN</th>
                   <th>ຊື່ ແລະ ນາມສະກຸນ</th>
                   <th style="width: 145px;">ຜູ້ແນະນຳ / ຜູ້ Order</th>
-                  <th class="text-center" style="width: 90px;">ປະເພດ</th>
-                  <th style="width: 110px;">ເພດ / ອາຍຸ</th>
+                  <th class="text-center" style="width: 85px;">ປະເພດ</th>
+                  <th style="width: 175px; min-width: 155px;">ປະເພດການກວດ / ແພັກເກດ</th>
+                  <th style="width: 105px;">ເພດ / ອາຍຸ</th>
                   <th style="width: 115px;">ເບີໂທລະສັບ</th>
                   <th>ອາການເບື້ອງຕົ້ນ / ພະຍາດທີ່ເປັນ</th>
-                  <th class="text-center" style="width: 210px; min-width: 180px;">ຈຳນວນຢາ / ອາຫານເສີມ</th>
+                  <th class="text-center" style="width: 205px; min-width: 175px;">ຈຳນວນຢາ / ອາຫານເສີມ</th>
                   <th style="width: 130px;">ວັນທີມາກວດ</th>
                 </tr>
               </thead>
@@ -2307,7 +2461,7 @@ function renderDoctorPatientCards(doctorList) {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="4" class="text-end text-dark">
+                  <td colspan="5" class="text-end text-dark">
                     ລວມຄົນເຈັບຂອງທ່ານໝໍ <b>${ds.doctor}</b>:
                   </td>
                   <td colspan="6" class="text-dark">
@@ -2324,6 +2478,250 @@ function renderDoctorPatientCards(doctorList) {
       </div>
     `;
   }).join('');
+}
+
+// ── Tab 3: Health Exam & Lab Packages Renderers ────────────
+
+function renderLabPackagesTab() {
+  const patMap = {};
+  (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
+
+  const visitNutrientMap = {};
+  (state.nutrientOrders || []).forEach(o => {
+    if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
+  });
+
+  // Filter clinical visits for lab & health examinations
+  const consultedVisits = (state.visits || []).filter(v => isConsultedVisit(v));
+  
+  // Prepare processed lab visits list
+  const labVisits = [];
+  const packageCounts = {
+    'all': 0,
+    'full': 0,    // ກວດຄົບວົງຈອນ
+    'abiAsi': 0,  // ກວດ ABI & ASI
+    'abi': 0,     // ກວດ ABI
+    'other': 0
+  };
+  const detailedPackageMap = {};
+  const activeDoctorsSet = new Set();
+  const uniquePatientsSet = new Set();
+
+  consultedVisits.forEach(v => {
+    // If pure nutrient order without exam, skip unless it has lab tests
+    if (isOrderVisit(v) && (!v.lab_tests || v.lab_tests === '-' || v.lab_tests === '[]')) {
+      return;
+    }
+
+    const p = patMap[v.hn] || {};
+    const dr = resolveVisitDoctor(v, visitNutrientMap) || v.doctor_name || v.doctor || '-';
+    if (dr && dr !== '-') activeDoctorsSet.add(dr);
+
+    const pkgs = parseLabTestPackages(v.lab_tests);
+    const hasExplicitPkgs = pkgs && pkgs.length > 0;
+    const finalPkgs = hasExplicitPkgs ? pkgs : ['ກວດສຸຂະພາບທົ່ວໄປ'];
+
+    if (v.hn) uniquePatientsSet.add(v.hn);
+    else if (v.patient_name) uniquePatientsSet.add(v.patient_name);
+
+    packageCounts.all++;
+
+    let matchedCore = false;
+    finalPkgs.forEach(pkg => {
+      detailedPackageMap[pkg] = (detailedPackageMap[pkg] || 0) + 1;
+      if (pkg.includes('ຄົບວົງຈອນ')) {
+        packageCounts.full++;
+        matchedCore = true;
+      }
+      if (pkg.includes('ABI & ASI') || pkg.includes('ABI&ASI')) {
+        packageCounts.abiAsi++;
+        matchedCore = true;
+      } else if (pkg.includes('ABI')) {
+        packageCounts.abi++;
+        matchedCore = true;
+      }
+    });
+
+    if (!matchedCore) {
+      packageCounts.other++;
+    }
+
+    labVisits.push({
+      ...v,
+      _patient: p,
+      _doctor: dr,
+      _packages: finalPkgs
+    });
+  });
+
+  state.labVisits = labVisits;
+  state.labPackageDetailedMap = detailedPackageMap;
+
+  // 1. Update KPIs
+  const totPat = uniquePatientsSet.size;
+  const totVis = labVisits.length;
+  const elTotPat = document.getElementById('kpiLabTotalPatients');
+  const elTotVis = document.getElementById('kpiLabTotalVisits');
+  const elFull = document.getElementById('kpiLabFullPackage');
+  const elFullPct = document.getElementById('kpiLabFullPackagePct');
+  const elAbiAsi = document.getElementById('kpiLabAbiAsi');
+  const elAbiAsiPct = document.getElementById('kpiLabAbiAsiPct');
+  const elAbi = document.getElementById('kpiLabAbi');
+  const elAbiPct = document.getElementById('kpiLabAbiPct');
+
+  if (elTotPat) elTotPat.textContent = formatNumber(totPat);
+  if (elTotVis) elTotVis.textContent = `${formatNumber(totVis)} ເທື່ອກວດ (Visits)`;
+  
+  if (elFull) elFull.textContent = formatNumber(packageCounts.full);
+  if (elFullPct) elFullPct.textContent = totVis > 0 ? `${Math.round((packageCounts.full / totVis) * 100)}% ຂອງຜູ້ມາກວດ` : '0%';
+
+  if (elAbiAsi) elAbiAsi.textContent = formatNumber(packageCounts.abiAsi);
+  if (elAbiAsiPct) elAbiAsiPct.textContent = totVis > 0 ? `${Math.round((packageCounts.abiAsi / totVis) * 100)}% ຂອງຜູ້ມາກວດ` : '0%';
+
+  if (elAbi) elAbi.textContent = formatNumber(packageCounts.abi);
+  if (elAbiPct) elAbiPct.textContent = totVis > 0 ? `${Math.round((packageCounts.abi / totVis) * 100)}% ຂອງຜູ້ມາກວດ` : '0%';
+
+  // Render Lab Packages Summary Table
+  renderLabPackagesSummaryTable();
+}
+
+function renderLabPackagesSummaryTable() {
+  const allList = state.labVisits || [];
+
+  // Group visits by Examination Item / Package
+  const packageMap = {};
+
+  allList.forEach(v => {
+    const pkgs = (v._packages && v._packages.length > 0) ? v._packages : ['ກວດສຸຂະພາບທົ່ວໄປ'];
+    pkgs.forEach(pkg => {
+
+      if (!packageMap[pkg]) {
+        packageMap[pkg] = {
+          name: pkg,
+          visitCount: 0,
+          doctorsMap: {},
+          patientMap: {}
+        };
+      }
+
+      packageMap[pkg].visitCount++;
+      const dr = v._doctor || 'ບໍ່ລະບຸ';
+      packageMap[pkg].doctorsMap[dr] = (packageMap[pkg].doctorsMap[dr] || 0) + 1;
+
+      const p = v._patient || {};
+      const pName = p.name || v.patient_name || 'ບໍ່ລະບຸຊື່';
+      const patKey = v.hn || pName;
+
+      if (!packageMap[pkg].patientMap[patKey]) {
+        packageMap[pkg].patientMap[patKey] = {
+          hn: v.hn || '',
+          name: pName,
+          phone: p.phone || '',
+          doctor: dr,
+          date: v.created_at,
+          count: 1
+        };
+      } else {
+        packageMap[pkg].patientMap[patKey].count++;
+      }
+    });
+  });
+
+  // Convert to sorted array (sorted by visitCount descending)
+  const groupedPackages = Object.values(packageMap).sort((a, b) => b.visitCount - a.visitCount);
+  state.currentLabGroupedPackages = groupedPackages;
+
+  // Update Status Badge
+  const statusBadge = document.getElementById('labPackageFilterStatusBadge');
+  if (statusBadge) {
+    statusBadge.textContent = `ສະແດງ: ${groupedPackages.length} ລາຍການກວດ`;
+  }
+
+  // Render Table Body
+  const tbody = document.getElementById('labPackagesTableBody');
+  const tfoot = document.getElementById('labPackagesTableFoot');
+  if (!tbody) return;
+
+  if (groupedPackages.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-center py-5 text-muted">
+          <i class="ph-duotone ph-flask text-muted fs-1 mb-2 d-block"></i>
+          <span>ບໍ່ພົບລາຍການກວດຕາມເງື່ອນໄຂທີ່ເລືອກ</span>
+        </td>
+      </tr>
+    `;
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+
+  let totalAllVisits = groupedPackages.reduce((sum, g) => sum + g.visitCount, 0);
+  const globalUniquePatients = new Set();
+  groupedPackages.forEach(grp => {
+    Object.values(grp.patientMap).forEach(pt => {
+      if (pt.hn) globalUniquePatients.add(pt.hn);
+      else globalUniquePatients.add(pt.name);
+    });
+  });
+
+  tbody.innerHTML = groupedPackages.map((grp, idx) => {
+    const patients = Object.values(grp.patientMap);
+    const pct = totalAllVisits > 0 ? ((grp.visitCount / totalAllVisits) * 100).toFixed(1) : '0.0';
+
+    return `
+      <tr>
+        <td class="text-muted small text-center align-middle font-monospace">${idx + 1}</td>
+        <td class="align-middle">
+          <div class="d-flex align-items-center gap-2.5 py-1">
+            <div class="rounded-circle bg-success-subtle d-flex align-items-center justify-content-center text-success flex-shrink-0" style="width: 34px; height: 34px;">
+              <i class="ph-fill ph-flask fs-5"></i>
+            </div>
+            <div>
+              <span class="fw-bold text-dark fs-6 d-block">${grp.name}</span>
+              <span class="text-muted small" style="font-size: 0.76rem;">ແພັກເກດກວດສຸຂະພາບ & Lab</span>
+            </div>
+          </div>
+        </td>
+        <td class="text-center align-middle">
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold px-3 py-1.5 fs-6 shadow-xs">
+            ${formatNumber(grp.visitCount)} ເທື່ອ
+          </span>
+        </td>
+        <td class="text-center align-middle">
+          <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold px-3 py-1.5 fs-6 shadow-xs">
+            ${formatNumber(patients.length)} ຄົນ
+          </span>
+        </td>
+        <td class="align-middle">
+          <div class="d-flex align-items-center gap-2" style="max-width: 220px;">
+            <div class="progress flex-grow-1" style="height: 8px; background-color: #f1f5f9; border-radius: 999px;">
+              <div class="progress-bar bg-success rounded-pill" role="progressbar" style="width: ${pct}%;" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <span class="small fw-bold text-dark font-monospace" style="min-width: 45px;">${pct}%</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (tfoot) {
+    tfoot.innerHTML = `
+      <tr class="bg-light">
+        <td colspan="2" class="text-end text-dark fw-bold fs-6">
+          ລວມທຸກລາຍການກວດ (${groupedPackages.length} ລາຍການ):
+        </td>
+        <td class="text-center text-primary fw-bold fs-6">
+          ${formatNumber(totalAllVisits)} ເທື່ອກວດ
+        </td>
+        <td class="text-center text-success fw-bold fs-6">
+          ${formatNumber(globalUniquePatients.size)} ຄົນ
+        </td>
+        <td class="align-middle text-muted small fw-semibold font-monospace">
+          100.0% ຂອງທຸກການກວດ
+        </td>
+      </tr>
+    `;
+  }
 }
 
 // Print Report Function
@@ -2376,12 +2774,15 @@ function exportCSV() {
       if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
     });
 
-    csvContent += 'ລ/ດ,ທ່ານໝໍຜູ້ກວດ,HN,ຊື່ ແລະ ນາມສະກຸນ,ຜູ້ແນະນຳ / ຜູ້ Order,ປະເພດ,ເພດ,ອາຍຸ,ເບີໂທ,ອາການ ແລະ ພະຍາດ,ຈຳນວນຢາ (ກ່ອງ),ລາຍການຢາ,ວັນທີກວດ\n';
+    csvContent += 'ລ/ດ,ທ່ານໝໍຜູ້ກວດ,HN,ຊື່ ແລະ ນາມສະກຸນ,ຜູ້ແນະນຳ / ຜູ້ Order,ປະເພດ,ປະເພດການກວດ / ແພັກເກດ,ເພດ,ອາຍຸ,ເບີໂທ,ອາການ ແລະ ພະຍາດ,ຈຳນວນຢາ (ກ່ອງ),ລາຍການຢາ,ວັນທີກວດ\n';
     consultedVisits.forEach((v, idx) => {
       const p = patMap[v.hn] || {};
       const isOrder = isOrderVisit(v);
       const patType = isOrder ? 'Order' : 'ມາກວດ';
       const dr = v._resolvedDoctor || v.doctor || '-';
+
+      const labPkgs = v._labPackages || parseLabTestPackages(v.lab_tests);
+      const labPkgStr = (labPkgs && labPkgs.length > 0) ? labPkgs.join(', ') : '-';
 
       let referrerOrOrderer = v._referrerOrOrderer;
       if (!referrerOrOrderer || referrerOrOrderer === '-') {
@@ -2428,6 +2829,7 @@ function exportCSV() {
         `"${(p.name || v.patient_name || '').replace(/"/g, '""')}"`,
         `"${referrerOrOrderer.replace(/"/g, '""')}"`,
         `"${patType}"`,
+        `"${labPkgStr.replace(/"/g, '""')}"`,
         `"${p.gender || ''}"`,
         `"${p.age || ''}"`,
         `"${p.phone || ''}"`,
@@ -2439,6 +2841,28 @@ function exportCSV() {
       csvContent += row.join(',') + '\n';
     });
     fileName = `Doctor_Patients_Report_${state.startDate}_to_${state.endDate}.csv`;
+
+  } else if (state.activeTab === 'labPackages') {
+    const groupedList = state.currentLabGroupedPackages || [];
+    if (groupedList.length === 0) {
+      showEmptyExportAlert();
+      return;
+    }
+    const totalAllVisits = groupedList.reduce((sum, g) => sum + (g.visitCount || 0), 0);
+    csvContent += 'ລ/ດ,ລາຍການກວດ / ແພັກເກດ,ຈຳນວນກວດ (ເທື່ອ),ຈຳນວນຄົນເຈັບ (ຄົນ),ສັດສ່ວນ (%)\n';
+    groupedList.forEach((grp, idx) => {
+      const patients = Object.values(grp.patientMap || {});
+      const pct = totalAllVisits > 0 ? ((grp.visitCount / totalAllVisits) * 100).toFixed(1) : '0.0';
+      const row = [
+        idx + 1,
+        `"${grp.name.replace(/"/g, '""')}"`,
+        grp.visitCount || 0,
+        patients.length || 0,
+        `"${pct}%"`
+      ];
+      csvContent += row.join(',') + '\n';
+    });
+    fileName = `Lab_Examination_Packages_Summary_${state.startDate}_to_${state.endDate}.csv`;
 
   } else {
     // Default: Overview / Bills
