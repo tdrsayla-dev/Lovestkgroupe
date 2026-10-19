@@ -11885,18 +11885,43 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     populateRxMedDropdown();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('prescribeModal')).show();
 
-    // 4. ดึงข้อมูลผู้ช่วย (Assistant / ReferredBy)
-    let assistantText = 'L03709 - MS CHERRY LOUANGPHAN';
-    if (hn) {
+    // 4. ดึงข้อมูลผู้ช่วย / ผู้แนะนำ (Assistant / ReferredBy)
+    let assistantText = '-';
+    if (hn && hn !== '-') {
         const pat = (window.allPatients || []).find(p => p.hn === hn);
-        if (pat && pat.referred_by) {
-            assistantText = pat.referred_by;
-        } else if (visitRow && visitRow.referred_by) {
-            assistantText = visitRow.referred_by;
-        }
+        if (pat && pat.referred_by) assistantText = pat.referred_by;
+    }
+    if ((!assistantText || assistantText === '-') && patientName && patientName !== 'ผู้ป่วย' && patientName !== '-') {
+        const pat = (window.allPatients || []).find(p => p.patient_name === patientName);
+        if (pat && pat.referred_by) assistantText = pat.referred_by;
+    }
+    if ((!assistantText || assistantText === '-') && visitRow && visitRow.referred_by) {
+        assistantText = visitRow.referred_by;
     }
     const assistantEl = document.getElementById('rxAssistantDisplay');
     if (assistantEl) assistantEl.innerText = assistantText;
+
+    // 4.1 Query ตรวจสอบผู้แนะนำจากฐานข้อมูล Supabase โดยตรง (กรณีใน memory ยังไม่ได้โหลด หรือค้นด้วยชื่อคนไข้)
+    if ((!assistantText || assistantText === '-') && typeof _supabase !== 'undefined') {
+        (async () => {
+            try {
+                let resolvedRef = null;
+                if (hn && hn !== '-') {
+                    const { data: pDb } = await _supabase.from('patients').select('referred_by').eq('hn', hn).maybeSingle();
+                    if (pDb && pDb.referred_by) resolvedRef = pDb.referred_by;
+                }
+                if (!resolvedRef && patientName && patientName !== 'ผู้ป่วย' && patientName !== '-') {
+                    const { data: pDb } = await _supabase.from('patients').select('referred_by').ilike('patient_name', patientName.trim()).maybeSingle();
+                    if (pDb && pDb.referred_by) resolvedRef = pDb.referred_by;
+                }
+                if (resolvedRef && assistantEl) {
+                    assistantEl.innerText = resolvedRef;
+                }
+            } catch (errRef) {
+                console.warn('Error resolving patient referred_by in prescribe modal:', errRef);
+            }
+        })();
+    }
 
     // 5. ดึงไฟล์ผลแล็บจริง
     let realFileUrl = (pdfUrl && !pdfUrl.includes('sample.pdf')) ? pdfUrl : (visitRow && visitRow.pdf_url ? visitRow.pdf_url : '');
@@ -12465,7 +12490,7 @@ async function submitPrescription() {
     if (mlmItems.length > 0) {
         try {
             // ดึงชื่อผู้แนะนำ (Referrer)
-            const assistant = document.getElementById('rxAssistantDisplay')?.innerText || 'L03709 - MS CHERRY LOUANGPHAN';
+            const assistant = document.getElementById('rxAssistantDisplay')?.innerText || '-';
             const orderId = `ORD-CLINIC-${visitId || Date.now()}`;
 
             // 🌟 1. ดึงข้อมูลเบอร์โทรศัพท์ (customer_phone)
@@ -12874,7 +12899,7 @@ async function submitPrescriptionToMlm() {
     const visitId = document.getElementById('rxVisitId').value;
     const hn = document.getElementById('rxHN').value;
     const patientName = document.getElementById('rxPatientName').value;
-    const assistant = document.getElementById('rxAssistantDisplay')?.innerText || 'L03709 - MS CHERRY LOUANGPHAN';
+    const assistant = document.getElementById('rxAssistantDisplay')?.innerText || '-';
 
     if (!window.currentRxMeds || window.currentRxMeds.length === 0) {
         Swal.fire('แจ้งเตือน', 'กรุณาเลือกรายการสินค้า/สารอาหารที่ต้องการสั่งจ่ายอย่างน้อย 1 รายการ', 'warning');
