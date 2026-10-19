@@ -1189,8 +1189,9 @@
                         resolvedCustType = foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่ากลับมาต่อยา';
                     }
 
-                    const resolvedCloser = pending.closer || pending.closer_dr || foundExistingCust.closer || foundExistingCust.closer_id || '';
-                    const resolvedCloserTeam = pending.closerTeam || pending.closer_team || foundExistingCust.closerTeam || foundExistingCust.closer_team || '';
+                    const isClinicCase = Boolean(pending.visit_id && pending.visit_id !== '-');
+                    const resolvedCloser = pending.closer || pending.closer_dr || (!isClinicCase ? (foundExistingCust.closer || foundExistingCust.closer_id || '') : '');
+                    const resolvedCloserTeam = pending.closerTeam || pending.closer_team || (!isClinicCase ? (foundExistingCust.closerTeam || foundExistingCust.closer_team || '') : '');
 
                     setCustData(prev => ({
                         ...prev,
@@ -1199,8 +1200,8 @@
                         phone: pendingPhone || foundExistingCust.phone || prev.phone,
                         lineId: pending.lineId || pending.line_id || foundExistingCust.lineId || foundExistingCust.line_id || prev.lineId || '',
                         symptom: pending.disease || pending.symptom || foundExistingCust.symptom || foundExistingCust.symptom_disease || prev.symptom || '',
-                        closer: resolvedCloser || prev.closer || '',
-                        closerTeam: resolvedCloserTeam || prev.closerTeam || '',
+                        closer: resolvedCloser || '',
+                        closerTeam: resolvedCloserTeam || (resolvedCloser ? 'Center' : ''),
                         type: resolvedCustType
                     }));
                     if (resolvedCustType) {
@@ -1209,7 +1210,12 @@
 
                     // 🛡️ หากใบสั่งยาหรือ pending มีระบุผู้แนะนำการตลาด (recorded_by / seller_id) มาอยู่แล้ว
                     // หรือเป็นเคสของคลินิก ให้เคารพผู้แนะนำในบิลนั้น ห้ามเขียนทับด้วย owner_member_id เดิมเด็ดขาด!
-                    const pendingSeller = String(pending.recorded_by || pending.seller_id || '').trim();
+                    let pendingSeller = String(pending.recorded_by || pending.seller_id || '').trim();
+                    const isSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                        ? window.isClinicDoctorIdentifier(pendingSeller, effectiveClinicDoctors || clinicDoctors)
+                        : false;
+                    if (isSellerDoc) pendingSeller = '';
+
                     const isClinicVisitCase = Boolean(pending.visit_id && pending.visit_id !== '-');
                     if (pendingSeller && pendingSeller !== '-' && pendingSeller !== '--') {
                         const matchedPendingM = (members || []).find(m => m && (
@@ -1271,6 +1277,14 @@
                     const pending = JSON.parse(pendingSaleStr);
 
                     let initSeller = String(pending.recorded_by || pending.seller_id || '').trim();
+                    // 🛡️ ป้องกันชื่อหมอหลุดเข้ามาเป็นผู้ขาย (Seller/Marketer)
+                    const isInitSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                        ? window.isClinicDoctorIdentifier(initSeller, effectiveClinicDoctors || clinicDoctors)
+                        : false;
+                    if (isInitSellerDoc) {
+                        initSeller = '';
+                    }
+
                     if (initSeller && initSeller !== '-' && initSeller !== '--') {
                         const matchedInitM = (members || []).find(m => m && (
                             safeUpper(m.id) === safeUpper(initSeller) ||
@@ -1279,18 +1293,26 @@
                             safeUpper(m.name) === safeUpper(initSeller)
                         ));
                         setMemberIdInput(matchedInitM ? `${matchedInitM.id} - ${matchedInitM.name}` : initSeller);
-                    } else if (pending.visit_id && pending.hn && typeof window.clinicSupabaseSelect === 'function') {
-                        // หากไม่มีผู้แนะนำส่งมาใน pending แต่เป็นบิลคลินิก ให้ค้นหาจากคลินิกทันที
+                    } else {
+                        setMemberIdInput('');
+                    }
+                    if (pending.visit_id && pending.hn && typeof window.clinicSupabaseSelect === 'function') {
+                        // สำหรับบิลที่มาจากคลินิก ตรวจสอบผู้แนะนำจากระบบคลินิกเพื่อความถูกต้องสูงสุด
                         window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(pending.hn)}&select=referred_by&limit=1`).then(pRes => {
-                            if (Array.isArray(pRes) && pRes.length > 0 && pRes[0].referred_by) {
+                            if (Array.isArray(pRes) && pRes.length > 0 && pRes[0].referred_by && pRes[0].referred_by !== '-' && pRes[0].referred_by !== '--') {
                                 const refStr = pRes[0].referred_by;
-                                const matchedRefM = (members || []).find(m => m && (
-                                    safeUpper(m.id) === safeUpper(refStr) ||
-                                    safeUpper(`${m.id} - ${m.name}`) === safeUpper(refStr) ||
-                                    refStr.toUpperCase().startsWith(safeUpper(m.id)) ||
-                                    safeUpper(m.name) === safeUpper(refStr)
-                                ));
-                                setMemberIdInput(matchedRefM ? `${matchedRefM.id} - ${matchedRefM.name}` : refStr);
+                                const isRefDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                                    ? window.isClinicDoctorIdentifier(refStr, effectiveClinicDoctors || clinicDoctors)
+                                    : false;
+                                if (!isRefDoc) {
+                                    const matchedRefM = (members || []).find(m => m && (
+                                        safeUpper(m.id) === safeUpper(refStr) ||
+                                        safeUpper(`${m.id} - ${m.name}`) === safeUpper(refStr) ||
+                                        refStr.toUpperCase().startsWith(safeUpper(m.id)) ||
+                                        safeUpper(m.name) === safeUpper(refStr)
+                                    ));
+                                    setMemberIdInput(matchedRefM ? `${matchedRefM.id} - ${matchedRefM.name}` : refStr);
+                                }
                             }
                         }).catch(() => {});
                     }
@@ -1363,8 +1385,8 @@
                         phone: validPhoneStr || prev.phone || '',
                         lineId: prev.lineId || '',
                         symptom: validDisease || prev.symptom || '',
-                        closer: pendingCloser || prev.closer || '',
-                        closerTeam: pendingCloserTeam || prev.closerTeam || 'Center'
+                        closer: pendingCloser || '',
+                        closerTeam: pendingCloserTeam || (pendingCloser ? 'Center' : '')
                     }));
 
                     try {
@@ -2521,8 +2543,7 @@
                         // 2. เช็คจากฐานข้อมูลด้วยไวยากรณ์ที่ถูกต้อง
                         try {
                             if (typeof window.supabaseSelect === 'function') {
-                                // เปลี่ยนจาก % เป็น * สำหรับ Supabase REST
-                                const safeSearch = encodeURIComponent(`*${visitId}*`);
+                                const safeSearch = `%25${encodeURIComponent(visitId)}%25`;
                                 const existingBills = await window.supabaseSelect('stk_sales', `payment_note=ilike.${safeSearch}&select=order_id`);
                                 if (existingBills && existingBills.length > 0) {
                                     Swal.fire({
@@ -2542,7 +2563,7 @@
                     }
                 }
 
-                let finalCustomerId = custData.id; let newCustomerObj = null;
+                let finalCustomerId = custData.id; let newCustomerObj = null; let originalCust = null;
                 const isOldCustomerMode = custMode.includes('เก่า');
 
                 if (!isOldCustomerMode) {
@@ -2633,7 +2654,7 @@
                         return null;
                     };
 
-                    let originalCust = findCustMatch();
+                    originalCust = findCustMatch();
 
                     if (!originalCust) {
                         try {

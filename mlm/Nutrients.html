@@ -380,6 +380,8 @@
             // ⚡ แมปผู้แนะนำการตลาด (Referrer) จากระบบคลินิก และ เจ้าของเคสเดิม
             const clinicReferrerByHn = new Map();
             const clinicReferrerByPhone = new Map();
+            window.clinicReferrerByHn = clinicReferrerByHn;
+            window.clinicReferrerByPhone = clinicReferrerByPhone;
             const custOwnerByHn = new Map();
             const custOwnerByPhone = new Map();
 
@@ -493,15 +495,19 @@
                 : [String(targetHn || '').trim().toUpperCase()].filter(Boolean);
               const pClean = String(targetPhone || '').replace(/[^0-9]/g, '');
 
-              // 1. ตรวจสอบจากค่าที่มีการระบุมาในออเดอร์/การตรวจรอบนี้ก่อน (Priority สูงสุด เพราะเป็นผู้ที่พาลูกค้ามาตรวจในครั้งนี้จริง ห้ามเอาชื่ออื่นมาทับ)
-              const cleanExisting = String(existingRecorded || '').trim();
-              const isRecordedValid = cleanExisting && cleanExisting !== '-' && cleanExisting !== '--';
-              if (isRecordedValid) return resolveReferrerMember(cleanExisting);
-
-              // 2. ตรวจสอบจากตาราง patients ของระบบคลินิก (กรณีไม่ได้ระบุผู้พามาในรอบนี้ จึงจะดึงจากประวัติคนไข้เดิม)
+              // 1. ตรวจสอบจากตาราง patients ของระบบคลินิกก่อนเสมอ (เป็นผู้แนะนำตัวจริงที่พาลูกค้ามาตรวจในระบบคลินิก)
               let clinicRef = hCandidates.map(c => clinicReferrerByHn.get(c)).find(Boolean) || '';
               if (!clinicRef && pClean.length >= 7) clinicRef = clinicReferrerByPhone.get(pClean) || '';
               if (clinicRef) return resolveReferrerMember(clinicRef);
+
+              // 2. ตรวจสอบจากค่าที่มีการระบุมาในออเดอร์ (กรณีไม่ได้ระบุผู้พามาในคลินิก)
+              const cleanExisting = String(existingRecorded || '').trim();
+              const isRecordedValid = cleanExisting && cleanExisting !== '-' && cleanExisting !== '--';
+              // 🛡️ กฎเหล็ก: ถ้า cleanExisting เป็นชื่อหมอคลินิก ห้ามนำมาเป็น Referrer (ผู้แนะนำการตลาด) เด็ดขาด!
+              const isDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
+                ? window.isClinicDoctorIdentifier(cleanExisting, clinicDocsRes || clinicDoctors)
+                : false;
+              if (isRecordedValid && !isDoctor) return resolveReferrerMember(cleanExisting);
 
               // 3. ตรวจสอบจากเจ้าของลูกค้าเดิมใน stk_customers
               let custRef = hCandidates.map(c => custOwnerByHn.get(c)).find(Boolean) || '';
@@ -531,8 +537,22 @@
                     }).name
                   : (explicit || 'ลูกค้าใหม่มาตรวจ');
 
-                const resolvedCloserInfo = resolveOrderCloserInfo(item);
-                const resolvedRecordedBy = getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, item.recorded_by || item.seller_id);
+                // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง ชื่อแพทย์อาจไปตกอยู่ใน recorded_by
+                let itemCloser = item.closer_dr;
+                let itemRecorded = item.recorded_by;
+                const isRecDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                  ? window.isClinicDoctorIdentifier(itemRecorded, clinicDocsRes || clinicDoctors)
+                  : false;
+                const isCloserDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                  ? window.isClinicDoctorIdentifier(itemCloser, clinicDocsRes || clinicDoctors)
+                  : false;
+                if (isRecDoc && !isCloserDoc) {
+                  itemCloser = itemRecorded;
+                  itemRecorded = '';
+                }
+
+                const resolvedCloserInfo = resolveOrderCloserInfo({ ...item, closer_dr: itemCloser, recorded_by: itemRecorded });
+                const resolvedRecordedBy = getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, itemRecorded || item.seller_id);
 
                 // ซิงค์สถานะบิลขายสำเร็จ, ประเภทลูกค้า และทีมผู้สั่งจ่ายที่ถูกต้องกลับ Supabase อัตโนมัติในพื้นหลังหากยังไม่ได้อัปเดต
                 if (typeof window.supabaseUpdate === 'function' && item.visit_id && item.visit_id !== '-') {
@@ -550,7 +570,7 @@
                   if (resolvedCloserInfo.closerTeam && item.closer_team !== resolvedCloserInfo.closerTeam) {
                     syncUpdates.closer_team = resolvedCloserInfo.closerTeam;
                   }
-                  if (resolvedRecordedBy && resolvedRecordedBy !== '-' && (!item.recorded_by || item.recorded_by === '-')) {
+                  if (resolvedRecordedBy && resolvedRecordedBy !== '-' && resolvedRecordedBy !== item.recorded_by && item.status !== 'ขายสำเร็จแล้ว') {
                     syncUpdates.recorded_by = resolvedRecordedBy;
                   }
                   if (Object.keys(syncUpdates).length > 0) {
@@ -569,7 +589,7 @@
                   order_by_type: resolvedCloserInfo.orderByType || item.order_by_type,
                   closer_team: resolvedCloserInfo.closerTeam || item.closer_team,
                   recorded_by: resolvedRecordedBy,
-                  closer_dr: resolvedCloserInfo.closerName || item.closer_dr || '-',
+                  closer_dr: resolvedCloserInfo.closerName || itemCloser || item.closer_dr || '-',
                   date: item.created_at || item.date || new Date().toISOString(),
                   status: finalStatus,
                   sale_order_id: matchingSaleId || item.sale_order_id || null,
@@ -654,10 +674,24 @@
                 }).name
               : (explicit || 'ลูกค้าใหม่มาตรวจ');
 
-            const localCloserInfo = resolveOrderCloserInfo(item);
+            // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง
+            let localCloser = item.closer_dr || '';
+            let localRecorded = item.recorded_by || item.seller_id || item.referred_by || item.referrer || '';
+            const isLocalRecDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+              ? window.isClinicDoctorIdentifier(localRecorded, clinicDocsRes || clinicDoctors)
+              : false;
+            const isLocalCloserDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+              ? window.isClinicDoctorIdentifier(localCloser, clinicDocsRes || clinicDoctors)
+              : false;
+            if (isLocalRecDoc && !isLocalCloserDoc) {
+              localCloser = localRecorded;
+              localRecorded = '';
+            }
+
+            const localCloserInfo = resolveOrderCloserInfo({ ...item, closer_dr: localCloser, recorded_by: localRecorded });
             const localRecordedBy = (typeof getBestReferrer === 'function')
-              ? getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, item.recorded_by || item.seller_id || item.referred_by || item.referrer)
-              : (item.recorded_by || item.seller_id || '-');
+              ? getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, localRecorded)
+              : (localRecorded || '-');
             const localEntry = {
               id: orderId,
               visit_id: vId,
@@ -669,7 +703,7 @@
               order_by_type: localCloserInfo.orderByType,
               closer_team: localCloserInfo.closerTeam,
               recorded_by: localRecordedBy,
-              closer_dr: localCloserInfo.closerName || item.closer_dr || '-',
+              closer_dr: localCloserInfo.closerName || localCloser || item.closer_dr || '-',
               date: item.created_at || item.date || new Date().toISOString(),
               status: finalLocalStatus,
               sale_order_id: matchingSaleId || item.sale_order_id || null,
@@ -895,15 +929,40 @@
           return `<option value="${t.name}" ${isSelected}>🏷️ ${label}</option>`;
         }).join('');
 
-        let currentSellerStr = String(order.recorded_by || '').trim();
-        if (!currentSellerStr || currentSellerStr === '-' || currentSellerStr === '--') {
-          const hnCand = (typeof window.normalizeHnCandidates === 'function')
-            ? window.normalizeHnCandidates(order.hn)
-            : [String(order.hn || '').trim().toUpperCase()].filter(Boolean);
-          const pCln = String(order.phone || '').replace(/[^0-9]/g, '');
-          const clinicMatch = hnCand.map(c => clinicReferrerByHn?.get(c)).find(Boolean) || (pCln.length >= 7 ? clinicReferrerByPhone?.get(pCln) : null);
-          if (clinicMatch) currentSellerStr = clinicMatch;
+        // 🩺 รายชื่อหมอจากฐานข้อมูลคลินิก (staff_users / Clinic Doctors)
+        const doctorsList = (clinicDoctors && clinicDoctors.length > 0)
+          ? clinicDoctors
+          : (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []);
+
+        const hnCand = (typeof window.normalizeHnCandidates === 'function')
+          ? window.normalizeHnCandidates(order.hn)
+          : [String(order.hn || '').trim().toUpperCase()].filter(Boolean);
+        const pCln = String(order.phone || '').replace(/[^0-9]/g, '');
+        const refMapHn = window.clinicReferrerByHn;
+        const refMapPhone = window.clinicReferrerByPhone;
+        const clinicMatch = (refMapHn && hnCand.map(c => refMapHn.get(c)).find(Boolean)) || (refMapPhone && pCln.length >= 7 ? refMapPhone.get(pCln) : null);
+
+        // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง
+        let rawSellerCandidate = clinicMatch || String(order.recorded_by || '').trim();
+        let rawDoctorCandidate = String(closerInfo.closerName || order.closer_dr || order.closer || '').trim();
+
+        const isSellerCandidateDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+          ? window.isClinicDoctorIdentifier(rawSellerCandidate, doctorsList)
+          : false;
+        const isDoctorCandidateDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+          ? window.isClinicDoctorIdentifier(rawDoctorCandidate, doctorsList)
+          : false;
+
+        // หาก rawSellerCandidate เป็นแพทย์คลินิก ให้ย้ายมาเป็นหมอผู้สั่งจ่ายทันที!
+        if (isSellerCandidateDoc && !isDoctorCandidateDoc) {
+          rawDoctorCandidate = rawSellerCandidate;
+          rawSellerCandidate = clinicMatch || '';
+        } else if (isSellerCandidateDoc && isDoctorCandidateDoc) {
+          rawSellerCandidate = clinicMatch || '';
         }
+
+        let currentSellerStr = rawSellerCandidate;
+        let currentCloserDocStr = rawDoctorCandidate;
 
         let sellerFoundInList = false;
         const sellerOptionsHtml = (membersList || []).map(m => {
@@ -922,18 +981,11 @@
         let fullSellerSelectHtml = '';
         if (sellerFoundInList) {
           fullSellerSelectHtml = sellerOptionsHtml;
-        } else if (currentSellerStr && currentSellerStr !== '-' && currentSellerStr !== '--') {
+        } else if (currentSellerStr && currentSellerStr !== '-' && currentSellerStr !== '--' && !isSellerCandidateDoc) {
           fullSellerSelectHtml = `<option value="${currentSellerStr}" selected>👤 ${currentSellerStr} (จากใบสั่งยาคลินิก)</option>` + sellerOptionsHtml;
         } else {
           fullSellerSelectHtml = `<option value="" disabled selected>⚠️ กรุณาเลือกผู้แนะนำ / การตลาด</option>` + sellerOptionsHtml;
         }
-
-        // 🩺 รายชื่อหมอจากฐานข้อมูลคลินิก (staff_users / Clinic Doctors)
-        const doctorsList = (clinicDoctors && clinicDoctors.length > 0)
-          ? clinicDoctors
-          : (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []);
-
-        const currentCloserDocStr = String(closerInfo.closerName || order.closer_dr || order.closer || '').trim();
         let doctorFoundInList = false;
         const doctorOptionsListHtml = (doctorsList || []).map(doc => {
           const docName = doc.full_name || doc.name || doc.emp_code || '';
@@ -1102,6 +1154,12 @@
               ? window.normalizeCustomerType(selectedCustTypeName)
               : { id: normCustType.id, name: selectedCustTypeName, lo: selectedCustTypeName, th: selectedCustTypeName, en: selectedCustTypeName };
 
+            // 🛡️ ป้องกันชื่อหมอหลุดเข้าไปใน recorded_by (ผู้แนะนำการตลาด)
+            let safeFinalSeller = selectedSeller;
+            if (typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(safeFinalSeller, doctorsList)) {
+              safeFinalSeller = clinicMatch || '-';
+            }
+
             // บันทึก override เก็บไว้ใน localStorage เพื่อไม่ให้เด้งกลับไปเป็นลูกค้าใหม่
             try {
               const currentOverrides = JSON.parse(localStorage.getItem('stk_nutrient_custom_types') || '{}');
@@ -1115,7 +1173,7 @@
             if (typeof window.supabaseUpdate === 'function' && order.visit_id && order.visit_id !== '-') {
               window.supabaseUpdate('stk_nutrient_orders', order.visit_id, {
                 customer_type: finalCustTypeObj.name,
-                recorded_by: selectedSeller || order.recorded_by,
+                recorded_by: safeFinalSeller || order.recorded_by,
                 closer_dr: chosenCloserName,
                 closer_team: chosenCloserTeam,
                 order_by_type: chosenOrderByType
@@ -1129,7 +1187,7 @@
                 customer_name: (order.customer_name && order.customer_name !== '-') ? order.customer_name : '',
                 phone: (order.phone && order.phone !== '-' && order.phone !== '--') ? order.phone : '',
                 disease: (order.disease && order.disease !== '-') ? order.disease : '',
-                recorded_by: selectedSeller || order.recorded_by,
+                recorded_by: safeFinalSeller || order.recorded_by,
                 closer_dr: chosenCloserName,
                 closer: chosenCloserName,
                 closer_team: chosenCloserTeam,

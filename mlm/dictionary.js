@@ -564,8 +564,57 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
 };
 
 /**
+ * 🩺 ตรวจสอบว่าข้อความ/รหัส/ชื่อนี้เป็นแพทย์ประจำคลินิก (Center) หรือไม่
+ * @param {string} targetStr - ชื่อหรือรหัสที่ต้องการตรวจสอบ
+ * @param {Array} clinicDoctorsPool - พูลรายชื่อแพทย์
+ * @returns {boolean}
+ */
+window.isClinicDoctorIdentifier = function(targetStr, clinicDoctorsPool) {
+    if (!targetStr || targetStr === '-' || targetStr === '--') return false;
+    const strLower = String(targetStr).trim().toLowerCase();
+    
+    // ข้อยกเว้น: MR SOUKSAKHONE LASACHAK (รหัส 99749239) เป็นนักการตลาดทีม YIA
+    if (strLower.includes('lasachak') || strLower.includes('99749239')) return false;
+
+    // ตรวจสอบกับ Master Data ของแพทย์คลินิก (staff_users / sync cache)
+    const pool = clinicDoctorsPool || (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []) || [];
+    if (Array.isArray(pool) && pool.length > 0) {
+        const found = pool.some(d => {
+            if (!d) return false;
+            const empCode = String(d.emp_code || d.id || '').trim().toLowerCase();
+            const dName = String(d.full_name || d.name || '').trim().toLowerCase();
+            return (empCode && (strLower === empCode || strLower.includes(empCode))) ||
+                   (dName && (strLower === dName || strLower.includes(dName) || dName.includes(strLower)));
+        });
+        if (found) return true;
+    }
+
+    return (
+        strLower.includes('souksakhone') ||
+        strLower.includes('souksakhonh') ||
+        strLower.includes('khanittha') ||
+        strLower.includes('lava') ||
+        strLower.includes('lavar') ||
+        strLower.includes('nuna') ||
+        strLower.includes('phengphan') ||
+        strLower.includes('phaengphan') ||
+        strLower.includes('hatkeo') ||
+        strLower.includes('daophet') ||
+        strLower.includes('ท่านหมอ') ||
+        strLower.includes('ທ່ານໝໍ') ||
+        strLower.includes('แພດ') ||
+        strLower.includes('ແພດ') ||
+        strLower.includes('หมอผู้เชี่ยวชาญ') ||
+        strLower.startsWith('หมอ') ||
+        strLower.startsWith('dr.') ||
+        strLower.startsWith('dr ') ||
+        strLower.startsWith('dmc')
+    );
+};
+
+/**
  * 🩺 ฟังก์ชันกลางวิเคราะห์และตัดสินผู้สั่งจ่าย / ผู้ปิดการขาย (Prescriber & Closer Resolver)
- * รองรับทั้งภาษาไทยและภาษาลาว ป้องกันข้อผิดพลาดที่ชอบหลุดไปขึ้นเป็น "หมอเป็นเซ็นเตอร์หมด"
+ * รองรับทั้งภาษาไทยและภาษาลาว ป้องกันข้อผิดพลาดที่ชอบหลุดไปขึ้นเป็น "หมอเป็นเซ็นเตอร์หมด" หรือ "ชื่อสลับกัน/ชื่อค้าง"
  * @param {object} ord - ออบเจกต์ออเดอร์จาก stk_nutrient_orders หรือ stk_pending_sale
  * @returns {object} { orderByType, closerTeam, closerName, isSelf, badgeText, badgeClass }
  */
@@ -582,23 +631,30 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
         };
     }
 
-    const recordedByStr = String(ord.recorded_by || ord.seller_id || '').trim();
-    const closerDrStr = String(ord.closer_dr || ord.closer || '').trim();
+    let recordedByStr = String(ord.recorded_by || ord.seller_id || '').trim();
+    let closerDrStr = String(ord.closer_dr || ord.closer || '').trim();
     const typeStr = String(ord.order_by_type || ord.prescribe_type || ord.closer_type || '').trim().toLowerCase();
     const teamStr = String(ord.closer_team || ord.closerTeam || '').trim();
     const teamLower = teamStr.toLowerCase();
-    const closerLower = closerDrStr.toLowerCase();
     const symptomStr = String(ord.symptom || ord.disease || '').toLowerCase();
     const vStr = String(ord.visit_id || '').trim().toUpperCase();
 
-    // ตรวจจับกรณีพิเศษ: MR SOUKSAKHONE LASACHAK (รหัส 99749239) เป็นนักการตลาดทีม YIA ไม่ใช่แพทย์ Souksakhone ประจำคลินิก
-    const isLasachakMarketer = closerLower.includes('lasachak') || closerLower.includes('99749239');
-    const isDoctorSouksakhone = (closerLower.includes('souksakhone') || closerLower.includes('souksakhonh')) && !isLasachakMarketer;
-
-    // 🩺 ตรวจสอบกับรายชื่อแพทย์สดจากตาราง staff_users ของระบบคลินิก
     const clinicDocs = clinicDoctorsPool || (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []) || [];
+
+    // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง (เมื่อแพทย์หมอเป็นคนสั่งมาเอง)
+    // หากชื่อหมอหลุดไปอยู่ใน recorded_by แต่ closer_dr ว่างเปล่าหรือเป็นชื่อการตลาด -> สลับให้ถูกต้องทันที!
+    const isRecordedDoc = window.isClinicDoctorIdentifier(recordedByStr, clinicDocs);
+    const isCloserDoc = window.isClinicDoctorIdentifier(closerDrStr, clinicDocs);
+    if (isRecordedDoc && !isCloserDoc) {
+        closerDrStr = recordedByStr;
+        recordedByStr = '';
+    }
+
+    const closerLower = closerDrStr.toLowerCase();
+
+    // ตรวจสอบกับรายชื่อแพทย์สดจากตาราง staff_users ของระบบคลินิก
     let matchedClinicDoc = null;
-    if (!isLasachakMarketer && closerDrStr && closerDrStr !== '-' && Array.isArray(clinicDocs) && clinicDocs.length > 0) {
+    if (closerDrStr && closerDrStr !== '-' && Array.isArray(clinicDocs) && clinicDocs.length > 0) {
         matchedClinicDoc = clinicDocs.find(d => {
             if (!d) return false;
             const empCode = String(d.emp_code || d.id || '').trim().toLowerCase();
@@ -609,27 +665,7 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
     }
 
     // รายชื่อแพทย์ประจำคลินิก (Center) - รองรับแพทย์ทุกคนในคลินิกแบบ Dynamic
-    const isDoctorName = !isLasachakMarketer && (
-        isDoctorSouksakhone ||
-        Boolean(matchedClinicDoc) ||
-        closerLower.includes('khanittha') ||
-        closerLower.includes('lava') ||
-        closerLower.includes('lavar') ||
-        closerLower.includes('nuna') ||
-        closerLower.includes('phengphan') ||
-        closerLower.includes('phaengphan') ||
-        closerLower.includes('hatkeo') ||
-        closerLower.includes('daophet') ||
-        closerLower.includes('ท่านหมอ') ||
-        closerLower.includes('ທ່ານໝໍ') ||
-        closerLower.includes('แພດ') ||
-        closerLower.includes('ແພດ') ||
-        closerLower.includes('หมอผู้เชี่ยวชาญ') ||
-        closerLower.startsWith('หมอ') ||
-        closerLower.startsWith('dr.') ||
-        closerLower.startsWith('dr ') ||
-        closerLower.startsWith('dmc')
-    );
+    const isDoctorName = window.isClinicDoctorIdentifier(closerDrStr, clinicDocs) || Boolean(matchedClinicDoc);
 
     const pool = closersPool || window.STK_CLOSERS_CACHE || [];
     const members = membersList || window.STK_MEMBERS_CACHE || [];
@@ -703,14 +739,13 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
     let isSelf = false;
     if (hasSelfKeyword) {
         isSelf = true;
+    } else if (isDoctorName || hasCenterKeyword || ord.order_by_type === 'หมอสั่งจ่าย' || teamLower === 'center') {
+        // 🩺 หากเป็นชื่อแพทย์ หรือระบุหมอสั่งจ่าย/Center ให้ล็อกเป็น Center เสมอ ไม่ให้การตลาดมาสวมสิทธิ์
+        isSelf = false;
     } else if (matchedCloser && matchedCloser.team && matchedCloser.team.toUpperCase() !== 'CENTER') {
         isSelf = true;
     } else if (matchedMember && matchedMember.business_team && matchedMember.business_team.toUpperCase() !== 'T02') {
         isSelf = true;
-    } else if (hasCenterKeyword && isDoctorName) {
-        isSelf = false;
-    } else if (isDoctorName) {
-        isSelf = false;
     } else if (isCloserFromMarketing) {
         isSelf = true;
     } else if (teamLower && teamLower !== 'center' && teamLower !== '-') {

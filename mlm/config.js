@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.10.17.02';
+  const APP_VERSION = '2026.10.19.05';
   window.APP_VERSION = APP_VERSION;
 
   // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)

@@ -929,6 +929,9 @@
      */
     async function fetchLotsWithExpiry(productId, domainType) {
         let lots = [];
+        const seenLotKeys = new Set();
+
+        // 1. ดึงจากตาราง stk_lots (ถ้ามี)
         if (typeof window.supabaseSelect === 'function') {
             let query = `order=expiry_date.asc&limit=500`;
             if (productId) query = `product_id=eq.${encodeURIComponent(productId)}&` + query;
@@ -937,42 +940,107 @@
             try {
                 const res = await window.supabaseSelect('stk_lots', query);
                 if (Array.isArray(res) && res.length > 0) {
-                    lots = res;
+                    res.forEach(lot => {
+                        const key = `${lot.product_id}_${lot.lot_id || lot.expiry_date}`;
+                        if (!seenLotKeys.has(key)) {
+                            seenLotKeys.add(key);
+                            lots.push(lot);
+                        }
+                    });
                 }
             } catch (e) {
-                console.warn('fetch stk_lots error, falling back to movements:', e);
+                console.warn('fetch stk_lots error, falling back to transfers/movements:', e);
             }
         }
 
-        // Fallback: หากยังไม่ได้สร้างตาราง stk_lots ให้ดึงจาก stk_stock_movements
-        if (lots.length === 0 && typeof window.supabaseSelect === 'function') {
+        // 2. ดึงจากใบรับสินค้าเข้าคลัง (stk_warehouse_transfers GRNs) - แหล่งข้อมูลล็อตและวันหมดอายุแท้จริง
+        if (typeof window.supabaseSelect === 'function') {
+            try {
+                let trfQuery = `order=created_at.desc&limit=100`;
+                if (domainType) trfQuery = `domain_type=eq.${encodeURIComponent(domainType)}&` + trfQuery;
+                const trfRes = await window.supabaseSelect('stk_warehouse_transfers', trfQuery);
+                if (Array.isArray(trfRes)) {
+                    trfRes.forEach(trf => {
+                        const tid = String(trf.transfer_id || '').toUpperCase();
+                        const fromWh = String(trf.from_warehouse || '').toUpperCase();
+                        const isGrn = tid.startsWith('GRN') || fromWh === 'SUPPLIER';
+                        if (!isGrn) return;
+
+                        let items = [];
+                        if (trf.items_json) {
+                            try { items = typeof trf.items_json === 'string' ? JSON.parse(trf.items_json) : trf.items_json; } catch(err) {}
+                        }
+                        if (Array.isArray(items)) {
+                            items.forEach(it => {
+                                const pid = String(it.productId || it.product_id || it.id || '').trim();
+                                if (!pid) return;
+                                if (productId && pid !== productId) return;
+
+                                const exp = it.expiryDate || it.expiry_date || null;
+                                const mfg = it.mfgDate || it.mfg_date || null;
+                                const lotId = it.lotId || it.lot_id || `LOT-${pid}-${trf.transfer_date || 'INIT'}`;
+                                const key = `${pid}_${lotId}`;
+
+                                if (!seenLotKeys.has(key) && exp) {
+                                    seenLotKeys.add(key);
+                                    lots.push({
+                                        lot_id: lotId,
+                                        product_id: pid,
+                                        domain_type: trf.domain_type || 'SUPPLEMENT',
+                                        warehouse_id: trf.to_warehouse || 'MAIN_WH',
+                                        mfg_date: mfg,
+                                        expiry_date: exp,
+                                        initial_qty: Number(it.qty || it.quantity || 0),
+                                        remaining_qty: Number(it.qty || it.quantity || 0),
+                                        cost_price: Number(it.costPrice || it.cost_price || 0),
+                                        status: 'ACTIVE'
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('fetch GRN lots error:', e);
+            }
+        }
+
+        // 3. Fallback: ดึงจาก stk_stock_movements เฉพาะรายการที่มีการบันทึก expiry_date ชัดเจน (ห้ามใช้ m.date เป็นวันหมดอายุเด็ดขาด!)
+        if (typeof window.supabaseSelect === 'function') {
             try {
                 let mQuery = `type=eq.IN&order=created_at.desc&limit=300`;
                 if (productId) mQuery = `product_id=eq.${encodeURIComponent(productId)}&` + mQuery;
                 const mRes = await window.supabaseSelect('stk_stock_movements', mQuery);
                 if (Array.isArray(mRes)) {
-                    // กรองไม่เอา movement ของสินค้าเซ็ตโปรโมชั่น (เช่น PRO...) มาสร้างเป็นล็อตคลังกายภาพ
                     const validMovements = mRes.filter(m => {
                         const pid = String(m.product_id || '').toUpperCase();
                         return !pid.startsWith('PRO');
                     });
-                    lots = validMovements.map(m => {
+                    validMovements.forEach(m => {
                         let parsed = {};
                         if (m.items_json) {
                             try { parsed = typeof m.items_json === 'string' ? JSON.parse(m.items_json) : m.items_json; } catch(err) {}
                         }
+                        // ต้องมี expiry_date ระบุจริงเท่านั้น ห้ามเดาหรือใช้วันที่เคลื่อนไหว (m.date) เป็นวันหมดอายุ!
+                        if (!parsed.expiry_date) return;
+
+                        const lotId = m.lot_id || parsed.lot_id || m.movement_id;
+                        const key = `${m.product_id}_${lotId}`;
+                        if (seenLotKeys.has(key)) return;
+                        seenLotKeys.add(key);
+
                         const whId = parsed.warehouse_id || parsed.to || (m.sub_type && m.sub_type.includes('รับโอน') ? 'FRONT_STORE' : 'MAIN_WH');
-                        return {
-                            lot_id: m.lot_id || m.movement_id,
+                        lots.push({
+                            lot_id: lotId,
                             product_id: m.product_id,
                             domain_type: parsed.domain_type || 'SUPPLEMENT',
                             warehouse_id: whId,
                             mfg_date: parsed.mfg_date || null,
-                            expiry_date: parsed.expiry_date || m.date,
+                            expiry_date: parsed.expiry_date,
                             initial_qty: Number(m.quantity || 0),
                             remaining_qty: Number(m.quantity || 0),
                             status: 'ACTIVE'
-                        };
+                        });
                     });
                 }
             } catch(e){}
@@ -983,9 +1051,22 @@
 
         // คำนวณวันคงเหลือก่อนหมดอายุ และระดับความเร่งด่วน
         return lots.map(lot => {
-            const rawExp = lot.expiry_date || todayStr;
-            const cleanExp = rawExp ? String(rawExp).split('T')[0] : todayStr;
-            const expDate = new Date(cleanExp);
+            const rawExp = lot.expiry_date || null;
+            const cleanExp = rawExp ? String(rawExp).split('T')[0] : null;
+            if (!cleanExp) {
+                return {
+                    ...lot,
+                    expiry_date: null,
+                    remainingDays: null,
+                    daysRemaining: null,
+                    expiryStatus: 'UNSPECIFIED',
+                    badgeColor: 'slate',
+                    statusText: 'ยังไม่ระบุล็อต',
+                    statusTag: 'UNSPECIFIED'
+                };
+            }
+
+            const expDate = new Date(cleanExp + 'T23:59:59');
             const diffTime = expDate - now;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -1019,7 +1100,7 @@
                 statusText,
                 statusTag: expiryStatus
             };
-        }).sort((a, b) => (a.expiry_date || '').localeCompare(b.expiry_date || ''));
+        }).sort((a, b) => (a.expiry_date || '9999').localeCompare(b.expiry_date || '9999'));
     }
 
     /**

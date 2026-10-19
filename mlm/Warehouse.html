@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
@@ -21,7 +21,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>คลังสินค้า & สต๊อกล็อต (Warehouse & Lots) - LOVE STK GROUPE</title>
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.19.01">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -33,11 +33,11 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=2026.10.17.02"></script>
-  <script src="dictionary.js?v=2026.10.17.02"></script>
-  <script src="companySettings.js?v=2026.10.17.02"></script>
-  <script src="CommonComponents.js?v=2026.10.17.02"></script>
-  <script src="stockLogic.js?v=2026.10.17.02"></script>
+  <script src="config.js?v=2026.10.19.01"></script>
+  <script src="dictionary.js?v=2026.10.19.01"></script>
+  <script src="companySettings.js?v=2026.10.19.01"></script>
+  <script src="CommonComponents.js?v=2026.10.19.01"></script>
+  <script src="stockLogic.js?v=2026.10.19.01"></script>
   <style>
     @media print {
       /* 1. Global Print Canvas Reset */
@@ -1080,12 +1080,26 @@
         lots.forEach(lot => {
           const pid = lot.product_id;
           if (map[pid] && !map[pid].isPromoBundle) {
-            map[pid].lotCount += 1;
             const cleanExp = lot.expiry_date ? String(lot.expiry_date).split('T')[0] : null;
-            if (cleanExp && (!map[pid].earliestExpiry || cleanExp < map[pid].earliestExpiry)) {
+            if (!cleanExp) return;
+            map[pid].lotCount += 1;
+            
+            // เลือกวันหมดอายุเร็วสุด โดยให้ความสำคัญกับล็อตที่ยังไม่หมดอายุก่อน
+            if (!map[pid].earliestExpiry) {
               map[pid].earliestExpiry = cleanExp;
               map[pid].earliestStatus = lot.statusTag || 'NORMAL';
               map[pid].daysRemaining = lot.daysRemaining;
+            } else {
+              // ถ้าบันทึกเดิมเป็นหมดอายุแล้ว (daysRemaining <= 0) แต่ล็อตนี้ยังไม่หมดอายุ (> 0) ให้สลับมาใช้ล็อตที่ใช้งานได้จริงทันที
+              if (map[pid].daysRemaining <= 0 && lot.daysRemaining > 0) {
+                map[pid].earliestExpiry = cleanExp;
+                map[pid].earliestStatus = lot.statusTag || 'NORMAL';
+                map[pid].daysRemaining = lot.daysRemaining;
+              } else if (map[pid].daysRemaining > 0 && lot.daysRemaining > 0 && cleanExp < map[pid].earliestExpiry) {
+                map[pid].earliestExpiry = cleanExp;
+                map[pid].earliestStatus = lot.statusTag || 'NORMAL';
+                map[pid].daysRemaining = lot.daysRemaining;
+              }
             }
           }
         });
@@ -1207,7 +1221,8 @@
                     const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                     const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
 
-                    return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMain;
+                    const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
+                    return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMain && !isAdjustment;
                   })
                   .reduce((s, m) => s + Number(m.quantity || 0), 0);
 
@@ -1223,8 +1238,9 @@
                     const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
                     const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                     const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+                    const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
 
-                    return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMain;
+                    return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMain && !isAdjustment;
                   })
                   .reduce((s, m) => s + Number(m.quantity || 0), 0);
 
@@ -1758,27 +1774,28 @@
             // Fallback: Net movements (OUT sales minus IN returns)
             const salesOut = movements
               .filter(m => {
-                const isToday = (m.date === auditDate || (m.created_at && m.created_at.slice(0, 10) === auditDate));
-                if (!isToday || m.product_id !== pid || m.type !== 'OUT') return false;
+                const mDate = String(m.date || m.created_at || '').slice(0, 10);
+                if (mDate !== auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
                 
                 const subType = String(m.sub_type || '').toLowerCase();
                 const notesStr = String(m.notes || '').toLowerCase();
                 const whId = String(m.warehouse_id || '').toUpperCase();
                 
-                // ดักจับ: ต้องไม่ใช่คลังใหญ่ และต้องไม่ใช่ใบเบิก หรือใบรับเข้า
+                // ดักจับ: ต้องไม่ใช่คลังใหญ่ และต้องไม่ใช่ใบเบิก หรือใบรับเข้า หรือรายการปรับสต๊อก
                 const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
                 const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
                 const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                 const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+                const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
 
-                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMainWh;
+                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMainWh && !isAdjustment;
               })
               .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
 
             const salesReturn = movements
               .filter(m => {
-                const isToday = (m.date === auditDate || (m.created_at && m.created_at.slice(0, 10) === auditDate));
-                if (!isToday || m.product_id !== pid || m.type !== 'IN') return false;
+                const mDate = String(m.date || m.created_at || '').slice(0, 10);
+                if (mDate !== auditDate || m.product_id !== pid || m.type !== 'IN') return false;
                 
                 const subType = String(m.sub_type || '').toLowerCase();
                 const notesStr = String(m.notes || '').toLowerCase();
@@ -1788,8 +1805,9 @@
                 const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
                 const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                 const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
+                const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
 
-                return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMainWh;
+                return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMainWh && !isAdjustment;
               })
               .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
 
@@ -1826,11 +1844,79 @@
             opening = Math.max(0, systemClosing - finalTransferIn + finalSales);
           }
 
+          // ค้นหาประวัติการตรวจนับจริงรอบล่าสุดก่อนวันนี้ (Strictly < auditDate และมีการกรอก physical_count_qty)
+          const prevAudit = (auditRecordsCache || [])
+            .filter(r => r.product_id === pid && r.balance_date < auditDate && r.physical_count_qty !== null && r.physical_count_qty !== undefined)
+            .sort((a, b) => b.balance_date.localeCompare(a.balance_date))[0];
+
+          const prevDate = prevAudit ? prevAudit.balance_date : null;
+          const prevPhysicalCount = prevAudit ? Number(prevAudit.physical_count_qty) : null;
+          const prevSystemClosing = prevAudit ? Number(prevAudit.system_closing_qty || 0) : null;
+          const prevDiff = prevAudit ? (prevAudit.diff_qty !== null && prevAudit.diff_qty !== undefined ? Number(prevAudit.diff_qty) : (prevPhysicalCount - prevSystemClosing)) : null;
+
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
             : null;
           
           const diff = physCount !== null ? (physCount - systemClosing) : 0;
+          const diffDelta = (physCount !== null && prevDiff !== null) ? (diff - prevDiff) : null;
+
+          // วิเคราะห์สถานะผลต่าง (Diff Intelligence: ขาดเท่าเดิม vs ขาดเพิ่ม vs ตรง)
+          let diffCategory = 'PENDING';
+          let diffLabel = '-';
+          let diffSubLabel = 'ยังไม่ตรวจนับ';
+          let diffBadgeClass = 'text-slate-400';
+
+          if (physCount === null) {
+            diffCategory = 'PENDING';
+            diffLabel = '-';
+            diffSubLabel = 'ยังไม่ได้กรอกนับจริง';
+            diffBadgeClass = 'text-slate-400 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
+          } else if (diff === 0) {
+            diffCategory = 'MATCH';
+            diffLabel = 'ตรง (0)';
+            diffSubLabel = (prevDiff !== null && prevDiff !== 0) ? `เคลียร์ผลต่างรอบ ${prevDate} แล้ว` : 'ตรงตามระบบ';
+            diffBadgeClass = 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/60';
+          } else if (prevDiff !== null) {
+            if (diff === prevDiff) {
+              if (diff < 0) {
+                diffCategory = 'UNCHANGED_SHORTAGE';
+                diffLabel = `ขาดเท่าเดิม (${diff})`;
+                diffSubLabel = `คงที่จากรอบ ${prevDate} (ไม่ได้หายเพิ่ม)`;
+                diffBadgeClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600';
+              } else {
+                diffCategory = 'UNCHANGED_SURPLUS';
+                diffLabel = `เกินเท่าเดิม (+${diff})`;
+                diffSubLabel = `คงที่จากรอบ ${prevDate}`;
+                diffBadgeClass = 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200/60';
+              }
+            } else if (diff < prevDiff) {
+              const moreMissing = Math.abs(diff - prevDiff);
+              diffCategory = 'WORSENED_SHORTAGE';
+              diffLabel = `⚠️ ขาดเพิ่ม (${diff})`;
+              diffSubLabel = `ขาดเพิ่มอีก ${moreMissing} ชิ้น (เทียบรอบ ${prevDate})`;
+              diffBadgeClass = 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 font-black animate-pulse';
+            } else if (diff > prevDiff) {
+              const recovered = diff - prevDiff;
+              diffCategory = 'IMPROVED';
+              diffLabel = `🟢 ขาดลดลง (${diff > 0 ? '+' + diff : diff})`;
+              diffSubLabel = `พบเพิ่ม +${recovered} ชิ้น (เทียบรอบ ${prevDate})`;
+              diffBadgeClass = 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200/60 font-bold';
+            }
+          } else {
+            // ตรวจนับรอบแรก (ไม่มีประวัติรอบก่อน)
+            if (diff < 0) {
+              diffCategory = 'FIRST_SHORTAGE';
+              diffLabel = `ขาด ${diff}`;
+              diffSubLabel = 'ตรวจนับครั้งแรก';
+              diffBadgeClass = 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200/60';
+            } else {
+              diffCategory = 'FIRST_SURPLUS';
+              diffLabel = `เกิน +${diff}`;
+              diffSubLabel = 'ตรวจนับครั้งแรก';
+              diffBadgeClass = 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/60';
+            }
+          }
 
           return {
             productId: pid,
@@ -1843,7 +1929,16 @@
             mainStockQty: Number(item.mainStock || 0),
             totalStockQty: Number(item.totalStock || 0),
             physicalCount: physCount,
-            diff: diff
+            diff: diff,
+            prevDate: prevDate,
+            prevPhysicalCount: prevPhysicalCount,
+            prevSystemClosing: prevSystemClosing,
+            prevDiff: prevDiff,
+            diffDelta: diffDelta,
+            diffCategory: diffCategory,
+            diffLabel: diffLabel,
+            diffSubLabel: diffSubLabel,
+            diffBadgeClass: diffBadgeClass
           };
         });
       }, [productStockSummary, transfers, transferHistoryList, movements, auditDate, physicalCounts, dailySalesMap, isProductDiscontinued, auditRecordsCache]);
@@ -1866,12 +1961,98 @@
         showToast('คัดลอกยอดตามระบบลงช่องนับจริงทั้งหมดแล้ว', 'info');
       };
 
+      // ข้อมูลรอบตรวจล่าสุดก่อน auditDate (สำหรับแจ้งเตือนกรณีข้ามวันอาทิตย์ / วันหยุด)
+      const lastAuditInfo = useMemo(() => {
+        if (!auditRecordsCache || auditRecordsCache.length === 0 || !auditDate) return null;
+        const validPast = auditRecordsCache.filter(r => r.balance_date < auditDate && r.physical_count_qty !== null && r.physical_count_qty !== undefined);
+        if (validPast.length === 0) return null;
+        const pastDates = [...new Set(validPast.map(r => r.balance_date))].sort().reverse();
+        const latestPastDate = pastDates[0];
+        if (!latestPastDate) return null;
+
+        const dCurrent = new Date(auditDate);
+        const dPast = new Date(latestPastDate);
+        const diffDays = Math.round((dCurrent - dPast) / (1000 * 60 * 60 * 24));
+
+        return {
+          date: latestPastDate,
+          gapDays: diffDays,
+          isGap: diffDays > 1
+        };
+      }, [auditRecordsCache, auditDate]);
+
+      // ฟังก์ชันปรับสต็อกตามยอดตรวจนับจริง (Stock Adjustment) เพื่อล้างยอดตกค้างจากบิลที่ถูกลบ/ของสูญหาย
+      const [isAdjustingStock, setIsAdjustingStock] = useState(false);
+      const handleAdjustStockToPhysicalCount = async () => {
+        const itemsToAdjust = dailyReconciliation.filter(r => r.physicalCount !== null && r.diff !== 0);
+        if (itemsToAdjust.length === 0) {
+          showToast('ไม่มีรายการที่มีผลต่าง (Diff) ให้ปรับสต็อก ทุกรายการตรงตามระบบแล้ว', 'info');
+          return;
+        }
+
+        const confirmMsg = `ยืนยันการปรับสต็อกในระบบตามยอดนับจริง (${auditDate}) หรือไม่?\n\n` +
+          `มีรายการที่จะถูกปรับจำนวน ${itemsToAdjust.length} รายการ:\n` +
+          itemsToAdjust.slice(0, 5).map(it => `• ${it.name} (${it.productId}): ปัจจุบัน ${it.systemClosingQty} ➔ ปรับเป็น ${it.physicalCount} (${it.diff > 0 ? '+' : ''}${it.diff})`).join('\n') +
+          (itemsToAdjust.length > 5 ? `\n... และอีก ${itemsToAdjust.length - 5} รายการ` : '') +
+          `\n\nระบบจะปรับ current_stock ในฐานข้อมูล และบันทึกประวัติความเคลื่อนไหว (MOV-ADJ) เพื่อให้สต็อกหน้าร้านตรงกับของจริงบนชั้นวาง 100%`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsAdjustingStock(true);
+        try {
+          let adjustedCount = 0;
+          for (const item of itemsToAdjust) {
+            const targetStock = item.physicalCount;
+            // 1. อัปเดตตาราง stk_products
+            if (typeof window.supabaseUpdate === 'function') {
+              await window.supabaseUpdate('stk_products', item.productId, { current_stock: targetStock }, 'product_id').catch(e => {});
+            }
+            // 2. บันทึก Movement การปรับยอด
+            if (typeof window.supabaseInsert === 'function') {
+              const movId = `MOV-ADJ-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+              await window.supabaseInsert('stk_stock_movements', {
+                movement_id: movId,
+                date: auditDate,
+                product_id: item.productId,
+                type: item.diff > 0 ? 'IN' : 'OUT',
+                sub_type: 'ปรับสต็อกตามการตรวจนับจริง',
+                quantity: Math.abs(item.diff),
+                notes: `ปรับยอดสต็อกตามการตรวจนับจริง ประจำวันที่ ${auditDate} (ผลต่างเดิม: ${item.diff} ชิ้น)`,
+                created_by: currentUser?.name || 'ADMIN'
+              }).catch(e => {});
+            }
+            adjustedCount++;
+          }
+
+          showToast(`✅ ปรับยอดสต็อกให้ตรงกับยอดนับจริงเรียบร้อยแล้ว (${adjustedCount} รายการ)`, 'success');
+          // โหลดข้อมูลคลังสินค้าใหม่ทันที
+          loadWarehouseData(true);
+        } catch (err) {
+          console.error('Adjust stock error:', err);
+          showToast('เกิดข้อผิดพลาดในการปรับสต็อก: ' + (err.message || String(err)), 'error');
+        } finally {
+          setIsAdjustingStock(false);
+        }
+      };
+
       // Save Daily Audit to Supabase
       const handleSaveDailyAudit = async () => {
         if (currentUser && (currentUser.status === 'ระงับ' || currentUser.status === 'deactivated' || currentUser.status === 'inactive')) {
           showToast('บัญชีของคุณถูกระงับการใช้งาน ไม่สามารถทำรายการได้', 'error');
           return;
         }
+
+        const countedItems = dailyReconciliation.filter(r => r.physicalCount !== null);
+        if (countedItems.length === 0) {
+          const proceed = window.confirm(
+            '⚠️ คุณยังไม่ได้กรอก "ยอดนับจริง" เลยแม้แต่รายการเดียว\n\n' +
+            'หากบันทึกตอนนี้ ระบบจะบันทึกสถานะเป็น PENDING (ปล่อยตรงตามระบบ)\n' +
+            'หากต้องการให้นับจริงเท่ากับระบบ ให้กดปุ่ม "คัดลอกยอดตามระบบลงนับจริง" ก่อน\n\n' +
+            'คุณต้องการยืนยันการบันทึกสถานะปล่อยตรงตามระบบหรือไม่?'
+          );
+          if (!proceed) return;
+        }
+
         setIsSavingAudit(true);
         try {
           const auditRecords = dailyReconciliation.map(r => ({
@@ -4912,6 +5093,28 @@
                         </div>
                       )}
 
+                      {/* Weekend / Non-Audit Gap Banner */}
+                      {lastAuditInfo && lastAuditInfo.isGap && (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start sm:items-center gap-3 shadow-xs">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 font-bold">
+                            <AlertTriangle size={17} />
+                          </div>
+                          <div className="flex-1 text-xs">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-black text-amber-900 dark:text-amber-200">
+                                ข้ามรอบตรวจนับ {lastAuditInfo.gapDays - 1} วัน (รอบตรวจจริงล่าสุด: วันที่ {lastAuditInfo.date})
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                                ระบบวิเคราะห์เทียบยอดให้อัตโนมัติ
+                              </span>
+                            </div>
+                            <p className="text-amber-700 dark:text-amber-300/90 mt-0.5 text-[11px] leading-relaxed">
+                              ระบบเชื่อมต่อผลต่างจากรอบล่าสุด ({lastAuditInfo.date}) มาเปรียบเทียบกับยอดนับวันนี้ เพื่อแยกแยะว่าสินค้า <strong>"ขาดเท่าเดิม"</strong> หรือ <strong>"ขาดเพิ่มขึ้น"</strong> ได้อย่างแม่นยำ ไม่เพี้ยนจากวันหยุดทำการ
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Reconciliation Table */}
                       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
                         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
@@ -4937,13 +5140,14 @@
                                 <th className="py-3 px-4 text-center bg-blue-50/40 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 font-bold border-x border-blue-100/60 dark:border-blue-900/40">สต๊อกหน้าร้าน (ระบบ)</th>
                                 <th className="py-3 px-4 text-center bg-slate-100/40 dark:bg-slate-800/30 text-slate-600 dark:text-slate-400">สต๊อกรวม</th>
                                 <th className="py-3 px-4 text-center">นับจริง</th>
-                                <th className="py-3 px-4 text-center">ผลต่าง (Diff)</th>
+                                <th className="py-3 px-4 text-center">ผลต่าง & วิเคราะห์สถานะ</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                               {dailyReconciliation.map(r => {
+                                const isWorsened = r.diffCategory === 'WORSENED_SHORTAGE';
                                 return (
-                                  <tr key={r.productId} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
+                                  <tr key={r.productId} className={`transition-colors ${isWorsened ? 'bg-rose-50/30 dark:bg-rose-950/20 hover:bg-rose-50/60' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/30'}`}>
                                     <td className="py-2.5 px-4">
                                       <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{r.name}</div>
                                       <div className="font-mono text-[11px] text-slate-400 tracking-wide">{r.productId}</div>
@@ -4984,18 +5188,21 @@
                                     <td className="py-2.5 px-4 text-center">
                                       {r.physicalCount === null ? (
                                         <span className="text-slate-300 dark:text-slate-600 text-xs font-mono">-</span>
-                                      ) : r.diff === 0 ? (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50">
-                                          ตรง (0)
-                                        </span>
-                                      ) : r.diff < 0 ? (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50">
-                                          ขาด {r.diff}
-                                        </span>
                                       ) : (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50">
-                                          เกิน +{r.diff}
-                                        </span>
+                                        <div className="flex flex-col items-center justify-center gap-0.5">
+                                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs ${r.diffBadgeClass}`}>
+                                            {r.diffCategory === 'WORSENED_SHORTAGE' && <AlertTriangle size={12} className="text-rose-600 shrink-0" />}
+                                            {r.diffCategory === 'IMPROVED' && <span>🟢</span>}
+                                            {r.diffCategory === 'UNCHANGED_SHORTAGE' && <span>⚪</span>}
+                                            {r.diffCategory === 'MATCH' && <Check size={12} className="text-emerald-600 shrink-0" />}
+                                            <span>{r.diffLabel}</span>
+                                          </span>
+                                          {r.diffSubLabel && (
+                                            <span className={`text-[10px] leading-tight ${isWorsened ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
+                                              {r.diffSubLabel}
+                                            </span>
+                                          )}
+                                        </div>
                                       )}
                                     </td>
                                   </tr>
@@ -5016,7 +5223,7 @@
                               className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                             />
                           </div>
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center flex-wrap gap-2.5">
                             <button
                               type="button"
                               onClick={handleAutoFillPhysicalCounts}
@@ -5026,8 +5233,18 @@
                               <span>คัดลอกยอดตามระบบ</span>
                             </button>
                             <button
+                              type="button"
+                              onClick={handleAdjustStockToPhysicalCount}
+                              disabled={isAdjustingStock || isSavingAudit}
+                              className="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-300 dark:border-amber-700/60 text-amber-700 dark:text-amber-300 font-semibold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-xs"
+                              title="ปรับปรุงยอดสต็อกคงเหลือในระบบให้ตรงกับของจริงบนชั้นวาง เพื่อล้างยอดตกค้างจากบิลที่ถูกลบหรือสินค้าสูญหาย"
+                            >
+                              {isAdjustingStock ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRightLeft size={14} />}
+                              <span>{isAdjustingStock ? 'กำลังปรับสต็อก...' : 'ปรับสต็อกตามยอดนับจริง'}</span>
+                            </button>
+                            <button
                               onClick={handleSaveDailyAudit}
-                              disabled={isSavingAudit}
+                              disabled={isSavingAudit || isAdjustingStock}
                               className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-xs flex items-center gap-2 transition-all disabled:opacity-50"
                             >
                               {isSavingAudit ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
@@ -5355,19 +5572,52 @@
                                       </td>
                                       <td className="py-3 px-4 text-center">
                                         {b.physical_count_qty === null || b.physical_count_qty === undefined ? (
-                                          <span className="text-slate-400 text-[10px] italic">-</span>
+                                          <span className="text-slate-400 text-[10px] italic">ปิดตามระบบ</span>
                                         ) : diff === 0 ? (
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
                                             &plusmn;0 ตรงเป๊ะ
                                           </span>
-                                        ) : diff < 0 ? (
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
-                                            ขาด {diff} ชิ้น
-                                          </span>
                                         ) : (
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-                                            เกิน +{diff} ชิ้น
-                                          </span>
+                                          (() => {
+                                            const prevRow = (auditRecordsCache || []).find(r => r.product_id === b.product_id && r.balance_date < b.balance_date && r.physical_count_qty !== null && r.physical_count_qty !== undefined);
+                                            const prevDiffVal = prevRow ? Number(prevRow.diff_qty !== null && prevRow.diff_qty !== undefined ? prevRow.diff_qty : (Number(prevRow.physical_count_qty) - Number(prevRow.system_closing_qty || 0))) : null;
+                                            const isUnchanged = prevDiffVal !== null && prevDiffVal === diff;
+                                            const isWorse = prevDiffVal !== null && diff < prevDiffVal;
+                                            
+                                            if (diff < 0) {
+                                              if (isUnchanged) {
+                                                return (
+                                                  <div className="flex flex-col items-center">
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600">
+                                                      ขาดเท่าเดิม ({diff})
+                                                    </span>
+                                                    <span className="text-[9px] text-slate-400">คงที่จากรอบ {prevRow.balance_date}</span>
+                                                  </div>
+                                                );
+                                              }
+                                              if (isWorse) {
+                                                return (
+                                                  <div className="flex flex-col items-center">
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse">
+                                                      ⚠️ ขาดเพิ่ม ({diff})
+                                                    </span>
+                                                    <span className="text-[9px] text-rose-500 font-bold">ขาดเพิ่ม {Math.abs(diff - prevDiffVal)} ชิ้น</span>
+                                                  </div>
+                                                );
+                                              }
+                                              return (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+                                                  ขาด {diff} ชิ้น
+                                                </span>
+                                              );
+                                            } else {
+                                              return (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                                                  เกิน +{diff} ชิ้น
+                                                </span>
+                                              );
+                                            }
+                                          })()
                                         )}
                                       </td>
                                       <td className="py-3 px-4 text-center text-[10px] text-slate-500">
