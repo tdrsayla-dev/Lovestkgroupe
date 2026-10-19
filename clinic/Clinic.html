@@ -3221,7 +3221,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="addAppointmentModal" tabindex="-1">
+        <div class="modal fade" id="addAppointmentModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius: 16px; border: none;">
                 <div class="modal-header bg-white">
@@ -3782,246 +3782,279 @@
         </div>
     </div>
 
+    <!-- ======================================================== -->
+    <!-- Modal: อ่านผลแล็บและสั่งจ่ายยา (Prescribe Modal - 2 Columns) -->
+    <!-- ======================================================== -->
     <div class="modal fade" id="prescribeModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content" style="border-radius: 16px; border: none;">
-                <div class="modal-header bg-white">
-                    <h4 class="modal-title fw-bold"><i
-                            class="bi bi-file-medical text-primary me-2"></i>อ่านผลแล็บและสั่งจ่ายยา</h4><button
-                        type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 1400px; width: 96%;">
+            <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden;">
+                <div class="modal-header bg-white border-bottom py-2.5 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="modal-title fw-bold text-dark d-flex align-items-center mb-0">
+                        <i class="bi bi-file-medical text-primary me-2 fs-4"></i>
+                        <span>อ่านผลแล็บและสั่งจ่ายยา</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4 bg-white">
-                    <input type="hidden" id="rxVisitId"><input type="hidden" id="rxHN"><input type="hidden"
-                        id="rxPatientName">
-                    <!-- 🌟 1. กล่องข้อมูลผู้ป่วย, สัญญาณชีพ และผลตรวจแล็บ (Modern Medical Profile Card) -->
-                    <div class="card border mb-3 shadow-xs" style="border-radius: 12px; background: #ffffff; border-color: #e2e8f0 !important; overflow: hidden;">
-                        <!-- ส่วนหัว: ข้อมูลคนไข้และอาการ -->
-                        <div class="px-3.5 py-2.5 bg-light border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <span class="badge bg-primary px-2.5 py-1.5 rounded-2 fw-bold d-inline-flex align-items-center gap-1" style="font-size: 0.82rem; letter-spacing: 0.3px;">
-                                    <i class="bi bi-person-fill"></i> <span id="rxPatientNameDisplay">-</span>
-                                </span>
-                                <span class="badge bg-white text-dark border px-2.5 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
-                                    VISIT: <strong id="rxVisitIdDisplay" class="text-primary ms-0.5">-</strong>
-                                </span>
-                                <span class="badge bg-white text-dark border px-2.5 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
-                                    HN: <strong id="rxHnDisplay" class="text-secondary ms-0.5">-</strong>
-                                </span>
-                            </div>
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
-                                    <i class="bi bi-heart-pulse-fill me-1"></i>อาการ: <span id="rxPatientSymptomDisplay" class="fw-bold ms-0.5">-</span>
-                                </span>
-                                <span class="badge bg-secondary-subtle text-secondary-emphasis border px-2.5 py-1.5 rounded-2 fw-medium" style="font-size: 0.78rem;">
-                                    <i class="ph ph-user-gear me-1"></i>ผู้ดูแล: <strong id="rxAssistantDisplay" class="ms-0.5">L03709 - MS CHERRY</strong>
-                                </span>
-                            </div>
-                        </div>
+                <div class="modal-body p-3 p-xl-4 bg-light">
+                    <input type="hidden" id="rxVisitId">
+                    <input type="hidden" id="rxHN">
+                    <input type="hidden" id="rxPatientName">
+                    <input type="hidden" id="rxIcd10Code" value="">
+                    <input type="hidden" id="rxIcd10Name" value="">
 
-                        <!-- ส่วนที่ 2: สัญญาณชีพ (Vitals Mini Grid Cards) -->
-                        <div id="rxVitalsSection" class="p-3 border-bottom bg-white" style="display: none;">
-                            <div class="d-flex align-items-center gap-1.5 mb-2 text-muted" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                                <i class="bi bi-activity text-danger"></i> ສັນຍານຊີບ / สัญญาณชีพ (Vital Signs)
-                            </div>
-                            <div id="rxVitalsDisplay" class="row g-2"></div>
-                        </div>
-
-                        <!-- ส่วนที่ 3: แถบผลตรวจแล็บทั้งหมด (Lab Results & Attachments) -->
-                        <div class="px-3.5 py-2 bg-light d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-1.5 text-secondary fw-bold" style="font-size: 0.78rem;">
-                                <i class="bi bi-folder2-open text-primary fs-6"></i>
-                                <span>ເອກະສານ & ຜົນກວດທັງໝົດ (Lab Results):</span>
-                            </div>
-                            <div id="rxLabButtonsContainer" class="d-inline-flex gap-1.5 align-items-center flex-wrap">
-                                <button type="button" id="rxPdfBtn" class="btn btn-sm btn-outline-danger px-3 py-1 fw-semibold" style="font-size: 0.78rem; border-radius: 6px;">
-                                    <i class="bi bi-file-pdf me-1"></i> เปิดดูผล Lab
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
-                    <div id="rxDoctorLabNoteBox"
-                        class="alert alert-warning py-2 px-3 mb-2.5 border-warning border align-items-start gap-2 shadow-xs rounded-3"
-                        style="display: none; font-size: 0.88rem; background-color: #fffbeb;">
-                        <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
-                        <div class="w-100">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <strong class="text-dark d-flex align-items-center gap-1.5" style="font-size: 0.88rem;">
-                                    <i class="bi bi-chat-square-text-fill text-primary"></i> ໝາຍເຫດ / ຂໍ້ແນະນຳຈາກຫ້ອງກວດ (Lab Note):
-                                </strong>
-                                <span class="badge bg-warning text-dark px-2.5 py-1 rounded-pill fw-bold"
-                                    style="font-size: 0.72rem;"><i class="bi bi-bell-fill me-1"></i> ຂໍ້ຄວາມຈາກຫ້ອງກວດ</span>
-                            </div>
-                            <div id="rxDoctorLabNoteText" class="text-dark fw-medium"
-                                style="line-height: 1.5; color: #1e293b;">-</div>
-                        </div>
-                    </div>
-                    <!-- 🌟 ส่วนที่ 4: การวินิจฉัยโรค / ວິນິດໄສພະຍາດ (ICD-10 Diagnosis) - แถว Dropdown ค้นหาและเลือกโรค -->
-                    <div class="card border mb-3 shadow-xs" style="border-radius: 12px; border-color: #cbd5e1 !important; background: #f8fafc; overflow: visible;">
-                        <div class="card-body p-2.5">
-                            <input type="hidden" id="rxIcd10Code" value="">
-                            <input type="hidden" id="rxIcd10Name" value="">
-                            <div class="row g-2 align-items-center">
-                                <!-- ป้ายชื่อหัวข้อ -->
-                                <div class="col-md-3">
-                                    <label class="fw-bold text-dark d-flex align-items-center gap-1.5 mb-0" style="font-size: 0.88rem;">
-                                        <i class="bi bi-clipboard2-pulse-fill text-primary fs-5"></i>
-                                        <span>ການວິນິດໄສ (ICD-10):</span>
-                                    </label>
-                                </div>
-                                <!-- Drop-down ค้นหาและเลือกโรค -->
-                                <div class="col-md-5 position-relative">
-                                    <div class="input-group">
-                                        <span class="input-group-text bg-white border-end-0 text-muted" style="height: 40px;"><i class="bi bi-search text-primary"></i></span>
-                                        <input type="text" id="rxIcd10SearchInput" class="form-control border-start-0 border-end-0 custom-input fw-medium text-truncate"
-                                            placeholder="-- 🔍 ເລືອກ ຫຼື ພິມຄົ້ນຫາພະຍາດ --"
-                                            autocomplete="off" style="height: 40px; font-size: 0.88rem;"
-                                            oninput="onRxIcd10SearchInput(this.value)"
-                                            onfocus="showRxIcd10Dropdown()"
-                                            onclick="showRxIcd10Dropdown()">
-                                        <button class="btn btn-outline-secondary border-start-0 bg-white" type="button" id="rxIcd10ClearBtn" onclick="clearRxDiagnosis()" title="ລ້າງ" style="display: none; height: 40px;">
-                                            <i class="bi bi-x-circle-fill text-danger"></i>
-                                        </button>
-                                        <button class="btn btn-outline-secondary bg-light" type="button" onclick="toggleRxIcd10Dropdown()" title="ສະແດງລາຍການ" style="height: 40px;">
-                                            <i class="bi bi-chevron-down text-secondary"></i>
-                                        </button>
+                    <div class="row g-3">
+                        <!-- ============================================== -->
+                        <!-- ฝั่งซ้าย (LEFT COLUMN): ข้อมูลและอาการเบื้องต้น + ผลแล็บ + วินิจฉัย -->
+                        <!-- ============================================== -->
+                        <div class="col-12 col-xl-6 d-flex flex-column gap-2.5">
+                            <!-- 1. การ์ดข้อมูลผู้ป่วย, สัญญาณชีพ และผลตรวจแล็บ -->
+                            <div class="card border shadow-xs" style="border-radius: 12px; background: #ffffff; border-color: #cbd5e1 !important; overflow: hidden;">
+                                <!-- หัวการ์ด: ข้อมูลคนไข้และอาการ -->
+                                <div class="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                        <span class="badge bg-primary px-2.5 py-1.5 rounded-2 fw-bold d-inline-flex align-items-center gap-1" style="font-size: 0.82rem;">
+                                            <i class="bi bi-person-fill"></i> <span id="rxPatientNameDisplay">-</span>
+                                        </span>
+                                        <span class="badge bg-white text-dark border px-2 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
+                                            VISIT: <strong id="rxVisitIdDisplay" class="text-primary ms-0.5">-</strong>
+                                        </span>
+                                        <span class="badge bg-white text-dark border px-2 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
+                                            HN: <strong id="rxHnDisplay" class="text-secondary ms-0.5">-</strong>
+                                        </span>
                                     </div>
-                                    <!-- Search / Select Dropdown List -->
-                                    <div id="rxIcd10DropdownList" class="dropdown-menu w-100 shadow-lg border p-1" style="max-height: 280px; overflow-y: auto; display: none; position: absolute; z-index: 1060; left: 0; top: 100%;"></div>
-                                </div>
-                                <!-- ช่องหมายเหตุเพิ่มเติมของแพทย์ (Doctor Note) -->
-                                <div class="col-md-4">
-                                    <input type="text" id="rxIcd10NoteInput" class="form-control custom-input"
-                                        placeholder="📝 ໝາຍເຫດການວິນິດໄສ (Doctor note)..."
-                                        maxlength="255" style="height: 40px; font-size: 0.88rem; border-radius: 8px;">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 1rem;"><i
-                                class="bi bi-capsule-pill text-primary me-2 fs-5"></i>ລາຍການຈ່າຍຢາ</h6>
-                        <!-- ปุ่มเลือกคลังสินค้า (Clinic Stock vs MLM Inventory Stock) -->
-                        <div class="btn-group shadow-xs" role="group" id="rxStockSourceGroup">
-                            <button type="button" class="btn btn-primary active px-3.5 py-2 fw-bold"
-                                id="btnSourceClinic" onclick="setRxStockSource('clinic', this)"
-                                style="font-size: 0.92rem; height: 40px;">
-                                <i class="bi bi-prescription2 me-1"></i> ຢາຫຼວງ
-                            </button>
-                            <button type="button" class="btn btn-outline-primary px-3.5 py-2 fw-bold" id="btnSourceMlm"
-                                onclick="setRxStockSource('mlm', this)" style="font-size: 0.92rem; height: 40px;">
-                                <i class="bi bi-box-seam-fill me-1"></i> ອາຫານເສີມ
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary px-3 py-2 fw-semibold"
-                                id="btnSourceAll" onclick="setRxStockSource('all', this)"
-                                style="font-size: 0.92rem; height: 40px;">
-                                ทั้งหมด
-                            </button>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-3 align-items-center">
-                        <!-- ตัวกรองหมวดหมู่ -->
-                        <div class="col-md-2">
-                            <select id="rxCategorySelect" class="form-select custom-input fw-medium"
-                                onchange="filterMedsByCategory()"
-                                style="height: 42px; font-size: 0.88rem; border-radius: 8px;">
-                                <option value="all">ທັງໝົດ</option>
-                                <option value="ยา">ຢາຫຼວງ</option>
-                                <option value="อาหารเสริม">ອາຫານເສີມ</option>
-                            </select>
-                        </div>
-                        <!-- ดร็อปดาวน์เลือกยา (ค้นหาและพิมพ์ได้) -->
-                        <div class="col-md-4">
-                            <input type="text" id="rxMedSelect" class="form-control custom-input" list="rxMedOptions"
-                                placeholder="-- พิมพ์ค้นหา หรือ เลือกรายการ --" onchange="onMedSelectChange()"
-                                autocomplete="off" style="height: 42px; font-size: 0.88rem; border-radius: 8px;">
-                            <datalist id="rxMedOptions"></datalist>
-                        </div>
-                        <!-- เลือกประเภทราคา -->
-                        <div class="col-md-3">
-                            <select id="rxPriceTierSelect" class="form-select custom-input fw-medium"
-                                style="height: 42px; font-size: 0.88rem; border-radius: 8px;">
-                                <option value="normal">ราคาปกติ</option>
-                                <option value="promo">ราคาโปร</option>
-                                <option value="high">สมาชิก</option>
-                                <option value="free">แถมฟรี</option>
-                            </select>
-                        </div>
-                        <!-- ระบุจำนวน -->
-                        <div class="col-md-1">
-                            <input type="number" id="rxMedQty" class="form-control custom-input text-center fw-bold"
-                                value="1" min="1" style="height: 42px; font-size: 0.92rem; border-radius: 8px;">
-                        </div>
-                        <!-- ปุ่มเพิ่ม -->
-                        <div class="col-md-2">
-                            <button type="button"
-                                class="btn btn-primary w-100 fw-bold px-2 d-flex align-items-center justify-content-center gap-1 shadow-sm"
-                                onclick="addMedToRx()" style="height: 42px; font-size: 0.9rem; border-radius: 8px;">
-                                <i class="bi bi-plus-lg"></i> ເພີ່ມລາຍການ
-                            </button>
-                        </div>
-                    </div>
-                    <div class="table-responsive border rounded mb-4" style="max-height: 180px;">
-                        <table class="table table-hover mb-0" id="rxMedsTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="ps-3">ชื่อยา/อาหารเสริม</th>
-                                    <th class="text-center" width="120">ประเภทราคา</th>
-                                    <th class="text-end" width="100">ราคา/ชิ้น</th>
-                                    <th class="text-center" width="80">จำนวน</th>
-                                    <th class="text-end" width="100">รวม</th>
-                                    <th class="text-center" width="60">ลบ</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-3">ກະລຸນາເລືອກລາຍການ</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="row g-3 mb-4">
-                        <!-- กล่องหมายเหตุ -->
-                        <div class="col-md-7">
-                            <label class="form-label fw-bold small text-muted">หมายเหตุ</label>
-                            <textarea id="rxRemark" class="form-control custom-input" rows="4"
-                                placeholder="ระบุหมายเหตุการจัดยา, วิธีรับประทาน หรือข้อมูลเพิ่มเติม..."></textarea>
-                        </div>
-
-                        <!-- กล่องสรุปยอด -->
-                        <div class="col-md-5">
-                            <div class="p-3 rounded-3 bg-light border h-100">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-semibold text-secondary small">ยอดรวม</span>
-                                    <span class="fw-bold text-dark fs-6" id="rxSubtotalDisplay">0 ฿</span>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center mb-2 text-danger">
-                                    <label for="rxDiscountInput" class="fw-semibold small mb-0">ส่วนลด (฿)</label>
-                                    <div class="input-group input-group-sm" style="max-width: 120px;">
-                                        <input type="number" id="rxDiscountInput"
-                                            class="form-control text-end text-danger fw-bold" value="0" min="0"
-                                            oninput="updateRxTotals()">
+                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1.5 rounded-2 fw-semibold" style="font-size: 0.78rem;">
+                                            <i class="bi bi-heart-pulse-fill me-1"></i>อาการ: <span id="rxPatientSymptomDisplay" class="fw-bold ms-0.5">-</span>
+                                        </span>
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis border px-2 py-1.5 rounded-2 fw-medium" style="font-size: 0.78rem;">
+                                            <i class="ph ph-user-gear me-1"></i>ผู้ดูแล: <strong id="rxAssistantDisplay" class="ms-0.5">L03709 - MS CHERRY</strong>
+                                        </span>
                                     </div>
                                 </div>
-                                <hr class="my-2 border-secondary opacity-25">
-                                <div class="d-flex justify-content-between align-items-center mt-1">
-                                    <span class="fw-bold text-dark fs-6">ยอดรวมสุทธิ</span>
-                                    <span class="fw-bold text-primary fs-5" id="rxNetTotalDisplay">0 ฿</span>
+
+                                <!-- ส่วนที่ 2: สัญญาณชีพ (Vitals Mini Grid Cards) -->
+                                <div id="rxVitalsSection" class="p-2.5 border-bottom bg-white" style="display: none;">
+                                    <div class="d-flex align-items-center gap-1.5 mb-1.5 text-muted" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
+                                        <i class="bi bi-activity text-danger"></i> ສັນຍານຊີບ / สัญญาณชีพ (Vital Signs)
+                                    </div>
+                                    <div id="rxVitalsDisplay" class="row g-2"></div>
+                                </div>
+
+                                <!-- ส่วนที่ 3: แถบผลตรวจแล็บทั้งหมด (Lab Results & Attachments) -->
+                                <div class="px-3 py-2 bg-light d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div class="d-flex align-items-center gap-1.5 text-secondary fw-bold" style="font-size: 0.78rem;">
+                                        <i class="bi bi-folder2-open text-primary fs-6"></i>
+                                        <span>ເອກະສານ & ຜົນກວດທັງໝົດ (Lab Results):</span>
+                                    </div>
+                                    <div id="rxLabButtonsContainer" class="d-inline-flex gap-1.5 align-items-center flex-wrap">
+                                        <button type="button" id="rxPdfBtn" class="btn btn-sm btn-outline-danger px-3 py-1 fw-semibold" style="font-size: 0.78rem; border-radius: 6px;">
+                                            <i class="bi bi-file-pdf me-1"></i> เปิดดูผล Lab
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2. กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
+                            <div id="rxDoctorLabNoteBox" class="alert alert-warning py-2 px-3 mb-0 border-warning border align-items-start gap-2 shadow-xs rounded-3" style="display: none; font-size: 0.88rem; background-color: #fffbeb;">
+                                <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
+                                <div class="w-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <strong class="text-dark d-flex align-items-center gap-1.5" style="font-size: 0.85rem;">
+                                            <i class="bi bi-chat-square-text-fill text-primary"></i> ໝາຍເຫດ / ຂໍ້ແນະນຳຈາກຫ້ອງກວດ (Lab Note):
+                                        </strong>
+                                        <span class="badge bg-warning text-dark px-2.5 py-1 rounded-pill fw-bold" style="font-size: 0.72rem;">
+                                            <i class="bi bi-bell-fill me-1"></i> ຂໍ້ຄວາມຈາກຫ້ອງກວດ
+                                        </span>
+                                    </div>
+                                    <div id="rxDoctorLabNoteText" class="text-dark fw-medium" style="line-height: 1.5; color: #1e293b;">-</div>
+                                </div>
+                            </div>
+
+                            <!-- 3. การวินิจฉัยโรค / ວິນິດໄສພະຍາດ (ICD-10 Diagnosis) -->
+                            <div class="card border shadow-xs" style="border-radius: 12px; border-color: #cbd5e1 !important; background: #ffffff; overflow: visible;">
+                                <div class="card-body p-2.5">
+                                    <div class="row g-2 align-items-center">
+                                        <div class="col-12 col-sm-4">
+                                            <label class="fw-bold text-dark d-flex align-items-center gap-1.5 mb-0" style="font-size: 0.88rem;">
+                                                <i class="bi bi-clipboard2-pulse-fill text-primary fs-5"></i>
+                                                <span>ການວິນິດໄສ (ICD-10):</span>
+                                            </label>
+                                        </div>
+                                        <div class="col-12 col-sm-8 position-relative">
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-white border-end-0 text-muted" style="height: 38px;"><i class="bi bi-search text-primary"></i></span>
+                                                <input type="text" id="rxIcd10SearchInput" class="form-control border-start-0 border-end-0 custom-input fw-medium text-truncate"
+                                                    placeholder="-- 🔍 ເລືອກ ຫຼື ພິມຄົ້ນຫາພະຍາດ --" autocomplete="off"
+                                                    style="height: 38px; font-size: 0.85rem;" oninput="onRxIcd10SearchInput(this.value)"
+                                                    onfocus="showRxIcd10Dropdown()" onclick="showRxIcd10Dropdown()">
+                                                <button class="btn btn-outline-secondary border-start-0 bg-white" type="button" id="rxIcd10ClearBtn" onclick="clearRxDiagnosis()" title="ລ້າງ" style="display: none; height: 38px;">
+                                                    <i class="bi bi-x-circle-fill text-danger"></i>
+                                                </button>
+                                                <button class="btn btn-outline-secondary bg-light" type="button" onclick="toggleRxIcd10Dropdown()" title="ສະແດງລາຍການ" style="height: 38px;">
+                                                    <i class="bi bi-chevron-down text-secondary"></i>
+                                                </button>
+                                            </div>
+                                            <div id="rxIcd10DropdownList" class="dropdown-menu w-100 shadow-lg border p-1" style="max-height: 280px; overflow-y: auto; display: none; position: absolute; z-index: 1060; left: 0; top: 100%;"></div>
+                                        </div>
+                                        <div class="col-12 mt-2">
+                                            <input type="text" id="rxIcd10NoteInput" class="form-control custom-input"
+                                                placeholder="📝 ໝາຍເຫດການວິນິດໄສ (Doctor note)..." maxlength="255"
+                                                style="height: 38px; font-size: 0.85rem; border-radius: 8px;">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="d-flex justify-content-end gap-2 flex-wrap">
-                        <button type="button" class="btn text-white px-4 fw-bold shadow-sm"
-                            style="background-color: #004b93; border-color: #004b93; border-radius: 8px;"
-                            onclick="rejectPrescriptionMedicine()">
-                            ไม่รับยา
-                        </button>
-                        <button type="button" class="btn btn-success px-4 fw-bold shadow-sm" style="border-radius: 8px;"
-                            onclick="submitPrescription()">
-                            <i class="bi bi-send-check me-1"></i>เสร็จสิ้น & ส่งห้องจ่ายยา
-                        </button>
+
+                        <!-- ============================================== -->
+                        <!-- ฝั่งขวา (RIGHT COLUMN): รายการสั่งจ่ายยา + คิดเงิน + ส่งห้องจ่ายยา -->
+                        <!-- ============================================== -->
+                        <div class="col-12 col-xl-6 d-flex flex-column gap-2.5">
+                            <div class="card border shadow-xs h-100 d-flex flex-column" style="border-radius: 12px; background: #ffffff; border-color: #cbd5e1 !important;">
+                                <div class="card-body p-3 d-flex flex-column">
+                                    <!-- แถบหัวข้อรายการสั่งจ่ายยา + ปุ่มเลือกคลัง -->
+                                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2.5 border-bottom flex-wrap gap-2">
+                                        <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-1.5" style="font-size: 0.95rem;">
+                                            <i class="bi bi-capsule-pill text-primary fs-5"></i>
+                                            <span>ລາຍການສັ່ງຈ່າຍຢາ</span>
+                                        </h6>
+                                        <div class="btn-group shadow-xs" role="group" id="rxStockSourceGroup">
+                                            <button type="button" class="btn btn-primary active px-3 py-1.5 fw-bold"
+                                                id="btnSourceClinic" onclick="setRxStockSource('clinic', this)"
+                                                style="font-size: 0.85rem; height: 36px;">
+                                                <i class="bi bi-prescription2 me-1"></i> ຢາຫຼວງ
+                                            </button>
+                                            <button type="button" class="btn btn-outline-primary px-3 py-1.5 fw-bold" id="btnSourceMlm"
+                                                onclick="setRxStockSource('mlm', this)" style="font-size: 0.85rem; height: 36px;">
+                                                <i class="bi bi-box-seam-fill me-1"></i> ອາຫານເສີມ
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary px-3 py-1.5 fw-semibold"
+                                                id="btnSourceAll" onclick="setRxStockSource('all', this)"
+                                                style="font-size: 0.85rem; height: 36px;">
+                                                ທັງໝົດ
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- แถวค้นหาและเพิ่มยา (Single Row Flexbox with Spacing) -->
+                                    <div class="d-flex align-items-center gap-2 mb-3.5 flex-nowrap">
+                                        <!-- ตัวกรองหมวดหมู่ -->
+                                        <select id="rxCategorySelect" class="form-select custom-input fw-medium px-2"
+                                            onchange="filterMedsByCategory()"
+                                            style="height: 38px; font-size: 0.82rem; border-radius: 8px; width: 105px; flex-shrink: 0;">
+                                            <option value="all">ທັງໝົດ</option>
+                                            <option value="ยา">ຢາຫຼວງ</option>
+                                            <option value="อาหารเสริม">ອາຫານເສີມ</option>
+                                        </select>
+
+                                        <!-- ดร็อปดาวน์เลือกยา (ค้นหาและพิมพ์ได้) -->
+                                        <div class="flex-grow-1 position-relative" style="min-width: 150px;">
+                                            <input type="text" id="rxMedSelect" class="form-control custom-input" list="rxMedOptions"
+                                                placeholder="-- 🔍 ພິມຄົ້ນຫາ ຫຼື ເລືອກ --" onchange="onMedSelectChange()"
+                                                autocomplete="off" style="height: 38px; font-size: 0.85rem; border-radius: 8px;">
+                                            <datalist id="rxMedOptions"></datalist>
+                                        </div>
+
+                                        <!-- เลือกประเภทราคา -->
+                                        <select id="rxPriceTierSelect" class="form-select custom-input fw-medium px-2"
+                                            style="height: 38px; font-size: 0.82rem; border-radius: 8px; width: 110px; flex-shrink: 0;">
+                                            <option value="normal">ราคาปกติ</option>
+                                            <option value="promo">ราคาโปร</option>
+                                            <option value="high">สมาชิก</option>
+                                            <option value="free">แถมฟรี</option>
+                                        </select>
+
+                                        <!-- ระบุจำนวน -->
+                                        <input type="number" id="rxMedQty" class="form-control custom-input text-center fw-bold px-1"
+                                            value="1" min="1" style="height: 38px; font-size: 0.9rem; border-radius: 8px; width: 65px; flex-shrink: 0;" title="จำนวน">
+
+                                        <!-- ปุ่มเพิ่ม -->
+                                        <button type="button"
+                                            class="btn btn-primary fw-bold px-3 d-flex align-items-center justify-content-center gap-1 shadow-sm text-nowrap"
+                                            onclick="addMedToRx()" style="height: 38px; font-size: 0.85rem; border-radius: 8px; flex-shrink: 0;">
+                                            <i class="bi bi-plus-lg"></i> + ເພີ່ມລາຍການ
+                                        </button>
+                                    </div>
+
+                                    <!-- ตารางรายการยา -->
+                                    <div class="table-responsive border rounded mb-3 bg-white" style="min-height: 180px; max-height: 240px; overflow-y: auto;">
+                                        <table class="table table-hover align-middle mb-0" id="rxMedsTable">
+                                            <thead class="table-light sticky-top" style="z-index: 1;">
+                                                <tr>
+                                                    <th class="ps-3" style="font-size: 0.82rem;">ຊື່ຢາ/ອາຫານເສີມ</th>
+                                                    <th class="text-center" width="95" style="font-size: 0.82rem;">ປະເພດລາຄາ</th>
+                                                    <th class="text-end" width="90" style="font-size: 0.82rem;">ລາຄາ/ຊິ້ນ</th>
+                                                    <th class="text-center" width="70" style="font-size: 0.82rem;">ຈຳນວນ</th>
+                                                    <th class="text-end" width="90" style="font-size: 0.82rem;">ລວມ</th>
+                                                    <th class="text-center" width="50" style="font-size: 0.82rem;">ລຶບ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td colspan="6" class="text-center text-muted py-3" style="font-size: 0.85rem;">ກະລຸນາເລືອກລາຍການຢາ ຫຼື ອາຫານເສີມ</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- แถวหมายเหตุการจัดยา + กล่องสรุปยอด (วางคู่กันอย่างลงตัว) -->
+                                    <div class="row g-2 mb-3 mt-auto">
+                                        <!-- ฝั่งซ้าย: หมายเหตุการจัดยา / วิธีรับประทาน -->
+                                        <div class="col-12 col-md-7">
+                                            <div class="p-2.5 rounded-3 bg-light border h-100 d-flex flex-column">
+                                                <label class="form-label fw-bold text-dark d-flex align-items-center gap-1.5 mb-1.5" style="font-size: 0.82rem;">
+                                                    <i class="bi bi-chat-left-text-fill text-primary"></i>
+                                                    <span>ໝາຍເຫດການຈັດຢາ / ວິທີຮັບປະທານ (Doctor Remark):</span>
+                                                </label>
+                                                <textarea id="rxRemark" class="form-control custom-input flex-grow-1" rows="3" style="border-radius: 8px; font-size: 0.85rem; resize: none;"
+                                                    placeholder="ລະບຸໝາຍເຫດການຈັດຢາ, ວິທີຮັບປະທານ ຫຼື ຂໍ້ມູນເພີ່ມເຕີມ..."></textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- ฝั่งขวา: กล่องสรุปยอดเงิน -->
+                                        <div class="col-12 col-md-5">
+                                            <div class="p-2.5 rounded-3 bg-light border h-100 d-flex flex-column justify-content-between">
+                                                <div>
+                                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                                        <span class="fw-semibold text-secondary" style="font-size: 0.78rem;">ຍອດລວມ (Subtotal)</span>
+                                                        <span class="fw-bold text-dark" style="font-size: 0.92rem;" id="rxSubtotalDisplay">0 ฿</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between align-items-center mb-1 text-danger">
+                                                        <label for="rxDiscountInput" class="fw-semibold mb-0" style="font-size: 0.78rem;">ສ່ວນຫຼຸດ (฿)</label>
+                                                        <div class="input-group input-group-sm" style="max-width: 110px;">
+                                                            <input type="number" id="rxDiscountInput"
+                                                                class="form-control form-control-sm text-end text-danger fw-bold" value="0" min="0"
+                                                                oninput="updateRxTotals()" style="border-radius: 6px; height: 28px; font-size: 0.82rem;">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <hr class="my-1.5 border-secondary opacity-25">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <span class="fw-bold text-dark" style="font-size: 0.82rem;">ຍອດລວມສຸດທິ</span>
+                                                        <span class="fw-bold text-primary fs-5" id="rxNetTotalDisplay">0 ฿</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- ปุ่มดำเนินการ: ไม่รับยา / เสร็จสิ้น -->
+                                    <div class="d-flex justify-content-end gap-2 flex-wrap">
+                                        <button type="button" class="btn text-white px-3.5 fw-bold shadow-sm"
+                                            style="background-color: #004b93; border-color: #004b93; border-radius: 8px; height: 42px; font-size: 0.9rem;"
+                                            onclick="rejectPrescriptionMedicine()">
+                                            ບໍ່ສັ່ງຢາ / ไม่รับยา
+                                        </button>
+                                        <button type="button" class="btn btn-success px-4 fw-bold shadow-sm d-flex align-items-center gap-1.5"
+                                            style="border-radius: 8px; height: 42px; font-size: 0.92rem;"
+                                            onclick="submitPrescription()">
+                                            <i class="bi bi-send-check fs-5"></i> เสร็จสิ้น & ส่งห้องจ่ายยา
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
