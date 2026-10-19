@@ -1,21 +1,21 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบจัดการบิล (Orders Management) - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="companySettings.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
-  <script src="stockLogic.js"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="companySettings.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
+  <script src="stockLogic.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -425,7 +425,8 @@
                     if (isMarketing && currentUser) {
                         q += `&seller_id=eq.${String(currentUser.id || '').toUpperCase()}`;
                     }
-                    const res = await (typeof window.supabaseSelect === 'function' ? window.supabaseSelect('stk_sales', q) : Promise.resolve([]));
+                    const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
+                    const res = await (typeof selectFn === 'function' ? selectFn('stk_sales', q) : Promise.resolve([]));
                     fetchedDateRangesRef.current.add(rangeKey);
                     
                     if (Array.isArray(res) && res.length > 0) {
@@ -1310,7 +1311,7 @@
                         if (false) {
                         let currentProducts = [];
                         if (typeof supabaseSelect === 'function') {
-                            currentProducts = await supabaseSelect('stk_products').catch(() => supabaseSelect('products')).catch(() => []) || [];
+                            currentProducts = await supabaseSelect('stk_products').catch(() => []) || [];
                         }
                         
                         // 4. ⚡ แปลงจาก "เซ็ตโปรโมชั่น" กลับเป็น "สินค้าหลัก"
@@ -2422,7 +2423,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
             try {
                 // ⚡ โหลดบิลเฉพาะของวันนี้แบบวันต่อวัน เพื่อความเร็วสูงสุดและประหยัด Egress
                 const todayIsoStr = (typeof getLocalISODate === 'function') ? getLocalISODate() : new Date().toISOString().split('T')[0];
-                let query = `date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
+                let query = `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json&date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
                 const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
                 
                 if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
@@ -2522,7 +2523,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
         // ⚡ ดึงข้อมูลโหลดแรกสุด: ดึงเฉพาะบิลของวันนี้ (วันต่อวัน) เพื่อโหลดไวปานสายฟ้าแลบ ไม่ต้องรอโหลด 800 บิล
         const todayIsoStr = (typeof getLocalISODate === 'function') ? getLocalISODate() : new Date().toISOString().split('T')[0];
-        let salesQuery = `date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
+        let salesQuery = `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json&date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
         const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
         if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
             salesQuery += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;

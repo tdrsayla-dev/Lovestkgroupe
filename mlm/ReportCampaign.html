@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -20,7 +20,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานแคมเปญ & การหักคอมมิชชั่น - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=2026.10.02.01">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -34,11 +34,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=2026.10.02.02"></script>
-  <script src="companySettings.js?v=2026.10.02.02"></script>
-  <script src="dictionary.js?v=2026.10.02.02"></script>
-  <script src="CommonComponents.js?v=2026.10.02.02"></script>
-  <script src="campaignLogic.js?v=2026.10.03.01"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="companySettings.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
+  <script src="campaignLogic.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
 
@@ -378,12 +378,13 @@
             }
           } catch (e) {}
 
-          let salesQuery = 'select=order_id,date,seller_id,customer_id,customer_name,total_amount,total_bottles,status,items_json,payment_note,created_at&order=created_at.desc&limit=10000';
+          let salesQuery = 'select=order_id,date,seller_id,customer_id,customer_name,total_amount,total_bottles,status,items_json,payment_note,created_at&order=created_at.desc';
           if (startDate) salesQuery += `&date=gte.${startDate}`;
           if (endDate) salesQuery += `&date=lte.${endDate}`;
 
+          const selectSalesFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
           const [salesRes, fetchedMembers, fetchedTeams, latestSaleSentinel, latestClinicSentinel] = await Promise.all([
-            (window.supabaseSelect ? window.supabaseSelect('stk_sales', salesQuery) : Promise.resolve([])).catch(() => []),
+            (selectSalesFn ? selectSalesFn('stk_sales', salesQuery) : Promise.resolve([])).catch(() => []),
             (!membersRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_members', 'order=user_id.asc').catch(() => []) : Promise.resolve(membersRes),
             (!teamsRes.length && window.supabaseSelect) ? window.supabaseSelect('stk_business_teams').catch(() => []) : Promise.resolve(teamsRes),
             (window.supabaseSelect ? window.supabaseSelect('stk_sales', 'select=order_id&order=created_at.desc&limit=1') : Promise.resolve([])).catch(() => []),
@@ -391,8 +392,8 @@
           ]);
 
           let finalSales = salesRes;
-          if ((!finalSales || finalSales.length === 0) && window.supabaseSelect) {
-            finalSales = await window.supabaseSelect('stk_sales', 'order=created_at.desc&limit=1000').catch(() => []);
+          if ((!finalSales || finalSales.length === 0) && selectSalesFn) {
+            finalSales = await selectSalesFn('stk_sales', 'order=created_at.desc&limit=1000').catch(() => []);
           }
 
           const evaluated = await window.CampaignEngine.evaluateCampaignCrossDB(activeCampaign, {

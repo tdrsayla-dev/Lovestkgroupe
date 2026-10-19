@@ -1,4 +1,4 @@
-// ==========================================
+﻿// ==========================================
 // 📌 STK GROUPE - Common Components & Utilities (Pure JS)
 // ==========================================
 (function () {
@@ -6,6 +6,18 @@
   // 🌐 LOCAL LANGUAGE HELPER (safe fallback)
   // ==========================================
   const t = (key, fallback) => (typeof window.t === 'function') ? window.t(key, fallback) : (fallback || key);
+
+  // 🛡️ Global / Local Safe JSON Parser Helper
+  const safeJsonParse = window.safeJsonParse || function(raw, fallback) {
+    if (raw === null || raw === undefined) return fallback !== undefined ? fallback : null;
+    if (typeof raw !== 'string') return raw;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return fallback !== undefined ? fallback : null;
+    }
+  };
+  window.safeJsonParse = safeJsonParse;
 
   // ==========================================
   // 🌓 THEME INIT: โหลดทีมจาก localStorage ตั้งแต่เริ่ม (ก่อน React render)
@@ -981,8 +993,8 @@
           if (typeof window.supabaseSelect === 'function') {
             try {
               const [pendingData, recentSales] = await Promise.all([
-                window.supabaseSelect('stk_nutrient_orders', 'status=eq.รอดำเนินการ&select=id,order_id,visit_id,sale_order_id,created_at&nocache=true').catch(() => null),
-                window.supabaseSelect('stk_sales', 'select=payment_note&order=created_at.desc&limit=100&nocache=true').catch(() => [])
+                window.supabaseSelect('stk_nutrient_orders', 'status=eq.รอดำเนินการ&select=id,order_id,visit_id,sale_order_id,created_at').catch(() => null),
+                window.supabaseSelect('stk_sales', 'select=payment_note&order=created_at.desc&limit=100').catch(() => [])
               ]);
 
               if (Array.isArray(pendingData)) {
@@ -1021,9 +1033,9 @@
 
           // 3. Fallback ดึงจาก LocalStorage ถ้าไม่มี DB
           if (!hasDb) {
-            const localNutrient = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
-            const localClinicMlm = JSON.parse(localStorage.getItem('clinic_mlm_orders') || '[]');
-            const combined = [...localNutrient, ...localClinicMlm];
+            const localNutrient = safeJsonParse(localStorage.getItem('stk_nutrient_orders'), []);
+            const localClinicMlm = safeJsonParse(localStorage.getItem('clinic_mlm_orders'), []);
+            const combined = [...(Array.isArray(localNutrient) ? localNutrient : []), ...(Array.isArray(localClinicMlm) ? localClinicMlm : [])];
             const uniquePending = new Set();
             combined.forEach(o => {
               const v = String(o.visit_id || o.id || '').trim().toUpperCase();
@@ -1091,7 +1103,7 @@
       }
 
       // ปรับ Polling สำรองจากเดิมทุก 5 วินาที เป็นทุก 60 วินาที เพื่อประหยัด Egress
-      const intervalId = setInterval(checkPendingOrders, 60000);
+      const intervalId = setInterval(checkPendingOrders, 180000);
 
       return () => {
         clearInterval(intervalId);
@@ -1449,6 +1461,18 @@
     React.useEffect(() => {
       if (isOpen) {
         try {
+          const reason = sessionStorage.getItem('stk_logout_reason');
+          if (reason === 'deactivated') {
+            setError('บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+            sessionStorage.removeItem('stk_logout_reason');
+          } else if (reason === 'inactivity_60m') {
+            setError('ไม่มีการใช้งานนานเกิน 60 นาที ระบบได้ออกจากระบบอัตโนมัติ');
+            sessionStorage.removeItem('stk_logout_reason');
+          } else if (reason === 'cross_day') {
+            setError('ระบบได้ออกจากระบบอัตโนมัติเนื่องจากขึ้นวันใหม่');
+            sessionStorage.removeItem('stk_logout_reason');
+          }
+
           const savedUser = localStorage.getItem('stk_saved_username');
           const savedPass = localStorage.getItem('stk_saved_password');
           if (savedUser && savedPass) {
@@ -1574,6 +1598,11 @@
         );
 
         if (foundUser) {
+          const userStatus = String(foundUser.status || 'ใช้งาน').trim();
+          if (userStatus === 'ระงับ' || userStatus === 'deactivated' || userStatus === 'inactive') {
+            setError('บัญชีผู้ใช้ของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+            return;
+          }
           processSuccess({
             id: foundUser.user_id || foundUser.id || 'U001',
             username: foundUser.username || inputUser,
@@ -1602,7 +1631,7 @@
       }
     };
 
-    // 🌟 Interactive Spotlight Glow Input (shadcn & 21st.dev style)
+    // 🌟 Interactive Spotlight Glow Input (Clean, crisp executive style)
     const SpotlightInput = ({ type, id, value, onChange, placeholder, required, icon, rightAction }) => {
       const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 });
       const [isHovered, setIsHovered] = React.useState(false);
@@ -1618,15 +1647,15 @@
         onMouseLeave: () => setIsHovered(false),
         style: {
           background: isHovered
-            ? `radial-gradient(120px circle at ${mousePos.x}px ${mousePos.y}px, rgba(59, 130, 246, 0.75), transparent 80%)`
+            ? `radial-gradient(120px circle at ${mousePos.x}px ${mousePos.y}px, rgba(37, 99, 235, 0.35), transparent 80%)`
             : 'transparent'
         },
         className: 'group/input rounded-xl p-[2px] transition duration-300'
       },
         React.createElement('div', {
-          className: 'relative flex items-center bg-slate-50 dark:bg-slate-800/90 rounded-[10px] border border-slate-200 dark:border-slate-700/80 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all'
+          className: 'relative flex items-center bg-white rounded-[10px] border border-slate-200/90 shadow-xs focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-500/15 focus-within:bg-white transition-all'
         },
-          icon ? React.createElement('div', { className: 'pl-3.5 pr-1 text-slate-400 dark:text-slate-500 shrink-0 pointer-events-none' }, icon) : null,
+          icon ? React.createElement('div', { className: 'pl-3.5 pr-1 text-slate-400 group-focus-within/input:text-blue-600 transition-colors shrink-0 pointer-events-none' }, icon) : null,
           React.createElement('input', {
             id: id,
             type: type,
@@ -1634,7 +1663,7 @@
             value: value,
             onChange: onChange,
             placeholder: placeholder,
-            className: 'w-full py-2.5 px-3 bg-transparent text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none'
+            className: 'w-full py-2.5 px-3 bg-transparent text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none'
           }),
           rightAction ? React.createElement('div', { className: 'pr-3 shrink-0' }, rightAction) : null
         )
@@ -1662,13 +1691,13 @@
       className: "fixed inset-0 bg-slate-950/70 backdrop-blur-xl z-[1000] flex items-center justify-center p-3 sm:p-6 animation-fade-in"
     },
       React.createElement('div', {
-        className: "stk-login-glass w-full max-w-4xl rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.35)] border border-slate-200/80 dark:border-slate-800/80 flex flex-col lg:flex-row overflow-hidden relative animation-pop",
+        className: "stk-login-glass w-full max-w-4xl rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.35)] border border-slate-200 bg-white flex flex-col lg:flex-row overflow-hidden relative animation-pop",
         onClick: e => e.stopPropagation()
       },
         // Close Button
         React.createElement('button', {
           onClick: onClose,
-          className: "absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 p-2 rounded-full border border-slate-200 dark:border-slate-700 transition-all z-30 cursor-pointer shadow-sm active:scale-95"
+          className: "absolute top-4 right-4 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 p-2 rounded-full border border-slate-200 transition-all z-30 cursor-pointer shadow-xs active:scale-95"
         }, React.createElement(X, { size: 18 })),
 
         // LEFT PANEL: Tech Orbit & Ripple Display (Hidden on mobile, visible on desktop)
@@ -1747,26 +1776,26 @@
           )
         ),
 
-        // RIGHT PANEL: Modern Animated Login Form
+        // RIGHT PANEL: Modern Animated Login Form (Clean, Pure White Style)
         React.createElement('div', {
-          className: "w-full lg:w-7/12 p-6 sm:p-10 flex flex-col justify-center relative z-10"
+          className: "w-full lg:w-7/12 p-6 sm:p-10 flex flex-col justify-center relative z-10 bg-white"
         },
           // Soft decorative gradient blobs
-          React.createElement('div', { className: "absolute -top-12 -right-12 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" }),
-          React.createElement('div', { className: "absolute -bottom-12 -left-12 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" }),
+          React.createElement('div', { className: "absolute -top-12 -right-12 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" }),
+          React.createElement('div', { className: "absolute -bottom-12 -left-12 w-40 h-40 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" }),
 
           // Header
           React.createElement('div', { className: "mb-6" },
             React.createElement('div', {
-              className: "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/80 text-blue-600 dark:text-blue-400 text-xs font-bold mb-3 shadow-xs"
+              className: "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-xs font-bold mb-3 shadow-xs"
             },
               React.createElement('span', { className: "w-2 h-2 rounded-full bg-blue-500 animate-pulse" }),
               React.createElement('span', null, "STK SECURE LOGIN")
             ),
-            React.createElement('h3', { className: "text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight" },
+            React.createElement('h3', { className: "text-2xl sm:text-3xl font-black text-slate-900 tracking-tight" },
               t('title_login', 'เข้าสู่ระบบ')
             ),
-            React.createElement('p', { className: "text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1" },
+            React.createElement('p', { className: "text-slate-500 text-xs sm:text-sm font-medium mt-1" },
               t('subtitle_login', 'ยินดีต้อนรับกลับมา กรุณากรอกบัญชีผู้ใช้เพื่อดำเนินการ')
             )
           ),
@@ -1774,7 +1803,7 @@
           // Form
           React.createElement('form', { onSubmit: handleLogin, className: "space-y-4" },
             error ? React.createElement('div', {
-              className: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-bold p-3 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center gap-2.5 animate-shake"
+              className: "bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-200 flex items-center gap-2.5 animate-shake"
             },
               React.createElement('span', { className: "text-base" }, "⚠️"),
               React.createElement('span', { className: "flex-1" }, error)
@@ -1782,7 +1811,7 @@
 
             // Username Field
             React.createElement('div', { className: "space-y-1.5" },
-              React.createElement('label', { htmlFor: "loginUsername", className: "block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider" },
+              React.createElement('label', { htmlFor: "loginUsername", className: "block text-xs font-bold text-slate-700 uppercase tracking-wider" },
                 "Username / ชื่อผู้ใช้",
                 React.createElement('span', { className: "text-red-500 ml-1" }, "*")
               ),
@@ -1799,7 +1828,7 @@
 
             // Password Field
             React.createElement('div', { className: "space-y-1.5" },
-              React.createElement('label', { htmlFor: "loginPassword", className: "block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider" },
+              React.createElement('label', { htmlFor: "loginPassword", className: "block text-xs font-bold text-slate-700 uppercase tracking-wider" },
                 "Password / รหัสผ่าน",
                 React.createElement('span', { className: "text-red-500 ml-1" }, "*")
               ),
@@ -1815,7 +1844,7 @@
                   type: "button",
                   onClick: () => setShowPassword(!showPassword),
                   tabIndex: -1,
-                  className: "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer p-1"
+                  className: "text-slate-400 hover:text-slate-600 transition-colors cursor-pointer p-1"
                 }, showPassword ? React.createElement(EyeOff, { size: 18 }) : React.createElement(Eye, { size: 18 }))
               })
             ),
@@ -1828,14 +1857,11 @@
                   id: "rememberMe",
                   checked: rememberMe,
                   onChange: e => setRememberMe(e.target.checked),
-                  className: "w-4 h-4 text-blue-600 rounded border-slate-300 dark:border-slate-600 focus:ring-blue-500 cursor-pointer transition-all"
+                  className: "w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer transition-all"
                 }),
-                React.createElement('span', { className: "text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors" },
+                React.createElement('span', { className: "text-xs font-bold text-slate-600 group-hover:text-slate-800 transition-colors" },
                   t('label_remember_pass', 'จดจำรหัสผ่านในเครื่องนี้')
                 )
-              ),
-              React.createElement('span', { className: "text-[11px] text-slate-400 dark:text-slate-500 select-none hidden sm:inline" },
-                "Admin: admin / 1234"
               )
             ),
 

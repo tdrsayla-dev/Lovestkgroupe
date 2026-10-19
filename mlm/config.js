@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.10.12.01';
+  const APP_VERSION = '2026.10.17.02';
   window.APP_VERSION = APP_VERSION;
 
   // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
@@ -18,6 +18,7 @@
       localStorage.removeItem('stk_app_cache_data');
       localStorage.removeItem('stk_reports_cache_data');
       localStorage.removeItem('stk_app_cache_time');
+      localStorage.removeItem('stk_clinic_doctors_cache');
       sessionStorage.removeItem('stk_admin_products_full');
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const k = sessionStorage.key(i);
@@ -31,6 +32,18 @@
     }
     localStorage.setItem('stk_app_version', APP_VERSION);
   } catch (e) {}
+
+  // 🛡️ Global Safe JSON Parser Helper
+  window.safeJsonParse = function(raw, fallback) {
+    if (raw === null || raw === undefined) return fallback !== undefined ? fallback : null;
+    if (typeof raw !== 'string') return raw;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return fallback !== undefined ? fallback : null;
+    }
+  };
+
 
   // 1. ตั้งค่า Environments & API Keys
   const CONFIG = {
@@ -103,7 +116,12 @@
     'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,accumulated_pv,created_at',
     'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty,image_url',
     'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,extra_details_json,created_at',
-    'stk_daily_balance': 'id,balance_date,warehouse_id,product_id,domain_type,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at'
+    'stk_daily_balance': 'id,balance_date,warehouse_id,product_id,domain_type,opening_qty,transfer_in_qty,transfer_out_qty,sales_qty,system_closing_qty,physical_count_qty,diff_qty,audited_by,audit_status,audit_notes,created_at',
+    'stk_sales': 'order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json,exchange_rate,created_at',
+    'stk_b2b_orders': 'order_id,order_date,buyer_type,buyer_id,buyer_name,buyer_phone,warehouse_id,items_json,total_qty,total_amount,payment_method,notes,recorded_by,status,created_at',
+    'stk_stock_movements': 'movement_id,date,product_id,type,sub_type,quantity,lot_id,notes,created_by,created_at',
+    'stk_nutrient_orders': 'id,order_id,visit_id,hn,customer_name,recorded_by,date,status,items_json,created_at,customer_phone,symptom,closer_dr,sale_order_id,customer_type,order_by_type,closer_team',
+    'stk_payout_logs': 'id,payout_id,member_id,member_name,team_name,amount,currency,payout_date,period_start,period_end,status,payment_method,paid_by,reference_note,created_at,updated_at,start_date,end_date,payout_type,paid_at,promo_deduct_boxes,promo_deduct_amount'
   };
 
   const SESSION_CACHE_PREFIX = 'stk_qc_';
@@ -262,6 +280,68 @@
     };
   }
 
+  // 4.05 Supabase SELECT All (Auto-pagination for Historical Reports & Complete Data Fetch)
+  // แก้ปัญหา PostgREST Server Limit 1,000 แถว โดยทำการดึงแบบ page ทีละ 1,000 แถวอัตโนมัติจนครบ 100%
+  if (typeof window.supabaseSelectAll !== 'function') {
+    window.supabaseSelectAll = async function (table, query, options = {}) {
+      const maxPages = options.maxPages || 50; // Safety ceiling (รองรับสูงสุด 50,000 แถว)
+      const pageSize = options.pageSize || 1000;
+      let allData = [];
+      let offset = 0;
+      let hasMore = true;
+      let page = 0;
+
+      // ลบ limit และ offset ที่อาจติดมากับ query ต้นทางออก
+      let baseQuery = query ? query.replace(/[?&]?limit=[^&]+&?/g, '&').replace(/[?&]?offset=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
+
+      while (hasMore && page < maxPages) {
+        const pagedQuery = (baseQuery ? baseQuery + '&' : '') + `limit=${pageSize}&offset=${offset}`;
+        const chunk = await window.supabaseSelect(table, pagedQuery);
+        if (Array.isArray(chunk) && chunk.length > 0) {
+          allData = allData.concat(chunk);
+          offset += chunk.length;
+          if (chunk.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+        page++;
+      }
+      return allData;
+    };
+  }
+
+  // 4.06 Clinic Supabase SELECT All (Auto-pagination for Clinic Database)
+  if (typeof window.clinicSupabaseSelectAll !== 'function') {
+    window.clinicSupabaseSelectAll = async function (table, query, options = {}) {
+      const maxPages = options.maxPages || 50;
+      const pageSize = options.pageSize || 1000;
+      let allData = [];
+      let offset = 0;
+      let hasMore = true;
+      let page = 0;
+
+      let baseQuery = query ? query.replace(/[?&]?limit=[^&]+&?/g, '&').replace(/[?&]?offset=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
+
+      while (hasMore && page < maxPages) {
+        const pagedQuery = (baseQuery ? baseQuery + '&' : '') + `limit=${pageSize}&offset=${offset}`;
+        const chunk = await window.clinicSupabaseSelect(table, pagedQuery);
+        if (Array.isArray(chunk) && chunk.length > 0) {
+          allData = allData.concat(chunk);
+          offset += chunk.length;
+          if (chunk.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+        page++;
+      }
+      return allData;
+    };
+  }
+
   // 4.1 Clinic Supabase SELECT Helper (with Smart Caching)
   if (typeof window.clinicSupabaseSelect !== 'function') {
     window.clinicSupabaseSelect = async function (table, query) {
@@ -299,6 +379,71 @@
       return data;
     };
   }
+
+  // 4.2 Helper ดึงรายชื่อหมอ/แพทย์จากฝั่งคลินิก (ตาราง staff_users พร้อม Stale-While-Revalidate & Persistent Cache)
+  // 🛡️ ทำงานแบบ Fault-Tolerant: ดึงจากตาราง staff_users คัดกรอง role = 'doctor' ตรงตามโครงสร้างฐานข้อมูลคลินิก
+  window.fetchClinicDoctors = async function () {
+    const CACHE_KEY = 'stk_clinic_doctors_cache_v2';
+    let cachedDoctors = [];
+    try {
+      localStorage.removeItem('stk_clinic_doctors_cache'); // ลบแคชรุ่นเก่าที่เคยดึงจากตาราง staff ออก
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) cachedDoctors = JSON.parse(raw);
+    } catch (e) {}
+
+    // ถ้ามีฟังก์ชัน clinicSupabaseSelect ให้ดึงข้อมูลล่าสุดจากตาราง staff_users ของคลินิก
+    if (typeof window.clinicSupabaseSelect === 'function') {
+      try {
+        const staffUsers = await window.clinicSupabaseSelect('staff_users', 'select=id,emp_code,full_name,role,email&order=emp_code.asc&nocache=true');
+        if (Array.isArray(staffUsers) && staffUsers.length > 0) {
+          const docs = staffUsers
+            .filter(s => {
+              if (!s) return false;
+              const role = String(s.role || '').trim().toLowerCase();
+              // คัดกรองเฉพาะ role ที่เป็น doctor หรือมีคำว่าแพทย์/หมอ
+              return role === 'doctor' || role.includes('doctor') || role.includes('แพทย์') || role.includes('หมอ');
+            })
+            .map(s => {
+              const empCode = String(s.emp_code || s.id || '').trim();
+              const fullName = String(s.full_name || s.name || empCode).trim();
+              return {
+                id: empCode,
+                emp_code: empCode,
+                name: fullName,
+                full_name: fullName,
+                team: 'Center',
+                role: s.role || 'doctor',
+                email: s.email || '',
+                source: 'clinic'
+              };
+            });
+
+          if (docs.length > 0) {
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify(docs));
+            } catch (e) {}
+            return docs;
+          }
+        }
+      } catch (err) {
+        console.warn('[config.js] fetchClinicDoctors (staff_users) notice:', err.message);
+      }
+    }
+
+    // หากดึงไม่สำเร็จหรือติด Error ให้ใช้ข้อมูลแคชเดิมที่เคยจำไว้เสมอ ป้องกันข้อมูลหลุดหรือหน้าจอว่างเปล่า
+    return Array.isArray(cachedDoctors) && cachedDoctors.length > 0 ? cachedDoctors : [];
+  };
+
+  window.getClinicDoctorsSync = function () {
+    try {
+      const raw = localStorage.getItem('stk_clinic_doctors_cache_v2');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  };
 
   if (typeof window.supabaseInsert !== 'function') {
     window.supabaseInsert = async function (table, data) {
@@ -393,6 +538,14 @@
     try {
       const existingUser = localStorage.getItem('stk_current_user');
       if (existingUser) {
+        let isDeactivated = false;
+        try {
+          const parsed = JSON.parse(existingUser);
+          if (parsed && (parsed.status === 'ระงับ' || parsed.status === 'deactivated' || parsed.status === 'inactive')) {
+            isDeactivated = true;
+          }
+        } catch (e) {}
+
         const now = Date.now();
         const todayStr = getLocalDateStr();
         const lastDate = localStorage.getItem(ACTIVITY_DATE_KEY);
@@ -401,11 +554,11 @@
         const isCrossDay = lastDate && lastDate !== todayStr;
         const isTimedOut = lastActivity > 0 && (now - lastActivity >= INACTIVITY_TIMEOUT_MS);
 
-        if (isCrossDay || isTimedOut) {
+        if (isDeactivated || isCrossDay || isTimedOut) {
           localStorage.removeItem('stk_current_user');
           localStorage.removeItem(ACTIVITY_STORAGE_KEY);
           localStorage.removeItem(ACTIVITY_DATE_KEY);
-          sessionStorage.setItem(LOGOUT_REASON_KEY, isCrossDay ? 'cross_day' : 'inactivity_60m');
+          sessionStorage.setItem(LOGOUT_REASON_KEY, isDeactivated ? 'deactivated' : (isCrossDay ? 'cross_day' : 'inactivity_60m'));
           if (typeof window.clearDbCache === 'function') window.clearDbCache();
         } else {
           // เซสชันยังใช้งานได้ปกติ ให้บันทึกเวลาและวันปัจจุบัน

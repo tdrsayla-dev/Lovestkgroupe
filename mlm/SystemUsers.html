@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -19,16 +19,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SystemUsers - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
   <script>
     
   </script>
@@ -356,6 +356,12 @@
                         if (savedUserStr) {
                             const savedUser = JSON.parse(savedUserStr);
                             if (safeUpper(savedUser.id || savedUser.username) === safeUpper(formData.id)) {
+                                if (formData.status === 'ระงับ' || formData.status === 'deactivated' || formData.status === 'inactive') {
+                                    localStorage.removeItem('stk_current_user');
+                                    sessionStorage.setItem('stk_logout_reason', 'deactivated');
+                                    window.location.reload();
+                                    return;
+                                }
                                 savedUser.role = formData.role;
                                 savedUser.permission_role = formData.role;
                                 savedUser.name = formData.name;
@@ -369,7 +375,7 @@
 
                     setShowForm(false);
                     setIsSubmitting(false);
-                    if (typeof window.clearDbCache === 'function') window.clearDbCache(); showToast('แก้ไขข้อมูลผู้ใช้งานในระบบสำเร็จ', 'success');
+                    if (typeof window.clearDbCache === 'function') window.clearDbCache(); if (typeof window.invalidateTableCache === 'function') window.invalidateTableCache('stk_members'); showToast('แก้ไขข้อมูลผู้ใช้งานในระบบสำเร็จ', 'success');
                 })
                .catch(err => {
                    setIsSubmitting(false);
@@ -389,7 +395,7 @@
                        }]);
                        setShowForm(false);
                        setIsSubmitting(false);
-                       if (typeof window.clearDbCache === 'function') window.clearDbCache(); showToast('เพิ่มผู้ใช้งานใหม่ในระบบสำเร็จ', 'success');
+                       if (typeof window.clearDbCache === 'function') window.clearDbCache(); if (typeof window.invalidateTableCache === 'function') window.invalidateTableCache('stk_members'); showToast('เพิ่มผู้ใช้งานใหม่ในระบบสำเร็จ', 'success');
                    })
                    .catch(err => {
                        setIsSubmitting(false);
@@ -405,7 +411,7 @@
                 headers: Object.assign({}, window.SUPABASE_HEADERS, {'Prefer': 'return=minimal'})
             })
             .then(async r => {
-                if (!r.ok) throw new Error('DELETE stk_members:' + r.status + ' ' + (await r.text()));
+                if (!r.ok) throw new Error('DELETE stk_members:' + r.status + ' ' + (await r.text())); if (typeof window.invalidateTableCache === 'function') window.invalidateTableCache('stk_members');
                 let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
                 setSystemUsers(list.filter(p => p && safeUpper(p.id || p.user_id || p.User_ID) !== safeUpper(id)));
                 setConfirmDelete({ show: false, id: null, title: '' });

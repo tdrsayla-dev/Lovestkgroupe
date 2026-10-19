@@ -19,16 +19,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ประเภทลูกค้า (Customer Types) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -119,26 +119,15 @@
               await supabaseUpdate('stk_customer_types', formData.id, {
                 name: formData.name,
                 status: formData.status
-              }, 'type_id').catch(() => {
-                return supabaseUpdate('customer_types', formData.id, {
-                  name: formData.name,
-                  status: formData.status
-                }, 'id');
-              });
+              }, 'id');
 
               setCustomerTypes(prev => prev.map(t => t.id === formData.id ? { ...formData } : t));
               showToast('อัปเดตข้อมูลสำเร็จ', 'success');
             } else {
               await supabaseInsert('stk_customer_types', {
-                type_id: formData.id,
+                id: formData.id,
                 name: formData.name,
                 status: formData.status
-              }).catch(() => {
-                return supabaseInsert('customer_types', {
-                  id: formData.id,
-                  name: formData.name,
-                  status: formData.status
-                });
               });
 
               setCustomerTypes(prev => [...prev, { ...formData }]);
@@ -153,9 +142,7 @@
 
         const executeDelete = async (id) => {
           try {
-            await supabaseDelete('stk_customer_types', id, 'type_id').catch(() => {
-              return supabaseDelete('customer_types', id, 'id');
-            });
+            await supabaseDelete('stk_customer_types', id, 'id');
             setCustomerTypes(prev => prev.filter(t => t.id !== id));
             showToast('ลบข้อมูลสำเร็จ', 'success');
             setConfirmDelete({ show: false, id: null, title: '' });
@@ -313,7 +300,7 @@
             if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
         }
 
-        supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types'))
+        supabaseSelect('stk_customer_types')
           .then(typeRes => {
              if (Array.isArray(typeRes)) {
                const formatted = typeRes.map(t => ({

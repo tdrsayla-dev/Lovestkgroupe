@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -19,7 +19,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ตั้งค่าแคมเปญ & โปรโมชั่นแข่งขัน - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=2026.10.02.01">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -31,10 +31,10 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=2026.10.02.01"></script>
-  <script src="dictionary.js?v=2026.10.02.01"></script>
-  <script src="CommonComponents.js?v=2026.10.02.01"></script>
-  <script src="campaignLogic.js?v=2026.10.02.01"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
+  <script src="campaignLogic.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -899,31 +899,46 @@ CREATE POLICY "Service write stk_campaigns" ON stk_campaigns FOR ALL USING (true
       const [searchTerm, setSearchTerm] = useState('');
       const [filterStatus, setFilterStatus] = useState('all');
 
-      // Load All Data
+      // Load All Data (Only Campaigns on mount, saves >90% initial egress)
       const loadAllData = useCallback(async () => {
         setIsLoading(true);
         try {
-          const [campRes, salesRes, memRes, custRes] = await Promise.all([
-            window.supabaseSelect('stk_campaigns', 'order=display_order.asc,created_at.asc').catch(err => {
-              console.warn("stk_campaigns fetch error:", err);
-              setShowSqlNotice(true);
-              return [];
-            }),
-            window.supabaseSelect('stk_sales', 'limit=2000').catch(() => []),
-            window.supabaseSelect('stk_members', 'limit=500').catch(() => []),
-            window.supabaseSelect('stk_customers', 'order=created_at.desc&limit=3000').catch(() => [])
-          ]);
-
+          const campRes = await window.supabaseSelect('stk_campaigns', 'order=display_order.asc,created_at.asc').catch(err => {
+            console.warn("stk_campaigns fetch error:", err);
+            setShowSqlNotice(true);
+            return [];
+          });
           setCampaigns(Array.isArray(campRes) ? campRes : []);
-          setSales(Array.isArray(salesRes) ? salesRes : []);
-          setMembers(Array.isArray(memRes) ? memRes : []);
-          setCustomers(Array.isArray(custRes) ? custRes : []);
         } catch (e) {
           console.error("Load data error:", e);
         } finally {
           setIsLoading(false);
         }
       }, []);
+
+      // Lazy load sales & members only when user clicks to preview campaign results
+      const handleOpenPreview = async (camp) => {
+        setIsLoading(true);
+        try {
+          let sQuery = 'order=created_at.desc&limit=1000';
+          if (camp.start_date) sQuery = 'date=gte.' + camp.start_date + '&' + sQuery;
+          if (camp.end_date) sQuery = 'date=lte.' + camp.end_date + '&' + sQuery;
+          const [salesRes, memRes, custRes] = await Promise.all([
+            window.supabaseSelect('stk_sales', 'select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&' + sQuery).catch(() => []),
+            members.length ? Promise.resolve(members) : window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []),
+            customers.length ? Promise.resolve(customers) : window.supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,owner_member_id&limit=1000').catch(() => [])
+          ]);
+          setSales(Array.isArray(salesRes) ? salesRes : []);
+          if (!members.length) setMembers(Array.isArray(memRes) ? memRes : []);
+          if (!customers.length) setCustomers(Array.isArray(custRes) ? custRes : []);
+          setPreviewItem(camp);
+        } catch(e) {
+          console.error('Preview load error:', e);
+          setPreviewItem(camp);
+        } finally {
+          setIsLoading(false);
+        }
+      };
 
       useEffect(() => {
         loadAllData();
@@ -1308,7 +1323,7 @@ CREATE POLICY "Service write stk_campaigns" ON stk_campaigns FOR ALL USING (true
                     <div className="pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setPreviewItem(camp)}
+                          onClick={() => handleOpenPreview(camp)}
                           className="px-3 py-2 rounded-xl text-xs font-black bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200/80 dark:border-blue-800/50 transition-colors flex items-center gap-1.5 shadow-2xs"
                         >
                           <Eye size={15} />

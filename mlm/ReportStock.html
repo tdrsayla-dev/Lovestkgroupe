@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -21,7 +21,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานสต๊อกและสินค้าตัดศูนย์ (Stock & Zero Price Report) - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -33,11 +33,11 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
-  <script src="reportStockLogic.js"></script>
-  <script src="stockLogic.js"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
+  <script src="reportStockLogic.js?v=2026.10.17.02"></script>
+  <script src="stockLogic.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -212,7 +212,8 @@
         const dateFetchDebounceRef = useRef(null);
 
         const fetchRangeSalesSmart = useCallback((start, end) => {
-            if (!start || !end || typeof window.supabaseSelect !== 'function') return;
+            const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
+            if (!start || !end || typeof selectFn !== 'function') return;
             const rangeKey = `${start}_${end}`;
             if (fetchedDateRangesRef.current.has(rangeKey)) return;
 
@@ -220,8 +221,8 @@
             dateFetchDebounceRef.current = setTimeout(async () => {
                 try {
                     const [resSales, resMoves] = await Promise.all([
-                        window.supabaseSelect('stk_sales', `date=gte.${start}&date=lte.${end}&order=order_id.desc&limit=10000`).catch(() => []),
-                        window.supabaseSelect('stk_stock_movements', `date=gte.${start}&date=lte.${end}&order=created_at.desc&limit=10000`).catch(() => [])
+                        selectFn('stk_sales', `select=order_id,date,customer_id,seller_id,items_json,status,sale_type,total_amount&date=gte.${start}&date=lte.${end}&order=order_id.desc`).catch(() => []),
+                        selectFn('stk_stock_movements', `select=movement_id,date,product_id,type,sub_type,quantity,lot_id,notes,created_by,created_at&date=gte.${start}&date=lte.${end}&order=created_at.desc`).catch(() => [])
                     ]);
                     fetchedDateRangesRef.current.add(rangeKey);
                     if (Array.isArray(resSales) && resSales.length > 0) {
@@ -358,16 +359,21 @@
             return downlines;
         }, [currentUser, isAdmin, members]);
 
-        // โหลดข้อมูลจาก Supabase โดยใช้ window.supabaseSelect ที่ถูกต้อง
+        // โหลดข้อมูลจาก Supabase โดยใช้ window.supabaseSelectAll เพื่อความสมบูรณ์ 100%
         const loadAllData = useCallback(async () => {
             try {
+                const dNow = new Date();
+                const curMonthStart = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-01`;
+                const curMonthEnd = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-${String(new Date(dNow.getFullYear(), dNow.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+                const selectAllFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
+
                 const [saleRes, prodRes, moveRes, memRes, teamRes, custRes, setRes] = await Promise.all([
-                    window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=3000').catch(() => []),
+                    selectAllFn('stk_sales', `select=order_id,date,customer_id,seller_id,items_json,status,sale_type,total_amount&date=gte.${curMonthStart}&date=lte.${curMonthEnd}&order=order_id.desc`).catch(() => []),
                     window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status').catch(() => []),
-                    window.supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=3000').catch(() => []),
-                    window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status').catch(() => []),
+                    selectAllFn('stk_stock_movements', `select=movement_id,date,product_id,type,sub_type,quantity,lot_id,notes,created_by,created_at&date=gte.${curMonthStart}&date=lte.${curMonthEnd}&order=created_at.desc`).catch(() => []),
+                    window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status&order=user_id.asc').catch(() => []),
                     window.supabaseSelect('stk_business_teams').catch(() => []),
-                    window.supabaseSelect('stk_customers', 'select=customer_id,name&limit=3000').catch(() => []),
+                    window.supabaseSelect('stk_customers', 'select=customer_id,name&order=customer_id.desc&limit=1000').catch(() => []),
                     window.supabaseSelect('stk_system_settings').catch(() => [])
                 ]);
 

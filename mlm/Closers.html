@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -19,16 +19,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ผู้ปิดการขาย (Closers) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -113,7 +113,7 @@
                      if (!error && data) allUsers = data;
                  }
                  if (allUsers.length === 0 && typeof supabaseSelect === 'function') {
-                     allUsers = await supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => supabaseSelect('members')).catch(() => []) || [];
+                     allUsers = await supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []) || [];
                  }
 
                  // สร้าง map: team_id -> team_name จาก stk_business_teams
@@ -152,7 +152,7 @@
                      const existsIdx = newClosersState.findIndex(c => String(c.id || '').toUpperCase() === uId.toUpperCase());
 
                      const payload = {
-                         closer_id: uId,
+                         id: uId,
                          name: u.name || uId,
                          team: teamNameStr,
                          status: 'ใช้งาน'
@@ -162,6 +162,10 @@
                          try {
                              await window.supabaseClient.from('stk_closers').upsert(payload, { onConflict: 'id' });
                          } catch(err) { console.warn('upsert error:', err); }
+                     } else if (typeof window.supabaseUpsert === 'function') {
+                         try {
+                             await window.supabaseUpsert('stk_closers', payload);
+                         } catch(err) { console.warn('supabaseUpsert error:', err); }
                      }
 
                      if (existsIdx === -1) {
@@ -192,7 +196,6 @@
             const id = confirmDelete.id; 
             if (!id) return;
             supabaseDelete('stk_closers', id, 'id')
-              .catch(() => supabaseDelete('closers', id, 'id'))
               .then(() => {
                  setClosers((closers || []).filter(p => p && p.id !== id)); 
                  setConfirmDelete({ show: false, id: null, title: '' });
@@ -467,8 +470,8 @@
         if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
 
         Promise.all([
-          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => []),
-          supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')).catch(() => [])
+          supabaseSelect('stk_closers').catch(() => []),
+          supabaseSelect('stk_business_teams').catch(() => [])
         ]).then(([cloRes, teamRes]) => {
              let formattedClosers = [];
              if (Array.isArray(cloRes)) {
@@ -491,7 +494,7 @@
 
         async function autoSyncAllMembers(existingClosers, teamsData) {
           try {
-            const membersRes = await supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => supabaseSelect('members')).catch(() => []);
+            const membersRes = await supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []);
             if (!Array.isArray(membersRes) || membersRes.length === 0) return;
             
             const teamIdToName = {};

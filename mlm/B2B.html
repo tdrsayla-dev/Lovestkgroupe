@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
@@ -22,7 +22,7 @@
   <title>ระบบการขายส่ง B2B (Wholesale System) - LOVE STK GROUPE</title>
   
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -38,11 +38,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <!-- System Modules -->
-  <script src="config.js?v=5"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=5"></script>
-  <script src="companySettings.js"></script>
-  <script src="stockLogic.js?v=5"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
+  <script src="companySettings.js?v=2026.10.17.02"></script>
+  <script src="stockLogic.js?v=2026.10.17.02"></script>
 
   <style>
     @media print {
@@ -715,9 +715,9 @@
           const [prodsRes, tiersRes, memsRes, custsRes, ordersRes, whRes, rateRes] = await Promise.all([
             supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,current_stock,image_url,status').catch(() => []),
             supabaseSelect('stk_b2b_price_tiers', 'select=*&order=product_id.asc,min_qty.asc').catch(() => []),
-            supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,phone_number,status').catch(() => []),
-            supabaseSelect('stk_customers', 'select=customer_id,name,phone,line_id').catch(() => []),
-            supabaseSelect('stk_b2b_orders', 'select=*&order=created_at.desc').catch(() => []),
+            supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,phone_number,status&order=user_id.asc').catch(() => []),
+            supabaseSelect('stk_customers', 'select=customer_id,name,phone,line_id&order=created_at.desc&limit=1000').catch(() => []),
+            supabaseSelect('stk_b2b_orders', 'select=order_id,order_date,buyer_type,buyer_id,buyer_name,buyer_phone,warehouse_id,items_json,total_qty,total_amount,payment_method,notes,recorded_by,status,created_at&order=created_at.desc&limit=500').catch(() => []),
             supabaseSelect('stk_warehouses', 'select=warehouse_id,name,type').catch(() => []),
             supabaseSelect('stk_exchange_rate_history', 'select=rate&order=created_at.desc&limit=1').catch(() => [])
           ]);

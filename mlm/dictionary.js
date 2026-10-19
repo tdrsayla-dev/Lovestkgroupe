@@ -569,7 +569,7 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
  * @param {object} ord - ออบเจกต์ออเดอร์จาก stk_nutrient_orders หรือ stk_pending_sale
  * @returns {object} { orderByType, closerTeam, closerName, isSelf, badgeText, badgeClass }
  */
-window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeamsList) {
+window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeamsList, clinicDoctorsPool) {
     const curLang = window.getCurrentLang() || 'th';
     if (!ord) {
         return {
@@ -595,15 +595,31 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
     const isLasachakMarketer = closerLower.includes('lasachak') || closerLower.includes('99749239');
     const isDoctorSouksakhone = (closerLower.includes('souksakhone') || closerLower.includes('souksakhonh')) && !isLasachakMarketer;
 
-    // รายชื่อแพทย์ประจำคลินิก (Center)
+    // 🩺 ตรวจสอบกับรายชื่อแพทย์สดจากตาราง staff_users ของระบบคลินิก
+    const clinicDocs = clinicDoctorsPool || (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []) || [];
+    let matchedClinicDoc = null;
+    if (!isLasachakMarketer && closerDrStr && closerDrStr !== '-' && Array.isArray(clinicDocs) && clinicDocs.length > 0) {
+        matchedClinicDoc = clinicDocs.find(d => {
+            if (!d) return false;
+            const empCode = String(d.emp_code || d.id || '').trim().toLowerCase();
+            const dName = String(d.full_name || d.name || '').trim().toLowerCase();
+            return (empCode && (closerLower === empCode || closerLower.includes(empCode))) ||
+                   (dName && (closerLower === dName || closerLower.includes(dName) || dName.includes(closerLower)));
+        });
+    }
+
+    // รายชื่อแพทย์ประจำคลินิก (Center) - รองรับแพทย์ทุกคนในคลินิกแบบ Dynamic
     const isDoctorName = !isLasachakMarketer && (
         isDoctorSouksakhone ||
+        Boolean(matchedClinicDoc) ||
         closerLower.includes('khanittha') ||
         closerLower.includes('lava') ||
         closerLower.includes('lavar') ||
         closerLower.includes('nuna') ||
         closerLower.includes('phengphan') ||
         closerLower.includes('phaengphan') ||
+        closerLower.includes('hatkeo') ||
+        closerLower.includes('daophet') ||
         closerLower.includes('ท่านหมอ') ||
         closerLower.includes('ທ່ານໝໍ') ||
         closerLower.includes('แພດ') ||
@@ -611,7 +627,8 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
         closerLower.includes('หมอผู้เชี่ยวชาญ') ||
         closerLower.startsWith('หมอ') ||
         closerLower.startsWith('dr.') ||
-        closerLower.startsWith('dr ')
+        closerLower.startsWith('dr ') ||
+        closerLower.startsWith('dmc')
     );
 
     const pool = closersPool || window.STK_CLOSERS_CACHE || [];
@@ -739,8 +756,8 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
         const orderByType = 'หมอสั่งจ่าย';
         const closerTeam = 'Center';
         let closerName = (closerDrStr && closerDrStr !== '-' && closerDrStr !== 'หมอผู้เชี่ยวชาญ (Center)')
-            ? closerDrStr
-            : 'หมอผู้เชี่ยวชาญ (Center)';
+            ? (matchedClinicDoc ? (matchedClinicDoc.full_name || matchedClinicDoc.name || closerDrStr) : closerDrStr)
+            : (matchedClinicDoc ? (matchedClinicDoc.full_name || matchedClinicDoc.name) : 'หมอผู้เชี่ยวชาญ (Center)');
 
         const badgeText = curLang === 'lo' ? '🩺 ທ່ານໝໍປິດ (Center)' : (curLang === 'en' ? '🩺 Doctor (Center)' : '🩺 หมอปิด (Center)');
         return {

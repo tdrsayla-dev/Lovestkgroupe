@@ -18,7 +18,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>สั่งจ่ายยา - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -26,9 +26,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
 
@@ -251,6 +251,7 @@
         names: new Set()
       });
       const [membersList, setMembersList] = useState([]);
+      const [clinicDoctors, setClinicDoctors] = useState(() => (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []));
 
       // 🩺 ฟังก์ชันช่วยวิเคราะห์ข้อมูลผู้สั่งจ่าย / ทีมผู้ปิดการขาย โดยใช้ resolveOrderCloser สากล
       const resolveOrderCloserInfo = (ord) => {
@@ -265,7 +266,7 @@
           };
         }
         if (typeof window.resolveOrderCloser === 'function') {
-          return window.resolveOrderCloser(ord, window.STK_CLOSERS_CACHE, membersList, window.STK_TEAMS_CACHE);
+          return window.resolveOrderCloser(ord, window.STK_CLOSERS_CACHE, membersList, window.STK_TEAMS_CACHE, clinicDoctors);
         }
         const closerDrStr = String(ord.closer_dr || ord.closer || '').trim();
         const closerDrLower = closerDrStr.toLowerCase();
@@ -333,15 +334,16 @@
             const isForce = forceRefresh === true || (showLoading && typeof showLoading === 'object');
             const cacheParam = isForce ? '&nocache=true' : '';
 
-            // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย
-            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes] = await Promise.all([
+            // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย + แพทย์คลินิก
+            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes, clinicDocsRes] = await Promise.all([
               window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
-              window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id').catch(() => []),
-              window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone') : Promise.resolve([])).catch(() => []),
+              window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=1000').catch(() => []),
+              window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status&order=user_id.asc').catch(() => []),
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
               window.supabaseSelect('stk_closers').catch(() => []),
-              window.supabaseSelect('stk_business_teams').catch(() => [])
+              window.supabaseSelect('stk_business_teams').catch(() => []),
+              (window.fetchClinicDoctors ? window.fetchClinicDoctors() : Promise.resolve([])).catch(() => [])
             ]);
 
             if (Array.isArray(closersRes) && closersRes.length > 0) {
@@ -353,6 +355,9 @@
             if (Array.isArray(membersRes) && membersRes.length > 0) {
               window.STK_MEMBERS_CACHE = membersRes;
               setMembersList(membersRes);
+            }
+            if (Array.isArray(clinicDocsRes) && clinicDocsRes.length > 0) {
+              setClinicDoctors(clinicDocsRes);
             }
 
             // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales
@@ -488,21 +493,21 @@
                 : [String(targetHn || '').trim().toUpperCase()].filter(Boolean);
               const pClean = String(targetPhone || '').replace(/[^0-9]/g, '');
 
-              // 1. ตรวจสอบจากตาราง patients ของระบบคลินิก (priority สูงสุดสำหรับเคสคลินิก)
-              let clinicRef = hCandidates.map(c => clinicReferrerByHn.get(c)).find(Boolean) || '';
-              if (!clinicRef && pClean.length >= 7) clinicRef = clinicReferrerByPhone.get(pClean) || '';
-
-              // 2. ตรวจสอบจากค่าเดิมที่ติดมากับรายการ
+              // 1. ตรวจสอบจากค่าที่มีการระบุมาในออเดอร์/การตรวจรอบนี้ก่อน (Priority สูงสุด เพราะเป็นผู้ที่พาลูกค้ามาตรวจในครั้งนี้จริง ห้ามเอาชื่ออื่นมาทับ)
               const cleanExisting = String(existingRecorded || '').trim();
               const isRecordedValid = cleanExisting && cleanExisting !== '-' && cleanExisting !== '--';
+              if (isRecordedValid) return resolveReferrerMember(cleanExisting);
+
+              // 2. ตรวจสอบจากตาราง patients ของระบบคลินิก (กรณีไม่ได้ระบุผู้พามาในรอบนี้ จึงจะดึงจากประวัติคนไข้เดิม)
+              let clinicRef = hCandidates.map(c => clinicReferrerByHn.get(c)).find(Boolean) || '';
+              if (!clinicRef && pClean.length >= 7) clinicRef = clinicReferrerByPhone.get(pClean) || '';
+              if (clinicRef) return resolveReferrerMember(clinicRef);
 
               // 3. ตรวจสอบจากเจ้าของลูกค้าเดิมใน stk_customers
               let custRef = hCandidates.map(c => custOwnerByHn.get(c)).find(Boolean) || '';
               if (!custRef && pClean.length >= 7) custRef = custOwnerByPhone.get(pClean) || '';
-
-              if (clinicRef) return resolveReferrerMember(clinicRef);
-              if (isRecordedValid) return resolveReferrerMember(cleanExisting);
               if (custRef) return resolveReferrerMember(custRef);
+
               return '-';
             };
 
@@ -923,6 +928,34 @@
           fullSellerSelectHtml = `<option value="" disabled selected>⚠️ กรุณาเลือกผู้แนะนำ / การตลาด</option>` + sellerOptionsHtml;
         }
 
+        // 🩺 รายชื่อหมอจากฐานข้อมูลคลินิก (staff_users / Clinic Doctors)
+        const doctorsList = (clinicDoctors && clinicDoctors.length > 0)
+          ? clinicDoctors
+          : (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []);
+
+        const currentCloserDocStr = String(closerInfo.closerName || order.closer_dr || order.closer || '').trim();
+        let doctorFoundInList = false;
+        const doctorOptionsListHtml = (doctorsList || []).map(doc => {
+          const docName = doc.full_name || doc.name || doc.emp_code || '';
+          const docCode = doc.emp_code ? `[${doc.emp_code}] ` : '';
+          const isSelected = currentCloserDocStr && (
+            currentCloserDocStr.toLowerCase().includes(docName.toLowerCase()) ||
+            docName.toLowerCase().includes(currentCloserDocStr.toLowerCase()) ||
+            (doc.emp_code && currentCloserDocStr.toLowerCase().includes(doc.emp_code.toLowerCase()))
+          );
+          if (isSelected) doctorFoundInList = true;
+          return `<option value="${docName}" ${isSelected ? 'selected' : ''}>🩺 ${docCode}${docName}</option>`;
+        }).join('');
+
+        let doctorOptionsHtml = '';
+        if (doctorFoundInList) {
+          doctorOptionsHtml = doctorOptionsListHtml;
+        } else if (currentCloserDocStr && currentCloserDocStr !== '-' && currentCloserDocStr !== '--') {
+          doctorOptionsHtml = `<option value="${currentCloserDocStr}" selected>🩺 ${currentCloserDocStr}</option>` + doctorOptionsListHtml;
+        } else {
+          doctorOptionsHtml = `<option value="หมอผู้เชี่ยวชาญ (Center)" selected>🩺 หมอผู้เชี่ยวชาญ (Center)</option>` + doctorOptionsListHtml;
+        }
+
         Swal.fire({
           title: currentLang === 'lo' ? 'ຢືນຢັນສ້າງຮ່າງໃບສັ່ງຊື້' : (currentLang === 'en' ? 'Confirm Draft Order' : 'ยืนยันสร้างร่างใบสั่งซื้อ'),
           html: `
@@ -971,7 +1004,17 @@
                     🩺 หมอสั่งจ่าย (ทีม: Center)
                   </option>
                 </select>
-                <p class="text-[11px] text-slate-500 mt-1">ผู้ปิดการขาย: <strong class="text-slate-800">${closerInfo.closerName}</strong></p>
+
+                <!-- Dropdown เลือกแพทย์คลินิก (เฉพาะกรณีหมอสั่งจ่าย / Center) -->
+                <div id="swal-doctor-select-box" class="mt-2 ${closerInfo.orderByType === 'หมอสั่งจ่าย' ? '' : 'hidden'}">
+                  <label class="block font-bold text-slate-700 mb-1">
+                    👨‍⚕️ หมอผู้สั่งจ่าย / ผู้ปิดการขาย (คลินิก):
+                  </label>
+                  <select id="swal-select-closer-doctor" class="w-full bg-white border border-indigo-300 rounded-lg p-2 font-bold text-slate-800 text-xs shadow-2xs focus:border-indigo-500 focus:outline-none">
+                    ${doctorOptionsHtml}
+                  </select>
+                </div>
+                <p id="swal-self-closer-hint" class="text-[11px] text-slate-500 mt-1 ${closerInfo.orderByType === 'สั่งจ่ายยาเอง' ? '' : 'hidden'}">ผู้สั่งจ่าย: <strong class="text-slate-800">${closerInfo.closerName || 'พนักงานการตลาด'}</strong></p>
               </div>
 
               <hr class="my-2 border-slate-200"/>
@@ -1007,12 +1050,27 @@
                 cBtn.classList.remove('swal2-loading');
                 cBtn.removeAttribute('disabled');
               }
+              const orderByTypeEl = document.getElementById('swal-select-order-by-type');
+              const drBox = document.getElementById('swal-doctor-select-box');
+              const selfHint = document.getElementById('swal-self-closer-hint');
+              if (orderByTypeEl && drBox) {
+                orderByTypeEl.addEventListener('change', () => {
+                  if (orderByTypeEl.value === 'หมอสั่งจ่าย') {
+                    drBox.classList.remove('hidden');
+                    if (selfHint) selfHint.classList.add('hidden');
+                  } else {
+                    drBox.classList.add('hidden');
+                    if (selfHint) selfHint.classList.remove('hidden');
+                  }
+                });
+              }
             } catch (err) {}
           },
           preConfirm: () => {
             const selectType = document.getElementById('swal-select-customer-type');
             const selectSeller = document.getElementById('swal-select-seller');
             const selectOrderByType = document.getElementById('swal-select-order-by-type');
+            const selectDoctor = document.getElementById('swal-select-closer-doctor');
             const chosenSeller = selectSeller ? selectSeller.value : (order.recorded_by || '');
             if (!chosenSeller || chosenSeller === '-' || chosenSeller === '--') {
               Swal.showValidationMessage(currentLang === 'lo' ? 'ກະລຸນາເລືອກຜູ້ແນະນຳ / ການຕະຫຼາດ' : 'กรุณาเลือกผู้แนะนำ / ผู้ขาย (การตลาด)');
@@ -1021,7 +1079,8 @@
             return {
               custTypeName: selectType ? selectType.value : normCustType.name,
               sellerName: chosenSeller,
-              orderByTypeVal: selectOrderByType ? selectOrderByType.value : closerInfo.orderByType
+              orderByTypeVal: selectOrderByType ? selectOrderByType.value : closerInfo.orderByType,
+              closerDoctor: selectDoctor ? selectDoctor.value : closerInfo.closerName
             };
           }
         }).then((result) => {
@@ -1029,6 +1088,7 @@
             const selectedCustTypeName = result.value?.custTypeName || normCustType.name;
             const selectedSeller = result.value?.sellerName || order.recorded_by;
             const selectedOrderByVal = result.value?.orderByTypeVal || closerInfo.orderByType;
+            const selectedCloserDoctor = result.value?.closerDoctor || closerInfo.closerName;
             const isSelfOrder = selectedOrderByVal === 'สั่งจ่ายยาเอง';
             const chosenOrderByType = isSelfOrder ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย';
             const chosenCloserTeam = isSelfOrder
@@ -1036,7 +1096,7 @@
               : 'Center';
             const chosenCloserName = isSelfOrder
               ? (closerInfo.closerName && closerInfo.closerName !== 'หมอผู้เชี่ยวชาญ (Center)' ? closerInfo.closerName : (selectedSeller || 'พนักงานการตลาด'))
-              : (closerInfo.closerName || 'หมอผู้เชี่ยวชาญ (Center)');
+              : (selectedCloserDoctor || closerInfo.closerName || 'หมอผู้เชี่ยวชาญ (Center)');
 
             const finalCustTypeObj = (typeof window.normalizeCustomerType === 'function')
               ? window.normalizeCustomerType(selectedCustTypeName)

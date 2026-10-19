@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
@@ -21,7 +21,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>คลังสินค้า & สต๊อกล็อต (Warehouse & Lots) - LOVE STK GROUPE</title>
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -33,11 +33,11 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=4"></script>
-  <script src="dictionary.js"></script>
-  <script src="companySettings.js"></script>
-  <script src="CommonComponents.js?v=4"></script>
-  <script src="stockLogic.js?v=4"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="companySettings.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
+  <script src="stockLogic.js?v=2026.10.17.02"></script>
   <style>
     @media print {
       /* 1. Global Print Canvas Reset */
@@ -707,29 +707,37 @@
             }
           }
 
-          // บันทึกและอัปเดต Daily Sales Map (ยอดขายสำเร็จจริง)
+          // บันทึกและอัปเดต Daily Sales Map (ยอดขายสำเร็จจริง พร้อมแปลงสินค้าชุด/โปรโมชั่นกลับเป็นสินค้าจริง)
           if (salesResult.status === 'fulfilled' && Array.isArray(salesResult.value)) {
             const sMap = {};
+            const pList = prodResult.value || products || [];
             salesResult.value.forEach(bill => {
               const bStatus = String(bill.status || '').toUpperCase();
               if (bStatus === 'CANCELLED' || bStatus === 'ยกเลิก' || bStatus === 'DELETED') return;
-              let items = [];
-              if (bill.items_json) {
-                try { items = typeof bill.items_json === 'string' ? JSON.parse(bill.items_json) : bill.items_json; } catch(e){}
-              }
-              if (Array.isArray(items)) {
-                items.forEach(it => {
-                  let pid = String(it.product_id || it.productId || it.id || '').trim();
-                  const pName = String(it.product_name || it.productName || it.name || it.prod || '').trim().toLowerCase();
-                  if (!pid && pName) {
-                    const foundP = (prodResult.value || products || []).find(p => String(p.name || '').trim().toLowerCase() === pName);
-                    if (foundP) pid = foundP.product_id;
-                  }
-                  const q = Number(it.qty || it.quantity || 0);
-                  if (pid && q > 0) {
-                    sMap[pid] = (sMap[pid] || 0) + q;
-                  }
+              if (window.StockLogic?.resolveBillItemsToStock) {
+                const billStockMap = window.StockLogic.resolveBillItemsToStock(bill, pList);
+                Object.keys(billStockMap).forEach(pid => {
+                  sMap[pid] = (sMap[pid] || 0) + (billStockMap[pid] || 0);
                 });
+              } else {
+                let items = [];
+                if (bill.items_json) {
+                  try { items = typeof bill.items_json === 'string' ? JSON.parse(bill.items_json) : bill.items_json; } catch(e){}
+                }
+                if (Array.isArray(items)) {
+                  items.forEach(it => {
+                    let pid = String(it.product_id || it.productId || it.id || '').trim();
+                    const pName = String(it.product_name || it.productName || it.name || it.prod || '').trim().toLowerCase();
+                    if (!pid && pName) {
+                      const foundP = pList.find(p => String(p.name || '').trim().toLowerCase() === pName);
+                      if (foundP) pid = foundP.product_id;
+                    }
+                    const q = Number(it.qty || it.quantity || 0);
+                    if (pid && q > 0) {
+                      sMap[pid] = (sMap[pid] || 0) + q;
+                    }
+                  });
+                }
               }
             });
             setDailySalesMap(sMap);
@@ -805,26 +813,34 @@
             const salesRes = await window.supabaseSelect('stk_sales', `date=eq.${auditDate}&select=order_id,date,items_json,status&limit=3000`).catch(() => []);
             if (Array.isArray(salesRes)) {
               const sMap = {};
+              const pList = products || [];
               salesRes.forEach(bill => {
                 const bStatus = String(bill.status || '').toUpperCase();
                 if (bStatus === 'CANCELLED' || bStatus === 'ยกเลิก' || bStatus === 'DELETED') return;
-                let items = [];
-                if (bill.items_json) {
-                  try { items = typeof bill.items_json === 'string' ? JSON.parse(bill.items_json) : bill.items_json; } catch(e){}
-                }
-                if (Array.isArray(items)) {
-                  items.forEach(it => {
-                    let pid = String(it.product_id || it.productId || it.id || '').trim();
-                    const pName = String(it.product_name || it.productName || it.name || it.prod || '').trim().toLowerCase();
-                    if (!pid && pName) {
-                      const foundP = (products || []).find(p => String(p.name || '').trim().toLowerCase() === pName);
-                      if (foundP) pid = foundP.product_id;
-                    }
-                    const q = Number(it.qty || it.quantity || 0);
-                    if (pid && q > 0) {
-                      sMap[pid] = (sMap[pid] || 0) + q;
-                    }
+                if (window.StockLogic?.resolveBillItemsToStock) {
+                  const billStockMap = window.StockLogic.resolveBillItemsToStock(bill, pList);
+                  Object.keys(billStockMap).forEach(pid => {
+                    sMap[pid] = (sMap[pid] || 0) + (billStockMap[pid] || 0);
                   });
+                } else {
+                  let items = [];
+                  if (bill.items_json) {
+                    try { items = typeof bill.items_json === 'string' ? JSON.parse(bill.items_json) : bill.items_json; } catch(e){}
+                  }
+                  if (Array.isArray(items)) {
+                    items.forEach(it => {
+                      let pid = String(it.product_id || it.productId || it.id || '').trim();
+                      const pName = String(it.product_name || it.productName || it.name || it.prod || '').trim().toLowerCase();
+                      if (!pid && pName) {
+                        const foundP = pList.find(p => String(p.name || '').trim().toLowerCase() === pName);
+                        if (foundP) pid = foundP.product_id;
+                      }
+                      const q = Number(it.qty || it.quantity || 0);
+                      if (pid && q > 0) {
+                        sMap[pid] = (sMap[pid] || 0) + q;
+                      }
+                    });
+                  }
                 }
               });
               setDailySalesMap(sMap);
@@ -1365,11 +1381,11 @@
       }, [productStockSummary]);
 
       // Auto-generate Lot Number helper
-      // Multi-Item GRN Helpers
+      // Multi-Item GRN Helpers (ใช้ Timestamp ต่อท้าย ป้องกันปัญหาเลขที่เอกสารซ้ำกัน 100%)
       const generateGrnNumber = useCallback(() => {
         const dateCode = todayISO.replace(/-/g, '').slice(2);
-        const rand = Math.floor(100 + Math.random() * 900);
-        return `GRN-${dateCode}-${rand}`;
+        const timeCode = Date.now().toString().slice(-4);
+        return `GRN-${dateCode}-${timeCode}`;
       }, [todayISO]);
 
       const loadGrnHistory = useCallback(async () => {
@@ -1452,6 +1468,10 @@
       // Submit Multi-Item Stock In
       const handleSubmitMultiStockIn = async (e) => {
         if (e && e.preventDefault) e.preventDefault();
+        if (currentUser && (currentUser.status === 'ระงับ' || currentUser.status === 'deactivated' || currentUser.status === 'inactive')) {
+          showToast('บัญชีของคุณถูกระงับการใช้งาน ไม่สามารถทำรายการได้', 'error');
+          return;
+        }
         if (grnItems.length === 0) {
           showToast('กรุณาระบุรายการสินค้าที่รับเข้าอย่างน้อย 1 รายการ', 'warning');
           return;
@@ -1535,11 +1555,11 @@
         }
       };
 
-      // Multi-Item Transfer Requisition (TRF) Helpers
+      // Multi-Item Transfer Requisition (TRF) Helpers (ใช้ Timestamp ต่อท้าย ป้องกันปัญหาเลขที่เอกสารซ้ำกัน 100%)
       const generateTransferNumber = useCallback(() => {
         const dateCode = todayISO.replace(/-/g, '').slice(2);
-        const rand = Math.floor(100 + Math.random() * 900);
-        return `TRF-${dateCode}-${rand}`;
+        const timeCode = Date.now().toString().slice(-4);
+        return `TRF-${dateCode}-${timeCode}`;
       }, [todayISO]);
 
       const loadTransferHistory = useCallback(async () => {
@@ -1617,6 +1637,11 @@
               return;
             }
           }
+        }
+
+        if (currentUser && (currentUser.status === 'ระงับ' || currentUser.status === 'deactivated' || currentUser.status === 'inactive')) {
+          showToast('บัญชีของคุณถูกระงับการใช้งาน ไม่สามารถทำรายการได้', 'error');
+          return;
         }
 
         setIsSubmittingTransfer(true);
@@ -1843,6 +1868,10 @@
 
       // Save Daily Audit to Supabase
       const handleSaveDailyAudit = async () => {
+        if (currentUser && (currentUser.status === 'ระงับ' || currentUser.status === 'deactivated' || currentUser.status === 'inactive')) {
+          showToast('บัญชีของคุณถูกระงับการใช้งาน ไม่สามารถทำรายการได้', 'error');
+          return;
+        }
         setIsSavingAudit(true);
         try {
           const auditRecords = dailyReconciliation.map(r => ({

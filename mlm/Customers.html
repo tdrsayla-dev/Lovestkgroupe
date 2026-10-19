@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -19,16 +19,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ข้อมูลลูกค้า & CRM ติดตามผล (Customers) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
+  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="dictionary.js?v=2026.10.17.02"></script>
+  <script src="CommonComponents.js?v=2026.10.17.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
 
@@ -538,14 +538,31 @@
         }, [duplicateMatchAdd, currentUserId, currentUserName]);
 
         const handleOpenAddCustomer = async () => {
-            const usedIds = new Set((customers || []).map(c => {
-                const match = c && c.id && c.id.match(/^C(\d+)$/i);
-                return match ? parseInt(match[1], 10) : 0;
-            }).filter(n => n > 0));
+            let maxIdNum = 0;
+            (customers || []).forEach(c => {
+                const match = c && c.id && String(c.id).match(/^C(\d+)$/i);
+                if (match) {
+                    const n = parseInt(match[1], 10);
+                    if (n > maxIdNum) maxIdNum = n;
+                }
+            });
 
-            let nextIdNum = 1;
-            while (usedIds.has(nextIdNum)) nextIdNum++;
+            if (typeof window.supabaseSelect === 'function') {
+                try {
+                    const latestCust = await window.supabaseSelect('stk_customers', 'select=customer_id&order=customer_id.desc&limit=5');
+                    if (Array.isArray(latestCust)) {
+                        latestCust.forEach(c => {
+                            const match = c && c.customer_id && String(c.customer_id).match(/^C(\d+)$/i);
+                            if (match) {
+                                const n = parseInt(match[1], 10);
+                                if (n > maxIdNum) maxIdNum = n;
+                            }
+                        });
+                    }
+                } catch(e) {}
+            }
 
+            const nextIdNum = maxIdNum > 0 ? maxIdNum + 1 : 1;
             const defaultMemberId = isMarketerRole ? currentUserId : (members[0]?.id || '');
             const defaultMemberName = isMarketerRole ? currentUserName : (members[0]?.name || '');
 
