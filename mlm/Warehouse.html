@@ -33,11 +33,11 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=2026.10.19.01"></script>
-  <script src="dictionary.js?v=2026.10.19.01"></script>
-  <script src="companySettings.js?v=2026.10.19.01"></script>
-  <script src="CommonComponents.js?v=2026.10.19.01"></script>
-  <script src="stockLogic.js?v=2026.10.19.01"></script>
+  <script src="config.js?v=2026.10.20.01"></script>
+  <script src="dictionary.js?v=2026.10.20.01"></script>
+  <script src="companySettings.js?v=2026.10.20.01"></script>
+  <script src="CommonComponents.js?v=2026.10.20.01"></script>
+  <script src="stockLogic.js?v=2026.10.20.01"></script>
   <style>
     @media print {
       /* 1. Global Print Canvas Reset */
@@ -1217,7 +1217,7 @@
                     const notesStr = String(m.notes || '').toLowerCase();
                     const whId = String(m.warehouse_id || '').toUpperCase();
                     const isMain = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                    const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out');
+                    const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
                     const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                     const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
 
@@ -1766,11 +1766,18 @@
               return sum + (found ? Number(found.quantity || found.qty || 0) : 0);
             }, 0);
 
-          // Calculate sales on this date: อ้างอิงจากบิลขายสำเร็จจริง (Single Source of Truth)
-          let dateSales = 0;
-          if (dailySalesMap && dailySalesMap[pid] !== undefined) {
-            dateSales = dailySalesMap[pid];
-          } else {
+          // Calculate sales on this date: อ้างอิงจากบิลขายสำเร็จจริง (Single Source of Truth) + รายการตัดสต๊อกหน้าร้าน (Zero Out)
+          let dateSales = (dailySalesMap && dailySalesMap[pid] !== undefined) ? dailySalesMap[pid] : 0;
+
+          const zeroOutMoves = (movements || []).filter(m => {
+            const mDate = String(m.date || m.created_at || '').slice(0, 10);
+            if (mDate !== auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
+            const subType = String(m.sub_type || '').toLowerCase();
+            const notesStr = String(m.notes || '').toLowerCase();
+            return subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
+          }).reduce((s, m) => s + Number(m.quantity || 0), 0);
+
+          if (!dailySalesMap || dailySalesMap[pid] === undefined) {
             // Fallback: Net movements (OUT sales minus IN returns)
             const salesOut = movements
               .filter(m => {
@@ -1783,7 +1790,7 @@
                 
                 // ดักจับ: ต้องไม่ใช่คลังใหญ่ และต้องไม่ใช่ใบเบิก หรือใบรับเข้า หรือรายการปรับสต๊อก
                 const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out');
+                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
                 const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                 const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
                 const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
@@ -1802,7 +1809,7 @@
                 const whId = String(m.warehouse_id || '').toUpperCase();
                 
                 const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์');
+                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
                 const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
                 const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
                 const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
@@ -1812,6 +1819,8 @@
               .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
 
             dateSales = Math.max(0, salesOut - salesReturn);
+          } else {
+            dateSales += zeroOutMoves;
           }
 
           // ตรวจสอบว่าวันที่เลือก (auditDate) มีการบันทึกปิดยอดไว้แล้วหรือไม่

@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // 📌 STK GROUPE - Common Components & Utilities (Pure JS)
 // ==========================================
 (function () {
@@ -1450,6 +1450,47 @@
     );
   };
 
+  // 🌟 Interactive Spotlight Glow Input (Clean, crisp executive style)
+  const SpotlightInput = ({ type, id, value, onChange, placeholder, required, icon, rightAction, autoComplete, autoFocus }) => {
+    const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 });
+    const [isHovered, setIsHovered] = React.useState(false);
+
+    const handleMouseMove = (e) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    };
+
+    return React.createElement('div', {
+      onMouseMove: handleMouseMove,
+      onMouseEnter: () => setIsHovered(true),
+      onMouseLeave: () => setIsHovered(false),
+      style: {
+        background: isHovered
+          ? `radial-gradient(120px circle at ${mousePos.x}px ${mousePos.y}px, rgba(37, 99, 235, 0.35), transparent 80%)`
+          : 'transparent'
+      },
+      className: 'group/input rounded-xl p-[2px] transition duration-300'
+    },
+      React.createElement('div', {
+        className: 'relative flex items-center bg-white rounded-[10px] border border-slate-200/90 shadow-xs focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-500/15 focus-within:bg-white transition-all'
+      },
+        icon ? React.createElement('div', { className: 'pl-3.5 pr-1 text-slate-400 group-focus-within/input:text-blue-600 transition-colors shrink-0 pointer-events-none' }, icon) : null,
+        React.createElement('input', {
+          id: id,
+          type: type,
+          required: required,
+          value: value,
+          onChange: onChange,
+          placeholder: placeholder,
+          autoComplete: autoComplete,
+          autoFocus: autoFocus,
+          className: 'w-full py-2.5 px-3 bg-transparent text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none'
+        }),
+        rightAction ? React.createElement('div', { className: 'pr-3 shrink-0' }, rightAction) : null
+      )
+    );
+  };
+
   const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
     const [username, setUsername] = React.useState('');
     const [password, setPassword] = React.useState('');
@@ -1631,44 +1672,7 @@
       }
     };
 
-    // 🌟 Interactive Spotlight Glow Input (Clean, crisp executive style)
-    const SpotlightInput = ({ type, id, value, onChange, placeholder, required, icon, rightAction }) => {
-      const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 });
-      const [isHovered, setIsHovered] = React.useState(false);
 
-      const handleMouseMove = (e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      };
-
-      return React.createElement('div', {
-        onMouseMove: handleMouseMove,
-        onMouseEnter: () => setIsHovered(true),
-        onMouseLeave: () => setIsHovered(false),
-        style: {
-          background: isHovered
-            ? `radial-gradient(120px circle at ${mousePos.x}px ${mousePos.y}px, rgba(37, 99, 235, 0.35), transparent 80%)`
-            : 'transparent'
-        },
-        className: 'group/input rounded-xl p-[2px] transition duration-300'
-      },
-        React.createElement('div', {
-          className: 'relative flex items-center bg-white rounded-[10px] border border-slate-200/90 shadow-xs focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-500/15 focus-within:bg-white transition-all'
-        },
-          icon ? React.createElement('div', { className: 'pl-3.5 pr-1 text-slate-400 group-focus-within/input:text-blue-600 transition-colors shrink-0 pointer-events-none' }, icon) : null,
-          React.createElement('input', {
-            id: id,
-            type: type,
-            required: required,
-            value: value,
-            onChange: onChange,
-            placeholder: placeholder,
-            className: 'w-full py-2.5 px-3 bg-transparent text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none'
-          }),
-          rightAction ? React.createElement('div', { className: 'pr-3 shrink-0' }, rightAction) : null
-        )
-      );
-    };
 
     // Data for Left Side Tech Orbit & Ripple Display
     const orbitItems = [
