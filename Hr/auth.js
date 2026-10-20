@@ -1,0 +1,675 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// js/auth.js - Roles, Permissions, Authentication & Sidebar UI
+// ─────────────────────────────────────────────────────────────────────────────
+
+/* =====================================================================
+ * 📌 ส่วนที่ 6: ROLES & PERMISSIONS (ฟังก์ชันจัดการสิทธิ์การใช้งาน)
+ * - ใช้ตรวจสอบสิทธิ์ Admin / User เพื่อซ่อนหรือแสดงเมนูต่างๆ
+ * ===================================================================== */
+function applyRolePermissions(role, permissions = '') {
+    try {
+        const roleStr = String(role).toLowerCase();
+        const isAdmin = roleStr.includes('admin') || roleStr.includes('manager');
+        const allowedMenus = typeof parsePermissionsList === 'function' ? parsePermissionsList(permissions) : (permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : []);
+        const publicMenus = ['staff-dashboard'];
+
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            let pageId = String(btn.getAttribute('data-page')).toLowerCase().trim();
+            const isAllowed = isAdmin || allowedMenus.includes('all') || (typeof isMenuPermissionChecked === 'function' ? isMenuPermissionChecked(pageId, allowedMenus) : allowedMenus.includes(pageId)) || publicMenus.includes(pageId) || (pageId === 'dashboard' && roleStr !== 'staff');
+            if (isAllowed) {
+                btn.classList.remove('hidden'); btn.classList.add('flex');
+            } else {
+                btn.classList.add('hidden'); btn.classList.remove('flex');
+            }
+        });
+
+        document.querySelectorAll('.group-wrapper').forEach(wrapper => {
+            let visibleBtns = wrapper.querySelectorAll('.nav-btn.flex');
+            if (visibleBtns.length > 0 || isAdmin) wrapper.classList.remove('hidden'); else wrapper.classList.add('hidden');
+        });
+
+        document.querySelectorAll('p.admin-only').forEach(el => {
+            if (isAdmin) { el.classList.remove('hidden'); } else {
+                let nextSibling = el.nextElementSibling; let hasVisibleMenu = false;
+                while (nextSibling && !nextSibling.matches('p.admin-only')) {
+                    if (nextSibling.classList.contains('flex') || (nextSibling.classList.contains('group-wrapper') && !nextSibling.classList.contains('hidden'))) { hasVisibleMenu = true; break; }
+                    nextSibling = nextSibling.nextElementSibling;
+                }
+                if (hasVisibleMenu) el.classList.remove('hidden'); else el.classList.add('hidden');
+            }
+        });
+
+        if (typeof updateScanEmployeeDisplay === 'function') {
+            updateScanEmployeeDisplay();
+        }
+    } catch (error) {
+        console.error("Error in applyRolePermissions:", error);
+        window.dispatchEvent(new ErrorEvent('error', { error: error, message: "applyRolePermissions: " + error.message }));
+    }
+}
+
+/* =====================================================================
+ * 📌 ส่วนที่ 7: AUTHENTICATION (ฟังก์ชันเข้าสู่ระบบ/ออกจากระบบ)
+ * ===================================================================== */
+function showApp() {
+    try {
+        // 📌 ซ่อน login screen และแสดง app layout ด้วย inline style (ป้องกัน Tailwind class conflict)
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) loginScreen.style.display = 'none';
+        document.getElementById('app-layout').style.display = 'flex';
+
+        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+        let role = 'Staff', username = '', empId = '', permissions = '';
+        if (sessionStr) {
+            try {
+                const sessionData = JSON.parse(sessionStr);
+                role = sessionData.role || 'Staff';
+                username = sessionData.username || '';
+                empId = sessionData.empId || '';
+                permissions = sessionData.permissions || '';
+                const isUserDisabled = typeof getUserStatus === 'function'
+                    ? getUserStatus(sessionData) === 'Disabled'
+                    : String(permissions).toLowerCase().includes('status:disabled');
+
+                if (isUserDisabled) {
+                    logout();
+                    showToast('⚠️ บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ (Account Disabled)', 'error');
+                    return;
+                }
+            } catch (e) { }
+        }
+
+        const displayUser = document.getElementById('display-username');
+        const displayRole = document.getElementById('display-role');
+        const displayProfilePic = document.getElementById('display-profile-pic');
+        const displayProfileIcon = document.getElementById('display-profile-icon');
+        
+        const cleanUsername = String(username || 'Unknown').replace(/<[^>]*>/g, '').trim();
+        if (displayUser) displayUser.innerText = cleanUsername || 'Unknown';
+        if (displayRole) displayRole.innerText = role;
+
+        const setProfilePic = (url) => {
+            let validPic = url;
+            if (validPic && typeof normalizeRatingPhoto === 'function') {
+                validPic = normalizeRatingPhoto(validPic, cleanUsername);
+            }
+            if (validPic && displayProfilePic && !validPic.includes('<img')) {
+                displayProfilePic.src = validPic;
+                displayProfilePic.onerror = function () {
+                    this.classList.add('hidden');
+                    if (displayProfileIcon) displayProfileIcon.classList.remove('hidden');
+                };
+                displayProfilePic.classList.remove('hidden');
+                if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+            } else if (displayProfilePic && cleanUsername) {
+                displayProfilePic.src = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=${encodeURIComponent(cleanUsername)}`;
+                displayProfilePic.classList.remove('hidden');
+                if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+            }
+        };
+
+        if (empId) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run.withSuccessHandler(res => {
+                    try {
+                        let picUrl = null;
+                        const staffList = (res && res.data && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+                        const row = staffList.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                        if (row) picUrl = row.Photos || row.photos || row.photo || row.profile || row.pic || row.image || null;
+                        setProfilePic(picUrl);
+                    } catch(e) {}
+                }).getSheetData('staff');
+            } else if (typeof tableCache !== 'undefined' && tableCache['staff'] && tableCache['staff'].data) {
+                const row = tableCache['staff'].data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                const picUrl = row ? (row.Photos || row.photos || row.photo || row.profile || row.pic || row.image || null) : null;
+                setProfilePic(picUrl);
+            } else {
+                setProfilePic(null);
+            }
+        } else {
+            setProfilePic(null);
+        }
+
+        applyRolePermissions(role, permissions);
+
+        // Fetch latest user permissions from Supabase users table to ensure live permissions updates
+        if (empId || username) {
+            google.script.run.withSuccessHandler(res => {
+                try {
+                    const uRows = (res && res.data) || [];
+                    const matchedUser = uRows.find(u => {
+                        const uEmp = String(u.employee_id || u.Employee_ID || u.username || '').trim().toUpperCase();
+                        const myEmp = String(empId || username).trim().toUpperCase();
+                        return uEmp === myEmp || String(u.username || '').trim().toLowerCase() === String(username).trim().toLowerCase();
+                    });
+                    if (matchedUser) {
+                        const freshPerms = matchedUser.permissions || matchedUser.Permissions || permissions;
+                        const freshRole = matchedUser.role || matchedUser.Role || role;
+                        const freshEmpId = String(matchedUser.employee_id || matchedUser.Employee_ID || empId || '').trim().toUpperCase();
+                        
+                        if (sessionStr) {
+                            try {
+                                const sObj = JSON.parse(sessionStr);
+                                sObj.permissions = freshPerms;
+                                sObj.role = freshRole;
+                                if (freshEmpId) sObj.empId = freshEmpId;
+                                localStorage.setItem('hr_user_session', JSON.stringify(sObj));
+                                if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(sObj));
+                            } catch (e) {}
+                        }
+                        applyRolePermissions(freshRole, freshPerms);
+                        if (typeof renderTable === 'function' && typeof currentSheet !== 'undefined' && currentSheet) {
+                            renderTable();
+                        }
+                    }
+                } catch(e) {}
+            }).getSheetData('users');
+        }
+
+        let roleLower = String(role).toLowerCase();
+        if (roleLower === 'staff') navigate('staff-dashboard', 'My Dashboard');
+        else navigate('dashboard', 'Dashboard');
+    } catch (error) {
+        console.error("Error in showApp:", error);
+        window.dispatchEvent(new ErrorEvent('error', { error: error, message: "showApp: " + error.message }));
+    }
+}
+
+function getClientDeviceId() {
+    let deviceId = localStorage.getItem('hr_device_id');
+    if (!deviceId) {
+        deviceId = 'DEV-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+        localStorage.setItem('hr_device_id', deviceId);
+    }
+    return deviceId;
+}
+
+function clearUserBoundIp(empId, email) {
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let role = 'Staff';
+    if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+
+    if (!isSuperAdmin) {
+        if (typeof showToast === 'function') showToast('คุณไม่มีสิทธิ์เคลียร์ IP / อุปกรณ์ (เฉพาะ Super Admin)', 'error');
+        return;
+    }
+
+    const confirmAction = () => {
+        if (typeof toggleLoading === 'function') toggleLoading(true, 'RESETTING DEVICE...');
+        google.script.run
+            .withSuccessHandler(res => {
+                if (typeof toggleLoading === 'function') toggleLoading(false);
+                if (res && res.success) {
+                    if (typeof showToast === 'function') showToast(`✅ เคลียร์ IP / รีเซ็ตอุปกรณ์ของ ${email || empId} เรียบร้อยแล้ว`, 'success');
+                    if (typeof tableCache !== 'undefined') {
+                        delete tableCache['staff'];
+                        delete tableCache['users'];
+                        delete tableCache['User'];
+                        delete tableCache['Users'];
+                    }
+                    if (typeof renderTable === 'function' && typeof currentSheet !== 'undefined') {
+                        renderTable();
+                    }
+                } else {
+                    if (typeof showToast === 'function') showToast((res && res.message) || 'Failed to clear IP', 'error');
+                }
+            })
+            .withFailureHandler(err => {
+                if (typeof toggleLoading === 'function') toggleLoading(false);
+                if (typeof showToast === 'function') showToast('Error: ' + err.message, 'error');
+            })
+            .clearUserBoundIp(empId, email);
+    };
+
+    if (typeof showConfirmModal === 'function') {
+        showConfirmModal(
+            "⚡ เคลียร์ IP / รีเซ็ตอุปกรณ์",
+            `<div class="text-left space-y-2">
+                <p>คุณต้องการเคลียร์ IP และรีเซ็ตอุปกรณ์ของ <b>${email || empId}</b> หรือไม่?</p>
+                <p class="text-xs text-gray-500">เมื่อรีเซ็ตแล้ว พนักงานคนนี้จะสามารถนำอีเมลไปล็อกอินผูกกับเครื่องใหม่ได้</p>
+            </div>`,
+            confirmAction,
+            null,
+            false,
+            "ยืนยันรีเซ็ต",
+            "ยกเลิก"
+        );
+    } else {
+        if (confirm(`คุณต้องการรีเซ็ตอุปกรณ์ของ ${email || empId} หรือไม่?`)) {
+            confirmAction();
+        }
+    }
+}
+
+async function handleLogin(e) {
+    try {
+        if (e) e.preventDefault();
+        const email = String(document.getElementById('login-email').value || '').toLowerCase().trim();
+        const pass = String(document.getElementById('login-password').value || '').trim();
+        const rememberInput = document.getElementById('remember-me');
+        const remember = rememberInput ? rememberInput.checked : false;
+
+        // ตรวจสอบรูปแบบอีเมล
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            showToast('รูปแบบอีเมลไม่ถูกต้อง', 'error');
+            return;
+        }
+
+        toggleLoading(true, 'AUTHENTICATING...');
+        const deviceId = getClientDeviceId();
+
+        google.script.run
+            .withSuccessHandler(res => {
+                try {
+                    toggleLoading(false);
+                    if (res.success) {
+                        const statusStr = String(res.status || res.Status || res.userStatus || '').toLowerCase();
+                        if (['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(statusStr)) {
+                            showToast('⚠️ บัญชีผู้ใช้นี้ถูกระงับการใช้งาน (Account Suspended)', 'error');
+                            return;
+                        }
+                        showToast('Login successful', 'success');
+                        if (remember) localStorage.setItem('hr_user_session', JSON.stringify({ username: res.username || email.split('@')[0], email: email, role: res.role, empId: res.empId, permissions: res.permissions, status: res.status }));
+                        else sessionStorage.setItem('hr_user_session', JSON.stringify({ username: res.username || email.split('@')[0], email: email, role: res.role, empId: res.empId, permissions: res.permissions, status: res.status }));
+                        showApp();
+                    } else {
+                        if (res.message && (res.message.includes('ผูกไว้กับอุปกรณ์อื่น') || res.message.includes('1 เครื่อง'))) {
+                            if (typeof showConfirmModal === 'function') {
+                                showConfirmModal(
+                                    "❌ บัญชีนี้ถูกล็อกกับอุปกรณ์อื่น",
+                                    `<div class="text-left space-y-2">
+                                        <p class="font-bold text-red-600">${res.message}</p>
+                                        <p class="text-xs text-gray-500 mt-2">กรุณาติดต่อ Super Admin เพื่อให้กด "รีเซ็ตอุปกรณ์" หรือ "เคลียร์ IP" ในระบบก่อนนำไปผูกกับเครื่องใหม่</p>
+                                    </div>`,
+                                    null, null, true, "เข้าใจแล้ว", ""
+                                );
+                            } else {
+                                alert(res.message);
+                            }
+                        } else {
+                            showToast(res.message, 'error');
+                        }
+                    }
+                } catch (errInner) {
+                    toggleLoading(false);
+                    console.error("Error in login success handler:", errInner);
+                    window.dispatchEvent(new ErrorEvent('error', { error: errInner, message: "Login Callback: " + errInner.message }));
+                }
+            })
+            .withFailureHandler(err => {
+                toggleLoading(false);
+                showToast('Connection failed: ' + err.message, 'error');
+            })
+            .verifyLogin(email, pass, deviceId);
+    } catch (error) {
+        console.error("Error in handleLogin submit:", error);
+        window.dispatchEvent(new ErrorEvent('error', { error: error, message: "handleLogin: " + error.message }));
+    }
+}
+
+function logout() {
+    // ลบข้อมูล Session การล็อกอินเดิมออก
+    localStorage.removeItem('hr_user_session');
+    sessionStorage.removeItem('hr_user_session');
+
+    // สั่งให้กระโดดกลับไปยังหน้าแรกของเว็บไซต์ทันที
+    window.location.href = 'login.html';
+}
+
+function openChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        
+        // Populate user info
+        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+        if (sessionStr) {
+            try {
+                const sessionData = JSON.parse(sessionStr);
+                const displayUser = document.getElementById('cp-display-username');
+                const displayEmail = document.getElementById('cp-display-email');
+                if (displayUser) displayUser.innerText = sessionData.username || 'Unknown';
+                if (displayEmail) displayEmail.innerText = sessionData.email || '';
+            } catch(e) {}
+        }
+    }
+}
+
+function closeChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function submitChangePassword(e) {
+    e.preventDefault();
+    const oldPass = document.getElementById('old-password').value;
+    const newPass = document.getElementById('new-password').value;
+    const confirmPass = document.getElementById('confirm-new-password').value;
+    
+    if (newPass !== confirmPass) {
+        showToast(t('password_mismatch') || 'Passwords do not match', 'error');
+        return;
+    }
+    
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    if (!sessionStr) return;
+    const sessionData = JSON.parse(sessionStr);
+    const email = sessionData.username || sessionData.email;
+    
+    toggleLoading(true, 'Updating Password...');
+    google.script.run
+        .withSuccessHandler(res => {
+            toggleLoading(false);
+            if (res && res.success) {
+                showToast(t('password_updated') || 'Password updated successfully', 'success');
+                closeChangePasswordModal();
+                document.getElementById('form-change-password').reset();
+            } else {
+                showToast(res ? res.message : 'Error updating password', 'error');
+            }
+        })
+        .withFailureHandler(err => {
+            toggleLoading(false);
+            showToast('Connection failed: ' + err.message, 'error');
+        })
+        .changeUserPassword(email, oldPass, newPass);
+}
+
+function openMyProfileModal() {
+    const modal = document.getElementById('my-profile-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    if (typeof updateDOMTranslations === 'function') updateDOMTranslations();
+    
+    // Fetch user data
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    if (!sessionStr) return;
+    const sessionData = JSON.parse(sessionStr);
+    const empId = sessionData.empId;
+    
+    if (!empId) return;
+    
+    const populateProfile = (profile) => {
+        if (!profile) return;
+        const cleanVal = (val) => String(val || '').replace(/<[^>]*>/g, '').trim();
+        document.getElementById('my-profile-firstname').value = cleanVal(profile.First_Name || profile.first_name);
+        document.getElementById('my-profile-lastname').value = cleanVal(profile.Last_Name || profile.last_name);
+        document.getElementById('my-profile-birthday').value = profile.Birthday || profile.Birthday_ || profile['Birthday '] || '';
+        document.getElementById('my-profile-tel').value = cleanVal(profile.Tel || profile.tel);
+        document.getElementById('my-profile-email').value = cleanVal(profile.Email || profile.email);
+        document.getElementById('my-profile-line').value = cleanVal(profile.Line || profile.line);
+        document.getElementById('my-profile-bankname').value = cleanVal(profile.Bank_Name || profile.bank_name);
+        document.getElementById('my-profile-bankaccountname').value = cleanVal(profile.Bank_Account_Name || profile.bank_account_name);
+        document.getElementById('my-profile-bankaccountno').value = cleanVal(profile.Bank_Account_No || profile.bank_account_no);
+        
+        let photoVal = profile.Photos || profile.photos || '';
+        if (photoVal && typeof normalizeRatingPhoto === 'function') {
+            photoVal = normalizeRatingPhoto(photoVal, cleanVal(profile.First_Name || profile.first_name));
+        }
+        if (photoVal && photoVal !== '-' && photoVal !== '[object Object]' && !photoVal.includes('<img')) {
+            const previewEl = document.getElementById('my-profile-photo-preview');
+            if (previewEl) previewEl.src = photoVal;
+            const displayProfilePic = document.getElementById('display-profile-pic');
+            const displayProfileIcon = document.getElementById('display-profile-icon');
+            if (displayProfilePic) {
+                displayProfilePic.src = photoVal;
+                displayProfilePic.classList.remove('hidden');
+                if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+            }
+        }
+    };
+
+    toggleLoading(true, 'Loading Profile...');
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+            .withSuccessHandler(res => {
+                toggleLoading(false);
+                if (res && res.success && res.data && res.data.length > 0) {
+                    const profile = res.data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                    populateProfile(profile);
+                }
+            })
+            .withFailureHandler(err => {
+                toggleLoading(false);
+                showToast('Failed to load profile', 'error');
+            })
+            .getSheetData('staff', { select: '*', filter: `Employee_ID=eq.${empId}` });
+    } else if (typeof tableCache !== 'undefined' && tableCache['staff'] && tableCache['staff'].data) {
+        toggleLoading(false);
+        const profile = tableCache['staff'].data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+        populateProfile(profile);
+    } else if (typeof fetchData === 'function') {
+        fetchData('staff').then(data => {
+            toggleLoading(false);
+            const profile = (data || []).find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+            populateProfile(profile);
+        }).catch(() => toggleLoading(false));
+    } else {
+        toggleLoading(false);
+    }
+}
+
+function closeMyProfileModal() {
+    const modal = document.getElementById('my-profile-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function submitMyProfile(e) {
+    e.preventDefault();
+    
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    if (!sessionStr) return;
+    const sessionData = JSON.parse(sessionStr);
+    const empId = sessionData.empId;
+    
+    if (!empId) return;
+    
+    const cleanVal = (val) => String(val || '').replace(/<[^>]*>/g, '').trim();
+    const payload = {
+        'First_Name': cleanVal(document.getElementById('my-profile-firstname').value),
+        'Last_Name': cleanVal(document.getElementById('my-profile-lastname').value),
+        'Birthday ': document.getElementById('my-profile-birthday').value,
+        'Tel': cleanVal(document.getElementById('my-profile-tel').value),
+        'Email': cleanVal(document.getElementById('my-profile-email').value),
+        'Line': cleanVal(document.getElementById('my-profile-line').value),
+        'Bank_Name': cleanVal(document.getElementById('my-profile-bankname').value),
+        'Bank_Account_Name': cleanVal(document.getElementById('my-profile-bankaccountname').value),
+        'Bank_Account_No': cleanVal(document.getElementById('my-profile-bankaccountno').value),
+        'Photos': document.getElementById('my-profile-photo-url').value
+    };
+    
+    toggleLoading(true, 'Updating Profile...');
+    
+    // Handle photo upload if a new file is selected
+    const fileInput = document.getElementById('my-profile-photo-file');
+    if (fileInput && fileInput.files.length > 0) {
+        let file = fileInput.files[0];
+        const handlePhotoSuccess = function (resOrUrl) {
+            const imgUrl = (typeof resOrUrl === 'object' && resOrUrl !== null && resOrUrl.url) ? resOrUrl.url : resOrUrl;
+            if (imgUrl && typeof imgUrl === 'string') {
+                payload['Photos'] = imgUrl;
+                document.getElementById('my-profile-photo-url').value = imgUrl;
+                const previewImg = document.getElementById('my-profile-photo-preview');
+                if (previewImg) previewImg.src = imgUrl;
+            }
+            doSubmitMyProfile(empId, payload, sessionData);
+        };
+        const handlePhotoFailure = function (err) {
+            toggleLoading(false);
+            showToast('Failed to upload image: ' + (err ? err.message || err : 'Error'), 'error');
+        };
+
+        compressImageFile(file, 480, 0.72).then(function (base64Data) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler(handlePhotoSuccess)
+                    .withFailureHandler(handlePhotoFailure)
+                    .uploadImageToDrive(base64Data, file.name);
+            } else {
+                handlePhotoSuccess(base64Data);
+            }
+        }).catch(function (err) {
+            toggleLoading(false);
+            showToast('Image compression error: ' + (err ? err.message || err : 'Error'), 'error');
+        });
+        return; // Wait for upload
+    }
+    
+    doSubmitMyProfile(empId, payload, sessionData);
+}
+
+function doSubmitMyProfile(empId, payload, sessionData) {
+    const handleSuccess = function(res) {
+        toggleLoading(false);
+        if (res && res.success) {
+            showToast(t('profile_updated') || 'Profile updated successfully', 'success');
+            
+            // Update top-right navbar profile picture immediately
+            const updatedPhoto = payload.Photos;
+            if (updatedPhoto && updatedPhoto !== '-' && updatedPhoto !== '[object Object]') {
+                const displayProfilePic = document.getElementById('display-profile-pic');
+                const displayProfileIcon = document.getElementById('display-profile-icon');
+                if (displayProfilePic) {
+                    displayProfilePic.src = updatedPhoto;
+                    displayProfilePic.classList.remove('hidden');
+                    if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+                }
+            }
+
+            // Update local session if email changed
+            const newEmail = document.getElementById('my-profile-email').value;
+            if (newEmail && newEmail !== sessionData.email) {
+                sessionData.email = newEmail;
+                sessionData.username = newEmail;
+                if (localStorage.getItem('hr_user_session')) localStorage.setItem('hr_user_session', JSON.stringify(sessionData));
+                if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(sessionData));
+            }
+            
+            closeMyProfileModal();
+        } else {
+            showToast(res ? res.message : 'Error updating profile', 'error');
+        }
+    };
+
+    if (window.supabase) {
+        let supaPayload = typeof toPayload === 'function' ? toPayload('staff', payload) : payload;
+        window.supabase.from('staff').update(supaPayload).eq('Employee_ID', empId).then(() => {});
+    }
+
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+            .withSuccessHandler(handleSuccess)
+            .withFailureHandler(err => {
+                toggleLoading(false);
+                showToast('Connection failed: ' + err.message, 'error');
+            })
+            .updateMyProfile(empId, payload);
+    } else {
+        handleSuccess({ success: true });
+    }
+}
+
+/* =====================================================================
+ * 📌 ส่วนที่ 8: SIDEBAR UI (ฟังก์ชันควบคุมเมนูแถบข้าง)
+ * ===================================================================== */
+let isDesktopSidebarCollapsed = false;
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (!sidebar) return;
+
+    if (window.innerWidth >= 768) {
+        // Desktop Collapse
+        isDesktopSidebarCollapsed = !isDesktopSidebarCollapsed;
+        const mainContent = document.getElementById('main-content');
+        if (isDesktopSidebarCollapsed) {
+            sidebar.classList.add('w-20'); sidebar.classList.remove('w-64');
+            if (mainContent) { mainContent.classList.add('md:ml-20'); mainContent.classList.remove('md:ml-64'); }
+            collapseSidebarText();
+        } else {
+            sidebar.classList.add('w-64'); sidebar.classList.remove('w-20');
+            if (mainContent) { mainContent.classList.add('md:ml-64'); mainContent.classList.remove('md:ml-20'); }
+            expandSidebarText();
+        }
+    } else {
+        // Mobile Toggle
+        if (sidebar.classList.contains('-translate-x-full')) {
+            sidebar.classList.remove('-translate-x-full');
+            if (backdrop) backdrop.classList.remove('hidden');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+            if (backdrop) backdrop.classList.add('hidden');
+        }
+    }
+}
+
+function collapseSidebarText() {
+    document.querySelectorAll('.sidebar-text').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.add('justify-center', 'px-2');
+        btn.classList.remove('px-4');
+    });
+    document.querySelectorAll('.sidebar-badge').forEach(b => {
+        b.classList.add('absolute', 'top-1.5', 'right-1.5', 'text-[8px]', 'px-1.5', 'py-0.2');
+        b.classList.remove('ml-auto');
+    });
+    const headerDiv = document.getElementById('sidebar-header-content');
+    if (headerDiv) {
+        headerDiv.classList.remove('justify-between', 'px-6');
+        headerDiv.classList.add('justify-center');
+        const titleSpan = headerDiv.querySelector('.sidebar-text');
+        if (titleSpan) titleSpan.classList.add('hidden');
+    }
+}
+
+function expandSidebarText() {
+    document.querySelectorAll('.sidebar-text').forEach(el => el.classList.remove('hidden'));
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.add('px-4');
+        btn.classList.remove('justify-center', 'px-2');
+    });
+    document.querySelectorAll('.sidebar-badge').forEach(b => {
+        b.classList.remove('absolute', 'top-1.5', 'right-1.5', 'text-[8px]', 'px-1.5', 'py-0.2');
+        b.classList.add('ml-auto');
+    });
+    const headerDiv = document.getElementById('sidebar-header-content');
+    if (headerDiv) {
+        headerDiv.classList.add('justify-between', 'px-6');
+        headerDiv.classList.remove('justify-center');
+        const titleSpan = headerDiv.querySelector('.sidebar-text');
+        if (titleSpan) titleSpan.classList.remove('hidden');
+    }
+}
+
+function toggleSubMenu(menuId, btnElement) {
+    if (isDesktopSidebarCollapsed) toggleSidebar();
+    const submenu = document.getElementById(menuId);
+    const icon = btnElement.querySelector('.fa-chevron-down');
+    if (submenu.classList.contains('hidden')) {
+        document.querySelectorAll('.submenu-container').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.nav-group-btn .fa-chevron-down').forEach(el => el.classList.remove('rotate-180'));
+        document.querySelectorAll('.nav-group-btn').forEach(btn => btn.classList.remove('bg-indigo-50', 'text-brandindigo'));
+
+        btnElement.classList.add('bg-indigo-50', 'text-brandindigo');
+        submenu.classList.remove('hidden');
+        submenu.classList.add('flex');
+        if (icon) icon.classList.add('rotate-180');
+    } else {
+        submenu.classList.add('hidden');
+        submenu.classList.remove('flex');
+        if (icon) icon.classList.remove('rotate-180');
+        btnElement.classList.remove('bg-indigo-50', 'text-brandindigo');
+    }
+}

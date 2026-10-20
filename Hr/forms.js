@@ -1,0 +1,2922 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// js/forms.js - Form Management, Submission, Validation & Bill Editor
+// ─────────────────────────────────────────────────────────────────────────────
+
+/* =====================================================================
+ * 📌 ส่วนที่ 18: DATA ENTRY FORM (ฟังก์ชันฟอร์มเพิ่ม/แก้ไขข้อมูล)
+ * - เปิดฟอร์มเพื่อกรอกข้อมูลหรือแก้ไขข้อมูลพนักงาน/การเข้างาน/ตารางกะ ฯลฯ
+ * ===================================================================== */
+/* =====================================================================
+ * 📌 Date Formatting Helper for ISO Dates (YYYY-MM-DD)
+ * ===================================================================== */
+function formatToIsoDate(val) {
+    if (!val || val === '-' || val === 'null' || val === 'undefined') return '';
+    const str = String(val).trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+    if (str.includes('/')) {
+        const parts = str.split('/');
+        if (parts.length === 3) {
+            let day = parts[0].padStart(2, '0');
+            let month = parts[1].padStart(2, '0');
+            let year = parts[2];
+            if (year.length === 4) return `${year}-${month}-${day}`;
+        }
+    }
+
+    if (str.includes('-')) {
+        const parts = str.split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2].length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
+    }
+
+    if (str.includes('T')) return str.split('T')[0];
+    return str;
+}
+window.formatToIsoDate = formatToIsoDate;
+
+function openAttendanceEditModalByDate(empId, dateStr) {
+    if (!empId || !dateStr) return;
+
+    currentSheet = 'Fingerprint_Logs';
+    const logs = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data)) 
+        ? tableCache['Fingerprint_Logs'].data 
+        : ((window.tableCache && window.tableCache['Fingerprint_Logs'] && Array.isArray(window.tableCache['Fingerprint_Logs'].data)) ? window.tableCache['Fingerprint_Logs'].data : []);
+    const targetDateIso = formatToIsoDate(dateStr);
+
+    let foundRow = logs.find(r => {
+        let rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+        let rDateIso = formatToIsoDate(r.Date || r.date || '');
+        return rEmp === String(empId).toUpperCase().trim() && rDateIso === targetDateIso;
+    });
+
+    if (foundRow) {
+        openFormModal(encodeURIComponent(JSON.stringify(foundRow)));
+    } else {
+        openFormModal(null);
+        setTimeout(() => {
+            const form = document.getElementById('record-form') || document.getElementById('dynamic-form');
+            if (form) {
+                const empEl = form.querySelector('[name="Employee_ID"], [name="employee_id"]');
+                const dateEl = form.querySelector('[name="Date"], [name="date"]');
+                if (empEl) empEl.value = empId;
+                if (dateEl) dateEl.value = targetDateIso;
+                if (typeof autoCalculateAttendanceTimes === 'function') {
+                    autoCalculateAttendanceTimes();
+                }
+            }
+        }, 120);
+    }
+}
+window.openAttendanceEditModalByDate = openAttendanceEditModalByDate;
+
+/* =====================================================================
+ * 📌 Attendance Auto-Calculation Helper
+ * ===================================================================== */
+function autoCalculateAttendanceTimes() {
+    const form = document.getElementById('record-form');
+    if (!form) return;
+
+    const getVal = (names) => {
+        for (let n of names) {
+            let el = form.querySelector(`[name="${n}"]`);
+            if (el) return el;
+        }
+        return null;
+    };
+
+    const inEl = getVal(['Check_In', 'check_in']);
+    const outEl = getVal(['Check_Out', 'check_out']);
+    const startEl = getVal(['Shift_Start', 'shift_start']);
+    const endEl = getVal(['Shift_End', 'shift_end']);
+    const lateEl = getVal(['Late_Hours', 'late_hours']);
+    const earlyEl = getVal(['Early_Leave_Hours', 'early_leave_hours']);
+    const statusEl = getVal(['Attendance_Status', 'attendance_status']);
+
+    const parseMins = (timeStr) => {
+        if (!timeStr || !timeStr.includes(':')) return null;
+        const p = timeStr.trim().split(':');
+        const h = parseInt(p[0], 10);
+        const m = parseInt(p[1], 10);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+    };
+
+    const inMins = inEl ? parseMins(inEl.value) : null;
+    const outMins = outEl ? parseMins(outEl.value) : null;
+    const startMins = startEl ? parseMins(startEl.value) : null;
+    const endMins = endEl ? parseMins(endEl.value) : null;
+
+    if (inMins !== null && startMins !== null && lateEl) {
+        if (inMins > startMins) {
+            const diffHrs = Math.round(((inMins - startMins) / 60) * 100) / 100;
+            lateEl.value = diffHrs;
+            if (statusEl && statusEl.value !== 'LATE' && statusEl.value !== 'ON LEAVE' && statusEl.value !== 'OFF') {
+                statusEl.value = 'LATE';
+            }
+        } else {
+            lateEl.value = '0';
+            if (statusEl && statusEl.value === 'LATE') {
+                statusEl.value = 'PRESENT';
+            }
+        }
+    }
+
+    if (outMins !== null && endMins !== null && earlyEl) {
+        if (outMins < endMins && outMins > 0) {
+            const diffHrs = Math.round(((endMins - outMins) / 60) * 100) / 100;
+            earlyEl.value = diffHrs;
+        } else {
+            earlyEl.value = '0';
+        }
+    }
+}
+
+/* =====================================================================
+ * 📌 Helper i18n & Validation Functions
+ * ===================================================================== */
+function getFieldI18nKey(h) {
+    if (!h) return '';
+    const lw = String(h).trim().toLowerCase().replace(/[\s_]+/g, '');
+    if (lw === 'employeeid' || lw === 'empid' || lw === 'employeesid' || lw === 'id') return 'employee_id_label';
+    if (lw === 'prefix') return 'prefix_label';
+    if (lw === 'firstname' || lw === 'first') return 'first_name_label';
+    if (lw === 'lastname' || lw === 'last') return 'last_name_label';
+    if (lw === 'departmentid' || lw === 'department') return 'department_label';
+    if (lw === 'positionid' || lw === 'position') return 'position_label';
+    if (lw === 'contact' || lw === 'phone' || lw === 'tel') return 'contact_label';
+    if (lw === 'email') return 'email_label';
+    if (lw === 'role') return 'role_label';
+    if (lw === 'status') return 'status_label';
+    if (lw === 'basesalary' || lw === 'salary') return 'base_salary_label';
+    if (lw === 'dailyrateformula' || lw === 'dailyrate') return 'daily_rate_label';
+    if (lw === 'isevaluator' || lw === 'evaluator') return 'is_evaluator_label';
+    if (lw.includes('start') && lw.includes('date')) return 'start_date_label';
+    if (lw.includes('end') && lw.includes('date')) return 'end_date_label';
+    if (lw.includes('total') || lw.includes('days')) return 'total_days_label';
+    if (lw.includes('handover') || lw.includes('work')) return 'work_handover_label';
+    if (lw === 'object' || lw === 'reason') return 'reason_label';
+    if (lw === 'type') return 'type_label';
+    if (lw === 'category') return 'category_label';
+    if (lw === 'comment' || lw === 'remark') return 'comment_label';
+    if (lw === 'giveby') return 'give_by_label';
+    if (lw === 'starpoint' || lw === 'score') return 'star_point_label';
+    if (lw.includes('rating') && lw.includes('date')) return 'rating_date_label';
+    if (lw === 'audience') return 'audience_label';
+    if (lw === 'format') return 'format_label';
+    if (lw === 'photo' || lw === 'profile' || lw === 'attachment') return 'photo_label';
+    if (lw === 'permissions') return 'permissions_label';
+    if (lw === 'title' || lw === 'subject' || lw === 'topic') return 'title_label';
+    if (lw === 'description' || lw === 'desc' || lw === 'details') return 'description_label';
+    if (lw === 'amount' || lw === 'price') return 'amount_label';
+    if (lw.includes('request') && lw.includes('date')) return 'request_date_label';
+    return String(h).trim();
+}
+
+function getFieldLabel(h) {
+    const key = getFieldI18nKey(h);
+    if (typeof t === 'function') {
+        const val = t(key);
+        if (val && val !== key) return val;
+    }
+    return h;
+}
+
+function getFieldPlaceholderKey(h) {
+    if (!h) return 'enter_details';
+    const lw = String(h).trim().toLowerCase().replace(/[\s_]+/g, '');
+    if (lw === 'employeeid' || lw === 'empid' || lw === 'employeesid') return 'enter_employee_id';
+    if (lw === 'firstname') return 'enter_first_name';
+    if (lw === 'lastname') return 'enter_last_name';
+    if (lw === 'email') return 'enter_email';
+    if (lw === 'comment' || lw === 'remark') return 'enter_comment';
+    if (lw === 'prefix') return 'select_prefix';
+    if (lw === 'positionid' || lw === 'position') return 'select_position';
+    if (lw === 'departmentid' || lw === 'department') return 'select_department';
+    if (lw === 'role') return 'select_role';
+    if (lw === 'status') return 'select_status';
+    if (lw === 'format') return 'select_format';
+    if (lw === 'giveby') return 'select_evaluator';
+    if (lw === 'title' || lw === 'subject' || lw === 'topic') return 'enter_title';
+    if (lw === 'description' || lw === 'desc' || lw === 'details') return 'enter_description';
+    return 'enter_details';
+}
+
+function getFieldPlaceholder(h) {
+    const key = getFieldPlaceholderKey(h);
+    if (typeof t === 'function') {
+        const val = t(key);
+        if (val && val !== key) return val;
+    }
+    const label = getFieldLabel(h);
+    const lang = typeof getCurrentLanguage === 'function' ? getCurrentLanguage() : 'la';
+    if (lang === 'la') {
+        return 'ປ້ອນ' + label + '...';
+    }
+    return 'Enter ' + label + '...';
+}
+
+function checkDuplicateEmployeeId(inputEl) {
+    if (!inputEl) return false;
+    const val = inputEl.value.trim();
+    const isEditing = Boolean(editingRecordId);
+    let container = inputEl.parentElement;
+    let warningEl = container.querySelector('#emp-id-duplicate-alert');
+
+    if (!warningEl) {
+        warningEl = document.createElement('div');
+        warningEl.id = 'emp-id-duplicate-alert';
+        container.appendChild(warningEl);
+    }
+
+    if (!val || isEditing) {
+        warningEl.innerHTML = '';
+        inputEl.classList.remove('border-red-500', 'bg-red-50', 'border-emerald-500', 'bg-emerald-50');
+        return false;
+    }
+
+    let rowsToCheck = [];
+    const sheet = typeof currentSheet === 'string' ? currentSheet.toLowerCase() : '';
+
+    if (sheet === 'user') {
+        // When adding/editing a User login account, check duplicate ONLY within existing USER accounts!
+        rowsToCheck = (tableCache['user'] && tableCache['user'].data) || [];
+        if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'user') {
+            rowsToCheck = rawData;
+        }
+    } else if (sheet === 'staff') {
+        // When adding a new Staff member, check duplicate in staff table
+        rowsToCheck = (tableCache['staff'] && tableCache['staff'].data) || [];
+        if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'staff') {
+            rowsToCheck = rawData;
+        }
+    } else {
+        let staffRows = (tableCache['staff'] && tableCache['staff'].data) || [];
+        let userRows = (tableCache['user'] && tableCache['user'].data) || [];
+        rowsToCheck = [...staffRows, ...userRows];
+    }
+
+    const targetUpper = val.toUpperCase();
+    const isDuplicate = rowsToCheck.some(r => {
+        // ONLY check employee code fields, NEVER match position_id, department_id, or row primary key id!
+        let eId = r.employee_id || r.Employee_ID || r['employees id'] || r['Employees Id'] || r.emp_id || r.staff_id || r.username || r.Username;
+        return eId && String(eId).trim().toUpperCase() === targetUpper;
+    });
+
+    if (isDuplicate) {
+        inputEl.classList.add('border-red-500', 'bg-red-50');
+        inputEl.classList.remove('border-emerald-500', 'bg-emerald-50');
+        warningEl.className = 'mt-2 text-xs font-bold flex items-center gap-1.5 p-2.5 bg-red-50 text-red-600 rounded-xl border border-red-200 shadow-sm';
+        warningEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-red-500 text-sm"></i> <span data-i18n="emp_id_exists">${t('emp_id_exists')}</span> (${val})`;
+        return true;
+    } else {
+        inputEl.classList.remove('border-red-500', 'bg-red-50');
+        inputEl.classList.add('border-emerald-500', 'bg-emerald-50');
+        warningEl.className = 'mt-2 text-xs font-bold flex items-center gap-1.5 p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-200 shadow-sm';
+        warningEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 text-sm"></i> <span data-i18n="emp_id_available">${t('emp_id_available')}</span>`;
+        return false;
+    }
+}
+
+function getRatingFormValue(rowData, names) {
+    for (const name of names) {
+        const found = Object.keys(rowData || {}).find(k => String(k).toLowerCase().trim() === String(name).toLowerCase().trim());
+        if (found && rowData[found] !== undefined && rowData[found] !== null) return rowData[found];
+    }
+    return '';
+}
+
+function getRatingCategories() {
+    return ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
+}
+
+function renderEmployeeRatingForm(rowData = {}) {
+    console.log("[renderEmployeeRatingForm] starting with rowData:", rowData);
+    try {
+        const safeGet = (names) => {
+            for (const name of names) {
+                const found = Object.keys(rowData || {}).find(k => String(k).toLowerCase().trim() === String(name).toLowerCase().trim());
+                if (found && rowData[found] !== undefined && rowData[found] !== null) {
+                    console.log("[renderEmployeeRatingForm] safeGet name found:", name, "-> value:", rowData[found]);
+                    return rowData[found];
+                }
+            }
+            return '';
+        };
+
+        const ratingId = safeGet(['Ranting_Id', 'rating_id']) || '';
+        const empId = safeGet(['Employees Id', 'employee_id', 'emp_id']) || '';
+        const empName = safeGet(['Employees Name', 'employee_name', 'first_name', 'name']) || '';
+        const ratingDate = safeGet(['Ranting Date', 'rating_date', 'date']) || new Date().toISOString().slice(0, 10);
+        let rawStarVal = parseFloat(safeGet(['Star Point', 'star_point', 'rating', 'score'])) || 0;
+        let displayScore = (rawStarVal > 0 && rawStarVal <= 5) ? rawStarVal * 100 : (rawStarVal || '');
+        const category = safeGet(['Category ', 'category']) || '';
+        const comment = safeGet(['Comment', 'comment', 'remark']) || '';
+        const giveBy = safeGet(['Give By', 'give_by']) || '';
+        const status = safeGet(['Status', 'status']) || 'Active';
+
+        console.log("[renderEmployeeRatingForm] parsed values:", { ratingId, empId, empName, ratingDate, displayScore, category, comment, giveBy, status });
+
+        const formFields = document.getElementById('form-fields');
+        console.log("[renderEmployeeRatingForm] formFields element:", formFields);
+
+        formFields.innerHTML = `
+                    <input type="hidden" name="Ranting_Id" value="${String(ratingId).replace(/"/g, '&quot;')}">
+                    <input type="hidden" name="Status" value="${String(status).replace(/"/g, '&quot;')}">
+                    
+                    <div class="col-span-1 sm:col-span-2 bg-indigo-50/60 p-5 rounded-2xl border border-indigo-100 mb-2">
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="employee_id_label">${t('employee_id_label')}</span> <span class="text-brandindigo">*</span></label>
+                        <select id="rating-employee-select" name="Employees Id" required onchange="if(typeof onRatingEmployeeSelected === 'function') onRatingEmployeeSelected(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                            <option value="${String(empId).replace(/"/g, '&quot;')}" selected>${empId ? empId : t('loading')}</option>
+                        </select>
+                    </div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="first_name_label">${t('first_name_label')}</span> <span class="text-brandindigo">*</span></label><input id="rating-employee-name" type="text" name="Employees Name" value="${String(empName).replace(/"/g, '&quot;')}" required readonly class="bg-gray-50 border border-gray-300 text-gray-600 text-sm rounded-xl block w-full p-3 shadow-sm cursor-not-allowed"></div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="rating_date_label">${t('rating_date_label')}</span> <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            <span>ให้คะแนน (Score Points)</span> <span class="text-brandindigo">*</span>
+                        </label>
+                        <div class="bg-gray-50/80 p-4 rounded-2xl border border-gray-200 space-y-3">
+                            <div class="flex items-center gap-3">
+                                <input type="number" min="0" max="1000" step="1" name="Star Point" id="rating-score-input"
+                                    value="${displayScore || ''}" required placeholder="พิมพ์คะแนน (เช่น 100, 250, 500)..."
+                                    oninput="if(typeof updateFormStarPreview === 'function') updateFormStarPreview(this.value)"
+                                    class="bg-white border border-gray-300 text-gray-900 font-extrabold text-base rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 shadow-sm transition-colors">
+                                <span class="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-3 rounded-xl whitespace-nowrap">
+                                    100 Score = 1 Star
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between px-2 pt-2 border-t border-gray-200/80">
+                                <div id="form-star-preview-icons" class="flex items-center gap-1">
+                                    ${renderFormStarPreviewIconsHtml(displayScore)}
+                                </div>
+                                <span id="form-star-preview-text" class="text-xs font-extrabold text-brandindigo">
+                                    ${displayScore ? `${displayScore} คะแนน = ${(displayScore / 100).toFixed(1)} ดาว` : '100 คะแนน = 1.0 ดาว'}
+                                </span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="hidden-star-input" value="${displayScore || ''}">
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="category_label">${t('category_label')}</span> <span class="text-brandindigo">*</span></label>
+                        <input type="text" id="rating-category-input" name="Category " value="${String(category).replace(/"/g, '&quot;')}" required
+                            class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
+                            placeholder="พิมพ์หมวดหมู่การประเมิน...">
+                    </div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="comment_label">${t('comment_label')}</span> <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="${t('enter_comment')}" data-i18n-placeholder="enter_comment" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    
+                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="give_by_label">${t('give_by_label')}</span> <span class="text-brandindigo">*</span></label><select id="rating-give-by-select" name="Give By" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="${String(giveBy).replace(/"/g, '&quot;')}" selected>${giveBy ? giveBy : t('loading')}</option></select></div>
+                `;
+        console.log("[renderEmployeeRatingForm] HTML set. Calling loadRatingStaffOptions");
+
+        if (typeof loadRatingStaffOptions === 'function') {
+            loadRatingStaffOptions(empId, giveBy);
+        } else {
+            console.warn("[renderEmployeeRatingForm] loadRatingStaffOptions is NOT a function!");
+        }
+    } catch (err) {
+        console.error("Error generating form:", err);
+        document.getElementById('form-fields').innerHTML = `<div class="col-span-full text-center p-4"><p class="text-red-500 font-bold mb-2">เกิดข้อผิดพลาดในการสร้างฟอร์ม</p><p class="text-xs text-gray-500">Error: ${err.message}</p></div>`;
+    }
+}
+
+function renderFormStarPreviewIconsHtml(scoreVal) {
+    const pts = parseFloat(scoreVal) || 0;
+    const starVal = Math.min(5, Math.max(0, pts / 100));
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+        let pct = 0;
+        if (starVal >= i) pct = 100;
+        else if (starVal > i - 1) pct = Math.round((starVal - (i - 1)) * 100);
+        html += `
+            <div class="relative inline-block text-xl">
+                <i class="fa-solid fa-star text-gray-200"></i>
+                ${pct > 0 ? `
+                    <div class="absolute top-0 left-0 overflow-hidden h-full text-[#FACC15] transition-all duration-200" style="width: ${pct}%">
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    return html;
+}
+
+window.updateFormStarPreview = function (val) {
+    const pts = parseFloat(val) || 0;
+    const hiddenInput = document.getElementById('hidden-star-input');
+    if (hiddenInput) hiddenInput.value = pts;
+
+    const iconsContainer = document.getElementById('form-star-preview-icons');
+    if (iconsContainer) {
+        iconsContainer.innerHTML = renderFormStarPreviewIconsHtml(pts);
+    }
+
+    const textEl = document.getElementById('form-star-preview-text');
+    if (textEl) {
+        const calculatedStars = (pts / 100).toFixed(1);
+        textEl.innerText = `${pts} คะแนน = ${calculatedStars} ดาว`;
+    }
+};
+
+function loadRatingStaffOptions(selectedEmpId, selectedGiveBy) {
+    const staffCache = tableCache['staff'] || tableCache['Staff'];
+    if (staffCache && staffCache.data && staffCache.data.length > 0) {
+        populateRatingDropdowns(staffCache.data, selectedEmpId, selectedGiveBy);
+    } else {
+        google.script.run.withSuccessHandler(res => {
+            if (res && res.success && res.data) {
+                tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                populateRatingDropdowns(res.data, selectedEmpId, selectedGiveBy);
+            }
+        }).getSheetData('staff');
+    }
+}
+
+function populateRatingDropdowns(staffData, selectedEmpId, selectedGiveBy) {
+    const empSelect = document.getElementById('rating-employee-select');
+    const giveBySelect = document.getElementById('rating-give-by-select');
+
+    let empOptions = `<option value="" disabled ${!selectedEmpId ? 'selected' : ''}>เลือกพนักงาน...</option>`;
+    let giveByOptions = `<option value="" disabled ${!selectedGiveBy ? 'selected' : ''}>เลือกผู้ประเมิน...</option>`;
+    let giveByManagerOptions = '';
+    let foundGiveBy = false;
+
+    staffData.forEach(row => {
+        let eId = String(getFuzzyValue(row, ['employee_id', 'emp_id'])).toUpperCase().trim();
+        let name = getFuzzyValue(row, ['first_name', 'name', 'full_name', 'ชื่อ']);
+        let lastName = getFuzzyValue(row, ['last_name', 'นามสกุล']);
+        let fullName = name !== '-' ? (lastName !== '-' ? name + ' ' + lastName : name) : 'Unknown';
+
+        if (eId && eId !== '-') {
+            empOptions += `<option value="${eId}" ${eId === selectedEmpId ? 'selected' : ''}>${eId} - ${fullName}</option>`;
+        }
+
+        let posKey = Object.keys(row).find(k => ['position', 'position_id', 'ตำแหน่ง'].includes(k.toLowerCase().trim()));
+        let pos = posKey ? String(row[posKey]).toLowerCase() : '';
+
+        let isEvalVal = getFuzzyValue(row, ['Is Evaluator', 'is_evaluator']);
+        let isExplicitEvaluator = String(isEvalVal).toLowerCase() === 'true' || isEvalVal === true || String(isEvalVal).toLowerCase() === 'yes';
+        let isExplicitNonEvaluator = String(isEvalVal).toLowerCase() === 'false' || isEvalVal === false || String(isEvalVal).toLowerCase() === 'no';
+
+        let isManager = pos.includes('ceo') || pos.includes('сео') ||
+            pos.includes('coo') || pos.includes('соо') ||
+            pos.includes('cfo') || pos.includes('сfо') || pos.includes('cfо') ||
+            pos.includes('manager') || pos.includes('head') ||
+            pos.includes('ผู้บริหาร') || pos.includes('admin') ||
+            pos.includes('director') || pos.includes('ผู้อำนวยการ');
+
+        let canEvaluate = isExplicitEvaluator || (isManager && !isExplicitNonEvaluator);
+        if (canEvaluate) {
+            let displayPos = posKey ? row[posKey] : '';
+            giveByManagerOptions += `<option value="${fullName}" ${fullName === selectedGiveBy ? 'selected' : ''}>${fullName}${displayPos ? ' (' + displayPos + ')' : ''}</option>`;
+            foundGiveBy = true;
+        }
+    });
+
+    if (!foundGiveBy) {
+        staffData.forEach(row => {
+            let name = getFuzzyValue(row, ['first_name', 'name', 'full_name', 'ชื่อ']);
+            let lastName = getFuzzyValue(row, ['last_name', 'นามสกุล']);
+            let fullName = name !== '-' ? (lastName !== '-' ? name + ' ' + lastName : name) : '';
+            if (fullName) giveByManagerOptions += `<option value="${fullName}" ${fullName === selectedGiveBy ? 'selected' : ''}>${fullName}</option>`;
+        });
+    }
+    giveByOptions += giveByManagerOptions;
+
+    if (empSelect) empSelect.innerHTML = empOptions;
+    if (giveBySelect) giveBySelect.innerHTML = giveByOptions;
+
+    if (selectedEmpId) autoFillEmployeeData(selectedEmpId);
+}
+
+function onRatingEmployeeSelected(empId) {
+    if (empId) autoFillEmployeeData(empId);
+}
+
+function populateUserEmailDatalist() {
+    const datalist = document.getElementById('staff-emails-list');
+    if (!datalist) return;
+
+    const buildOptions = (staffData) => {
+        let options = '';
+        (staffData || []).forEach(r => {
+            const email = String(r.Email || r.email || r.Username || r.username || '').trim();
+            const empId = String(r.Employee_ID || r.employee_id || r.emp_id || '').trim();
+            const fName = String(r.First_Name || r.first_name || r.name || '').trim();
+            const lName = String(r.Last_Name || r.last_name || '').trim();
+            const fullName = `${fName} ${lName}`.trim() || empId;
+            if (email && email !== '-') {
+                options += `<option value="${email}">${fullName} (${empId})</option>`;
+            }
+        });
+        datalist.innerHTML = options;
+    };
+
+    if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
+        buildOptions(tableCache['staff'].data);
+    } else {
+        google.script.run.withSuccessHandler(res => {
+            if (res && res.success && res.data) {
+                tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                buildOptions(res.data);
+            }
+        }).getSheetData('staff');
+    }
+}
+
+function autoFillUserEmpIdByEmail(emailVal) {
+    if (currentSheet.toLowerCase() !== 'user') return;
+    const cleanEmail = String(emailVal || '').trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    const empIdInput = document.getElementById('user-emp-id-input') || document.querySelector('#dynamic-form input[name="Employee_ID"], #dynamic-form input[name="employee_id"]');
+    if (!empIdInput) return;
+
+    const lookupAndSet = (staffData) => {
+        const match = (staffData || []).find(r => {
+            const rEmail = String(r.Email || r.email || r.Username || r.username || '').trim().toLowerCase();
+            return rEmail === cleanEmail;
+        });
+        if (match) {
+            const matchedEmpId = String(match.Employee_ID || match.employee_id || match.emp_id || '').trim();
+            if (matchedEmpId) {
+                empIdInput.value = matchedEmpId;
+                if (typeof checkDuplicateEmployeeId === 'function') {
+                    checkDuplicateEmployeeId(empIdInput);
+                }
+                empIdInput.classList.add('bg-indigo-50', 'border-brandindigo');
+                setTimeout(() => empIdInput.classList.remove('bg-indigo-50', 'border-brandindigo'), 1200);
+            }
+        }
+    };
+
+    if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
+        lookupAndSet(tableCache['staff'].data);
+    } else {
+        google.script.run.withSuccessHandler(res => {
+            if (res && res.success && res.data) {
+                tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                lookupAndSet(res.data);
+            }
+        }).getSheetData('staff');
+    }
+}
+
+function openFormModal(rowDataStr = null) {
+    editingRecordId = null;
+    let rowData = {};
+
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let role = 'Staff';
+    let loggedInEmpId = '';
+    let userPerms = [];
+
+    if (sessionStr) {
+        try {
+            const sessionData = JSON.parse(sessionStr);
+            role = sessionData.role || 'Staff';
+            loggedInEmpId = String(sessionData.empId || '').toLowerCase().trim();
+            if (sessionData.permissions) userPerms = parsePermissionsList(sessionData.permissions);
+        } catch (e) { }
+    }
+
+    if (rowDataStr && typeof rowDataStr === 'string') {
+        try {
+            rowData = JSON.parse(decodeURIComponent(rowDataStr));
+            editingRecordId = getRecordId(rowData);
+            if (editingRecordId === '-') editingRecordId = null;
+
+            let isNewFromQR = rowData['Ranting_Id'] === '' || rowData['rating_id'] === '';
+            const isPlaceholderId = editingRecordId === 'สร้างอัตโนมัติ (Auto)' || editingRecordId === 'Auto Generated';
+
+            if (editingRecordId && !isNewFromQR && !isPlaceholderId && String(editingRecordId).trim() !== '') {
+                document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> <span data-i18n="edit_record">${t('edit_record')}</span>`;
+            } else {
+                document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
+                editingRecordId = null;
+            }
+        } catch (err) {
+            rowData = {};
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
+        }
+    } else {
+        document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
+    }
+
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+    const isAttendanceLogs = (currentSheet === 'Fingerprint_Logs' || currentSheet === 'fingerprint_logs' || String(currentSheet).toLowerCase().includes('fingerprint') || String(currentSheet).toLowerCase().includes('attendance'));
+
+    const isAdminUser = String(role).toLowerCase().includes('admin') || String(role).toLowerCase().includes('super');
+    if (editingRecordId) {
+        const canEditCurrentSheet = isAttendanceLogs ? isSuperAdmin : (isAdminUser || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff')));
+        if (!canEditCurrentSheet) {
+            showToast('คุณไม่มีสิทธิ์แก้ไขข้อมูลในหน้านี้ (เฉพาะ Super Admin)', 'error');
+            return;
+        }
+    } else {
+        const canAddCurrentSheet = isAdminUser || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, 'add', userPerms) || hasActionPermission(currentSheet, 'edit', userPerms)) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
+        if (!canAddCurrentSheet) {
+            showToast('คุณไม่มีสิทธิ์เพิ่มข้อมูลในหน้านี้', 'error');
+            return;
+        }
+    }
+
+    const formFields = document.getElementById('form-fields');
+    formFields.classList.remove('hidden-important');
+    formFields.style.cssText = '';
+    formFields.innerHTML = '';
+
+    console.log("[openFormModal] currentSheet:", currentSheet, "initial currentHeaders:", currentHeaders);
+    currentHeaders = ensureHeadersForSheet(currentSheet, currentHeaders);
+    console.log("[openFormModal] after ensureHeadersForSheet - currentHeaders:", currentHeaders);
+
+    if (isEmployeeRatingSheet(currentSheet)) {
+        console.log("[openFormModal] matches employee rating sheet, calling renderEmployeeRatingForm");
+        renderEmployeeRatingForm(rowData);
+        document.getElementById('form-modal').classList.remove('hidden');
+        return;
+    } else {
+        console.log("[openFormModal] does NOT match employee rating sheet, building generic form. Headers length:", (currentHeaders || []).length);
+    }
+
+    currentHeaders.forEach((h, index) => {
+        const lw = h.toLowerCase().trim();
+
+        if (lw === 'signature' || lw === 'dept_head_sign' || lw === 'approver_sign' || lw === 'dept_head_img' || lw === 'approver_img' || lw === 'currency') return;
+        let val = rowData ? (rowData[h] !== undefined && rowData[h] !== null ? rowData[h] : '') : '';
+        if ((!val || val === '-') && rowData && typeof getFuzzyValue === 'function') {
+            if (/^(photo|photos|profile|pic|image|picture)$/i.test(lw)) {
+                val = getFuzzyValue(rowData, ['photos', 'photo', 'profile', 'pic', 'image', 'picture', 'Photos', 'Photo', 'PHOTOS']) || val;
+            }
+        }
+        const safeVal = String(val).replace(/"/g, '&quot;');
+
+        if (currentSheet.toLowerCase() === 'staff' && (lw === 'ranking' || lw === 'reward level' || lw === 'reward_level')) {
+            formFields.insertAdjacentHTML('beforeend', `<input type="hidden" name="${h}" value="${safeVal}">`);
+            return;
+        }
+
+        if ((lw === 'permissions' || lw === 'สิทธิ์' || lw === 'สิทธิ์การเข้าถึง') && currentSheet.toLowerCase() === 'user') {
+            const allMenus = [
+                { id: 'dashboard', name: 'Dashboard (หน้าหลัก)' },
+                { id: 'scan', name: 'Time Tracking (ลงเวลา)' },
+                { id: 'FB_Budget_Form', name: 'FB Budget Form (ฟอร์มขอเบิกงบ)' },
+                {
+                    id: 'FB_Budget_List', name: 'FB Budget List (รายการเบิกงบ)', subFeatures: [
+                        { id: 'approve', name: 'อนุมัติ/ปฏิเสธงบ (Approve Budget)' },
+                        { id: 'export', name: 'ส่งออกรายงาน (Export Report)' }
+                    ]
+                },
+                { id: 'FB_Budget_Report', name: 'FB Budget Report (รายงานเบิกงบ)' },
+                { id: 'Leave application', name: 'Leave Requests (คำขอลา)' },
+                { id: 'Budget Request', name: 'Budget Requests (ขออนุมัติงบ)' },
+                {
+                    id: 'Fingerprint_Logs', name: 'Attendance Logs (ประวัติลงเวลา)', subFeatures: [
+                        { id: 'shift_settings', name: 'ตั้งค่ากะเวลาเข้างาน (Shift Settings / +)' },
+                        { id: 'calc_payroll', name: 'คำนวณเงินเดือน/สลิป (Calculate Payroll)' },
+                        { id: 'payroll_history', name: 'ประวัติเงินเดือน (Payroll History)' },
+                        { id: 'export', name: 'ส่งออกรายงาน (Export Excel / PDF / Print)' }
+                    ]
+                },
+                {
+                    id: 'staff', name: 'Staff Directory (รายชื่อพนักงาน)', subFeatures: [
+                        { id: 'salary_info', name: 'ข้อมูลเงินเดือน (Salary Info)' },
+                        { id: 'export', name: 'ส่งออกรายชื่อพนักงาน (Export Staff)' }
+                    ]
+                },
+                { id: 'digital-card', name: 'Digital Card (บัตรพนักงาน)' },
+                { id: 'Employees Ranting', name: 'Employee Rating (ประเมินพนักงาน / STK WOW)' },
+                { id: 'KPI Records ', name: 'KPI Records (บันทึก KPI)' },
+                { id: 'Organization Structure ', name: 'Org Structure (แผนผัง)' },
+                { id: 'Department ', name: 'Department (แผนก)' },
+                { id: 'Asset_Tracking', name: 'Assets (ทรัพย์สิน)' },
+                { id: 'Announcements', name: 'Announcements (ประกาศ)' },
+                { id: 'News', name: 'News & PR (ข่าวสาร)' },
+                { id: 'Documents ', name: 'Documents (เอกสาร)' },
+                { id: 'Training', name: 'Training (การฝึกอบรม)' },
+                { id: 'Policy ', name: 'Policy (นโยบาย)' },
+                {
+                    id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)', subFeatures: [
+                        { id: 'assign_role', name: 'กำหนด Role & สิทธิ์ (Assign Roles & Permissions)' }
+                    ]
+                },
+                {
+                    id: 'company-settings', name: 'Company Settings (ตั้งค่าบริษัท)', subFeatures: [
+                        { id: 'dept_settings', name: 'ตั้งค่าแผนก (Department Settings)' },
+                        { id: 'org_structure', name: 'ผังองค์กร (Org Structure)' }
+                    ]
+                }
+            ];
+
+            let checkedValues = typeof parsePermissionsList === 'function' ? parsePermissionsList(val) : (val ? val.split(',').map(v => String(v).trim().toLowerCase()) : []);
+
+            let checkboxesHtml = `
+                        <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 mt-2 mb-2 shadow-sm">
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="block text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-user-shield mr-2"></i> กำหนดสิทธิ์ฟังก์ชันให้ผู้ใช้งาน</label>
+                                <div class="flex items-center gap-3">
+                                    <button type="button" onclick="toggleAllPermissionCheckboxes(true)" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors">เลือกทั้งหมด</button>
+                                    <span class="text-gray-300">|</span>
+                                    <button type="button" onclick="toggleAllPermissionCheckboxes(false)" class="text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors">ยกเลิกทั้งหมด</button>
+                                </div>
+                            </div>
+                            
+                            <div class="p-3 bg-white rounded-xl border border-gray-200 shadow-inner max-h-80 overflow-y-auto custom-scrollbar">
+                                <div class="grid grid-cols-12 gap-2 text-xs font-bold text-gray-500 border-b border-gray-200 pb-2 mb-2 px-2 text-center bg-gray-50/90 rounded-lg p-2 sticky top-0 z-10 shadow-sm">
+                                    <div class="col-span-6 text-left">เมนู / ฟังก์ชัน (Menu / Feature)</div>
+                                    <div class="col-span-1.5 text-center">Edit</div>
+                                    <div class="col-span-1.5 text-center">Delete</div>
+                                    <div class="col-span-1.5 text-center">Add</div>
+                                    <div class="col-span-1.5 text-center">View</div>
+                                </div>`;
+
+            allMenus.forEach(menu => {
+                const mId = menu.id.trim();
+                const mIdClean = mId.toLowerCase();
+                const isMasterChecked = (typeof isMasterPermissionChecked === 'function' ? isMasterPermissionChecked(mIdClean, checkedValues) : false);
+
+                const hasEdit = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'edit', checkedValues) : isMasterChecked;
+                const hasDelete = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'delete', checkedValues) : isMasterChecked;
+                const hasAdd = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'add', checkedValues) : isMasterChecked;
+                const hasView = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'view', checkedValues) : isMasterChecked;
+
+                checkboxesHtml += `
+                                <div class="grid grid-cols-12 gap-2 items-center text-xs p-2 bg-indigo-50/40 hover:bg-indigo-50/70 rounded-lg transition-colors border-b border-gray-100 font-bold mt-1">
+                                    <div class="col-span-6 flex items-center space-x-2.5">
+                                        <input type="checkbox" data-menu="${mIdClean}" class="perm-master-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${isMasterChecked ? 'checked' : ''} onchange="handleMasterPermToggle(this)">
+                                        <span class="font-bold text-gray-800 select-none">${menu.name}</span>
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:edit" data-menu="${mIdClean}" data-action="edit" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasEdit ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:delete" data-menu="${mIdClean}" data-action="delete" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasDelete ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:add" data-menu="${mIdClean}" data-action="add" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasAdd ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:view" data-menu="${mIdClean}" data-action="view" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasView ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                </div>`;
+
+                if (Array.isArray(menu.subFeatures) && menu.subFeatures.length > 0) {
+                    menu.subFeatures.forEach(sub => {
+                        const subId = sub.id.trim();
+                        const subIdClean = subId.toLowerCase();
+                        const fullSubId = `${mId}:${subId}`;
+
+                        const hasSubEdit = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'edit', checkedValues) : isMasterChecked;
+                        const hasSubDelete = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'delete', checkedValues) : isMasterChecked;
+                        const hasSubAdd = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'add', checkedValues) : isMasterChecked;
+                        const hasSubView = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'view', checkedValues) : isMasterChecked;
+
+                        const isSubMasterChecked = hasSubEdit && hasSubDelete && hasSubAdd && hasSubView;
+
+                        checkboxesHtml += `
+                                <div class="grid grid-cols-12 gap-2 items-center text-xs p-1.5 pl-7 hover:bg-indigo-50/30 rounded-lg transition-colors border-b border-gray-100/70 bg-slate-50/50">
+                                    <div class="col-span-6 flex items-center space-x-2">
+                                        <span class="text-indigo-400 font-bold select-none text-xs">↳</span>
+                                        <input type="checkbox" data-menu="${mIdClean}" data-sub="${subIdClean}" class="perm-submaster-cb perm-action-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isSubMasterChecked ? 'checked' : ''} onchange="handleSubMasterPermToggle(this)">
+                                        <span class="font-medium text-gray-700 select-none text-xs">${sub.name}</span>
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:edit" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="edit" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubEdit ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:delete" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="delete" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubDelete ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:add" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="add" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubAdd ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:view" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="view" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubView ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                </div>`;
+                    });
+                }
+            });
+
+            checkboxesHtml += `
+                            </div>
+                        </div>`;
+            formFields.insertAdjacentHTML('beforeend', checkboxesHtml);
+            return;
+        }
+
+        if (lw === 'role' && (currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users')) {
+            formFields.insertAdjacentHTML('beforeend', `
+                        <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                        <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                            <option value="" disabled ${!val ? 'selected' : ''}>Select Role...</option>
+                            <option value="Super Admin" ${val === 'Super Admin' || val === 'superadmin' ? 'selected' : ''}>Super Admin (ผู้ดูแลระบบสูงสุด - เข้าถึงได้ทุกระบบ)</option>
+                            <option value="Admin" ${val === 'Admin' ? 'selected' : ''}>Admin (ผู้ดูแลระบบ)</option>
+                            <option value="HR Manager" ${val === 'HR Manager' ? 'selected' : ''}>HR Manager (ผู้จัดการ)</option>
+                            <option value="Staff" ${val === 'Staff' ? 'selected' : ''}>Staff (พนักงานทั่วไป)</option>
+                        </select></div>
+                    `);
+            return;
+        }
+
+        if ((lw === 'employee_id' || lw === 'emp_id' || lw === 'employees id') && currentSheet.toLowerCase() !== 'staff' && currentSheet.toLowerCase() !== 'user') {
+            const isRatingForm = currentSheet.toLowerCase().includes('ranting') || currentSheet.toLowerCase().includes('rating');
+            if (isRatingForm) {
+                formFields.insertAdjacentHTML('beforeend', `
+                            <div class="col-span-1 sm:col-span-2 bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-2xl border border-indigo-100 mb-2">
+                                <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div class="flex gap-2">
+                                    <input type="text" name="${h}" value="${safeVal}" required oninput="handleRatingEmployeeIdInput(this)" onchange="handleRatingEmployeeIdInput(this)" placeholder="กรอก Staff ID / Employee ID..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <button type="button" onclick="handleRatingEmployeeIdInput(this.parentElement.querySelector('input'))" class="px-4 rounded-xl bg-brandindigo hover:bg-brandpurple text-white font-bold shadow-sm transition-colors"><i class="fa-solid fa-magnifying-glass"></i></button>
+                                </div>
+                                <div id="rating-employee-preview" class="hidden mt-4 p-4 bg-white/80 border border-white rounded-2xl shadow-sm"></div>
+                            </div>
+                        `);
+
+                if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
+                    if (val) setTimeout(() => handleRatingEmployeeIdInput(document.querySelector('#dynamic-form input[name="' + h.replace(/"/g, '\\"') + '"]')), 50);
+                } else {
+                    google.script.run.withSuccessHandler(res => {
+                        if (res && res.success && Array.isArray(res.data)) {
+                            tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                            if (val) setTimeout(() => handleRatingEmployeeIdInput(document.querySelector('#dynamic-form input[name="' + h.replace(/"/g, '\\"') + '"]')), 50);
+                        }
+                    }).getSheetData('staff');
+                }
+
+                return;
+            }
+
+            const selectId = 'dropdown-' + lw;
+            const showQuota = currentSheet === 'Leave application';
+            formFields.insertAdjacentHTML('beforeend', `
+                        <div class="col-span-1 sm:col-span-2 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 mb-2 relative overflow-hidden">
+                            ${showQuota ? `<p class="text-xs font-bold text-gray-500 mb-4 flex items-center tracking-widest uppercase"><i class="fa-solid fa-chart-pie mr-2 text-brandindigo"></i> Leave Quota Balance: <span id="leave-quota-display" class="ml-auto bg-white px-3 py-1 rounded-lg border border-gray-200 text-gray-900 shadow-sm">Loading...</span></p>` : ''}
+                            <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="employee_id_label">${t('employee_id_label')}</span> <span class="text-brandindigo">*</span></label>
+                            <select id="${selectId}" name="${h}" required onchange="autoFillEmployeeData(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                <option value="${safeVal}" selected data-i18n="${safeVal ? '' : 'loading'}">${safeVal ? safeVal : t('loading')}</option>
+                            </select>
+                        </div>
+                    `);
+
+            var populateStaffSelect = function (res) {
+                const selectEl = document.getElementById(selectId);
+                if (selectEl && res.success && res.data && res.data.length > 0) {
+                    if (!tableCache['staff']) tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                    else tableCache['staff'].data = res.data;
+
+                    const isStaffRestricted = (role === 'Staff' && currentSheet === 'Leave application');
+                    let options = '';
+
+                    if (!isStaffRestricted) {
+                        options = `<option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_employee">${t('select_employee')}</option>`;
+                    }
+
+                    let actualMatchedEmpId = '';
+
+                    res.data.forEach(row => {
+                        let keyId = Object.keys(row).find(k => k.toLowerCase().trim() === 'employee_id' || k.toLowerCase().trim() === 'emp_id') || Object.keys(row)[0];
+                        let empIdVal = row[keyId] || '';
+
+                        if (empIdVal) {
+                            let displayValue = empIdVal;
+                            let safeEmpIdVal = String(empIdVal).toLowerCase().trim();
+
+                            if (isStaffRestricted) {
+                                if (safeEmpIdVal === loggedInEmpId && loggedInEmpId !== '') {
+                                    options += `<option value="${empIdVal}" selected>${displayValue}</option>`;
+                                    actualMatchedEmpId = empIdVal;
+                                }
+                            } else {
+                                options += `<option value="${empIdVal}" ${val === empIdVal ? 'selected' : ''}>${displayValue}</option>`;
+                            }
+                        }
+                    });
+
+                    if (isStaffRestricted && options === '') {
+                        options = `<option value="" disabled selected>ID not found in database</option>`;
+                    }
+
+                    selectEl.innerHTML = options;
+
+                    if (isStaffRestricted) {
+                        selectEl.style.pointerEvents = "none";
+                        selectEl.classList.add('bg-gray-100', 'text-gray-500');
+                        if (actualMatchedEmpId) {
+                            autoFillEmployeeData(actualMatchedEmpId);
+                        }
+                    }
+                    else if (val) {
+                        autoFillEmployeeData(val);
+                    }
+                } else if (selectEl) {
+                    selectEl.innerHTML = '<option value="" disabled selected>No staff data</option>';
+                }
+            };
+
+            if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
+                populateStaffSelect({ success: true, headers: tableCache['staff'].headers, data: tableCache['staff'].data });
+            } else {
+                google.script.run.withSuccessHandler(populateStaffSelect).getSheetData('staff');
+            }
+
+            return;
+        }
+
+        if (lw === 'items') {
+            const currentCurrency = rowData?.Currency || rowData?.currency || 'THB';
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 mb-4 mt-2 shadow-sm">
+                                    <div class="flex flex-row justify-between items-center mb-3">
+                                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">${h}</label>
+                                        <div class="flex items-center gap-4">
+                                            <div class="flex items-center gap-2">
+                                                <i class="fa-solid fa-coins text-amber-500 text-xs"></i>
+                                                <label class="text-xs font-bold text-gray-600">สกุลเงิน (Currency):</label>
+                                                <select name="Currency" id="form-currency-select" class="bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-brandindigo focus:border-brandindigo shadow-sm outline-none cursor-pointer">
+                                                    <option value="THB" ${currentCurrency === 'THB' ? 'selected' : ''}>THB (บาท)</option>
+                                                    <option value="LAK" ${currentCurrency === 'LAK' ? 'selected' : ''}>LAK (ກີບ / กีบ)</option>
+                                                    <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD ($ / ดอลลาร์)</option>
+                                                </select>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i class="fa-solid fa-percent text-indigo-500 text-xs"></i>
+                                                <label class="text-xs font-bold text-gray-600">VAT (%):</label>
+                                                <input type="number" name="vat_percent" id="form-vat-percent-input" onchange="updateBillJsonAndTotal()" oninput="updateBillJsonAndTotal()" class="w-16 bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-brandindigo focus:border-brandindigo shadow-sm outline-none" value="${rowData?.vat_percent || rowData?.Vat_Percent || rowData?.vat || 0}" min="0" max="100" placeholder="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="overflow-x-auto w-full mb-3 rounded-xl border border-gray-200 shadow-inner bg-white p-2">
+                                        <table class="w-full text-xs text-left text-gray-700 divide-y divide-gray-100 min-w-[500px]">
+                                            <thead>
+                                                <tr class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                                    <th class="p-2 w-12 text-center">ลำดับ</th>
+                                                    <th class="p-2">รายการสินค้า/บริการ</th>
+                                                    <th class="p-2 w-20 text-center">จำนวน</th>
+                                                    <th class="p-2 w-32 text-right">ราคา/หน่วย</th>
+                                                    <th class="p-2 w-32 text-right">ราคารวม</th>
+                                                    <th class="p-2 w-10 text-center">ลบ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bill-items-tbody" class="divide-y divide-gray-100">
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <button type="button" onclick="addBillRow()" class="px-4 py-2 bg-brandindigo hover:bg-brandpurple text-white text-xs font-bold rounded-xl transition-all flex items-center shadow-md">
+                                            <i class="fa-solid fa-plus mr-1"></i> เพิ่มรายการ
+                                        </button>
+                                        <div class="text-right text-xs font-bold text-gray-600">
+                                            ยอดรวมในบิล: <span id="bill-total-price-display" class="text-brandindigo text-sm font-black">0</span>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="hidden-bill-items-input" name="${h}" value="">
+                                </div>
+                            `);
+
+            setTimeout(() => {
+                initializeBillEditor(safeVal);
+            }, 50);
+
+            return;
+        }
+
+        if (lw === 'id' || lw === 'leave_id' || lw === 'log_id' || lw === 'asset_id' || lw === 'course_id' || (index === 0 && lw !== 'employee_id' && lw !== 'emp_id' && currentSheet.toLowerCase() !== 'staff' && currentSheet.toLowerCase() !== 'user')) {
+            formFields.insertAdjacentHTML('beforeend', `
+                        <input type="hidden" name="${h}" value="${safeVal}">
+                    `);
+            return;
+        }
+        if (lw === 'email' && currentSheet.toLowerCase() === 'user') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMAIL <span class="text-brandindigo">*</span></label>
+                                <input type="email" id="user-email-input" name="${h}" value="${safeVal}" required list="staff-emails-list" oninput="autoFillUserEmpIdByEmail(this.value)" onchange="autoFillUserEmpIdByEmail(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="Enter or select staff email...">
+                                <datalist id="staff-emails-list"></datalist>
+                                </div>
+                            `);
+            setTimeout(() => populateUserEmailDatalist(), 50);
+            return;
+        }
+        if (index === 0 && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user')) {
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${lw === 'employee_id' || lw === 'emp_id' ? 'employee_id_label' : h}">${labelText}</span> <span class="text-brandindigo">*</span></label>
+                                <input type="text" id="user-emp-id-input" name="${h}" value="${val}" required oninput="checkDuplicateEmployeeId(this)" onblur="checkDuplicateEmployeeId(this)" placeholder="${t('enter_employee_id')}" data-i18n-placeholder="enter_employee_id" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                <div id="emp-id-duplicate-alert"></div>
+                                </div>
+                            `);
+            if (val) setTimeout(() => {
+                const inputEl = document.querySelector(`#dynamic-form input[name="${h.replace(/"/g, '\\"')}"]`);
+                if (inputEl) checkDuplicateEmployeeId(inputEl);
+            }, 100);
+            return;
+        }
+
+        const isDate = lw.includes('date') || lw.includes('birthday') || lw.includes('วันเกิด');
+        let displayVal = val;
+        if (isDate && val && val !== '-') {
+            displayVal = formatToIsoDate(val);
+        }
+        const safeDisplayVal = String(displayVal).replace(/"/g, '&quot;');
+        const isOptional = (lw === 'adjusted_status' || lw === 'reference_leave_id' || lw === 'device id' || lw.includes('link') || lw.includes('url') || lw.includes('ลิงก์') || lw.includes('youtube') || lw.includes('facebook') || lw.includes('participant') || lw.includes('ผู้เข้าร่วม') || lw.includes('broken') || lw.includes('พัง') || lw.includes('เสีย') || lw === 'note' || lw === 'notes' || lw === 'หมายเหตุ');
+        const requiredAttr = isOptional ? '' : 'required';
+
+        if (lw === 'status' && currentSheet.toLowerCase() === 'staff') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="Active" ${val === 'Active' ? 'selected' : ''} data-i18n="status_present">${t('status_present')}</option>
+                                    <option value="On Leave" ${val === 'On Leave' ? 'selected' : ''} data-i18n="status_absent_leave">${t('status_absent_leave')}</option>
+                                    <option value="Inactive" ${val === 'Inactive' ? 'selected' : ''} data-i18n="status_absent">${t('status_absent')}</option>
+                                </select></div>
+                            `);
+        }
+        else if (lw === 'prefix' && currentSheet.toLowerCase() === 'staff') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="prefix_label">${t('prefix_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_prefix">${t('select_prefix')}</option>
+                                    <option value="Mr" ${val === 'Mr' ? 'selected' : ''}>Mr</option>
+                                    <option value="Mrs" ${val === 'Mrs' ? 'selected' : ''}>Mrs</option>
+                                    <option value="Miss" ${val === 'Miss' ? 'selected' : ''}>Miss</option>
+                                    <option value="Dr." ${val === 'Dr.' ? 'selected' : ''}>Dr.</option>
+                                    <option value="CEO" ${val === 'CEO' ? 'selected' : ''}>CEO</option>
+                                    <option value="COO" ${val === 'COO' ? 'selected' : ''}>COO</option>
+                                    <option value="CFO" ${val === 'CFO' ? 'selected' : ''}>CFO</option>
+                                </select></div>
+                            `);
+        }
+        else if ((lw === 'is evaluator' || lw === 'is_evaluator') && currentSheet.toLowerCase() === 'staff') {
+            const isChecked = String(val).toLowerCase() === 'true' || val === true || String(val).toLowerCase() === 'yes';
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                    <div class="min-w-0 pr-4">
+                                        <label class="block text-sm font-bold text-gray-700" data-i18n="is_evaluator_label">${t('is_evaluator_label')}</label>
+                                        <p class="text-xs text-gray-500 font-medium mt-1" data-i18n="is_evaluator_desc">${t('is_evaluator_desc')}</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer select-none">
+                                        <input type="checkbox" name="${h}" value="true" ${isChecked ? 'checked' : ''} class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brandindigo"></div>
+                                    </label>
+                                </div>
+                            `);
+        }
+        else if (lw === 'type' && currentSheet.toLowerCase() === 'announcements') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="type_label">${t('type_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_announcement_type">${t('select_announcement_type')}</option>
+                                    <option value="Company" ${val === 'Company' ? 'selected' : ''}>Company (ประกาศบริษัท)</option>
+                                    <option value="Meetings" ${val === 'Meetings' ? 'selected' : ''}>Meetings (นัดประชุม)</option>
+                                    <option value="Events" ${val === 'Events' ? 'selected' : ''}>Events (กิจกรรม)</option>
+                                    <option value="General" ${val === 'General' ? 'selected' : ''}>General (ทั่วไป)</option>
+                                </select></div>
+                            `);
+        }
+        else if (lw === 'type' && currentSheet.toLowerCase() === 'news') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="type_label">${t('type_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_news_type">${t('select_news_type')}</option>
+                                    <option value="กิจกรรม" ${val === 'กิจกรรม' ? 'selected' : ''}>กิจกรรม (Activities)</option>
+                                    <option value="บริการ" ${val === 'บริการ' ? 'selected' : ''}>บริการ (Services)</option>
+                                    <option value="สินค้าใหม่" ${val === 'สินค้าใหม่' ? 'selected' : ''}>สินค้าใหม่ (New Products)</option>
+                                    <option value="ทั่วไป" ${val === 'ทั่วไป' ? 'selected' : ''}>ทั่วไป (General)</option>
+                                </select></div>
+                            `);
+        }
+        else if (lw === 'audience' || lw === 'กลุ่มเป้าหมาย' || lw === 'เป้าหมาย') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="audience_label">${t('audience_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="Public" ${val === 'Public' ? 'selected' : ''}>Public (เผยแพร่สาธารณะ)</option>
+                                    <option value="Internal" ${val === 'Internal' ? 'selected' : ''}>Internal (ภายในองค์กรเท่านั้น)</option>
+                                </select></div>
+                            `);
+        }
+        else if ((lw === 'topic' || lw === 'detail' || lw === 'รายละเอียด') && currentSheet.toLowerCase() === 'announcements') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="reason_label">${t('reason_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <textarea name="${h}" required rows="4" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="พิมพ์รายละเอียดประกาศ...">${safeDisplayVal}</textarea></div>
+                            `);
+        }
+        else if (lw === 'status' && currentSheet.toLowerCase() === 'training') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_status">${t('select_status')}</option>
+                                    <option value="Upcoming" ${String(val).toLowerCase().includes('upcoming') ? 'selected' : ''}>Upcoming</option>
+                                    <option value="Ongoing" ${String(val).toLowerCase().includes('ongoing') ? 'selected' : ''}>Ongoing</option>
+                                    <option value="Completed" ${String(val).toLowerCase().includes('complete') ? 'selected' : ''}>Completed</option>
+                                    <option value="Cancelled" ${String(val).toLowerCase().includes('cancel') ? 'selected' : ''}>Cancelled</option>
+                                </select></div>
+                            `);
+        }
+        else if (lw === 'status' && currentSheet.toLowerCase().includes('asset')) {
+            const vLower = String(val).toLowerCase();
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="Active" ${(!val || val === '-' || vLower === 'active' || vLower.includes('ใช้งาน') || vLower.includes('ໃຊ້ງານ')) ? 'selected' : ''}>Active (กำลังใช้งานอยู่)</option>
+                                    <option value="Under Repair" ${(vLower.includes('repair') || vLower.includes('ซ่อม') || vLower.includes('ສ້ອມ')) ? 'selected' : ''}>Under Repair (กำลังซ่อม)</option>
+                                    <option value="Broken" ${(vLower.includes('broken') || vLower.includes('พัง') || vLower.includes('ເພແລ້ວ') || vLower.includes('เสีย')) ? 'selected' : ''}>Broken (พังแล้ว)</option>
+                                    <option value="Inactive" ${(vLower.includes('inactive') || vLower.includes('ยกเลิก')) ? 'selected' : ''}>Inactive (ยกเลิกใช้งาน)</option>
+                                </select></div>
+                            `);
+        }
+        else if ((lw === 'log_id' || lw === 'log id') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            let autoId = safeDisplayVal;
+            if (!autoId || autoId === '-' || autoId === 'undefined' || autoId === 'null') {
+                const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+                autoId = `LOG-${Date.now()}-${randomCode}`;
+            }
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-xs text-brandindigo font-bold ml-1">(Auto Generated)</span></label>
+                <input type="text" name="${h}" value="${autoId}" readonly required class="bg-gray-100 border border-gray-300 text-gray-700 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-mono font-bold transition-colors shadow-sm cursor-not-allowed"></div>
+            `);
+        }
+        else if ((lw === 'attendance_status' || lw === 'attendance status') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            const valUpper = String(val || '').toUpperCase();
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="attendance_status">Attendance Status</span> <span class="text-brandindigo">*</span></label>
+                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-bold transition-colors shadow-sm">
+                    <option value="PRESENT" ${valUpper.includes('PRESENT') || valUpper.includes('มาทำงาน') || valUpper.includes('ปกติ') ? 'selected' : ''}>PRESENT (มาทำงาน / ปกติ)</option>
+                    <option value="LATE" ${valUpper.includes('LATE') || valUpper.includes('สาย') ? 'selected' : ''}>LATE (มาสาย)</option>
+                    <option value="ABSENT" ${valUpper.includes('ABSENT') || valUpper.includes('ขาด') ? 'selected' : ''}>ABSENT (ขาดงาน)</option>
+                    <option value="ON LEAVE" ${valUpper.includes('LEAVE') || valUpper.includes('ลา') ? 'selected' : ''}>ON LEAVE (ลากิจ/ลาป่วย)</option>
+                    <option value="OFF" ${valUpper.includes('OFF') || valUpper.includes('หยุด') || valUpper.includes('HOLIDAY') ? 'selected' : ''}>OFF (วันหยุด)</option>
+                </select></div>
+            `);
+        }
+        else if ((lw === 'check_in' || lw === 'check_out' || lw === 'shift_start' || lw === 'shift_end') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            let defaultTime = safeDisplayVal;
+            if (!defaultTime || defaultTime === '-' || defaultTime === 'undefined') {
+                if (lw === 'shift_start') defaultTime = '09:00';
+                else if (lw === 'shift_end') defaultTime = '17:00';
+                else if (lw === 'check_in') defaultTime = '08:58';
+                else if (lw === 'check_out') defaultTime = '17:00';
+            }
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-brandindigo">*</span></label>
+                <input type="text" name="${h}" value="${defaultTime}" oninput="autoCalculateAttendanceTimes()" required placeholder="e.g. 09:00" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-semibold transition-colors shadow-sm"></div>
+            `);
+        }
+        else if ((lw === 'late_hours' || lw === 'early_leave_hours' || lw === 'ot_amount') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            let defaultNum = safeDisplayVal;
+            if (!defaultNum || defaultNum === '-' || defaultNum === 'undefined') defaultNum = '0';
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span></label>
+                <input type="text" name="${h}" value="${defaultNum}" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-semibold transition-colors shadow-sm"></div>
+            `);
+        }
+        else if (lw === 'status') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="Active" ${val === 'Active' || !val ? 'selected' : ''} data-i18n="status_present">${t('status_present')}</option>
+                                    <option value="Inactive" ${val === 'Inactive' ? 'selected' : ''} data-i18n="status_absent">${t('status_absent')}</option>
+                                </select></div>
+                            `);
+        }
+        else if (lw === 'format' || lw === 'รูปแบบ') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="format_label">${t('format_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_format">${t('select_format')}</option>
+                                    <option value="Online" ${val === 'Online' ? 'selected' : ''}>Online</option>
+                                    <option value="In-Company" ${val === 'In-Company' ? 'selected' : ''}>In-Company</option>
+                                    <option value="Public Training" ${val === 'Public Training' ? 'selected' : ''}>Public Training</option>
+                                </select></div>
+                            `);
+        }
+        else if ((lw === 'position_id' || lw === 'position') && currentSheet.toLowerCase() === 'staff') {
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="position_label">${t('position_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_position">${t('select_position')}</option>
+                                    <option value="CEO" ${val === 'CEO' ? 'selected' : ''}>CEO</option>
+                                    <option value="COO" ${val === 'COO' ? 'selected' : ''}>COO</option>
+                                    <option value="CFO" ${val === 'CFO' ? 'selected' : ''}>CFO</option>
+                                    <option value="Managers" ${val === 'Managers' ? 'selected' : ''}>Managers</option>
+                                    <option value="Head Leaders" ${val === 'Head Leaders' ? 'selected' : ''}>Head Leaders</option>
+                                    <option value="Managers HR" ${val === 'Managers HR' ? 'selected' : ''}>Managers HR</option>
+                                    <option value="Staff" ${val === 'Staff' ? 'selected' : ''}>Staff</option>
+                                </select></div>
+                            `);
+        }
+        else if (lw === 'department_id' && currentSheet.toLowerCase() === 'staff') {
+            const selectId = 'dropdown-' + lw;
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="department_label">${t('department_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select id="${selectId}" name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="${safeDisplayVal}" selected data-i18n="${safeDisplayVal ? '' : 'loading'}">${safeDisplayVal ? safeDisplayVal : t('loading')}</option>
+                                </select></div>
+                            `);
+
+            google.script.run.withSuccessHandler(res => {
+                const selectEl = document.getElementById(selectId);
+                if (selectEl && res.success && res.data && res.data.length > 0) {
+                    let options = `<option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_department">${t('select_department')}</option>`;
+                    res.data.forEach(row => {
+                        let keyId = Object.keys(row).find(k => k.toLowerCase().trim() === 'department_id') || Object.keys(row)[0];
+                        let keyName = Object.keys(row).find(k => k.toLowerCase().trim() === 'department_name') || Object.keys(row)[1];
+                        let colAValue = row[keyId] || '';
+                        let colBValue = row[keyName] || '';
+                        if (colAValue) {
+                            let displayValue = colBValue ? `${colAValue} - ${colBValue}` : colAValue;
+                            options += `<option value="${colAValue}" ${val === colAValue ? 'selected' : ''}>${displayValue}</option>`;
+                        }
+                    });
+                    selectEl.innerHTML = options;
+                }
+            }).getSheetData('Department ');
+        }
+        else if (lw === 'give by' || lw === 'give_by') {
+            const selectId = 'dropdown-' + lw.replace(/\s+/g, '-');
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="give_by_label">${t('give_by_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select id="${selectId}" name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="${safeVal}" selected data-i18n="${safeVal ? '' : 'loading'}">${safeVal ? safeVal : t('loading')}</option>
+                                </select></div>
+                            `);
+
+            var populateGiveBy = function (res) {
+                const selectEl = document.getElementById(selectId);
+                if (selectEl && res.success && res.data && res.data.length > 0) {
+                    let options = `<option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_evaluator">${t('select_evaluator')}</option>`;
+                    let foundAny = false;
+
+                    res.data.forEach(row => {
+                        let posKey = Object.keys(row).find(k => ['position', 'position_id', 'ตำแหน่ง'].includes(k.toLowerCase().trim()));
+                        let pos = posKey ? String(row[posKey]).toLowerCase() : '';
+
+                        let isManager = pos.includes('ceo') || pos.includes('сео') ||
+                            pos.includes('coo') || pos.includes('соо') ||
+                            pos.includes('cfo') || pos.includes('сfо') || pos.includes('cfо') ||
+                            pos.includes('manager') || pos.includes('head') ||
+                            pos.includes('ผู้บริหาร') || pos.includes('admin') ||
+                            pos.includes('director') || pos.includes('ผู้อำนวยการ');
+                        if (isManager) {
+                            let nameKey = Object.keys(row).find(k => ['name', 'full_name', 'first_name', 'ชื่อ'].includes(k.toLowerCase().trim()));
+                            let lastKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'last_name');
+                            let name = nameKey ? row[nameKey] : '';
+                            if (lastKey && row[lastKey]) name += ' ' + row[lastKey];
+                            name = name.trim() || 'Unknown';
+                            let displayPos = posKey ? row[posKey] : '';
+                            options += `<option value="${name}" ${val === name ? 'selected' : ''}>${name}${displayPos ? ' (' + displayPos + ')' : ''}</option>`;
+                            foundAny = true;
+                        }
+                    });
+
+                    if (!foundAny) {
+                        res.data.forEach(row => {
+                            let nameKey = Object.keys(row).find(k => ['name', 'full_name', 'first_name', 'ชื่อ'].includes(k.toLowerCase().trim()));
+                            let lastKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'last_name');
+                            let name = nameKey ? row[nameKey] : '';
+                            if (lastKey && row[lastKey]) name += ' ' + row[lastKey];
+                            name = name.trim();
+                            if (name) options += `<option value="${name}" ${val === name ? 'selected' : ''}>${name}</option>`;
+                        });
+                    }
+                    selectEl.innerHTML = options;
+                } else if (selectEl) {
+                    selectEl.innerHTML = '<option value="" disabled>Failed to load data</option>';
+                }
+            };
+
+            if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
+                populateGiveBy({ success: true, headers: tableCache['staff'].headers, data: tableCache['staff'].data });
+            } else {
+                google.script.run.withSuccessHandler(res => {
+                    if (res && res.success) tableCache['staff'] = { headers: res.headers || [], data: res.data || [] };
+                    populateGiveBy(res);
+                }).getSheetData('staff');
+            }
+        }
+        else if (lw === 'star point' || lw === 'star_point') {
+            let currentRating = parseInt(val) || 0;
+            let starsHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                let starClass = i <= currentRating ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300';
+                starsHtml += `<i class="${starClass} text-3xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="setFormStarRating(${i})" id="form-star-${i}"></i>`;
+            }
+
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="star_point_label">${t('star_point_label')}</span> <span class="text-brandindigo">*</span></label>
+                                    <div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                        <div class="flex">${starsHtml}</div>
+                                        <p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${currentRating > 0 ? currentRating + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p>
+                                    </div>
+                                    <input type="hidden" name="${h}" id="hidden-star-input" value="${currentRating > 0 ? currentRating : ''}" required>
+                                </div>
+                            `);
+        }
+        else if (lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment' || (currentSheet.trim() === 'Policy' && lw === 'link') || (currentSheet.trim() === 'Documents' && (lw === 'file' || lw === 'link' || lw === 'ไฟล์'))) {
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2">
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-gray-400 font-normal ml-1" style="text-transform: none;">(Optional)</span></label>
+                                    <div class="flex items-center bg-white border border-gray-300 rounded-xl p-1.5 shadow-sm focus-within:border-brandindigo focus-within:ring-1 focus-within:ring-brandindigo transition-all">
+                                        <div class="w-10 h-10 bg-indigo-50 text-brandindigo rounded-lg flex items-center justify-center shrink-0 mr-3">
+                                            <i class="fa-solid fa-file-arrow-up text-lg"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <input type="file" accept="image/*, application/pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 transition-colors cursor-pointer outline-none">
+                                            
+                                            <input type="hidden" name="${h}" id="hidden-document-input" value="${safeVal}">
+                                        </div>
+                                    </div>
+                                    ${safeVal && safeVal !== '-' ? `<div class="mt-2 text-xs"><a href="${safeVal}" target="_blank" class="inline-flex items-center px-3 py-1 rounded-md bg-indigo-50 text-brandindigo hover:bg-indigo-100 transition-colors font-medium"><i class="fa-solid fa-paperclip mr-1.5"></i>เปิดดูไฟล์แนบเดิม</a></div>` : ''}
+                                </div>
+                            `);
+        }
+        else if (lw === 'profile' || lw === 'รูป' || lw === 'pic' || lw === 'image' || lw === 'photos' || lw === 'photo' || lw === 'รูปภาพ' || lw === 'รูปถ่าย') {
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+
+            const fallbackAvatar = 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic';
+            let initialSrc = fallbackAvatar;
+            let hiddenVal = safeVal;
+            if (safeVal && safeVal !== '-' && safeVal !== 'null' && safeVal !== 'undefined' && safeVal !== 'data:,' && safeVal !== 'data:;') {
+                // Use normalizeRatingPhoto to handle JSON strings, base64, Google Drive URLs etc.
+                const normalized = (typeof normalizeRatingPhoto === 'function')
+                    ? normalizeRatingPhoto(safeVal, '')
+                    : String(safeVal).trim().replace(/[\r\n\t\s]+/g, "");
+                if (normalized && !normalized.includes('ui-avatars.com') && normalized !== 'data:,') {
+                    initialSrc = normalized;
+                }
+            }
+            if (!hiddenVal || hiddenVal === 'data:,' || hiddenVal === 'data:;' || (typeof hiddenVal === 'string' && hiddenVal.startsWith('data:') && hiddenVal.length < 50)) {
+                hiddenVal = '';
+            }
+
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-4 rounded-xl border border-indigo-100">
+                                    <label class="block mb-3 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span></label>
+                                    <div class="flex items-center space-x-4">
+                                        <div class="w-16 h-16 rounded-full border border-gray-200 overflow-hidden bg-white shrink-0 shadow-sm relative">
+                                            <img id="preview-profile-img" src="${initialSrc}" onerror="this.onerror=null; this.src='${fallbackAvatar}';" class="w-full h-full object-cover">
+                                        </div>
+                                        <div class="flex-1">
+                                            <input type="file" accept="image/*, .jpg, .jpeg, .png, .webp" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors cursor-pointer border border-dashed border-indigo-200 rounded-xl p-2 bg-white" onchange="handleFormPhotoPreview(this)">
+                                            <input type="hidden" name="${h}" id="hidden-profile-input" value="${hiddenVal}">
+                                        </div>
+                                    </div>
+                                </div>
+                            `);
+        }
+        else if ((currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') && lw === 'status') {
+            const isDisabled = ['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(safeVal.toLowerCase());
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span>สถานะบัญชี (ACCOUNT STATUS)</span> <span class="text-brandindigo">*</span></label>
+                                    <select name="${h}" class="bg-white border border-gray-300 text-gray-900 text-sm font-bold rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm cursor-pointer">
+                                        <option value="Active" ${!isDisabled ? 'selected' : ''}>Active (เปิดใช้งาน / Enabled)</option>
+                                        <option value="Disabled" ${isDisabled ? 'selected' : ''}>Disabled (ระงับใช้งาน / Account Suspended)</option>
+                                    </select>
+                                </div>
+                            `);
+        }
+        else if ((currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') && (lw === 'device_id' || lw === 'device id' || lw === 'device')) {
+            const uniqueDevInputId = 'input-dev-id-' + Date.now();
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <label class="block mb-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                                        <span><i class="fa-solid fa-mobile-screen mr-1.5 text-indigo-500"></i> DEVICE ID (อุปกรณ์ที่ลงทะเบียน)</span>
+                                        <span class="text-[11px] text-gray-400 font-normal">1 บัญชีพนักงาน ต่อ 1 เครื่อง</span>
+                                    </label>
+                                    <div class="flex gap-2">
+                                        <input type="text" id="${uniqueDevInputId}" name="${h}" value="${safeVal}" class="bg-white border border-gray-300 text-gray-900 text-sm font-mono rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="ยังไม่มีการผูกอุปกรณ์ (จะผูกอัตโนมัติเมื่อเข้าสู่ระบบครั้งแรก)">
+                                        <button type="button" onclick="document.getElementById('${uniqueDevInputId}').value=''; showToast('รีเซ็ตอุปกรณ์เรียบร้อยแล้ว (กดบันทึกเพื่อยืนยัน)', 'success');" class="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs rounded-xl border border-amber-200 transition-colors flex-shrink-0 flex items-center gap-1.5" title="ล้างค่าเพื่อให้พนักงานล็อกอินเครื่องใหม่ได้">
+                                            <i class="fa-solid fa-rotate-left"></i> รีเซ็ตอุปกรณ์
+                                        </button>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-2"><i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i> หากพนักงานเปลี่ยนมือถือ/คอมพิวเตอร์ ให้กดปุ่ม <b>รีเซ็ตอุปกรณ์</b> แล้วกดบันทึก</p>
+                                </div>
+                            `);
+        }
+        else if (lw === 'category' || lw === 'หมวดหมู่') {
+            const uniqueInputId = 'gen-category-input-' + Date.now();
+            const allCats = ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
+            const tagsHtml = allCats.map(c => {
+                const escaped = String(c).replace(/'/g, "\\'");
+                return `<span class="cursor-pointer text-[11px] px-2.5 py-1 rounded-full bg-white text-gray-700 hover:bg-brandindigo hover:text-white transition-all font-medium border border-gray-200 shadow-sm" onclick="document.getElementById('${uniqueInputId}').value='${escaped}'">${c}</span>`;
+            }).join('');
+
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="category_label">${t('category_label')}</span> <span class="text-brandindigo">*</span></label>
+                                    <input type="text" id="${uniqueInputId}" name="${h}" value="${safeVal}" required
+                                        class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
+                                        placeholder="พิมพ์หมวดหมู่ หรือกดเลือกจากแถบด้านล่าง...">
+                                    <div class="mt-2 flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto p-1 bg-gray-50 rounded-xl border border-gray-100">
+                                        ${tagsHtml}
+                                    </div>
+                                </div>
+                            `);
+        }
+        else if (lw === 'object' || lw === 'เหตุผล' || lw === 'reason' || lw === 'content' || lw === 'รายละเอียด' || lw === 'เนื้อหา') {
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            const placeholderKey = getFieldPlaceholderKey(h);
+            const placeholderText = getFieldPlaceholder(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2">
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-brandindigo">*</span></label>
+                                    <textarea name="${h}" required rows="4" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm resize-y" placeholder="${placeholderText}" data-i18n-placeholder="${placeholderKey}">${safeDisplayVal}</textarea>
+                                </div>
+                            `);
+        }
+        else {
+            let inputType = 'text';
+            let colSpan = '';
+            if (lw.includes('password')) inputType = 'password';
+            else if (isDate) inputType = 'date';
+            else if (lw.includes('link') || lw.includes('url') || lw.includes('logo') || lw.includes('website')) {
+                inputType = 'url';
+                colSpan = 'col-span-1 sm:col-span-2';
+            }
+
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            const placeholderKey = getFieldPlaceholderKey(h);
+            const placeholderText = getFieldPlaceholder(h);
+
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="${colSpan}"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> ${isOptional ? '<span class="text-gray-400 font-normal ml-1">(Optional)</span>' : '<span class="text-brandindigo">*</span>'}</label>
+                                <input type="${inputType}" name="${h}" value="${safeDisplayVal}" ${requiredAttr} class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="${placeholderText}" data-i18n-placeholder="${placeholderKey}"></div>
+                            `);
+        }
+    });
+
+    if (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint')) {
+        setTimeout(autoCalculateAttendanceTimes, 100);
+    }
+    if (currentSheet.toLowerCase().includes('leave')) {
+        setTimeout(() => {
+            const form = document.getElementById('dynamic-form');
+            const inputs = Array.from(form.querySelectorAll('input'));
+
+            const startInput = inputs.find(i => i.name.toLowerCase().includes('start') || i.name.toLowerCase().includes('เริ่ม'));
+            const endInput = inputs.find(i => i.name.toLowerCase().includes('end') || i.name.toLowerCase().includes('สิ้นสุด'));
+            const totalInput = inputs.find(i => i.name.toLowerCase().includes('total') || i.name.toLowerCase().includes('days') || i.name.toLowerCase().includes('รวม'));
+
+            if (startInput && endInput && totalInput) {
+                totalInput.setAttribute('readonly', true);
+                totalInput.classList.add('bg-gray-100', 'text-gray-500', 'cursor-not-allowed', 'border-gray-200');
+                totalInput.classList.remove('bg-white');
+
+                const calcDays = () => {
+                    if (startInput.value && endInput.value) {
+                        const d1 = new Date(startInput.value);
+                        const d2 = new Date(endInput.value);
+                        const diffTime = d2 - d1;
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        totalInput.value = diffDays > 0 ? diffDays : 0;
+                    } else {
+                        totalInput.value = '';
+                    }
+                };
+                startInput.addEventListener('change', calcDays);
+                endInput.addEventListener('change', calcDays);
+            }
+        }, 100);
+    }
+    if (currentSheet.toLowerCase() === 'staff') {
+        setTimeout(() => {
+            const form = document.getElementById('dynamic-form');
+            const inputs = Array.from(form.querySelectorAll('input'));
+
+            const baseInput = inputs.find(i => i.name.toLowerCase().trim() === 'base_salary' || i.name.toLowerCase().includes('salary'));
+            const dailyInput = inputs.find(i => i.name.toLowerCase().trim() === 'daily_rate_formula' || i.name.toLowerCase().includes('daily'));
+
+            if (baseInput && dailyInput) {
+                dailyInput.setAttribute('readonly', true);
+                dailyInput.classList.add('bg-gray-100', 'text-gray-500', 'cursor-not-allowed', 'border-gray-200');
+                dailyInput.classList.remove('bg-white');
+
+                const calcDaily = () => {
+                    let salary = parseFloat(baseInput.value) || 0;
+                    dailyInput.value = salary > 0 ? (salary / 30).toFixed(2) : '';
+                };
+
+                baseInput.addEventListener('input', calcDaily);
+                if (!dailyInput.value && baseInput.value) calcDaily();
+            }
+        }, 50);
+    }
+
+    if (typeof updateDOMTranslations === 'function') updateDOMTranslations();
+    document.getElementById('form-modal').classList.remove('hidden');
+}
+
+function closeFormModal() {
+    document.getElementById('form-modal').classList.add('hidden');
+    editingRecordId = null;
+}
+
+function handleFormPhotoPreview(inputEl) {
+    if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+    const f = inputEl.files[0];
+
+    // Find wrapper container to locate img and hidden input reliably
+    const wrapper = inputEl.closest('.col-span-1') || inputEl.closest('.bg-indigo-50\\/30') || inputEl.closest('.flex.items-center') || inputEl.closest('.flex') || inputEl.closest('div');
+    const imgEl = wrapper ? wrapper.querySelector('img') : document.getElementById('preview-profile-img');
+    const hiddenEl = wrapper ? wrapper.querySelector('input[type="hidden"]') : document.getElementById('hidden-profile-input');
+
+    if (!imgEl && !hiddenEl) return;
+
+    const fallbackAvatar = 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic';
+
+    if (imgEl) {
+        imgEl.onerror = function () {
+            this.onerror = null;
+            this.src = fallbackAvatar;
+        };
+    }
+
+    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) {
+        if (imgEl) {
+            imgEl.src = 'https://cdn-icons-png.flaticon.com/512/337/337946.png';
+            imgEl.title = f.name;
+        }
+    } else {
+        const reader = new FileReader();
+        reader.onerror = function (err) {
+            console.warn('FileReader preview error:', err);
+        };
+        reader.onload = function (e) {
+            const rawBase64 = e.target.result;
+            // Instantly display preview image & sync hidden input synchronously
+            if (imgEl) imgEl.src = rawBase64;
+            if (hiddenEl) hiddenEl.value = rawBase64;
+
+            // Compress thumbnail in background for hidden input / database saving
+            compressImageFile(f, 480, 0.75).then(compressedBase64 => {
+                if (compressedBase64 && compressedBase64.startsWith('data:image') && compressedBase64.length > 50 && compressedBase64 !== 'data:,') {
+                    if (hiddenEl) hiddenEl.value = compressedBase64;
+                }
+            }).catch(err => {
+                if (hiddenEl) hiddenEl.value = rawBase64;
+            });
+        };
+        reader.readAsDataURL(f);
+    }
+}
+
+// Note: compressImageFile is globally defined in js/utils.js
+
+/* =====================================================================
+ * 📌 ส่วนที่ 19: FORM SUBMISSION (ฟังก์ชันส่งข้อมูลขึ้น Google Sheets)
+ * - ส่งข้อมูลจากฟอร์มบันทึก, แก้ไข ไปยังเซิร์ฟเวอร์
+ * ===================================================================== */
+function submitData(e) {
+    e.preventDefault();
+
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let userRole = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            const s = JSON.parse(sessionStr);
+            userRole = s.role || 'Staff';
+            if (s.permissions) userPerms = parsePermissionsList(s.permissions);
+        } catch (err) { }
+    }
+
+    const isEditMode = Boolean(editingRecordId);
+    const requiredAction = isEditMode ? 'edit' : 'add';
+    const isSuperAdminUser = String(userRole).trim().toLowerCase() === 'super admin' || String(userRole).trim().toLowerCase() === 'superadmin';
+    const isAttendanceLogs = (currentSheet === 'Fingerprint_Logs' || currentSheet === 'fingerprint_logs' || String(currentSheet).toLowerCase().includes('fingerprint') || String(currentSheet).toLowerCase().includes('attendance'));
+
+    const isRoleAdmin = String(userRole).toLowerCase().includes('admin') || String(userRole).toLowerCase().includes('super');
+    const canSubmit = (isAttendanceLogs && isEditMode) ? isSuperAdminUser : (isRoleAdmin || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, requiredAction, userPerms) || (requiredAction === 'add' && hasActionPermission(currentSheet, 'edit', userPerms))) : (userRole !== 'Staff' || (requiredAction === 'add' && (currentSheet === 'Leave application' || currentSheet.includes('Budget'))))));
+
+    if (!canSubmit) {
+        showToast(`คุณไม่มีสิทธิ์${isEditMode ? 'แก้ไข' : 'เพิ่ม'}ข้อมูลในหน้านี้ (เฉพาะ Super Admin)`, 'error');
+        return;
+    }
+
+    const dataObj = {};
+    let permissionsArray = [];
+    let permKeyName = '';
+
+    // PREVENT DATA LOSS: Initialize dataObj with existing row data if in edit mode
+    let existingRowData = null;
+    if (isEditMode && typeof rawData !== 'undefined' && Array.isArray(rawData)) {
+        const rowIndex = rawData.findIndex(r => String(getRecordId(r) || '').trim() === String(editingRecordId || '').trim());
+        if (rowIndex > -1) {
+            existingRowData = rawData[rowIndex];
+        }
+    }
+
+    currentHeaders.forEach(h => {
+        // Fallback to existing value if available, else empty string
+        dataObj[h] = (existingRowData && existingRowData[h] !== undefined && existingRowData[h] !== null) ? existingRowData[h] : '';
+
+        let lwK = h.toLowerCase().trim();
+        if (lwK === 'permissions' || lwK === 'สิทธิ์' || lwK === 'สิทธิ์การเข้าถึง') {
+            permKeyName = h;
+        }
+    });
+
+    new FormData(e.target).forEach((v, k) => {
+        let lwK = k.toLowerCase().trim();
+        if (lwK === 'permissions' || lwK === 'สิทธิ์' || lwK === 'สิทธิ์การเข้าถึง') {
+            permissionsArray.push(v);
+        } else if (v instanceof File) {
+            // Skip file here, handled below
+        } else {
+            if (v === 'สร้างอัตโนมัติ (Auto)' || v === 'Auto Generated') {
+                if (currentSheet.toLowerCase().includes('department')) {
+                    v = 'DEPT-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                } else {
+                    v = 'NEW-' + Date.now();
+                }
+            }
+            dataObj[k] = v;
+        }
+    });
+
+    if (typeof isEmployeeRatingSheet === 'function' && isEmployeeRatingSheet(currentSheet)) {
+        let ratingKey = Object.keys(dataObj).find(k => ['star point', 'star_point', 'rating', 'score'].includes(k.toLowerCase().trim())) || 'Star Point';
+        let scoreVal = parseFloat(dataObj[ratingKey]) || 0;
+
+        // 🚀 คืนค่าโค้ดกลับเป็นแบบเดิม ให้เก็บเป็นดาวแบบมีทศนิยม (60 คะแนน = 0.6 ดาว)
+        let starVal = scoreVal > 5 ? (scoreVal / 100) : scoreVal;
+
+        dataObj[ratingKey] = starVal;
+        if (dataObj['Star Point'] !== undefined) dataObj['Star Point'] = starVal;
+        if (dataObj['star_point'] !== undefined) dataObj['star_point'] = starVal;
+    }
+
+    if (permKeyName) dataObj[permKeyName] = permissionsArray.join(', ');
+
+    const currentEditId = editingRecordId;
+
+    let allFileInputs = Array.from(e.target.querySelectorAll('input[type="file"]'));
+    let fileInput = allFileInputs.find(inp => inp.files && inp.files.length > 0);
+    let hiddenImgInput = e.target.querySelector('input[type="hidden"][id="hidden-profile-input"]')
+        || e.target.querySelector('input[type="hidden"][id="hidden-document-input"]')
+        || e.target.querySelector('input[type="hidden"][name="PHOTOS"]')
+        || e.target.querySelector('input[type="hidden"][name="photos"]')
+        || e.target.querySelector('input[type="hidden"][name="photo"]')
+        || e.target.querySelector('input[type="hidden"][name="Photo"]');
+
+    if (fileInput && fileInput.files.length > 0) {
+        toggleLoading(true, 'UPLOADING FILE...');
+        let file = fileInput.files[0];
+        let targetColName = currentHeaders.find(h => /^(photo|photos|profile|pic|image)$/i.test(h.trim()))
+            || (hiddenImgInput ? hiddenImgInput.name : 'Photos');
+
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+            let reader = new FileReader();
+            reader.onload = function (evt) {
+                toggleLoading(false);
+                dataObj[targetColName] = evt.target.result;
+                if (hiddenImgInput) hiddenImgInput.value = evt.target.result;
+                executeSaveToSheet(dataObj, currentEditId);
+            };
+            reader.onerror = function (err) {
+                toggleLoading(false);
+                showToast('ไม่สามารถอ่านไฟล์ PDF ได้', 'error');
+            };
+            reader.readAsDataURL(file);
+        } else {
+            compressImageFile(file, 480, 0.75).then(function (base64Data) {
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            toggleLoading(false);
+                            if (res.success) {
+                                const finalUrl = res.url || base64Data;
+                                dataObj[targetColName] = finalUrl;
+                                if (hiddenImgInput) hiddenImgInput.value = finalUrl;
+                                executeSaveToSheet(dataObj, currentEditId);
+                            } else {
+                                showToast('Image upload failed: ' + res.message, 'error');
+                            }
+                        })
+                        .withFailureHandler(err => {
+                            toggleLoading(false);
+                            showToast('Connection failed: ' + err.message, 'error');
+                        })
+                        .uploadImageToDrive(base64Data, file.name);
+                } else {
+                    toggleLoading(false);
+                    if (!base64Data || base64Data === 'data:,' || base64Data.length < 50) {
+                        showToast('ไม่สามารถประมวลผลรูปภาพได้', 'error');
+                        return;
+                    }
+                    dataObj[targetColName] = base64Data;
+                    if (hiddenImgInput) hiddenImgInput.value = base64Data;
+                    executeSaveToSheet(dataObj, currentEditId);
+                }
+            }).catch(function (err) {
+                toggleLoading(false);
+                showToast('ไม่สามารถเตรียมไฟล์รูปภาพได้: ' + (err && err.message ? err.message : err), 'error');
+            });
+        }
+    } else {
+        if (hiddenImgInput) {
+            let imgColName = hiddenImgInput.name;
+            let imgVal = hiddenImgInput.value;
+            if (imgVal === 'data:,' || imgVal === 'data:;' || (typeof imgVal === 'string' && imgVal.startsWith('data:') && imgVal.length < 50)) {
+                imgVal = '';
+            }
+            dataObj[imgColName] = imgVal;
+            let targetColName = currentHeaders.find(h => /^(photo|photos|profile|pic|image)$/i.test(h.trim())) || imgColName;
+            dataObj[targetColName] = imgVal;
+        }
+        executeSaveToSheet(dataObj, currentEditId);
+    }
+}
+function executeSaveToSheet(dataObj, currentEditId) {
+    if (currentEditId === '-' || currentEditId === 'NEW-' || String(currentEditId || '').trim() === '') {
+        currentEditId = null;
+    }
+    if (!currentEditId && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user')) {
+        let empIdVal = dataObj.employee_id || dataObj.Employee_ID || dataObj['employees id'] || dataObj['Employees Id'] || dataObj.emp_id || dataObj.staff_id || dataObj.username || dataObj.Username;
+        if (empIdVal) {
+            const targetUpper = String(empIdVal).trim().toUpperCase();
+            let rowsToCheck = [];
+            const sheet = currentSheet.toLowerCase();
+
+            if (sheet === 'user') {
+                // For User login accounts, check duplicate ONLY within user table!
+                rowsToCheck = (tableCache['user'] && tableCache['user'].data) || [];
+                if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'user') {
+                    rowsToCheck = rawData;
+                }
+            } else if (sheet === 'staff') {
+                // For Staff directory, check duplicate ONLY within staff table!
+                rowsToCheck = (tableCache['staff'] && tableCache['staff'].data) || [];
+                if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'staff') {
+                    rowsToCheck = rawData;
+                }
+            }
+
+            const isDup = rowsToCheck.some(r => {
+                let eId = r.employee_id || r.Employee_ID || r['employees id'] || r['Employees Id'] || r.emp_id || r.staff_id || r.username || r.Username;
+                return eId && String(eId).trim().toUpperCase() === targetUpper;
+            });
+
+            if (isDup) {
+                toggleLoading(false);
+                showToast(t('emp_id_exists') || `⚠️ ລະຫັດພະນັກງານນີ້ມີຢູ່ໃນລະບົບແລ້ວ! (${empIdVal})`, 'error');
+                const empIdInput = document.querySelector('#dynamic-form input[name="Employee_ID"], #dynamic-form input[name="emp_id"], #dynamic-form input[name="User_ID"]');
+                if (empIdInput) {
+                    checkDuplicateEmployeeId(empIdInput);
+                    empIdInput.focus();
+                }
+                return;
+            }
+        }
+    }
+
+    if (currentSheet === 'Leave application' && !currentEditId) {
+        let requestedDays = 0;
+        for (let k in dataObj) {
+            if (k.toLowerCase().includes('total') || k.toLowerCase().includes('days')) {
+                requestedDays = parseFloat(dataObj[k]) || 0;
+                break;
+            }
+        }
+
+        const remaining = typeof window._currentLeaveRemaining !== 'undefined'
+            ? window._currentLeaveRemaining
+            : null;
+        const quota = typeof window._currentLeaveQuota !== 'undefined'
+            ? window._currentLeaveQuota
+            : null;
+
+        if (quota !== null && quota > 0 && requestedDays > remaining) {
+            showToast(
+                `⚠️ ไม่สามารถยื่นขอลาได้! วันที่ขอ (${requestedDays} วัน) เกินโควตาคงเหลือ (${remaining} วัน)`,
+                'error'
+            );
+            toggleLoading(false);
+            return;
+        }
+    }
+
+    closeFormModal();
+    if (currentSheet === 'Leave application' && !currentEditId) {
+        let sigKey = currentHeaders.find(h => h.toLowerCase().trim() === 'signature') || 'Signature';
+        dataObj[sigKey] = 'Pending';
+    }
+
+    if ((currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget')) && !currentEditId) {
+        const timestamp = Date.now().toString().slice(-6);
+        const randomCode = Math.random().toString(36).substring(2, 5).toUpperCase();
+        const newBudgetId = `B-${timestamp}-${randomCode}`;
+
+        dataObj['Id_Budget'] = newBudgetId;
+        dataObj['budget_id'] = newBudgetId;
+        dataObj['Signature'] = 'Pending';
+        dataObj['signature'] = 'Pending';
+        dataObj['Status'] = 'Pending';
+        dataObj['status'] = 'Pending';
+        dataObj['dept_head_sign'] = null;
+        dataObj['Dept_Head_Sign'] = null;
+        dataObj['approver_sign'] = null;
+        dataObj['Approver_Sign'] = null;
+        dataObj['dept_head_img'] = null;
+        dataObj['Dept_Head_Img'] = null;
+        dataObj['approver_img'] = null;
+        dataObj['Approver_Img'] = null;
+    }
+
+    const businessIdCol = currentHeaders.find(h => {
+        const key = h.toLowerCase().trim();
+        return key === 'id' || key === 'id_leave' || key === 'leave_id' || key === 'log_id' ||
+            key === 'asset_id' || key === 'course_id' || key === 'department_id' ||
+            key === 'organization_id' || key === 'orgid' || key === 'category_id' ||
+            key === 'point_id' || key === 'ranting_id' || key === 'rating_id' || key === 'kpi_id' ||
+            key === 'id_budget' || key === 'budget_id' || key === 'news_id' || key === 'announcement_id' ||
+            key === 'document_id' || key === 'policy_code' || key === 'org_id';
+    });
+    if (businessIdCol && (!dataObj[businessIdCol] || String(dataObj[businessIdCol]).trim() === '' || dataObj[businessIdCol] === 'สร้างอัตโนมัติ (Auto)' || dataObj[businessIdCol] === 'Auto Generated')) {
+        const sheetLw = currentSheet.toLowerCase().trim();
+        let prefix = 'NEW';
+        if (sheetLw.includes('department')) prefix = 'DEPT';
+        else if (sheetLw.includes('news')) prefix = 'NEWS';
+        else if (sheetLw.includes('announc')) prefix = 'ANN';
+        else if (sheetLw.includes('doc')) prefix = 'DOC';
+        else if (sheetLw.includes('policy')) prefix = 'POL';
+        else if (sheetLw.includes('training')) prefix = 'COURSE';
+        else if (sheetLw.includes('asset')) prefix = 'ASSET';
+
+        const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+        if (prefix === 'DEPT') {
+            dataObj[businessIdCol] = `${prefix}-${randomCode}`;
+        } else {
+            dataObj[businessIdCol] = `${prefix}-${Date.now()}-${randomCode}`;
+        }
+    }
+
+    if (!currentEditId) {
+        rawData.unshift(dataObj);
+    } else {
+        const rowIndex = rawData.findIndex(r => String(getRecordId(r) || '').trim() === String(currentEditId || '').trim());
+        if (rowIndex > -1) {
+            Object.keys(dataObj).forEach(k => {
+                // เอาเงื่อนไข !== '' ออก เพื่อให้อัปเดตค่าว่าง (กรณีเอาติ๊กถูกออกหมด) ได้
+                if (dataObj[k] !== undefined && dataObj[k] !== null) {
+                    rawData[rowIndex][k] = dataObj[k];
+                }
+            });
+        }
+    }
+
+    if (currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') {
+        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+        if (sessionStr) {
+            try {
+                const s = JSON.parse(sessionStr);
+                const savedEmp = String(dataObj.Employee_ID || dataObj.employee_id || dataObj.Username || dataObj.username || '').trim().toUpperCase();
+                const sessionEmp = String(s.empId || s.username || s.email || '').trim().toUpperCase();
+
+                if (savedEmp && (savedEmp === sessionEmp || String(s.email).trim().toLowerCase() === String(dataObj.Username || dataObj.username || '').trim().toLowerCase())) {
+                    s.permissions = dataObj.Permissions || dataObj.permissions || '';
+                    s.role = dataObj.Role || dataObj.role || s.role;
+                    localStorage.setItem('hr_user_session', JSON.stringify(s));
+                    if (sessionStorage.getItem('hr_user_session')) {
+                        sessionStorage.setItem('hr_user_session', JSON.stringify(s));
+                    }
+                    if (typeof applyRolePermissions === 'function') {
+                        applyRolePermissions(s.role, s.permissions);
+                    }
+                }
+            } catch (e) { }
+        }
+    }
+
+    if (tableCache[currentSheet]) tableCache[currentSheet].data = rawData;
+    renderTable(rawData);
+
+    // Save to local cache & localStorage
+    try {
+        localStorage.setItem(`hr_cache_${currentSheet}`, JSON.stringify(rawData));
+    } catch (e) { }
+
+    // Save to Supabase if active — always map keys via toPayload() to match exact DB column names
+    if (window.supabase && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user'
+        || currentSheet.toLowerCase() === 'users')) {
+        const tableName = currentSheet.toLowerCase() === 'user' ? 'users' : currentSheet.toLowerCase();
+        let supaPayload;
+        try {
+            supaPayload = (typeof toPayload === 'function') ? toPayload(tableName, dataObj) : dataObj;
+        } catch (e) {
+            supaPayload = dataObj;
+        }
+        // Sanitize any data: URIs in the payload to remove whitespace and filter corrupted strings
+        Object.keys(supaPayload).forEach(k => {
+            if (typeof supaPayload[k] === 'string') {
+                if (supaPayload[k].startsWith('data:image')) {
+                    supaPayload[k] = supaPayload[k].replace(/[\r\n\t\s]+/g, "");
+                }
+                if (supaPayload[k] === 'data:,' || supaPayload[k] === 'data:;' || (supaPayload[k].startsWith('data:') && supaPayload[k].length < 50)) {
+                    supaPayload[k] = null;
+                }
+            }
+        });
+        // Determine primary key for upsert
+        const pkCol = tableName === 'staff' ? 'Employee_ID' : 'employee_id';
+        const pkVal = supaPayload[pkCol] || supaPayload['Employee_ID'] || supaPayload['employee_id'];
+        if (pkVal) {
+            window.supabase.from(tableName)
+                .update(supaPayload)
+                .eq(pkCol, pkVal)
+                .then(({ error }) => {
+                    if (error) {
+                        console.warn('Supabase update error:', error.message);
+                        // Fallback to upsert if update fails
+                        window.supabase.from(tableName).upsert(supaPayload).then(({ error: e2 }) => {
+                            if (e2) console.warn('Supabase upsert error:', e2.message);
+                        });
+                    }
+                });
+        } else {
+            window.supabase.from(tableName).insert(supaPayload).then(({ error }) => {
+                if (error) console.warn('Supabase insert error:', error.message);
+            });
+        }
+    }
+
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+        toggleLoading(true, 'SAVING DATA...');
+        if (currentEditId) {
+            google.script.run
+                .withSuccessHandler(res => {
+                    toggleLoading(false);
+                    if (res.success) { showSuccessModal("Record Updated", "Database updated successfully."); fetchData(currentSheet, true); }
+                    else { showToast(res.message, 'error'); fetchData(currentSheet, true); }
+                })
+                .withFailureHandler(err => { toggleLoading(false); showToast('Connection failed: ' + err.message, 'error'); fetchData(currentSheet, true); })
+                .updateEntireRecord(currentSheet, currentEditId, dataObj);
+        } else {
+            google.script.run
+                .withSuccessHandler(res => {
+                    toggleLoading(false);
+                    if (res.success) { showSuccessModal("Record Added", "New data saved to database."); fetchData(currentSheet, true); }
+                    else { showToast(res.message, 'error'); }
+                })
+                .withFailureHandler(err => { toggleLoading(false); showToast('Connection failed: ' + err.message, 'error'); })
+                .saveData(currentSheet, dataObj);
+        }
+    } else {
+        toggleLoading(false);
+        showSuccessModal("บันทึกข้อมูลสำเร็จ", "บันทึกและอัปเดตรูปภาพเรียบร้อยแล้ว");
+    }
+}
+
+function deleteRecord(id) {
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let role = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            const s = JSON.parse(sessionStr);
+            role = s.role || 'Staff';
+            if (s.permissions) userPerms = parsePermissionsList(s.permissions);
+        } catch (e) { }
+    }
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+    const isAttendanceLogs = (currentSheet === 'Fingerprint_Logs' || currentSheet === 'fingerprint_logs' || String(currentSheet).toLowerCase().includes('fingerprint') || String(currentSheet).toLowerCase().includes('attendance'));
+
+    const isRoleAdmin = String(role).toLowerCase().includes('admin') || String(role).toLowerCase().includes('super');
+    const canDelete = isAttendanceLogs ? isSuperAdmin : (isRoleAdmin || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff')));
+    if (!canDelete) {
+        showToast('คุณไม่มีสิทธิ์ลบข้อมูลในหน้านี้ (เฉพาะ Super Admin)', 'error');
+        return;
+    }
+
+    showConfirmModal(
+        'Confirm Deletion',
+        `Are you sure you want to delete record <b>${id}</b>?<br><span class="text-[11px] text-gray-500 mt-2 block uppercase tracking-widest font-medium">This action cannot be undone</span>`,
+        () => {
+            rawData = rawData.filter(r => getRecordId(r) !== id);
+            if (tableCache[currentSheet]) tableCache[currentSheet].data = rawData;
+            renderTable(rawData);
+
+            toggleLoading(true, 'DELETING RECORD...');
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    toggleLoading(false);
+                    if (res.success) { showSuccessModal("Record Deleted", "Data has been removed from database."); }
+                    else { showToast(res.message, 'error'); fetchData(currentSheet, true); }
+                })
+                .withFailureHandler(err => {
+                    toggleLoading(false);
+                    showToast('Connection failed: ' + err.message, 'error');
+                    fetchData(currentSheet, true);
+                })
+                .deleteRecordData(currentSheet, id);
+        },
+        null,
+        true
+    );
+}
+
+/* =====================================================================
+ * 📌 ส่วนที่ 20: BUDGET BILL EDITOR
+ * ===================================================================== */
+window.addBillRow = function (no = '', name = '', qty = '', price = '', total = '') {
+    const tbody = document.getElementById('bill-items-tbody');
+    if (!tbody) return;
+    const rowCount = tbody.children.length;
+    const itemNo = no || (rowCount + 1);
+
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-50/50';
+    tr.innerHTML = `
+                <td class="p-2 font-bold text-gray-400 text-center bill-row-no">${itemNo}</td>
+                <td class="p-2">
+                    <input type="text" value="${String(name).replace(/"/g, '&quot;')}" placeholder="ชื่อรายการ..." required oninput="updateBillJsonAndTotal()" class="w-full bg-white border border-gray-200 text-gray-900 rounded-lg p-2 text-xs focus:ring-brandindigo focus:border-brandindigo">
+                </td>
+                <td class="p-2">
+                    <input type="number" min="1" value="${qty}" placeholder="0" required oninput="calculateBillRow(this); updateBillJsonAndTotal()" class="w-full bg-white border border-gray-200 text-gray-900 rounded-lg p-2 text-xs text-center focus:ring-brandindigo focus:border-brandindigo bill-item-qty">
+                </td>
+                <td class="p-2">
+                    <input type="number" min="0" step="any" value="${price}" placeholder="0.00" required oninput="calculateBillRow(this); updateBillJsonAndTotal()" class="w-full bg-white border border-gray-200 text-gray-900 rounded-lg p-2 text-xs text-right focus:ring-brandindigo focus:border-brandindigo bill-item-price">
+                </td>
+                <td class="p-2 text-right font-black text-gray-900 bill-item-total">${new Intl.NumberFormat('th-TH').format(parseFloat(total) || 0)}</td>
+                <td class="p-2 text-center">
+                    <button type="button" onclick="deleteBillRow(this)" class="text-red-500 hover:text-red-700 transition-colors p-1.5"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                </td>
+            `;
+    tbody.appendChild(tr);
+    updateBillJsonAndTotal();
+};
+
+window.calculateBillRow = function (inputEl) {
+    const tr = inputEl.closest('tr');
+    const qty = parseFloat(tr.querySelector('.bill-item-qty').value) || 0;
+    const price = parseFloat(tr.querySelector('.bill-item-price').value) || 0;
+    const total = qty * price;
+    tr.querySelector('.bill-item-total').innerText = new Intl.NumberFormat('th-TH').format(total);
+};
+
+window.deleteBillRow = function (btnEl) {
+    const tr = btnEl.closest('tr');
+    tr.remove();
+
+    const tbody = document.getElementById('bill-items-tbody');
+    if (tbody) {
+        Array.from(tbody.children).forEach((child, idx) => {
+            child.querySelector('.bill-row-no').innerText = idx + 1;
+        });
+    }
+    updateBillJsonAndTotal();
+};
+
+window.updateBillJsonAndTotal = function () {
+    const tbody = document.getElementById('bill-items-tbody');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.children);
+    const items = [];
+    let grandTotal = 0;
+
+    rows.forEach(tr => {
+        const no = parseInt(tr.querySelector('.bill-row-no').innerText) || 0;
+        const name = tr.querySelector('td:nth-child(2) input').value.trim();
+        const qty = parseFloat(tr.querySelector('.bill-item-qty').value) || 0;
+        const price = parseFloat(tr.querySelector('.bill-item-price').value) || 0;
+        const total = qty * price;
+
+        items.push({ no, name, qty, price, total });
+        grandTotal += total;
+    });
+
+    const vatInput = document.getElementById('form-vat-percent-input');
+    const vatPercent = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
+    const vatAmount = grandTotal * (vatPercent / 100);
+    const finalTotal = grandTotal + vatAmount;
+
+    items.forEach(it => {
+        it.vat_percent = vatPercent;
+    });
+
+    const hiddenInput = document.getElementById('hidden-bill-items-input');
+    if (hiddenInput) {
+        hiddenInput.value = JSON.stringify(items);
+    }
+
+    const displayTotal = document.getElementById('bill-total-price-display');
+    if (displayTotal) {
+        if (vatPercent > 0) {
+            displayTotal.innerText = `${new Intl.NumberFormat('th-TH').format(finalTotal)} (รวม VAT ${vatPercent}%)`;
+        } else {
+            displayTotal.innerText = new Intl.NumberFormat('th-TH').format(finalTotal);
+        }
+    }
+
+    const amountInput = document.querySelector('#dynamic-form input[name="Amount"], #dynamic-form input[name="amount"]');
+    if (amountInput) {
+        amountInput.value = finalTotal;
+        amountInput.readOnly = true;
+        amountInput.classList.add('bg-gray-100', 'text-gray-500', 'cursor-not-allowed');
+    }
+};
+
+window.initializeBillEditor = function (jsonStr) {
+    const tbody = document.getElementById('bill-items-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    try {
+        let decoded = jsonStr;
+        if (decoded === undefined || decoded === null || String(decoded).trim() === '' || String(decoded).trim() === '-') {
+            decoded = '[]';
+        }
+        if (typeof decoded === 'string') {
+            decoded = decoded.replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+            if (decoded.includes('%')) {
+                try {
+                    decoded = decodeURIComponent(decoded);
+                } catch (e) { }
+            }
+        }
+        const items = typeof decoded === 'object' ? decoded : JSON.parse(decoded || '[]');
+        if (Array.isArray(items) && items.length > 0) {
+            const savedVat = items[0].vat_percent || 0;
+            const vatInput = document.getElementById('form-vat-percent-input');
+            if (vatInput) vatInput.value = savedVat;
+
+            items.forEach(item => {
+                addBillRow(item.no, item.name, item.qty, item.price, item.total);
+            });
+        } else {
+            addBillRow();
+        }
+    } catch (e) {
+        console.warn('Failed to parse bill items JSON, adding blank row:', e);
+        addBillRow();
+    }
+};
+
+window.showBillDetailsModal = function (encodedRow) {
+    try {
+        let row = {};
+        if (typeof encodedRow === 'object' && encodedRow !== null) {
+            row = encodedRow;
+        } else {
+            let str = String(encodedRow || '');
+            try {
+                if (str.includes('%')) {
+                    str = decodeURIComponent(str);
+                }
+            } catch (e) { }
+            try {
+                row = JSON.parse(str);
+            } catch (e) {
+                console.error("Failed to parse encodedRow JSON in showBillDetailsModal:", e, str);
+                row = {};
+            }
+        }
+
+        const primaryId = row.Id_Budget || row.budget_id || row.id || row.Id || row.__db_id;
+
+        // Candidate keys for matching
+        const idCandidates = [
+            primaryId,
+            !primaryId && (row.Employee_ID || row.employee_id) ? ((row.Employee_ID || row.employee_id) + '_' + (row.Request_Date || row.request_date)) : null
+        ].filter(Boolean);
+
+        // 1. Sync latest row data from tableCache if available
+        if (typeof tableCache !== 'undefined' && tableCache['Budget Request'] && Array.isArray(tableCache['Budget Request'].data)) {
+            const cached = tableCache['Budget Request'].data.find(r => {
+                const rPrimaryId = r.Id_Budget || r.budget_id || r.id || r.Id || r.__db_id;
+                if (primaryId && rPrimaryId) {
+                    return String(primaryId).trim() === String(rPrimaryId).trim();
+                }
+                const rEmpDate = (r.Employee_ID || r.employee_id) + '_' + (r.Request_Date || r.request_date);
+                const rowEmpDate = (row.Employee_ID || row.employee_id) + '_' + (row.Request_Date || row.request_date);
+                return rEmpDate === rowEmpDate;
+            });
+            if (cached) {
+                row = Object.assign({}, cached, row);
+            }
+        }
+
+        // 2. Sync persistent signatures from localStorage across all candidate keys
+        for (let candidateId of idCandidates) {
+            const savedLocalSig = localStorage.getItem('hr_budget_sig_' + candidateId);
+            if (savedLocalSig) {
+                try {
+                    const parsedSig = JSON.parse(savedLocalSig);
+                    if (parsedSig.signature) {
+                        row.Signature = parsedSig.signature;
+                        row.signature = parsedSig.signature;
+                        row.Status = parsedSig.signature;
+                        row.status = parsedSig.signature;
+                    }
+                    if (parsedSig.dept_head_sign) { row.dept_head_sign = parsedSig.dept_head_sign; row.Dept_Head_Sign = parsedSig.dept_head_sign; }
+                    if (parsedSig.approver_sign) { row.approver_sign = parsedSig.approver_sign; row.Approver_Sign = parsedSig.approver_sign; }
+                    if (parsedSig.dept_head_img) { row.dept_head_img = parsedSig.dept_head_img; row.Dept_Head_Img = parsedSig.dept_head_img; }
+                    if (parsedSig.approver_img) { row.approver_img = parsedSig.approver_img; row.Approver_Img = parsedSig.approver_img; }
+                    break;
+                } catch (e) { }
+            }
+        }
+
+        const idEl = document.getElementById('bill-modal-id');
+        if (idEl) idEl.innerText = row.Id_Budget || row.budget_id || row.id || '-';
+
+        const dateEl = document.getElementById('bill-modal-date');
+        if (dateEl) {
+            const rawDt = row.created_at || row.Created_At || row.Request_Date || row.request_date || '';
+            if (rawDt) {
+                try {
+                    const dt = new Date(rawDt);
+                    if (!isNaN(dt.getTime())) {
+                        const day = String(dt.getDate()).padStart(2, '0');
+                        const month = String(dt.getMonth() + 1).padStart(2, '0');
+                        const year = dt.getFullYear();
+                        const hh = String(dt.getHours()).padStart(2, '0');
+                        const mm = String(dt.getMinutes()).padStart(2, '0');
+                        const hasTime = String(rawDt).includes('T') || String(rawDt).includes(':');
+                        dateEl.innerText = hasTime ? `${day}/${month}/${year} ${hh}:${mm} น.` : `${day}/${month}/${year}`;
+                    } else {
+                        dateEl.innerText = rawDt;
+                    }
+                } catch (e) {
+                    dateEl.innerText = rawDt;
+                }
+            } else {
+                dateEl.innerText = '-';
+            }
+        }
+
+        const status = row.Signature || row.signature || row.Status || row.status || 'Pending';
+        const statusLower = String(status).toLowerCase();
+
+        const deptSignVal = String(row.dept_head_sign || row.Dept_Head_Sign || '').trim();
+        const approverSignVal = String(row.approver_sign || row.Approver_Sign || '').trim();
+
+        const hasDeptHeadSign = !!deptSignVal && !deptSignVal.startsWith('DEPT-');
+        const hasFinalSign = !!approverSignVal && !approverSignVal.startsWith('DEPT-');
+
+        const isFinalApproved = hasFinalSign || statusLower === 'approved' || (statusLower.includes('approve') && !statusLower.includes('dept head') && !statusLower.includes('checked'));
+        const isDeptHeadApproved = hasDeptHeadSign || statusLower.includes('dept head') || statusLower.includes('checked') || isFinalApproved;
+
+        // Currency formatting helper (THB, LAK, USD)
+        const cur = row.currency || row.Currency || 'THB';
+        const selectEl = document.getElementById('bill-modal-currency-select');
+        if (selectEl) selectEl.value = cur;
+
+        function formatMoney(amount) {
+            const num = Number(amount || 0);
+            const formatted = new Intl.NumberFormat('th-TH', {
+                minimumFractionDigits: cur === 'USD' ? 2 : 0,
+                maximumFractionDigits: 2
+            }).format(num);
+
+            if (cur === 'LAK' || cur === 'กิ๊บ' || cur === 'กีบ') {
+                return `${formatted} ກີບ`;
+            } else if (cur === 'USD' || cur === '$') {
+                return `$ ${formatted}`;
+            } else {
+                return `${formatted} บาท`;
+            }
+        }
+
+        const statusEl = document.getElementById('bill-modal-status');
+        if (statusEl) {
+            if (isFinalApproved) {
+                statusEl.innerText = 'APPROVED';
+                statusEl.className = 'inline-block px-3 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-full uppercase tracking-wider shadow-sm';
+            } else if (isDeptHeadApproved) {
+                statusEl.innerText = 'CHECKED (DEPT HEAD)';
+                statusEl.className = 'inline-block px-3 py-1 bg-indigo-50 border border-indigo-100 text-brandindigo text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm';
+            } else if (statusLower.includes('reject')) {
+                statusEl.innerText = 'REJECTED';
+                statusEl.className = 'inline-block px-3 py-1 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm';
+            } else {
+                statusEl.innerText = 'PENDING';
+                statusEl.className = 'inline-block px-3 py-1 bg-amber-50 border border-amber-100 text-amber-600 text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm';
+            }
+        }
+
+        const fullName = `${row.Prefix || ''} ${row.First_Name || ''} ${row.Last_Name || ''}`.trim() || '-';
+        const reqNameEl = document.getElementById('bill-modal-requester-name'); if (reqNameEl) reqNameEl.innerText = fullName;
+        const reqIdEl = document.getElementById('bill-modal-requester-id'); if (reqIdEl) reqIdEl.innerText = row.Employee_ID || row.employee_id || '-';
+        const reqDeptEl = document.getElementById('bill-modal-requester-dept'); if (reqDeptEl) reqDeptEl.innerText = row.Department_ID || row.department_id || '-';
+        const reqPosEl = document.getElementById('bill-modal-requester-pos'); if (reqPosEl) reqPosEl.innerText = row.Position_ID || row.position_id || '-';
+
+        const titleEl = document.getElementById('bill-modal-title'); if (titleEl) titleEl.innerText = row.Title || row.title || '-';
+        const descEl = document.getElementById('bill-modal-desc'); if (descEl) descEl.innerText = row.Description || row.description || '-';
+
+        const tbody = document.getElementById('bill-modal-items-tbody');
+        tbody.innerHTML = '';
+
+        let decodedItems = row.Items || row.items || '[]';
+        if (String(decodedItems).includes('%')) {
+            try {
+                decodedItems = decodeURIComponent(decodedItems);
+            } catch (e) { }
+        }
+
+        let itemsList = [];
+        try {
+            itemsList = JSON.parse(decodedItems);
+        } catch (e) {
+            console.warn(e);
+        }
+
+        let grandTotal = 0;
+        if (Array.isArray(itemsList) && itemsList.length > 0) {
+            itemsList.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                            <td class="px-4 py-3 text-center text-gray-400 font-bold">${item.no || (idx + 1)}</td>
+                            <td class="px-4 py-3 font-semibold text-gray-900">${item.name || '-'}</td>
+                            <td class="px-4 py-3 text-center">${item.qty || 0}</td>
+                            <td class="px-4 py-3 text-right">${formatMoney(item.price || 0)}</td>
+                            <td class="px-4 py-3 text-right font-black text-gray-900">${formatMoney(item.total || 0)}</td>
+                        `;
+                tbody.appendChild(tr);
+                grandTotal += parseFloat(item.total) || 0;
+            });
+        } else {
+            const rawAmt = parseFloat(row.Amount || row.amount) || 0;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                        <td class="px-4 py-3 text-center text-gray-400 font-bold">1</td>
+                        <td class="px-4 py-3 font-semibold text-gray-900">${row.Title || row.title || 'ของบประมาณ'}</td>
+                        <td class="px-4 py-3 text-center">1</td>
+                        <td class="px-4 py-3 text-right">${formatMoney(rawAmt)}</td>
+                        <td class="px-4 py-3 text-right font-black text-gray-900">${formatMoney(rawAmt)}</td>
+                    `;
+            tbody.appendChild(tr);
+            grandTotal = rawAmt;
+        }
+
+        const vatPercent = parseFloat(row.vat_percent || row.Vat_Percent || row.vat || (itemsList && itemsList[0] && itemsList[0].vat_percent) || 0) || 0;
+        const taxAmt = vatPercent > 0 ? (grandTotal * vatPercent / 100) : 0;
+        const finalBillTotal = grandTotal + taxAmt;
+
+        const subTotalEl = document.getElementById('bill-modal-subtotal');
+        if (subTotalEl) subTotalEl.innerText = formatMoney(grandTotal);
+
+        const taxLabelEl = document.getElementById('bill-modal-tax-label');
+        if (taxLabelEl) taxLabelEl.innerText = `ภาษีมูลค่าเพิ่ม / Tax (${vatPercent}%):`;
+
+        const taxEl = document.getElementById('bill-modal-tax');
+        if (taxEl) taxEl.innerText = formatMoney(taxAmt);
+
+        const grandTotalEl = document.getElementById('bill-modal-grandtotal');
+        if (grandTotalEl) {
+            grandTotalEl.innerText = formatMoney(finalBillTotal);
+            grandTotalEl.className = 'text-lg font-black transition-colors duration-300';
+            if (isFinalApproved) {
+                grandTotalEl.classList.add('text-emerald-600');
+            } else if (statusLower.includes('reject')) {
+                grandTotalEl.classList.add('text-red-600');
+            } else {
+                grandTotalEl.classList.add('text-brandindigo');
+            }
+        }
+
+        window._activeBillRow = row;
+
+        document.getElementById('bill-modal-sign-requester').innerText = fullName;
+
+        const deptHeadEl = document.getElementById('bill-modal-sign-depthead');
+        const approverEl = document.getElementById('bill-modal-sign-approver');
+
+        if (deptHeadEl) {
+            deptHeadEl.className = 'h-16 flex flex-col items-center justify-end border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-xs md:text-sm transition-colors duration-300';
+            if (isDeptHeadApproved) {
+                const deptSignName = row.dept_head_sign || row.Dept_Head_Sign || 'Dept Head';
+                const deptImg = row.dept_head_img || row.Dept_Head_Img;
+                if (deptImg && typeof deptImg === 'string' && deptImg.startsWith('data:image/')) {
+                    deptHeadEl.innerHTML = `<img src="${deptImg}" class="h-10 max-h-10 mx-auto object-contain mb-0.5"><span class="text-[9px] text-emerald-600 font-bold uppercase">✓ ${deptSignName}</span>`;
+                } else {
+                    deptHeadEl.innerHTML = `<span class="font-bold text-emerald-600 italic text-sm">✓ ${deptSignName}</span><span class="text-[9px] text-emerald-600 font-bold uppercase block">Approved</span>`;
+                }
+            } else {
+                deptHeadEl.innerHTML = `
+                    <button type="button" onclick="openDirectApprovalModal('depthead')" class="print-hide px-2.5 py-1 bg-indigo-50 hover:bg-brandindigo text-brandindigo hover:text-white rounded-lg border border-indigo-200 font-bold text-[11px] transition-all shadow-sm flex items-center gap-1 mb-1">
+                        <i class="fa-solid fa-pen-nib text-[10px]"></i> ลงชื่ออนุมัติ
+                    </button>
+                    <span class="text-[10px] text-gray-400 font-normal">- รอการตรวจทาน -</span>`;
+            }
+        }
+
+        if (approverEl) {
+            approverEl.className = 'h-16 flex flex-col items-center justify-end border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-xs md:text-sm transition-colors duration-300';
+            if (isFinalApproved) {
+                const finalSignName = row.approver_sign || row.Approver_Sign || status;
+                const finalImg = row.approver_img || row.Approver_Img;
+                if (finalImg && typeof finalImg === 'string' && finalImg.startsWith('data:image/')) {
+                    approverEl.innerHTML = `<img src="${finalImg}" class="h-10 max-h-10 mx-auto object-contain mb-0.5"><span class="text-[9px] text-emerald-600 font-bold uppercase">✓ ${finalSignName}</span>`;
+                } else {
+                    approverEl.innerHTML = `<span class="font-black text-emerald-600 italic text-sm">✓ ${finalSignName}</span><span class="text-[9px] text-emerald-600 font-bold uppercase block">Approved</span>`;
+                }
+            } else if (statusLower.includes('reject')) {
+                approverEl.innerHTML = `<span class="font-bold text-red-500 italic">✗ ไม่อนุมัติ (${status})</span>`;
+            } else if (isDeptHeadApproved) {
+                // UNLOCKED: Dept head has approved, now Final Approver (HR/CEO/COO/CFO) can approve
+                approverEl.innerHTML = `
+                    <button type="button" onclick="openDirectApprovalModal('approver')" class="print-hide px-2.5 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg border border-emerald-200 font-bold text-[11px] transition-all shadow-sm flex items-center gap-1 mb-1 animate-pulse">
+                        <i class="fa-solid fa-signature text-[10px]"></i> ลงชื่ออนุมัติ
+                    </button>
+                    <span class="text-[10px] text-gray-400 font-normal">- รออนุมัติขั้นสุดท้าย -</span>`;
+            } else {
+                // LOCKED: Dept Head must approve first!
+                approverEl.innerHTML = `
+                    <button type="button" disabled class="print-hide px-2.5 py-1 bg-gray-100 text-gray-400 rounded-lg border border-gray-200 font-bold text-[11px] cursor-not-allowed opacity-60 flex items-center gap-1 mb-1" title="ต้องผ่านการอนุมัติจากหัวหน้าแผนกก่อน">
+                        <i class="fa-solid fa-lock text-[10px]"></i> รอหัวหน้าแผนกก่อน
+                    </button>
+                    <span class="text-[10px] text-amber-500 font-medium">🔒 ต้องรอหัวหน้าแผนกก่อน</span>`;
+            }
+        }
+
+        const modal = document.getElementById('bill-modal');
+        const modalBox = modal.querySelector('div');
+        modal.classList.remove('hidden');
+        void modal.offsetWidth;
+        modal.classList.remove('opacity-0');
+        modalBox.classList.remove('scale-95');
+        modalBox.classList.add('scale-100');
+    } catch (error) {
+        console.error(error);
+        alert("เกิดข้อผิดพลาดในการดึงข้อมูลรายละเอียดบิล");
+    }
+};
+
+window.closeBillModal = function () {
+    const modal = document.getElementById('bill-modal');
+    if (!modal) return;
+    const modalBox = modal.querySelector('div');
+    modal.classList.add('opacity-0');
+    if (modalBox) {
+        modalBox.classList.remove('scale-100');
+        modalBox.classList.add('scale-95');
+    }
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 300);
+};
+
+window.printBill = function () {
+    window.print();
+};
+
+window.downloadBillPDF = function () {
+    const element = document.getElementById('bill-print-area');
+    if (!element) {
+        alert('ไม่พบข้อมูลเอกสารสำหรับดาวน์โหลด PDF');
+        return;
+    }
+
+    const rawId = document.getElementById('bill-modal-id')?.innerText || 'Invoice';
+    const cleanId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // Check if html2pdf is available
+    if (typeof html2pdf !== 'function') {
+        alert('ระบบสร้าง PDF กำลังโหลด กรุณาลองใหม่อีกครั้ง');
+        return;
+    }
+
+    const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `Bill_Invoice_${cleanId}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save().catch(err => {
+        console.error('PDF Generation Error:', err);
+        alert('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF: ' + err.message);
+    });
+};
+
+// ── ระบบลงนามอนุมัติโดยตรงบนหน้าบิล + วาดลายเซ็น (Direct Bill Approval System & Signature Pad) ──
+let isSignatureDrawing = false;
+let canvasHasSignature = false;
+
+window.initSignatureCanvas = function () {
+    const canvas = document.getElementById('signature-pad-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // High-DPI Scaling (4x HD Canvas for maximum sharpness & zero pixelation)
+    const dpr = Math.max(window.devicePixelRatio || 1, 3);
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+    }
+
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0f172a'; // Deep slate fountain pen ink
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.15)';
+    ctx.shadowBlur = 0.8;
+
+    let p1 = null;
+    let p2 = null;
+
+    function getPos(e) {
+        const r = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - r.left,
+            y: clientY - r.top
+        };
+    }
+
+    function startDraw(e) {
+        isSignatureDrawing = true;
+        canvasHasSignature = true;
+        const pos = getPos(e);
+        p1 = pos;
+        p2 = pos;
+
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+
+        const placeholder = document.getElementById('signature-pad-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
+        if (e.cancelable) e.preventDefault();
+    }
+
+    function draw(e) {
+        if (!isSignatureDrawing) return;
+        const pos = getPos(e);
+
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+
+        // Smooth Quadratic Bezier curve between points
+        const midX = (p2.x + pos.x) / 2;
+        const midY = (p2.y + pos.y) / 2;
+        ctx.quadraticCurveTo(p2.x, p2.y, midX, midY);
+        ctx.stroke();
+
+        p1 = p2;
+        p2 = pos;
+        if (e.cancelable) e.preventDefault();
+    }
+
+    function stopDraw(e) {
+        if (isSignatureDrawing && p2) {
+            ctx.beginPath();
+            ctx.moveTo(p1 ? p1.x : p2.x, p1 ? p1.y : p2.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+        isSignatureDrawing = false;
+        p1 = null;
+        p2 = null;
+    }
+
+    canvas.onmousedown = startDraw;
+    canvas.onmousemove = draw;
+    canvas.onmouseup = stopDraw;
+    canvas.onmouseleave = stopDraw;
+
+    canvas.ontouchstart = startDraw;
+    canvas.ontouchmove = draw;
+    canvas.ontouchend = stopDraw;
+};
+
+window.clearSignatureCanvas = function () {
+    const canvas = document.getElementById('signature-pad-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvasHasSignature = false;
+    const placeholder = document.getElementById('signature-pad-placeholder');
+    if (placeholder) placeholder.style.display = 'flex';
+};
+
+window.openDirectApprovalModal = function (targetSlot) {
+    const activeRow = window._activeBillRow;
+    if (!activeRow) return;
+
+    const slotInput = document.getElementById('direct-approve-target-slot');
+    if (slotInput) slotInput.value = targetSlot;
+
+    const session = typeof getSessionToken === 'function' ? getSessionToken() : null;
+    const defaultName = localStorage.getItem('hr_user_name') || session?.username || '';
+
+    const nameInput = document.getElementById('direct-approve-name');
+    if (nameInput) nameInput.value = defaultName;
+
+    const roleSelect = document.getElementById('direct-approve-role');
+    if (roleSelect) {
+        if (targetSlot === 'depthead') roleSelect.value = 'Dept Head';
+        else roleSelect.value = 'HR Manager';
+    }
+
+    const modal = document.getElementById('direct-approval-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        // Initialize canvas after modal becomes visible
+        setTimeout(() => {
+            clearSignatureCanvas();
+            initSignatureCanvas();
+        }, 100);
+    }
+};
+
+window.closeDirectApprovalModal = function () {
+    const modal = document.getElementById('direct-approval-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+window.submitDirectBillApproval = async function (e) {
+    e.preventDefault();
+    const activeRow = window._activeBillRow;
+    if (!activeRow) return;
+
+    const slot = document.getElementById('direct-approve-target-slot')?.value || 'approver';
+    const role = document.getElementById('direct-approve-role')?.value || 'HR Manager';
+    const name = document.getElementById('direct-approve-name')?.value.trim() || 'Approver';
+    const action = document.getElementById('direct-approve-action')?.value || 'Approve';
+
+    // Capture signature canvas drawing if present
+    let signatureImgData = null;
+    if (canvasHasSignature) {
+        const canvas = document.getElementById('signature-pad-canvas');
+        if (canvas) signatureImgData = canvas.toDataURL('image/png');
+    }
+
+    let newStatus = 'Pending';
+    if (action === 'Reject') {
+        newStatus = 'Rejected';
+    } else if (slot === 'depthead') {
+        newStatus = 'Dept Head Checked';
+    } else {
+        newStatus = 'Approved';
+    }
+
+    const signFormatted = `${name} (${role})`;
+
+    const recordId = activeRow.Id_Budget || activeRow.budget_id || activeRow.id || activeRow.Id;
+    const isDbUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(recordId || ''));
+    const pkKey = isDbUuid ? 'id' : (typeof getKeyForTable === 'function' ? getKeyForTable('budget_requests') : 'budget_id');
+
+    // Update active memory object
+    if (slot === 'depthead') {
+        activeRow.dept_head_sign = signFormatted;
+        activeRow.Dept_Head_Sign = signFormatted;
+        if (signatureImgData) {
+            activeRow.dept_head_img = signatureImgData;
+            activeRow.Dept_Head_Img = signatureImgData;
+        }
+        // If final approver hasn't signed yet, status is Dept Head Checked
+        if (!activeRow.approver_sign && !activeRow.Approver_Sign) {
+            activeRow.Signature = 'Dept Head Checked';
+            activeRow.signature = 'Dept Head Checked';
+            activeRow.Status = 'Dept Head Checked';
+            activeRow.status = 'Dept Head Checked';
+        }
+    } else {
+        activeRow.approver_sign = signFormatted;
+        activeRow.Approver_Sign = signFormatted;
+        if (signatureImgData) {
+            activeRow.approver_img = signatureImgData;
+            activeRow.Approver_Img = signatureImgData;
+        }
+        const finalStatus = action === 'Reject' ? 'Rejected' : 'Approved';
+        activeRow.Signature = finalStatus;
+        activeRow.signature = finalStatus;
+        activeRow.Status = finalStatus;
+        activeRow.status = finalStatus;
+    }
+
+    closeDirectApprovalModal();
+
+    const idCandidates = [
+        recordId, activeRow.Id_Budget, activeRow.budget_id, activeRow.id, activeRow.Id, activeRow.__db_id,
+        (activeRow.Employee_ID || activeRow.employee_id) ? ((activeRow.Employee_ID || activeRow.employee_id) + '_' + (activeRow.Request_Date || activeRow.request_date)) : null
+    ].filter(Boolean);
+
+    // Persistent localStorage fallback save across candidate keys
+    const sigObj = {
+        signature: activeRow.Signature || newStatus,
+        dept_head_sign: activeRow.dept_head_sign || activeRow.Dept_Head_Sign || null,
+        approver_sign: activeRow.approver_sign || activeRow.Approver_Sign || null,
+        dept_head_img: activeRow.dept_head_img || activeRow.Dept_Head_Img || null,
+        approver_img: activeRow.approver_img || activeRow.Approver_Img || null
+    };
+
+    idCandidates.forEach(candId => {
+        localStorage.setItem('hr_budget_sig_' + candId, JSON.stringify(sigObj));
+    });
+
+    // Update in-place in tableCache for instant main table rendering
+    ['Budget Request', 'budget_requests'].forEach(sheetKey => {
+        if (typeof tableCache !== 'undefined' && tableCache[sheetKey] && Array.isArray(tableCache[sheetKey].data)) {
+            tableCache[sheetKey].data.forEach(r => {
+                const rIdCandidates = [r.Id_Budget, r.budget_id, r.id, r.Id, r.__db_id, (r.Employee_ID || r.employee_id) ? ((r.Employee_ID || r.employee_id) + '_' + (r.Request_Date || r.request_date)) : null].filter(Boolean);
+                const isMatch = idCandidates.some(cand => rIdCandidates.includes(cand));
+                if (isMatch) {
+                    r.Signature = activeRow.Signature;
+                    r.signature = activeRow.signature;
+                    r.Status = activeRow.Status;
+                    r.status = activeRow.status;
+                    r.dept_head_sign = activeRow.dept_head_sign;
+                    r.Dept_Head_Sign = activeRow.dept_head_sign;
+                    r.approver_sign = activeRow.approver_sign;
+                    r.Approver_Sign = activeRow.approver_sign;
+                    r.dept_head_img = activeRow.dept_head_img;
+                    r.Dept_Head_Img = activeRow.dept_head_img;
+                    r.approver_img = activeRow.approver_img;
+                    r.Approver_Img = activeRow.approver_img;
+                }
+            });
+        }
+    });
+
+    if (typeof renderTable === 'function') {
+        renderTable('Budget Request');
+    }
+
+    // Re-render bill modal details immediately with updated signatures
+    showBillDetailsModal(encodeURIComponent(JSON.stringify(activeRow)));
+
+    // Refresh Facebook Budget dashboard if open or available
+    if (typeof window.loadFacebookBudgetDashboard === 'function') {
+        try { window.loadFacebookBudgetDashboard(); } catch (e) { }
+    }
+
+    // Update Supabase Database permanently with signatures & images
+    try {
+        const payload = {
+            signature: newStatus
+        };
+        if (activeRow.dept_head_sign || activeRow.Dept_Head_Sign) payload.dept_head_sign = activeRow.dept_head_sign || activeRow.Dept_Head_Sign;
+        if (activeRow.approver_sign || activeRow.Approver_Sign) payload.approver_sign = activeRow.approver_sign || activeRow.Approver_Sign;
+        if (activeRow.dept_head_img || activeRow.Dept_Head_Img) payload.dept_head_img = activeRow.dept_head_img || activeRow.Dept_Head_Img;
+        if (activeRow.approver_img || activeRow.Approver_Img) payload.approver_img = activeRow.approver_img || activeRow.Approver_Img;
+        if (activeRow.currency || activeRow.Currency) payload.currency = activeRow.currency || activeRow.Currency;
+
+        const targetRecordId = activeRow.budget_id || activeRow.Id_Budget || activeRow.__db_id || activeRow.id || activeRow.Id;
+        const bridge = (typeof createSupabaseBridge === 'function' ? createSupabaseBridge : window.createSupabaseBridge)({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
+
+        try {
+            await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, payload);
+        } catch (e1) {
+            console.warn('[submitDirectBillApproval] update by budget_id failed, trying id:', e1);
+            try {
+                await bridge.updateRow('budget_requests', 'id', targetRecordId, payload);
+            } catch (e2) {
+                console.warn('[submitDirectBillApproval] update by id failed, trying minimal signature payload:', e2);
+                try {
+                    await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, { signature: newStatus });
+                } catch (e3) {
+                    console.error('[submitDirectBillApproval] all budget_requests update attempts failed:', e3);
+                    throw e3;
+                }
+            }
+        }
+
+        // Invalidate caches so refresh/re-fetch always gets fresh data from Supabase
+        if (window.tableQueryCache) {
+            delete window.tableQueryCache['budget_requests'];
+            delete window.tableQueryCache['Budget Request'];
+            delete window.tableQueryCache['Budget_Requests'];
+        }
+
+        // Also update facebook_budget_requests if applicable
+        const empId = activeRow.Employee_ID || activeRow.employee_id || activeRow.member_id;
+        const fbPayload = { status: newStatus, approved_by: signFormatted };
+        if (targetRecordId) {
+            await bridge.updateRow('facebook_budget_requests', 'id', targetRecordId, fbPayload).catch(() => { });
+        }
+        if (empId) {
+            await bridge.updateRow('facebook_budget_requests', 'member_id', empId, fbPayload).catch(() => { });
+        }
+
+        if (typeof fetchData === 'function') {
+            fetchData('Budget Request', true);
+        }
+        if (typeof window.loadFacebookBudgetDashboard === 'function') {
+            window.loadFacebookBudgetDashboard();
+        }
+
+        if (typeof showToast === 'function') {
+            showToast('ลงนามอนุมัติและบันทึกข้อมูลเรียบร้อยแล้ว', 'success');
+        }
+    } catch (err) {
+        console.error('Direct approval save error:', err);
+        if (typeof showToast === 'function') {
+            showToast('บันทึกลงฐานข้อมูลไม่สำเร็จ: ' + (err.message || err), 'error');
+        }
+    }
+};
+
+window.changeBillCurrency = function (newCurrency) {
+    const activeRow = window._activeBillRow;
+    if (!activeRow) return;
+
+    activeRow.currency = newCurrency;
+    activeRow.Currency = newCurrency;
+
+    // Update memory & re-render bill modal
+    showBillDetailsModal(encodeURIComponent(JSON.stringify(activeRow)));
+
+    // Update Supabase Database
+    const recordId = activeRow.Id_Budget || activeRow.budget_id || activeRow.id || activeRow.Id;
+    const isDbUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(recordId || ''));
+    const pkKey = isDbUuid ? 'id' : (typeof getKeyForTable === 'function' ? getKeyForTable('budget_requests') : 'budget_id');
+
+    try {
+        const bridge = createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
+        bridge.updateRow('budget_requests', pkKey, recordId, { currency: newCurrency, Currency: newCurrency });
+    } catch (err) {
+        console.warn('Currency save warn:', err);
+    }
+};
+
+window.handleMasterPermToggle = function (masterCb) {
+    if (!masterCb) return;
+    const mId = masterCb.getAttribute('data-menu');
+    if (!mId) return;
+    const parentContainer = masterCb.closest('.custom-scrollbar') || masterCb.closest('.p-5') || document;
+    const menuCbs = parentContainer.querySelectorAll(`input[data-menu="${mId}"]`);
+    menuCbs.forEach(cb => {
+        cb.checked = masterCb.checked;
+    });
+};
+
+window.handleSubMasterPermToggle = function (subMasterCb) {
+    if (!subMasterCb) return;
+    const mId = subMasterCb.getAttribute('data-menu');
+    const parentRow = subMasterCb.closest('.grid');
+    if (parentRow) {
+        const subActionCbs = parentRow.querySelectorAll('.perm-subaction-cb');
+        subActionCbs.forEach(cb => cb.checked = subMasterCb.checked);
+    }
+    if (mId) {
+        const parentContainer = subMasterCb.closest('.custom-scrollbar') || document;
+        const masterCb = parentContainer.querySelector(`.perm-master-cb[data-menu="${mId}"]`);
+        const allMenuActionCbs = parentContainer.querySelectorAll(`.perm-action-cb[data-menu="${mId}"]`);
+        const anyChecked = Array.from(allMenuActionCbs).some(cb => cb.checked);
+        if (masterCb) masterCb.checked = anyChecked;
+    }
+};
+
+window.handleActionPermToggle = function (actionCb) {
+    if (!actionCb) return;
+    const parentRow = actionCb.closest('.grid');
+    const mId = actionCb.getAttribute('data-menu');
+
+    if (parentRow) {
+        const subMasterCb = parentRow.querySelector('.perm-submaster-cb');
+        const subActionCbs = parentRow.querySelectorAll('.perm-subaction-cb');
+        if (subMasterCb && subActionCbs.length > 0) {
+            subMasterCb.checked = Array.from(subActionCbs).some(cb => cb.checked);
+        }
+    }
+
+    if (mId) {
+        const parentContainer = actionCb.closest('.custom-scrollbar') || document;
+        const masterCb = parentContainer.querySelector(`.perm-master-cb[data-menu="${mId}"]`);
+        const allMenuActionCbs = parentContainer.querySelectorAll(`.perm-action-cb[data-menu="${mId}"]`);
+        const anyChecked = Array.from(allMenuActionCbs).some(cb => cb.checked);
+        if (masterCb) masterCb.checked = anyChecked;
+    }
+};
+
+window.toggleAllPermissionCheckboxes = function (selectAll) {
+    const allCbs = document.querySelectorAll('.perm-master-cb, .perm-submaster-cb, .perm-action-cb');
+    allCbs.forEach(cb => cb.checked = selectAll);
+};
+
+
