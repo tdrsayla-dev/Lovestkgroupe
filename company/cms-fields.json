@@ -1,0 +1,512 @@
+[
+  {
+    "key": "skip",
+    "label": "ข้ามไปเนื้อหา",
+    "group": "settings"
+  },
+  {
+    "key": "navAbout",
+    "label": "เกี่ยวกับเรา",
+    "group": "settings"
+  },
+  {
+    "key": "navBusiness",
+    "label": "ธุรกิจของเรา",
+    "group": "settings"
+  },
+  {
+    "key": "navNews",
+    "label": "ข่าวสาร",
+    "group": "settings"
+  },
+  {
+    "key": "navLeadership",
+    "label": "ชื่อเมนูผู้บริหาร",
+    "group": "settings"
+  },
+  {
+    "key": "navValues",
+    "label": "แนวทางของเรา",
+    "group": "settings"
+  },
+  {
+    "key": "navContact",
+    "label": "ติดต่อเรา",
+    "group": "settings"
+  },
+  {
+    "key": "aboutPageEyebrow",
+    "label": "ข้อความเหนือหัวข้อหน้าแรก",
+    "group": "home"
+  },
+  {
+    "key": "aboutPageTitle",
+    "label": "หัวข้อหน้าแรก · ใช้ <em>คำที่ต้องการเน้นสีทอง</em>",
+    "group": "home"
+  },
+  {
+    "key": "aboutPageLead",
+    "label": "รายละเอียดหน้าแรก",
+    "group": "home"
+  },
+  {
+    "key": "explore",
+    "label": "รู้จักธุรกิจของเรา",
+    "group": "home"
+  },
+  {
+    "key": "aboutBusinessEyebrow",
+    "label": "OUR BUSINESSES",
+    "group": "business"
+  },
+  {
+    "key": "aboutBusinessTitle",
+    "label": "หัวข้อธุรกิจในเครือ",
+    "group": "business"
+  },
+  {
+    "key": "aboutPharmacyShort",
+    "label": "ยาและผลิตภัณฑ์เสริมอาหาร",
+    "group": "business"
+  },
+  {
+    "key": "aboutViewBusiness",
+    "label": "รู้จักธุรกิจ",
+    "group": "business"
+  },
+  {
+    "key": "aboutLongevityShort",
+    "label": "การดูแลสุขภาพเชิงป้องกัน",
+    "group": "business"
+  },
+  {
+    "key": "aboutEvShort",
+    "label": "ยานยนต์ไฟฟ้า",
+    "group": "business"
+  },
+  {
+    "key": "aboutWellnessShort",
+    "label": "การตลาดและพัฒนาที่ดิน",
+    "group": "business"
+  },
+  {
+    "key": "aboutTravelShort",
+    "label": "การท่องเที่ยวและการเดินทาง",
+    "group": "business"
+  },
+  {
+    "key": "aboutWhoEyebrow",
+    "label": "WHO WE ARE",
+    "group": "about"
+  },
+  {
+    "key": "aboutWhoTitle",
+    "label": "รู้จัก LOVE STK GROUPE",
+    "group": "about"
+  },
+  {
+    "key": "aboutDesc",
+    "label": "แนะนำบริษัท",
+    "group": "about"
+  },
+  {
+    "key": "aboutSub",
+    "label": "รายละเอียดเพิ่มเติมเกี่ยวกับบริษัท",
+    "group": "about"
+  },
+  {
+    "key": "meetLeadership",
+    "label": "รู้จักผู้บริหารของเรา",
+    "group": "about"
+  },
+  {
+    "key": "aboutApproachEyebrow",
+    "label": "OUR APPROACH",
+    "group": "approach"
+  },
+  {
+    "key": "aboutApproachTitle",
+    "label": "ความใส่ใจ ในทุกสิ่งที่เราทำ",
+    "group": "approach"
+  },
+  {
+    "key": "careTitle",
+    "label": "ผู้คนเป็นศูนย์กลาง",
+    "group": "approach"
+  },
+  {
+    "key": "careDesc",
+    "label": "รับฟังความต้องการ และใส่ใจประสบการณ์ของลูกค้า ทีมงาน และผู้ร่วมงาน",
+    "group": "approach"
+  },
+  {
+    "key": "qualityTitle",
+    "label": "คุณภาพและความรับผิดชอบ",
+    "group": "approach"
+  },
+  {
+    "key": "qualityDesc",
+    "label": "ทำงานอย่างรอบคอบ สื่อสารอย่างชัดเจน และให้ความสำคัญกับคุณภาพบริการ",
+    "group": "approach"
+  },
+  {
+    "key": "growTitle",
+    "label": "พัฒนาไปด้วยกัน",
+    "group": "approach"
+  },
+  {
+    "key": "growDesc",
+    "label": "เปิดรับแนวคิดใหม่ และสร้างความร่วมมือเพื่อการเติบโตในระยะยาว",
+    "group": "approach"
+  },
+  {
+    "key": "businessEyebrow",
+    "label": "02 — ธุรกิจของเรา",
+    "group": "business"
+  },
+  {
+    "key": "businessTitle",
+    "label": "5 ธุรกิจในเครือ เชื่อมโยงด้วยเป้าหมายเดียว",
+    "group": "business"
+  },
+  {
+    "key": "businessDesc",
+    "label": "จากสุขภาพและคุณภาพชีวิต สู่ยานยนต์ไฟฟ้า การพัฒนาที่ดิน และการท่องเที่ยว รู้จักแต่ละธุ",
+    "group": "business"
+  },
+  {
+    "key": "pharmacyBusinessName",
+    "label": "Pharmacy & Supplement",
+    "group": "business"
+  },
+  {
+    "key": "pharmacyBusinessBrand",
+    "label": "LOVE STK PHARMACY & SUPPLEMENT",
+    "group": "business"
+  },
+  {
+    "key": "pharmacyBusinessDesc",
+    "label": "ธุรกิจร้านขายยาและผลิตภัณฑ์เสริมอาหาร เพื่อการดูแลสุขภาพและคุณภาพชีวิต",
+    "group": "business"
+  },
+  {
+    "key": "details",
+    "label": "รายละเอียด",
+    "group": "settings"
+  },
+  {
+    "key": "pharmacyBusinessDetail",
+    "label": "จำหน่ายยาและผลิตภัณฑ์เสริมอาหาร โดยให้ความสำคัญกับการพัฒนาผลิตภัณฑ์และการประสานงานกับ",
+    "group": "business"
+  },
+  {
+    "key": "longevityBusinessName",
+    "label": "Longevity Center",
+    "group": "business"
+  },
+  {
+    "key": "longevityBusinessBrand",
+    "label": "LOVE STK CLINIC",
+    "group": "business"
+  },
+  {
+    "key": "longevityBusinessDesc",
+    "label": "การดูแลสุขภาพเชิงป้องกันและการฟื้นฟู พร้อมบริการทางการแพทย์เพื่อคุณภาพชีวิตในระยะยาว",
+    "group": "business"
+  },
+  {
+    "key": "longevityBusinessDetail",
+    "label": "บริการด้าน Longevity Medicine การตรวจวิเคราะห์ทางห้องปฏิบัติการ (LAB) และการดูแลสุขภา",
+    "group": "business"
+  },
+  {
+    "key": "evBusinessName",
+    "label": "EV Showroom",
+    "group": "business"
+  },
+  {
+    "key": "evBusinessBrand",
+    "label": "LSTK SHOWROOM",
+    "group": "business"
+  },
+  {
+    "key": "evBusinessDesc",
+    "label": "ธุรกิจนำเข้าและจัดจำหน่ายรถยนต์ไฟฟ้า เชื่อมโยงทางเลือกการเดินทางและพลังงานสะอาด",
+    "group": "business"
+  },
+  {
+    "key": "evBusinessDetail",
+    "label": "ดำเนินงานด้านรถยนต์ไฟฟ้า (EV) และเครือข่ายตัวแทนจำหน่าย เพื่อรองรับความต้องการด้านยาน",
+    "group": "business"
+  },
+  {
+    "key": "wellnessBusinessName",
+    "label": "Wellness Agency",
+    "group": "business"
+  },
+  {
+    "key": "wellnessBusinessBrand",
+    "label": "LOVE STK GROUPE",
+    "group": "business"
+  },
+  {
+    "key": "wellnessBusinessDesc",
+    "label": "การตลาดเชิงธุรกิจและการพัฒนาที่ดิน เพื่อสร้างโอกาสและสนับสนุนการเติบโตขององค์กร",
+    "group": "business"
+  },
+  {
+    "key": "wellnessBusinessDetail",
+    "label": "ดำเนินงานด้าน Real Estate & Land Development รวมถึงการวางแผนและพัฒนาธุรกิจ โดยทีมงานท",
+    "group": "business"
+  },
+  {
+    "key": "travelBusinessName",
+    "label": "Travel Agency",
+    "group": "business"
+  },
+  {
+    "key": "travelBusinessBrand",
+    "label": "PUNG PUNG TRAVEL AGENCY",
+    "group": "business"
+  },
+  {
+    "key": "travelBusinessDesc",
+    "label": "บริการด้านการท่องเที่ยวทั้งในประเทศและต่างประเทศ เพื่อเชื่อมโยงผู้คนกับประสบการณ์การเ",
+    "group": "business"
+  },
+  {
+    "key": "travelBusinessDetail",
+    "label": "ดำเนินธุรกิจการท่องเที่ยวแบบครบวงจร และการประสานงานด้านบริการและการเดินทางของกลุ่มบริ",
+    "group": "business"
+  },
+  {
+    "key": "backCompany",
+    "label": "กลับหน้าแรก",
+    "group": "leadership"
+  },
+  {
+    "key": "leadershipEyebrow",
+    "label": "OUR LEADERSHIP — ผู้บริหาร",
+    "group": "leadership"
+  },
+  {
+    "key": "leadershipTitle",
+    "label": "ผู้บริหารที่ขับเคลื่อน  LOVE STK GROUPE",
+    "group": "leadership"
+  },
+  {
+    "key": "leadershipIntro",
+    "label": "รู้จักผู้บริหาร วิสัยทัศน์ และแนวทางในการนำองค์กรไปข้างหน้า",
+    "group": "leadership"
+  },
+  {
+    "key": "executiveMockNotice",
+    "label": "MOCKUP · ชื่อ ภาพ ประวัติ และข้อความของผู้บริหารทั้ง 3 คนเป็นข้อมูลสมมติสำหรับดูดีไซน",
+    "group": "leadership"
+  },
+  {
+    "key": "executiveMockBadge",
+    "label": "ผู้บริหารตัวอย่าง",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoName",
+    "label": "คุณอธิป วัฒนกุล",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoRole",
+    "label": "ประธานเจ้าหน้าที่บริหาร",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoSummary",
+    "label": "นำองค์กรด้วยวิสัยทัศน์ที่ชัดเจน เชื่อมโยงธุรกิจและทีมงานให้เติบโตไปในทิศทางเดียวกัน",
+    "group": "leadership"
+  },
+  {
+    "key": "executiveBioTitle",
+    "label": "ประวัติย่อ",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoBio",
+    "label": "ผู้บริหารตัวอย่างที่ให้ความสำคัญกับกลยุทธ์องค์กร การพัฒนาธุรกิจ และการสร้างความสัมพัน",
+    "group": "leadership"
+  },
+  {
+    "key": "executiveFocusTitle",
+    "label": "บทบาทหลัก",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoFocus1",
+    "label": "กำหนดวิสัยทัศน์และกลยุทธ์องค์กร",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoFocus2",
+    "label": "สร้างความร่วมมือและโอกาสทางธุรกิจ",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoFocus3",
+    "label": "สนับสนุนการเติบโตของทีมและธุรกิจในเครือ",
+    "group": "leadership"
+  },
+  {
+    "key": "executiveTeamEyebrow",
+    "label": "EXECUTIVE TEAM — ทีมผู้บริหาร",
+    "group": "leadership"
+  },
+  {
+    "key": "executiveTeamTitle",
+    "label": "ร่วมขับเคลื่อนองค์กร จากกลยุทธ์สู่การปฏิบัติ",
+    "group": "leadership"
+  },
+  {
+    "key": "executiveTeamDesc",
+    "label": "มุมมองด้านการเงินและการดำเนินงาน เพื่อการพัฒนาที่สอดคล้องกัน",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCfoName",
+    "label": "คุณณิชา วรากุล",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCfoRole",
+    "label": "ประธานเจ้าหน้าที่การเงิน",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCfoSummary",
+    "label": "ดูแลทิศทางการเงินด้วยความรอบคอบ เพื่อสนับสนุนการตัดสินใจและการเติบโตอย่างมีวินัย",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCfoBio",
+    "label": "ผู้บริหารตัวอย่างด้านการวางแผนการเงิน การจัดสรรทรัพยากร และการรายงานผล เพื่อเชื่อมโยง",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCfoFocus1",
+    "label": "วางแผนงบประมาณและบริหารทรัพยากร",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCfoFocus2",
+    "label": "ติดตามผลการเงินและสนับสนุนการตัดสินใจ",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCfoFocus3",
+    "label": "ดูแลความเสี่ยงและความโปร่งใสทางการเงิน",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCooName",
+    "label": "คุณธนา ภัทรกุล",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCooRole",
+    "label": "ประธานเจ้าหน้าที่ปฏิบัติการ",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCooSummary",
+    "label": "เชื่อมโยงทีมงานและกระบวนการ ให้การดำเนินงานมีประสิทธิภาพและใส่ใจประสบการณ์ของลูกค้า",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCooBio",
+    "label": "ผู้บริหารตัวอย่างที่มุ่งเน้นการพัฒนากระบวนการ การประสานงานระหว่างทีม และการติดตามคุณภ",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCooFocus1",
+    "label": "ดูแลกระบวนการและมาตรฐานการทำงาน",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCooFocus2",
+    "label": "ประสานงานทีมและธุรกิจในเครือ",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCooFocus3",
+    "label": "พัฒนาคุณภาพบริการและประสบการณ์ลูกค้า",
+    "group": "leadership"
+  },
+  {
+    "key": "mockMessageEyebrow",
+    "label": "สารจาก CEO · ข้อความตัวอย่าง",
+    "group": "leadership"
+  },
+  {
+    "key": "messageTitle",
+    "label": "สารจากผู้บริหาร",
+    "group": "leadership"
+  },
+  {
+    "key": "mockCeoQuote",
+    "label": "“การเติบโตที่มีความหมาย เริ่มจากการดูแลผู้คน และการสร้างคุณค่าร่วมกันในทุกวัน”",
+    "group": "leadership"
+  },
+  {
+    "key": "mockQuoteAttribution",
+    "label": "คุณอธิป วัฒนกุล · CEO สมมติ",
+    "group": "leadership"
+  },
+  {
+    "key": "discoverCompany",
+    "label": "รู้จัก LOVE STK GROUPE เพิ่มเติม",
+    "group": "leadership"
+  },
+  {
+    "key": "discoverDesc",
+    "label": "สำรวจธุรกิจและแนวทางการดำเนินงานของบริษัท",
+    "group": "leadership"
+  },
+  {
+    "key": "newsTitle",
+    "label": "ข่าวสาร  และกิจกรรมของเรา",
+    "group": "news"
+  },
+  {
+    "key": "newsIntro",
+    "label": "ติดตามข่าวบริษัท กิจกรรม และความร่วมมือของ LOVE STK GROUPE",
+    "group": "news"
+  },
+  {
+    "key": "latestNews",
+    "label": "ข่าวสารล่าสุด",
+    "group": "news"
+  },
+  {
+    "key": "newsConnectLabel",
+    "label": "เชื่อมต่อกับ LOVE STK",
+    "group": "news"
+  },
+  {
+    "key": "newsConnectTitle",
+    "label": "รู้จักบริษัทและธุรกิจของเรา",
+    "group": "news"
+  },
+  {
+    "key": "newsConnectDesc",
+    "label": "สำรวจงานด้านสุขภาพ การดูแลคุณภาพชีวิต และการนำเข้า–ส่งออก",
+    "group": "news"
+  },
+  {
+    "key": "navProducts",
+    "label": "ผลิตภัณฑ์",
+    "group": "settings"
+  },
+  {
+    "key": "productsTitle",
+    "label": "ผลิตภัณฑ์ของเรา",
+    "group": "products"
+  }
+]
