@@ -13,7 +13,7 @@
     <!-- 📌 สคริปต์ตรวจจับ Version และ Clear Cache อัตโนมัติสำหรับ User ทุกคน -->
     <script>
         (function () {
-            const APP_VERSION = '2026.10.07.v12';
+            const APP_VERSION = '2026.10.20.v1';
             const savedVer = localStorage.getItem('hr_app_version');
             if (savedVer !== APP_VERSION) {
                 localStorage.setItem('hr_app_version', APP_VERSION);
@@ -7644,20 +7644,20 @@
     </div>
     <!-- /OT Settings Modal -->
 
-    <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย - รองรับทั้งในโฟลเดอร์ js/ และโฟลเดอร์เดียวกัน) -->
-    <script src="js/i18n.js?v=20260903_v102" onerror="this.onerror=null;this.src='i18n.js?v=20260903_v102'"></script>
-    <script src="js/utils.js?v=20260903_v102" onerror="this.onerror=null;this.src='utils.js?v=20260903_v102'"></script>
-    <script src="js/auth.js?v=20260903_v102" onerror="this.onerror=null;this.src='auth.js?v=20260903_v102'"></script>
-    <script src="js/navigation.js?v=20260903_v102" onerror="this.onerror=null;this.src='navigation.js?v=20260903_v102'"></script>
-    <script src="js/api.js?v=20261007_v103" onerror="this.onerror=null;this.src='api.js?v=20261007_v103'"></script>
-    <script src="js/dashboard.js?v=20261007_v104" onerror="this.onerror=null;this.src='dashboard.js?v=20261007_v104'"></script>
-    <script src="js/organization.js?v=20260903_v102" onerror="this.onerror=null;this.src='organization.js?v=20260903_v102'"></script>
-    <script src="js/employees.js?v=20260903_v102" onerror="this.onerror=null;this.src='employees.js?v=20260903_v102'"></script>
-    <script src="js/tables.js?v=20261007_v106" onerror="this.onerror=null;this.src='tables.js?v=20261007_v106'"></script>
-    <script src="js/forms.js?v=20261007_v104" onerror="this.onerror=null;this.src='forms.js?v=20261007_v104'"></script>
-    <script src="js/features.js?v=20260903_v102" onerror="this.onerror=null;this.src='features.js?v=20260903_v102'"></script>
-    <script src="js/accounting.js?v=20260903_v102" onerror="this.onerror=null;this.src='accounting.js?v=20260903_v102'"></script>
-    <script src="js/payroll.js?v=20260903_v102" onerror="this.onerror=null;this.src='payroll.js?v=20260903_v102'"></script>
+    <!-- 📌 Script หลัก (13 โมดูล) -->
+    <script src="i18n.js?v=20261020_01"></script>
+    <script src="utils.js?v=20261020_01"></script>
+    <script src="auth.js?v=20261020_01"></script>
+    <script src="navigation.js?v=20261020_01"></script>
+    <script src="api.js?v=20261020_01"></script>
+    <script src="dashboard.js?v=20261020_01"></script>
+    <script src="organization.js?v=20261020_01"></script>
+    <script src="employees.js?v=20261020_01"></script>
+    <script src="tables.js?v=20261020_01"></script>
+    <script src="forms.js?v=20261020_01"></script>
+    <script src="features.js?v=20261020_01"></script>
+    <script src="accounting.js?v=20261020_01"></script>
+    <script src="payroll.js?v=20261020_01"></script>
 
     <!-- 🛑 MANDATORY INLINE OVERRIDE: GEOFENCE RESTRICTION (GUARANTEED NO CACHE ISSUE) -->
     <script>
