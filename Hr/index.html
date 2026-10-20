@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>HR Management System</title>
+    <script>
+        (function() {
+            var savedSession = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+            if (savedSession) {
+                window.location.replace('Hr.html');
+            } else {
+                window.location.replace('login.html');
+            }
+        })();
+    </script>
+</head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Prompt',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
+    <div style="text-align:center;color:#64748b;">
+        <p style="font-size:1.1rem;margin-bottom:0.5rem;">กำลังเข้าสู่ระบบ HR System...</p>
+        <p style="font-size:0.875rem;"><a href="login.html" style="color:#4f46e5;text-decoration:none;">คลิกที่นี่หากไม่เปลี่ยนหน้าอัตโนมัติ</a></p>
+    </div>
+</body>
+</html>
