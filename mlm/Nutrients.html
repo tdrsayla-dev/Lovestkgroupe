@@ -334,8 +334,8 @@
             const isForce = forceRefresh === true || (showLoading && typeof showLoading === 'object');
             const cacheParam = isForce ? '&nocache=true' : '';
 
-            // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย + แพทย์คลินิก
-            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes, clinicDocsRes] = await Promise.all([
+            // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย + แพทย์คลินิก + ข้อมูลการตรวจคลินิก
+            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes, clinicDocsRes, clinicVisitsRes] = await Promise.all([
               window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=1000').catch(() => []),
@@ -343,7 +343,8 @@
               (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
               window.supabaseSelect('stk_closers').catch(() => []),
               window.supabaseSelect('stk_business_teams').catch(() => []),
-              (window.fetchClinicDoctors ? window.fetchClinicDoctors() : Promise.resolve([])).catch(() => [])
+              (window.fetchClinicDoctors ? window.fetchClinicDoctors() : Promise.resolve([])).catch(() => []),
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('visits', 'select=visit_id,doctor_name,disease&order=created_at.desc&limit=500') : Promise.resolve([])).catch(() => [])
             ]);
 
             if (Array.isArray(closersRes) && closersRes.length > 0) {
@@ -359,6 +360,17 @@
             if (Array.isArray(clinicDocsRes) && clinicDocsRes.length > 0) {
               setClinicDoctors(clinicDocsRes);
             }
+
+            // 🩺 แมปข้อมูลแพทย์ผู้ตรวจจริงจากตาราง visits ของระบบคลินิกภายนอก
+            const clinicVisitsDoctorMap = new Map();
+            if (Array.isArray(clinicVisitsRes)) {
+              clinicVisitsRes.forEach(v => {
+                if (v && v.visit_id && v.doctor_name) {
+                  clinicVisitsDoctorMap.set(String(v.visit_id).trim().toUpperCase(), String(v.doctor_name).trim());
+                }
+              });
+            }
+            window.clinicVisitsDoctorMap = clinicVisitsDoctorMap;
 
             // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales
             const salesVisitMap = new Map();
@@ -551,7 +563,40 @@
                   itemRecorded = '';
                 }
 
-                const resolvedCloserInfo = resolveOrderCloserInfo({ ...item, closer_dr: itemCloser, recorded_by: itemRecorded });
+                // 🩺 ตรวจสอบกรณีใบสั่งยาของคลินิกจริง (VIS-xxxxxx ที่ไม่ใช่ VIS-ORD-): ดึงหมอผู้ตรวจจริงจากตาราง visits
+                const isClinicVisit = vUpper.startsWith('VIS-') && !vUpper.startsWith('VIS-ORD-') && !vUpper.includes('ORD');
+                const clinicDocFromVisits = isClinicVisit ? clinicVisitsDoctorMap.get(vUpper) : null;
+                let matchedClinicDocStr = clinicDocFromVisits || '';
+                if (clinicDocFromVisits) {
+                  const pool = (Array.isArray(clinicDocsRes) && clinicDocsRes.length > 0) ? clinicDocsRes : (clinicDoctors || []);
+                  const foundDoc = pool.find(d => {
+                    if (!d) return false;
+                    const dName = String(d.name || d.full_name || '').toLowerCase();
+                    const dCode = String(d.emp_code || d.id || '').toLowerCase();
+                    const cLow = String(clinicDocFromVisits).toLowerCase();
+                    return (dName && (cLow.includes(dName) || dName.includes(cLow))) ||
+                           (dCode && (cLow.includes(dCode) || dCode === cLow));
+                  });
+                  if (foundDoc) {
+                    matchedClinicDocStr = `${foundDoc.emp_code || foundDoc.id} - ${foundDoc.name || foundDoc.full_name}`;
+                  }
+                }
+
+                if (isClinicVisit && matchedClinicDocStr && !isCloserDoc) {
+                  itemCloser = matchedClinicDocStr;
+                }
+
+                let resolvedCloserInfo = resolveOrderCloserInfo({ ...item, closer_dr: itemCloser, recorded_by: itemRecorded });
+                if (isClinicVisit && itemCloser && itemCloser !== '-') {
+                  resolvedCloserInfo = {
+                    orderByType: 'หมอสั่งจ่าย',
+                    closerTeam: 'Center',
+                    closerName: itemCloser,
+                    isSelf: false,
+                    badgeText: currentLang === 'lo' ? '🩺 ທ່ານໝໍປິດ (Center)' : (currentLang === 'en' ? '🩺 Doctor (Center)' : '🩺 หมอปิด (Center)'),
+                    badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  };
+                }
                 const resolvedRecordedBy = getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, itemRecorded || item.seller_id);
 
                 // ซิงค์สถานะบิลขายสำเร็จ, ประเภทลูกค้า และทีมผู้สั่งจ่ายที่ถูกต้องกลับ Supabase อัตโนมัติในพื้นหลังหากยังไม่ได้อัปเดต
@@ -564,11 +609,17 @@
                   if (resolvedCustType && resolvedCustType !== item.customer_type && item.customer_type === 'ลูกค้าใหม่มาตรวจ') {
                     syncUpdates.customer_type = resolvedCustType;
                   }
-                  if (resolvedCloserInfo.orderByType && item.order_by_type !== resolvedCloserInfo.orderByType) {
-                    syncUpdates.order_by_type = resolvedCloserInfo.orderByType;
-                  }
-                  if (resolvedCloserInfo.closerTeam && item.closer_team !== resolvedCloserInfo.closerTeam) {
-                    syncUpdates.closer_team = resolvedCloserInfo.closerTeam;
+                  if (isClinicVisit && matchedClinicDocStr && item.closer_dr !== matchedClinicDocStr) {
+                    syncUpdates.closer_dr = matchedClinicDocStr;
+                    syncUpdates.closer_team = 'Center';
+                    syncUpdates.order_by_type = 'หมอสั่งจ่าย';
+                  } else {
+                    if (resolvedCloserInfo.orderByType && item.order_by_type !== resolvedCloserInfo.orderByType) {
+                      syncUpdates.order_by_type = resolvedCloserInfo.orderByType;
+                    }
+                    if (resolvedCloserInfo.closerTeam && item.closer_team !== resolvedCloserInfo.closerTeam) {
+                      syncUpdates.closer_team = resolvedCloserInfo.closerTeam;
+                    }
                   }
                   if (resolvedRecordedBy && resolvedRecordedBy !== '-' && resolvedRecordedBy !== item.recorded_by && item.status !== 'ขายสำเร็จแล้ว') {
                     syncUpdates.recorded_by = resolvedRecordedBy;
@@ -688,7 +739,40 @@
               localRecorded = '';
             }
 
-            const localCloserInfo = resolveOrderCloserInfo({ ...item, closer_dr: localCloser, recorded_by: localRecorded });
+            // 🩺 ตรวจสอบกรณีใบสั่งยาของคลินิกจริง (VIS-xxxxxx ที่ไม่ใช่ VIS-ORD-): ดึงหมอผู้ตรวจจริงจากตาราง visits
+            const isClinicVisitLocal = vUpper.startsWith('VIS-') && !vUpper.startsWith('VIS-ORD-') && !vUpper.includes('ORD');
+            const clinicDocFromVisitsLocal = isClinicVisitLocal ? clinicVisitsDoctorMap.get(vUpper) : null;
+            let matchedLocalDocStr = clinicDocFromVisitsLocal || '';
+            if (clinicDocFromVisitsLocal) {
+              const pool = (Array.isArray(clinicDocsRes) && clinicDocsRes.length > 0) ? clinicDocsRes : (clinicDoctors || []);
+              const foundDoc = pool.find(d => {
+                if (!d) return false;
+                const dName = String(d.name || d.full_name || '').toLowerCase();
+                const dCode = String(d.emp_code || d.id || '').toLowerCase();
+                const cLow = String(clinicDocFromVisitsLocal).toLowerCase();
+                return (dName && (cLow.includes(dName) || dName.includes(cLow))) ||
+                       (dCode && (cLow.includes(dCode) || dCode === cLow));
+              });
+              if (foundDoc) {
+                matchedLocalDocStr = `${foundDoc.emp_code || foundDoc.id} - ${foundDoc.name || foundDoc.full_name}`;
+              }
+            }
+
+            if (isClinicVisitLocal && matchedLocalDocStr && !isLocalCloserDoc) {
+              localCloser = matchedLocalDocStr;
+            }
+
+            let localCloserInfo = resolveOrderCloserInfo({ ...item, closer_dr: localCloser, recorded_by: localRecorded });
+            if (isClinicVisitLocal && localCloser && localCloser !== '-') {
+              localCloserInfo = {
+                orderByType: 'หมอสั่งจ่าย',
+                closerTeam: 'Center',
+                closerName: localCloser,
+                isSelf: false,
+                badgeText: currentLang === 'lo' ? '🩺 ທ່ານໝໍປິດ (Center)' : (currentLang === 'en' ? '🩺 Doctor (Center)' : '🩺 หมอปิด (Center)'),
+                badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+              };
+            }
             const localRecordedBy = (typeof getBestReferrer === 'function')
               ? getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, localRecorded)
               : (localRecorded || '-');
@@ -959,6 +1043,34 @@
           rawSellerCandidate = clinicMatch || '';
         } else if (isSellerCandidateDoc && isDoctorCandidateDoc) {
           rawSellerCandidate = clinicMatch || '';
+        }
+
+        // 🩺 สำหรับใบสั่งยาคลินิกจริง (VIS-xxxxxx): ดึงหมอผู้ตรวจจริงจากตาราง visits และล็อกรูปแบบเป็นหมอสั่งจ่าย (Center)
+        const vUp = String(order.visit_id || '').trim().toUpperCase();
+        const isClinicVisitModal = vUp.startsWith('VIS-') && !vUp.startsWith('VIS-ORD-') && !vUp.includes('ORD');
+        const clinicDocFromVisitsModal = (isClinicVisitModal && window.clinicVisitsDoctorMap) ? window.clinicVisitsDoctorMap.get(vUp) : null;
+        if (isClinicVisitModal) {
+          closerInfo.orderByType = 'หมอสั่งจ่าย';
+          closerInfo.closerTeam = 'Center';
+          if (clinicDocFromVisitsModal) {
+            const foundDocModal = (doctorsList || []).find(d => {
+              if (!d) return false;
+              const dName = String(d.name || d.full_name || '').toLowerCase();
+              const dCode = String(d.emp_code || d.id || '').toLowerCase();
+              const cLow = String(clinicDocFromVisitsModal).toLowerCase();
+              return (dName && (cLow.includes(dName) || dName.includes(cLow))) ||
+                     (dCode && (cLow.includes(dCode) || dCode === cLow));
+            });
+            if (foundDocModal) {
+              rawDoctorCandidate = foundDocModal.full_name || foundDocModal.name;
+            } else {
+              rawDoctorCandidate = clinicDocFromVisitsModal;
+            }
+          }
+          if (!rawDoctorCandidate || rawDoctorCandidate === '-') {
+            rawDoctorCandidate = 'หมอผู้เชี่ยวชาญ (Center)';
+          }
+          closerInfo.closerName = rawDoctorCandidate;
         }
 
         let currentSellerStr = rawSellerCandidate;

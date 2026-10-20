@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
@@ -109,6 +109,36 @@
         <circle cx="450" cy="300" r="120" fill="#FFF" />
       </svg>
     );
+
+    // ==========================================
+    // 🏷️ ข้อมูลเรทราคาขายส่งเริ่มต้นจากตาราง stk_b2b_price_tiers ใน Supabase
+    // ==========================================
+    const DEFAULT_B2B_TIERS = [
+      // Coffee_Arabica (P009)
+      { tier_id: 'TIER-P009-10', product_id: 'P009', product_name: 'Coffee_Arabica', min_qty: 10, max_qty: 19, unit_price: 195.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P009-20', product_id: 'P009', product_name: 'Coffee_Arabica', min_qty: 20, max_qty: 49, unit_price: 190.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P009-50', product_id: 'P009', product_name: 'Coffee_Arabica', min_qty: 50, max_qty: 99, unit_price: 185.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P009-100', product_id: 'P009', product_name: 'Coffee_Arabica', min_qty: 100, max_qty: 149, unit_price: 180.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P009-150', product_id: 'P009', product_name: 'Coffee_Arabica', min_qty: 150, max_qty: 199, unit_price: 175.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P009-200', product_id: 'P009', product_name: 'Coffee_Arabica', min_qty: 200, max_qty: null, unit_price: 150.00, status: 'ACTIVE' },
+
+      // STK NANO CREAM (P030)
+      { tier_id: 'TIER-P030-01', product_id: 'P030', product_name: 'STK NANO CREAM', min_qty: 1, max_qty: 19, unit_price: 300.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P030-20', product_id: 'P030', product_name: 'STK NANO CREAM', min_qty: 20, max_qty: 49, unit_price: 290.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P030-50', product_id: 'P030', product_name: 'STK NANO CREAM', min_qty: 50, max_qty: 99, unit_price: 285.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P030-100', product_id: 'P030', product_name: 'STK NANO CREAM', min_qty: 100, max_qty: 149, unit_price: 280.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P030-150', product_id: 'P030', product_name: 'STK NANO CREAM', min_qty: 150, max_qty: 199, unit_price: 270.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P030-200', product_id: 'P030', product_name: 'STK NANO CREAM', min_qty: 200, max_qty: 299, unit_price: 260.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P030-300', product_id: 'P030', product_name: 'STK NANO CREAM', min_qty: 300, max_qty: null, unit_price: 250.00, status: 'ACTIVE' },
+
+      // Calm & Barrier (Anti-Itch Cream) (P038)
+      { tier_id: 'TIER-P038-01', product_id: 'P038', product_name: 'Calm & Barrier (Anti-Itch Cream)', min_qty: 1, max_qty: 4, unit_price: 300.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P038-05', product_id: 'P038', product_name: 'Calm & Barrier (Anti-Itch Cream)', min_qty: 5, max_qty: 29, unit_price: 250.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P038-30', product_id: 'P038', product_name: 'Calm & Barrier (Anti-Itch Cream)', min_qty: 30, max_qty: 49, unit_price: 230.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P038-50', product_id: 'P038', product_name: 'Calm & Barrier (Anti-Itch Cream)', min_qty: 50, max_qty: 99, unit_price: 220.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P038-100', product_id: 'P038', product_name: 'Calm & Barrier (Anti-Itch Cream)', min_qty: 100, max_qty: 199, unit_price: 200.00, status: 'ACTIVE' },
+      { tier_id: 'TIER-P038-200', product_id: 'P038', product_name: 'Calm & Barrier (Anti-Itch Cream)', min_qty: 200, max_qty: null, unit_price: 150.00, status: 'ACTIVE' }
+    ];
 
     // ==========================================
     // 📦 Product B2B Card Component with Tier Selector & Qty Input
@@ -729,7 +759,19 @@
             stock: parseInt(p.current_stock || 0)
           })) : []);
 
-          setTiers(Array.isArray(tiersRes) ? tiersRes : []);
+          let effectiveTiers = Array.isArray(tiersRes) && tiersRes.length > 0 ? tiersRes : [];
+          if (effectiveTiers.length === 0) {
+            try {
+              const localTiers = JSON.parse(localStorage.getItem('stk_b2b_price_tiers') || '[]');
+              if (Array.isArray(localTiers) && localTiers.length > 0) {
+                effectiveTiers = localTiers;
+              }
+            } catch (e) {}
+          }
+          if (effectiveTiers.length === 0) {
+            effectiveTiers = DEFAULT_B2B_TIERS;
+          }
+          setTiers(effectiveTiers);
 
           setMembers(Array.isArray(memsRes) ? memsRes.map(m => ({
             ...m,
@@ -783,14 +825,31 @@
 
       const t = (key, fallback) => (typeof window.t === 'function' ? window.t(key, fallback) : (fallback || key));
 
-      // Only products configured with B2B tiers
-      const configuredB2BProductIds = useMemo(() => {
-        return new Set(tiers.map(t => t.product_id));
+      // B2B Products (ดึงเฉพาะรายการสินค้าที่มีการตั้งเรทราคาส่งใน stk_b2b_price_tiers ตามที่ผู้ใช้กำหนด)
+      const b2bProductIds = useMemo(() => {
+        const idSet = new Set();
+        const nameSet = new Set();
+        (tiers || []).forEach(t => {
+          if (t && t.status === 'ACTIVE') {
+            if (t.product_id) idSet.add(String(t.product_id).trim().toUpperCase());
+            if (t.product_name) nameSet.add(String(t.product_name).trim().toLowerCase());
+          }
+        });
+        return { idSet, nameSet };
       }, [tiers]);
 
       const b2bProducts = useMemo(() => {
-        return products.filter(p => configuredB2BProductIds.has(p.id));
-      }, [products, configuredB2BProductIds]);
+        return products.filter(p => {
+          const pId = String(p.id || p.product_id || '').trim().toUpperCase();
+          const pName = String(p.name || p.product_name || '').trim().toLowerCase();
+          const st = String(p.status || 'ใช้งาน').trim().toLowerCase();
+          const isNotInactive = st !== 'ยกเลิก' && st !== 'ระงับ' && st !== 'inactive' && st !== 'deleted';
+          const isConfiguredInB2B = b2bProductIds.idSet.has(pId) || 
+                                   (pName && b2bProductIds.nameSet.has(pName)) ||
+                                   Array.from(b2bProductIds.nameSet).some(n => pName.includes(n) || n.includes(pName));
+          return isNotInactive && isConfiguredInB2B;
+        });
+      }, [products, b2bProductIds]);
 
       // Categories (from configured B2B products only)
       const categories = useMemo(() => {

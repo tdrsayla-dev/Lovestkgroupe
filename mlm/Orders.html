@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -786,7 +786,7 @@
                              (isCleanReceiptName(nutrientOrderReceipt?.customer_name) ? nutrientOrderReceipt.customer_name : null) || 
                              (isCleanReceiptName(saleRecord.customerName || saleRecord.customer_name) ? (saleRecord.customerName || saleRecord.customer_name) : '');
             const closersList = typeof closers !== 'undefined' ? closers : [];
-            const rawReceiptCloser = String(custObj.closer || custObj.closerId || custObj.closer_id || nutrientOrderReceipt?.closer_dr || saleRecord.closer || saleRecord.closer_id || '').trim();
+            const rawReceiptCloser = String(nutrientOrderReceipt?.closer_dr || nutrientOrderReceipt?.closer || saleRecord.closer || saleRecord.closer_id || custObj.closer || custObj.closerId || custObj.closer_id || '').trim();
             let closerName = '-';
             if (rawReceiptCloser) {
                 const rawUpper = rawReceiptCloser.toUpperCase();
@@ -1835,11 +1835,13 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                                       (isCleanModalName(nOrdModal?.customer_name) ? nOrdModal.customer_name : null) || 
                                                       (isCleanModalName(viewBillDetail.customerName) ? viewBillDetail.customerName : '');
 
-                                const rawModalCloser = (cObj && (cObj.closer_id || cObj.closer))
-                                    ? String(cObj.closer_id || cObj.closer).trim()
-                                    : (nOrdModal && (nOrdModal.closer_dr || nOrdModal.closer))
+                                const rawModalCloser = (nOrdModal && (nOrdModal.closer_dr || nOrdModal.closer))
                                     ? String(nOrdModal.closer_dr || nOrdModal.closer).trim()
-                                    : String(viewBillDetail.closer || viewBillDetail.closer_id || '').trim();
+                                    : (viewBillDetail.closer || viewBillDetail.closer_id)
+                                    ? String(viewBillDetail.closer || viewBillDetail.closer_id).trim()
+                                    : (cObj && (cObj.closer_id || cObj.closer))
+                                    ? String(cObj.closer_id || cObj.closer).trim()
+                                    : '';
 
                                 let modalCloserName = '-';
                                 if (rawModalCloser) {
@@ -2138,11 +2140,15 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                               custFallbackLabel = 'ลูกค้าทั่วไป';
                           }
 
-                          const rawCloser = (custObj && (custObj.closer_id || custObj.closer))
+                          const rawCloser = (nutrientOrderRow && (nutrientOrderRow.closer_dr || nutrientOrderRow.closer))
+                              ? String(nutrientOrderRow.closer_dr || nutrientOrderRow.closer).trim()
+                              : (rs.closer || rs.closer_id)
+                              ? String(rs.closer || rs.closer_id).trim()
+                              : (custObj && (custObj.closer_id || custObj.closer))
                               ? String(custObj.closer_id || custObj.closer).trim()
-                              : (nutrientOrderRow && (nutrientOrderRow.closer_dr || nutrientOrderRow.closer || nutrientOrderRow.closer_team))
-                              ? String(nutrientOrderRow.closer_dr || nutrientOrderRow.closer || nutrientOrderRow.closer_team).trim()
-                              : String(rs.closer || rs.closer_id || '').trim();
+                              : (nutrientOrderRow && nutrientOrderRow.closer_team)
+                              ? String(nutrientOrderRow.closer_team).trim()
+                              : '';
                           let closerName = '-';
                           if (rawCloser) {
                               const rawUpper = rawCloser.toUpperCase();
