@@ -5,6 +5,8 @@
 (function(window) {
     'use strict';
 
+    const originalFetch = (typeof window !== 'undefined' && window.fetch) ? window.fetch.bind(window) : globalThis.fetch.bind(globalThis);
+
     function getCfg() {
         return window.COMPANY_CONFIG || {
             SUPABASE_URL: "https://vxituqhreggryepvjhzr.supabase.co",
@@ -165,7 +167,7 @@
             }
         },
 
-        // --- Supabase Synchronization ---
+        // --- Supabase Database Synchronization & Bridge ---
         async syncSettingsToSupabase(settings) {
             if (!settings) return;
             try {
@@ -201,6 +203,394 @@
                 });
             } catch (err) {
                 console.warn('[CompanyDataService] Sync settings warning:', err.message);
+            }
+        },
+
+        async fetchPublicContentFromSupabase() {
+            const cfg = getCfg();
+            const headers = { 'apikey': cfg.SUPABASE_ANON_KEY };
+
+            let settings = null;
+            let fullSnapshot = null;
+            let products = null;
+            let news = null;
+            let businesses = null;
+
+            try {
+                const res = await originalFetch(`${restUrl()}/website_settings?settings_key=eq.main&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) settings = list[0];
+                }
+            } catch (e) {
+                console.warn('[CompanyDataService] Fetch settings warning:', e.message);
+            }
+
+            try {
+                const res = await originalFetch(`${restUrl()}/page_sections?page_key=eq.cms&section_key=eq.full_content&status=eq.published&is_visible=eq.true&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0 && list[0].metadata) {
+                        fullSnapshot = list[0].metadata;
+                    }
+                }
+            } catch (e) {
+                console.warn('[CompanyDataService] Fetch snapshot warning:', e.message);
+            }
+
+            try {
+                const res = await originalFetch(`${restUrl()}/products?status=eq.published&is_visible=eq.true&order=sort_order.asc&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) {
+                        products = list.map(item => {
+                            const attrs = item.attributes || {};
+                            return {
+                                id: item.slug,
+                                category: item.category || 'health',
+                                price: item.price !== null ? Number(item.price) : null,
+                                currency: item.currency || 'LAK',
+                                visible: item.is_visible,
+                                isMock: item.is_mock,
+                                image: attrs.image || '',
+                                gallery: attrs.gallery || [],
+                                content: attrs.content || {
+                                    th: { name: item.slug, summary: '', description: '' },
+                                    lo: { name: item.slug, summary: '', description: '' },
+                                    en: { name: item.slug, summary: '', description: '' }
+                                }
+                            };
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const res = await originalFetch(`${restUrl()}/news?status=eq.published&is_visible=eq.true&order=news_date.desc&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) {
+                        news = list.map(item => {
+                            const attrs = item.metadata || item.attributes || {};
+                            return {
+                                id: item.slug,
+                                category: item.category || 'company',
+                                date: item.news_date,
+                                visible: item.is_visible,
+                                isMock: item.is_mock,
+                                image: attrs.image || '',
+                                content: attrs.content || {
+                                    th: { title: item.slug, summary: '', body: [] },
+                                    lo: { title: item.slug, summary: '', body: [] },
+                                    en: { title: item.slug, summary: '', body: [] }
+                                }
+                            };
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const res = await originalFetch(`${restUrl()}/businesses?status=eq.published&is_visible=eq.true&order=sort_order.asc&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) {
+                        businesses = {};
+                        list.forEach(b => {
+                            const m = b.metadata || {};
+                            businesses[b.slug] = {
+                                url: b.website_url || '',
+                                image: m.image || '',
+                                logo: m.logo || ''
+                            };
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            return { settings, fullSnapshot, products, news, businesses };
+        },
+
+        async fetchAdminContentFromSupabase() {
+            const token = await getValidToken();
+            const cfg = getCfg();
+            const headers = {
+                'apikey': cfg.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${token}`
+            };
+
+            let settings = null;
+            let fullSnapshot = null;
+            let products = null;
+            let news = null;
+            let businesses = null;
+
+            try {
+                const res = await originalFetch(`${restUrl()}/website_settings?settings_key=eq.main&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) settings = list[0];
+                }
+            } catch (e) {}
+
+            try {
+                const res = await originalFetch(`${restUrl()}/page_sections?page_key=eq.cms&section_key=eq.full_content&select=*&order=updated_at.desc&limit=1`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0 && list[0].metadata) {
+                        fullSnapshot = list[0].metadata;
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const res = await originalFetch(`${restUrl()}/products?order=sort_order.asc&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) {
+                        products = list.map(item => {
+                            const attrs = item.attributes || {};
+                            return {
+                                id: item.slug,
+                                category: item.category || 'health',
+                                price: item.price !== null ? Number(item.price) : null,
+                                currency: item.currency || 'LAK',
+                                visible: item.is_visible,
+                                isMock: item.is_mock,
+                                image: attrs.image || '',
+                                gallery: attrs.gallery || [],
+                                content: attrs.content || {
+                                    th: { name: item.slug, summary: '', description: '' },
+                                    lo: { name: item.slug, summary: '', description: '' },
+                                    en: { name: item.slug, summary: '', description: '' }
+                                }
+                            };
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const res = await originalFetch(`${restUrl()}/news?order=news_date.desc&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) {
+                        news = list.map(item => {
+                            const attrs = item.metadata || item.attributes || {};
+                            return {
+                                id: item.slug,
+                                category: item.category || 'company',
+                                date: item.news_date,
+                                visible: item.is_visible,
+                                isMock: item.is_mock,
+                                image: attrs.image || '',
+                                content: attrs.content || {
+                                    th: { title: item.slug, summary: '', body: [] },
+                                    lo: { title: item.slug, summary: '', body: [] },
+                                    en: { title: item.slug, summary: '', body: [] }
+                                }
+                            };
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            return { settings, fullSnapshot, products, news, businesses };
+        },
+
+        composeContent(base, supaData) {
+            const content = JSON.parse(JSON.stringify(base || {}));
+
+            if (supaData?.fullSnapshot && typeof supaData.fullSnapshot === 'object') {
+                Object.assign(content, supaData.fullSnapshot);
+            }
+
+            if (supaData?.settings) {
+                const ws = supaData.settings;
+                content.settings = content.settings || {};
+                if (ws.phone) content.settings.phone = ws.phone;
+                if (ws.email) content.settings.email = ws.email;
+                if (ws.address && typeof ws.address === 'object' && Object.keys(ws.address).length > 0) {
+                    content.settings.address = Object.assign(content.settings.address || {}, ws.address);
+                }
+                if (ws.social_links && typeof ws.social_links === 'object') {
+                    Object.assign(content.settings, ws.social_links);
+                }
+                if (ws.theme && typeof ws.theme === 'object') {
+                    Object.assign(content.settings, ws.theme);
+                    if (ws.theme.features) {
+                        content.settings.features = Object.assign(content.settings.features || {}, ws.theme.features);
+                    }
+                }
+                if (ws.slide_seconds) content.settings.slideSeconds = ws.slide_seconds;
+            }
+
+            if (Array.isArray(supaData?.products) && supaData.products.length > 0) {
+                content.products = supaData.products;
+            }
+
+            if (Array.isArray(supaData?.news) && supaData.news.length > 0) {
+                content.news = supaData.news;
+            }
+
+            if (supaData?.businesses && typeof supaData.businesses === 'object' && Object.keys(supaData.businesses).length > 0) {
+                content.businessMedia = Object.assign(content.businessMedia || {}, supaData.businesses);
+            }
+
+            return content;
+        },
+
+        async saveContentToSupabase(content, status = 'draft') {
+            if (!content) return;
+            const isPub = (status === 'published');
+
+            // 1. Update website_settings
+            if (content.settings) {
+                await CompanyDataService.syncSettingsToSupabase(content.settings);
+            }
+
+            // 2. Upsert full content snapshot to page_sections
+            try {
+                const existing = await apiRequest('page_sections?page_key=eq.cms&section_key=eq.full_content&select=id');
+                const payload = {
+                    page_key: 'cms',
+                    section_key: 'full_content',
+                    component_type: 'json_cms',
+                    status: isPub ? 'published' : 'draft',
+                    is_visible: true,
+                    metadata: content,
+                    updated_at: new Date().toISOString()
+                };
+
+                if (Array.isArray(existing) && existing.length > 0) {
+                    await apiRequest(`page_sections?id=eq.${existing[0].id}`, {
+                        method: 'PATCH',
+                        body: payload
+                    });
+                } else {
+                    await apiRequest('page_sections', {
+                        method: 'POST',
+                        body: payload
+                    });
+                }
+            } catch (err) {
+                console.warn('[CompanyDataService] Sync page_sections warning:', err.message);
+            }
+
+            // 3. Upsert products into relational products table
+            if (Array.isArray(content.products) && content.products.length > 0) {
+                try {
+                    for (let i = 0; i < content.products.length; i++) {
+                        const p = content.products[i];
+                        const slug = (p.id || `product-${i+1}`).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `product-${i+1}`;
+                        const existing = await apiRequest(`products?slug=eq.${slug}&select=id`);
+                        const pData = {
+                            slug,
+                            category: p.category || 'health',
+                            price: p.price !== null && !isNaN(p.price) ? Number(p.price) : null,
+                            currency: p.currency || 'LAK',
+                            sort_order: i + 1,
+                            is_mock: !!p.isMock,
+                            is_visible: p.visible !== false,
+                            status: isPub ? 'published' : 'draft',
+                            attributes: {
+                                image: p.image || '',
+                                gallery: p.gallery || [],
+                                content: p.content || {}
+                            },
+                            updated_at: new Date().toISOString()
+                        };
+
+                        if (Array.isArray(existing) && existing.length > 0) {
+                            await apiRequest(`products?id=eq.${existing[0].id}`, {
+                                method: 'PATCH',
+                                body: pData
+                            });
+                        } else {
+                            await apiRequest('products', {
+                                method: 'POST',
+                                body: pData
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[CompanyDataService] Sync products warning:', err.message);
+                }
+            }
+
+            // 4. Upsert news into relational news table
+            if (Array.isArray(content.news) && content.news.length > 0) {
+                try {
+                    for (let i = 0; i < content.news.length; i++) {
+                        const n = content.news[i];
+                        const slug = (n.id || `news-${i+1}`).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `news-${i+1}`;
+                        const existing = await apiRequest(`news?slug=eq.${slug}&select=id`);
+                        const nData = {
+                            slug,
+                            category: n.category || 'company',
+                            news_date: n.date || new Date().toISOString().split('T')[0],
+                            is_visible: n.visible !== false,
+                            is_mock: !!n.isMock,
+                            status: isPub ? 'published' : 'draft',
+                            metadata: {
+                                image: n.image || '',
+                                content: n.content || {}
+                            },
+                            updated_at: new Date().toISOString()
+                        };
+
+                        if (Array.isArray(existing) && existing.length > 0) {
+                            await apiRequest(`news?id=eq.${existing[0].id}`, {
+                                method: 'PATCH',
+                                body: nData
+                            });
+                        } else {
+                            await apiRequest('news', {
+                                method: 'POST',
+                                body: nData
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[CompanyDataService] Sync news warning:', err.message);
+                }
+            }
+
+            // 5. Upsert businesses into relational businesses table
+            if (content.businessMedia && typeof content.businessMedia === 'object') {
+                try {
+                    let order = 1;
+                    for (const [key, bm] of Object.entries(content.businessMedia)) {
+                        const slug = key.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        const existing = await apiRequest(`businesses?slug=eq.${slug}&select=id`);
+                        const bData = {
+                            slug,
+                            website_url: bm.url || null,
+                            sort_order: order++,
+                            is_visible: true,
+                            status: isPub ? 'published' : 'draft',
+                            metadata: {
+                                image: bm.image || '',
+                                logo: bm.logo || ''
+                            },
+                            updated_at: new Date().toISOString()
+                        };
+
+                        if (Array.isArray(existing) && existing.length > 0) {
+                            await apiRequest(`businesses?id=eq.${existing[0].id}`, {
+                                method: 'PATCH',
+                                body: bData
+                            });
+                        } else {
+                            await apiRequest('businesses', {
+                                method: 'POST',
+                                body: bData
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[CompanyDataService] Sync businesses warning:', err.message);
+                }
             }
         },
 
@@ -273,17 +663,47 @@
     };
 
     // =========================================================================
-    // Fetch Interceptor for seamless /api/content and /api/admin/* endpoints
+    // Fetch Interceptor for seamless Supabase Database live endpoints
     // =========================================================================
-    const originalFetch = window.fetch;
     window.fetch = async function(input, init = {}) {
         const url = typeof input === 'string' ? input : (input?.url || '');
 
-        // 1. Intercept /api/content for Public Website Pages
+        // 1. Intercept /api/content for Public Website Pages (Direct Live Supabase Database)
         if (url.startsWith('/api/content') || url.includes('/api/content')) {
             const isPreview = url.includes('preview=draft');
+            const storageKey = isPreview ? 'stk_cms_draft' : 'stk_cms_published';
+
+            // Load base static content
+            let baseContent = null;
             try {
-                const storageKey = isPreview ? 'stk_cms_draft' : 'stk_cms_published';
+                const defResp = await originalFetch('default-content.json');
+                if (defResp.ok) baseContent = await defResp.json();
+            } catch (e) {}
+
+            // Fetch live data directly from Supabase Database
+            try {
+                const supaData = await CompanyDataService.fetchPublicContentFromSupabase();
+                const mergedContent = CompanyDataService.composeContent(baseContent, supaData);
+
+                // Cache in localStorage for high performance & offline capability
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify({ content: mergedContent, syncedAt: new Date().toISOString() }));
+                } catch (e) {}
+
+                if (mergedContent.settings) {
+                    setTimeout(() => hydrateContactMenu(mergedContent.settings), 10);
+                }
+
+                return new Response(JSON.stringify({ content: mergedContent }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (err) {
+                console.warn('[CompanyDataService] Error fetching from Supabase, falling back to local cache:', err);
+            }
+
+            // Fallback 1: LocalStorage cache
+            try {
                 const cached = localStorage.getItem(storageKey);
                 if (cached) {
                     const parsed = JSON.parse(cached);
@@ -296,18 +716,14 @@
                 }
             } catch (e) {}
 
-            // Fallback to default-content.json
-            try {
-                const defResp = await originalFetch('default-content.json');
-                if (defResp.ok) {
-                    const defContent = await defResp.json();
-                    if (defContent.settings) setTimeout(() => hydrateContactMenu(defContent.settings), 10);
-                    return new Response(JSON.stringify({ content: defContent }), {
-                        status: 200,
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                }
-            } catch (e) {}
+            // Fallback 2: default-content.json
+            if (baseContent) {
+                if (baseContent.settings) setTimeout(() => hydrateContactMenu(baseContent.settings), 10);
+                return new Response(JSON.stringify({ content: baseContent }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
 
             return new Response(JSON.stringify({ error: 'No content available' }), {
                 status: 404,
@@ -317,7 +733,7 @@
 
         // 2. Intercept /api/admin/content (GET/PUT)
         if (url.startsWith('/api/admin/content') || url.includes('/api/admin/content')) {
-            // PUT: Save Draft
+            // PUT: Save Draft directly into Supabase Database
             if (init.method === 'PUT') {
                 try {
                     const body = JSON.parse(init.body || '{}');
@@ -328,10 +744,8 @@
                     // Save draft locally
                     localStorage.setItem('stk_cms_draft', JSON.stringify({ content, revision, updatedAt: now }));
 
-                    // Sync settings to Supabase
-                    if (content.settings) {
-                        CompanyDataService.syncSettingsToSupabase(content.settings);
-                    }
+                    // Save draft to Supabase Database (settings, snapshot, relational records)
+                    await CompanyDataService.saveContentToSupabase(content, 'draft');
 
                     return new Response(JSON.stringify({ ok: true, revision, updatedAt: now }), {
                         status: 200,
@@ -345,9 +759,44 @@
                 }
             }
 
-            // GET: Load CMS Content
+            // GET: Load CMS Content from Supabase Database
             try {
-                // Check if we have an edited draft
+                let baseContent = null;
+                try {
+                    const defResp = await originalFetch('default-content.json');
+                    if (defResp.ok) baseContent = await defResp.json();
+                } catch (e) {}
+
+                const supaData = await CompanyDataService.fetchAdminContentFromSupabase();
+                const mergedContent = CompanyDataService.composeContent(baseContent, supaData);
+
+                // Check local draft timestamp vs Supabase
+                const localDraftRaw = localStorage.getItem('stk_cms_draft');
+                let revision = 1;
+                let updatedAt = new Date().toISOString();
+
+                if (localDraftRaw) {
+                    try {
+                        const parsed = JSON.parse(localDraftRaw);
+                        revision = parsed.revision || 1;
+                        if (parsed.updatedAt) updatedAt = parsed.updatedAt;
+                    } catch (e) {}
+                }
+
+                return new Response(JSON.stringify({
+                    content: mergedContent,
+                    revision,
+                    updatedAt
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (err) {
+                console.error('[DataService] Error loading admin content from Supabase:', err);
+            }
+
+            // Fallback: localStorage
+            try {
                 const raw = localStorage.getItem('stk_cms_draft') || localStorage.getItem('stk_cms_published');
                 if (raw) {
                     const parsed = JSON.parse(raw);
@@ -361,23 +810,7 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-
-                // If not edited yet, load default-content.json
-                const defResp = await originalFetch('default-content.json');
-                if (defResp.ok) {
-                    const defContent = await defResp.json();
-                    return new Response(JSON.stringify({
-                        content: defContent,
-                        revision: 1,
-                        updatedAt: null
-                    }), {
-                        status: 200,
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                }
-            } catch (err) {
-                console.error('[DataService] Error loading admin content:', err);
-            }
+            } catch (err) {}
 
             return new Response(JSON.stringify({ error: 'ไม่สามารถโหลดข้อมูลเนื้อหาได้' }), {
                 status: 500,
@@ -393,9 +826,9 @@
                 if (raw) {
                     localStorage.setItem('stk_cms_published', raw);
                     const parsed = JSON.parse(raw);
-                    if (parsed.content?.settings) {
-                        CompanyDataService.syncSettingsToSupabase(parsed.content.settings);
-                    }
+                    const content = parsed.content || parsed;
+                    // Publish to Supabase Database (sets status='published')
+                    await CompanyDataService.saveContentToSupabase(content, 'published');
                 }
                 return new Response(JSON.stringify({ ok: true, publishedAt: now }), {
                     status: 200,
