@@ -117,43 +117,24 @@
         { name: 'PDW_CV', unit: '%', min: '10.0', max: '18.0', val: '' }
     ];
 
-    // ข. BIOCHEMISTRY BASE ITEMS (ถอดจาก biochem.js)
+    // ข. BIOCHEMISTRY BASE ITEMS (16 ລາຍການຕາມລຳດັບໃນໃບກວດຕົວຈິງ ໂດຍບໍ່ມີການແບ່ງໝວດ)
     const BASE_BIOCHEM_ITEMS = [
-        // ตับ (Liver Function)
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'ALBUMIN', sample: 'SER', unit: 'g/L', ref: '35 - 50', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'ALP (AMP)', sample: 'SER', unit: 'U/L', ref: '50 - 250', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'ALT (GPT)', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'AST (GOT)', sample: 'SER', unit: 'U/L', ref: '15 - 40', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'GAMMA-GT', sample: 'SER', unit: 'U/L', ref: '9 - 60', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'TOTAL PROTEIN', sample: 'SER', unit: 'g/dL', ref: '6.4 - 8.3', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'GLOBULIN', sample: 'SER', unit: 'g/dL', ref: '2.0 - 3.5', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'A/G RATIO', sample: 'SER', unit: '-', ref: '1.2 - 2.2', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'TOTAL BILIRUBIN', sample: 'SER', unit: 'mg/dL', ref: '0.2 - 1.2', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'DIRECT BILIRUBIN', sample: 'SER', unit: 'mg/dL', ref: '0.0 - 0.3', val: '' },
-
-        // ไต (Kidney Function)
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'CREATININE', sample: 'SER', unit: 'mg/dL', ref: '0.50 - 1.40', val: '' },
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'UREA (BUN)', sample: 'SER', unit: 'mg/dL', ref: '6 - 21', val: '' },
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'eGFR', sample: 'SER', unit: 'mL/min', ref: '> 60', val: '' },
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'URIC ACID', sample: 'SER', unit: 'mg/dL', ref: '3.50 - 7.20', val: '' },
-
-        // ไขมัน (Lipid Profile)
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'CHOLESTEROL', sample: 'SER', unit: 'mg/dL', ref: '100 - 200', val: '' },
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'TRIGLYCERIDES', sample: 'SER', unit: 'mg/dL', ref: '40 - 165', val: '' },
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'CHOL:HDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '40.0 - 110.0', val: '' },
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'CHOL:LDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '50 - 140', val: '' },
-
-        // น้ำตาล และการเผาผลาญ (Glucose & Metabolism)
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'GLUCOSE', sample: 'SER', unit: 'mg/dL', ref: '70 - 110', val: '' },
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'HbA1c', sample: 'WB', unit: '%', ref: '4.0 - 6.0', val: '' },
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'AMYLASE DIRECT', sample: 'SER', unit: 'U/L', ref: '40 - 120', val: '' },
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'CALCIUM (SERUM)', sample: 'SER', unit: 'mg/dL', ref: '8.00 - 11.00', val: '' },
-
-        // เกลือแร่ (Electrolytes)
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'SODIUM (Na)', sample: 'SER', unit: 'mmol/L', ref: '135 - 145', val: '' },
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'POTASSIUM (K)', sample: 'SER', unit: 'mmol/L', ref: '3.5 - 5.0', val: '' },
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'CHLORIDE (Cl)', sample: 'SER', unit: 'mmol/L', ref: '98 - 107', val: '' },
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'CO2 (BICARBONATE)', sample: 'SER', unit: 'mmol/L', ref: '22 - 29', val: '' }
+        { test: 'ALBUMIN', sample: 'SER', unit: 'g/L', ref: '30 - 50', val: '' },
+        { test: 'ALP-AMP', sample: 'SER', unit: 'U/L', ref: '20 - 250', val: '' },
+        { test: 'ALT-GPT', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
+        { test: 'AMYLASE DIRECT', sample: 'SER', unit: 'U/L', ref: '5 - 122', val: '' },
+        { test: 'AST-GOT', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
+        { test: 'BILIRUBIN TOTAL', sample: 'SER', unit: 'mg/dL', ref: '0.0 - 1.5', val: '' },
+        { test: 'CALCIUM ARSENAZO', sample: 'SER', unit: 'mg/dL', ref: '8.00 - 11.00', val: '' },
+        { test: 'CHOL HDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '40.0 - 110.0', val: '' },
+        { test: 'CHOL LDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '50 - 190', val: '' },
+        { test: 'CHOLESTEROL', sample: 'SER', unit: 'mg/dL', ref: '120 - 220', val: '' },
+        { test: 'CREATININE', sample: 'SER', unit: 'mg/dL', ref: '0.50 - 1.42', val: '' },
+        { test: 'GAMMA-GT', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
+        { test: 'GLUCOSE', sample: 'SER', unit: 'mg/dL', ref: '70 - 110', val: '' },
+        { test: 'TRIGLYCERIDES', sample: 'SER', unit: 'mg/dL', ref: '35 - 160', val: '' },
+        { test: 'UREA-BUN-UV', sample: 'SER', unit: 'mg/dL', ref: '5 - 38', val: '' },
+        { test: 'URIC ACID', sample: 'SER', unit: 'mg/dL', ref: '2.50 - 7.50', val: '' }
     ];
 
     // ค. URINALYSIS BASE ITEMS (ถอดจาก urine.html 13 รายการ)
@@ -1398,6 +1379,44 @@
                         bMap.set('ALP (AMP)', it);
                         bMap.set('ALP-AMP', it);
                     }
+                    if (k.includes('ALT') || k.includes('GPT')) {
+                        bMap.set('ALT', it);
+                        bMap.set('ALT (GPT)', it);
+                        bMap.set('ALT-GPT', it);
+                    }
+                    if (k.includes('AST') || k.includes('GOT')) {
+                        bMap.set('AST', it);
+                        bMap.set('AST (GOT)', it);
+                        bMap.set('AST-GOT', it);
+                    }
+                    if (k.includes('BILIRUBIN') && (k.includes('TOTAL') || k.includes('T-BIL'))) {
+                        bMap.set('BILIRUBIN TOTAL', it);
+                        bMap.set('TOTAL BILIRUBIN', it);
+                        bMap.set('T-BIL', it);
+                    }
+                    if (k.includes('CALCIUM') || k.includes('ARSENAZO')) {
+                        bMap.set('CALCIUM ARSENAZO', it);
+                        bMap.set('CALCIUM (SERUM)', it);
+                        bMap.set('CALCIUM', it);
+                    }
+                    if (k.includes('HDL')) {
+                        bMap.set('CHOL HDL DIRECT', it);
+                        bMap.set('CHOL:HDL DIRECT', it);
+                        bMap.set('CHOL-HDL DIRECT', it);
+                        bMap.set('HDL', it);
+                    }
+                    if (k.includes('LDL')) {
+                        bMap.set('CHOL LDL DIRECT', it);
+                        bMap.set('CHOL:LDL DIRECT', it);
+                        bMap.set('CHOL-LDL DIRECT', it);
+                        bMap.set('LDL', it);
+                    }
+                    if (k.includes('UREA') || k.includes('BUN')) {
+                        bMap.set('UREA-BUN-UV', it);
+                        bMap.set('UREA (BUN)', it);
+                        bMap.set('UREA', it);
+                        bMap.set('BUN', it);
+                    }
                 }
             });
             biochemList.forEach(def => {
@@ -1410,19 +1429,27 @@
                 }
             });
             bioSavedItems.forEach(it => {
+                const valStr = String((it.val !== undefined ? it.val : it.value) || '').trim();
+                if (!valStr) return; // Only push extra items if there is an actual measured value
                 const k = (it.test || it.name || '').toUpperCase().trim();
                 const exists = biochemList.some(b => {
                     const bKey = b.test.toUpperCase().trim();
-                    return bKey === k || (bKey.includes('ALP') && k.includes('ALP'));
+                    return bKey === k ||
+                           (bKey.includes('ALP') && k.includes('ALP')) ||
+                           (bKey.includes('ALT') && k.includes('ALT')) ||
+                           (bKey.includes('AST') && k.includes('AST')) ||
+                           (bKey.includes('BILIRUBIN') && k.includes('BILIRUBIN')) ||
+                           (bKey.includes('HDL') && k.includes('HDL')) ||
+                           (bKey.includes('LDL') && k.includes('LDL')) ||
+                           (bKey.includes('UREA') && k.includes('UREA'));
                 });
                 if (!exists && it.test) {
                     biochemList.push({
-                        category: it.category || 'Other Clinical Chemistry',
                         test: it.test,
                         sample: it.sample || 'SER',
                         unit: it.unit || '',
                         ref: it.ref || '',
-                        val: (it.val !== undefined ? it.val : it.value) || ''
+                        val: valStr
                     });
                 }
             });
@@ -1474,9 +1501,62 @@
         }
 
         // 3.5 ຖ້າມີ Combined Lab ທີ່ເຄີຍບັນທຶກໄວ້
-        if (combSaved && typeof combSaved === 'object') {
+        if (combSaved) {
             if (Array.isArray(combSaved.cbc)) cbcList = combSaved.cbc;
-            if (Array.isArray(combSaved.biochem)) biochemList = combSaved.biochem;
+            if (Array.isArray(combSaved.biochem) && combSaved.biochem.length > 0) {
+                const hasAnyVal = combSaved.biochem.some(x => x && (x.val !== undefined && String(x.val).trim() !== '' || x.value !== undefined && String(x.value).trim() !== ''));
+                if (hasAnyVal) {
+                    const bSavedMap = new Map();
+                    combSaved.biochem.forEach(it => {
+                        if (it && it.test) {
+                            const k = it.test.toUpperCase().trim();
+                            bSavedMap.set(k, it);
+                            if (k.includes('ALP')) bSavedMap.set('ALP-AMP', it);
+                            if (k.includes('ALT') || k.includes('GPT')) bSavedMap.set('ALT-GPT', it);
+                            if (k.includes('AST') || k.includes('GOT')) bSavedMap.set('AST-GOT', it);
+                            if (k.includes('BILIRUBIN') && (k.includes('TOTAL') || k.includes('T-BIL'))) bSavedMap.set('BILIRUBIN TOTAL', it);
+                            if (k.includes('CALCIUM')) bSavedMap.set('CALCIUM ARSENAZO', it);
+                            if (k.includes('HDL')) bSavedMap.set('CHOL HDL DIRECT', it);
+                            if (k.includes('LDL')) bSavedMap.set('CHOL LDL DIRECT', it);
+                            if (k.includes('UREA') || k.includes('BUN')) bSavedMap.set('UREA-BUN-UV', it);
+                        }
+                    });
+                    biochemList.forEach(def => {
+                        const k = def.test.toUpperCase().trim();
+                        if (bSavedMap.has(k)) {
+                            const s = bSavedMap.get(k);
+                            def.val = (s.val !== undefined ? s.val : s.value) || '';
+                            if (s.unit) def.unit = s.unit;
+                            if (s.ref) def.ref = s.ref;
+                        }
+                    });
+                    combSaved.biochem.forEach(it => {
+                        const valStr = String((it.val !== undefined ? it.val : it.value) || '').trim();
+                        if (!valStr) return;
+                        const k = (it.test || '').toUpperCase().trim();
+                        const exists = biochemList.some(b => {
+                            const bKey = b.test.toUpperCase().trim();
+                            return bKey === k ||
+                                   (bKey.includes('ALP') && k.includes('ALP')) ||
+                                   (bKey.includes('ALT') && k.includes('ALT')) ||
+                                   (bKey.includes('AST') && k.includes('AST')) ||
+                                   (bKey.includes('BILIRUBIN') && k.includes('BILIRUBIN')) ||
+                                   (bKey.includes('HDL') && k.includes('HDL')) ||
+                                   (bKey.includes('LDL') && k.includes('LDL')) ||
+                                   (bKey.includes('UREA') && k.includes('UREA'));
+                        });
+                        if (!exists && it.test) {
+                            biochemList.push({
+                                test: it.test,
+                                sample: it.sample || 'SER',
+                                unit: it.unit || '',
+                                ref: it.ref || '',
+                                val: valStr
+                            });
+                        }
+                    });
+                }
+            }
             if (Array.isArray(combSaved.urine)) urineList = combSaved.urine;
             if (combSaved.other) {
                 if (Array.isArray(combSaved.other.columns) && combSaved.other.columns.length > 0) {

@@ -19,6 +19,14 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=1.0"></script>
   <script>
+    if (typeof CONFIG === 'undefined') {
+      try {
+        if (window.parent && window.parent.CONFIG) window.CONFIG = window.parent.CONFIG;
+        else if (window.opener && window.opener.CONFIG) window.CONFIG = window.opener.CONFIG;
+      } catch (e) { }
+    }
+  </script>
+  <script>
     window.addEventListener('unhandledrejection', function (e) {
       const msg = String(e.reason?.message || e.reason || '');
       if (msg.includes('NETWORK_CHANGED') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('AbortError')) {

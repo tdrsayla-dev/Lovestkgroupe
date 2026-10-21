@@ -3,30 +3,67 @@
  * Modularized engine extracted from Clinic System for clean architecture.
  */
 
-// 1. Supabase Initialization
-const cfg = (typeof CONFIG !== 'undefined') ? CONFIG : ((typeof window.CONFIG !== 'undefined') ? window.CONFIG : {
-    SUPABASE_URL: window.SUPABASE_URL || '',
-    SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || '',
-    MLM_SUPABASE_URL: window.MLM_SUPABASE_URL || '',
-    MLM_SUPABASE_ANON_KEY: window.MLM_SUPABASE_ANON_KEY || ''
+// 1. Supabase Initialization with Multi-Tier Fallbacks (Parent Frame -> Opener -> Config -> Default Credentials)
+let parentCfg = null;
+try {
+    if (window.parent && window.parent !== window && window.parent.CONFIG) parentCfg = window.parent.CONFIG;
+    else if (window.opener && window.opener.CONFIG) parentCfg = window.opener.CONFIG;
+} catch (e) { }
+
+const DEFAULT_CLINIC_URL = 'https://fpmstumpobbjozflkola.supabase.co';
+const DEFAULT_CLINIC_KEY = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+const DEFAULT_MLM_URL = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+const DEFAULT_MLM_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+
+const cfg = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) ? CONFIG : (parentCfg || {
+    SUPABASE_URL: window.SUPABASE_URL || DEFAULT_CLINIC_URL,
+    SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY,
+    MLM_SUPABASE_URL: window.MLM_SUPABASE_URL || DEFAULT_MLM_URL,
+    MLM_SUPABASE_ANON_KEY: window.MLM_SUPABASE_ANON_KEY || DEFAULT_MLM_KEY
 });
+
+// Ensure global variables are set on window for nested helper functions
+if (typeof window !== 'undefined') {
+    window.CONFIG = cfg;
+    window.SUPABASE_URL = cfg.SUPABASE_URL;
+    window.SUPABASE_ANON_KEY = cfg.SUPABASE_ANON_KEY;
+}
 
 var _supabase = (typeof window._supabase !== 'undefined' && window._supabase) ? window._supabase : null;
 var _mlmSupabase = (typeof window._mlmSupabase !== 'undefined' && window._mlmSupabase) ? window._mlmSupabase : null;
 
-if (!_supabase && typeof supabase !== 'undefined' && cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) {
-    try {
-        _supabase = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+try {
+    if (!_supabase && window.parent && window.parent !== window && window.parent._supabase) {
+        _supabase = window.parent._supabase;
         window._supabase = _supabase;
+    }
+    if (!_mlmSupabase && window.parent && window.parent !== window && window.parent._mlmSupabase) {
+        _mlmSupabase = window.parent._mlmSupabase;
+        window._mlmSupabase = _mlmSupabase;
+    }
+} catch (e) { }
+
+if (!_supabase && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+    try {
+        const url = cfg.SUPABASE_URL || DEFAULT_CLINIC_URL;
+        const key = cfg.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY;
+        if (url && key) {
+            _supabase = supabase.createClient(url, key);
+            window._supabase = _supabase;
+        }
     } catch (sbErr) {
         console.warn('Dashboard Supabase init warning:', sbErr);
     }
 }
 
-if (!_mlmSupabase && typeof supabase !== 'undefined' && cfg.MLM_SUPABASE_URL && cfg.MLM_SUPABASE_ANON_KEY) {
+if (!_mlmSupabase && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
     try {
-        _mlmSupabase = supabase.createClient(cfg.MLM_SUPABASE_URL, cfg.MLM_SUPABASE_ANON_KEY);
-        window._mlmSupabase = _mlmSupabase;
+        const mlmUrl = cfg.MLM_SUPABASE_URL || DEFAULT_MLM_URL;
+        const mlmKey = cfg.MLM_SUPABASE_ANON_KEY || DEFAULT_MLM_KEY;
+        if (mlmUrl && mlmKey) {
+            _mlmSupabase = supabase.createClient(mlmUrl, mlmKey);
+            window._mlmSupabase = _mlmSupabase;
+        }
     } catch (mlmErr) {
         _mlmSupabase = _supabase;
         window._mlmSupabase = _supabase;
@@ -627,7 +664,16 @@ window.updateDashboardStats = async function () {
         const startTimestamp = startStr + "T00:00:00";
         const endTimestamp = endStr + "T23:59:59";
 
-        if (typeof _supabase === 'undefined') return;
+        if (!_supabase) {
+            if (window.parent && window.parent._supabase) {
+                _supabase = window.parent._supabase;
+            } else if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+                try {
+                    _supabase = supabase.createClient(DEFAULT_CLINIC_URL, DEFAULT_CLINIC_KEY);
+                } catch (e) { }
+            }
+        }
+        if (!_supabase) return;
 
         // 3. ดึงข้อมูลจริงจาก Supabase (ดึงเฉพาะช่วงเวลาที่เลือกในปฏิทินเท่านั้น)
         const { count: apptCount } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).gte('appointment_date', startStr).lte('appointment_date', endStr);

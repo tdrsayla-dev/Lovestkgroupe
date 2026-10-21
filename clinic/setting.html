@@ -433,11 +433,38 @@
 //  Table: public.clinic_settings  { key TEXT PK, value TEXT }
 // ================================================================
 
-const _cfg = (typeof CONFIG !== 'undefined') ? CONFIG : {
-  SUPABASE_URL: window.SUPABASE_URL || '',
-  SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || ''
-};
-const _sb = supabase.createClient(_cfg.SUPABASE_URL, _cfg.SUPABASE_ANON_KEY);
+let parentCfg = null;
+try {
+  if (window.parent && window.parent !== window && window.parent.CONFIG) parentCfg = window.parent.CONFIG;
+  else if (window.opener && window.opener.CONFIG) parentCfg = window.opener.CONFIG;
+} catch (e) { }
+
+const DEFAULT_CLINIC_URL = 'https://fpmstumpobbjozflkola.supabase.co';
+const DEFAULT_CLINIC_KEY = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+
+const _cfg = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) ? CONFIG : (parentCfg || {
+  SUPABASE_URL: window.SUPABASE_URL || DEFAULT_CLINIC_URL,
+  SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY
+});
+
+let _sb = null;
+try {
+  if (window.parent && window.parent !== window && window.parent._supabase) {
+    _sb = window.parent._supabase;
+  } else if (window.opener && window.opener._supabase) {
+    _sb = window.opener._supabase;
+  }
+} catch (e) { }
+
+if (!_sb && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+  try {
+    const url = _cfg.SUPABASE_URL || DEFAULT_CLINIC_URL;
+    const key = _cfg.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY;
+    if (url && key) _sb = supabase.createClient(url, key);
+  } catch (sbErr) {
+    console.warn('Setting Supabase init warning:', sbErr);
+  }
+}
 
 // All field IDs that map 1:1 to Supabase keys
 const FIELDS = [

@@ -153,6 +153,21 @@ try {
     console.warn('MLM Supabase client init error:', err);
 }
 
+// 🌐 Expose Global CONFIG and Credential Fallbacks for nested iframes (reports, dashboard, settings, etc.)
+window.CONFIG = window.CONFIG || {
+    SUPABASE_URL: supabaseUrl,
+    SUPABASE_ANON_KEY: supabaseKey,
+    MLM_SUPABASE_URL: mlmSupabaseUrl,
+    MLM_SUPABASE_ANON_KEY: mlmSupabaseKey
+};
+window.SUPABASE_URL = window.SUPABASE_URL || supabaseUrl;
+window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || supabaseKey;
+window.MLM_SUPABASE_URL = window.MLM_SUPABASE_URL || mlmSupabaseUrl;
+window.MLM_SUPABASE_ANON_KEY = window.MLM_SUPABASE_ANON_KEY || mlmSupabaseKey;
+window.getSupabaseConfig = window.getSupabaseConfig || function () {
+    return { url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY };
+};
+
 // ============================================================
 // Timezone & Date Filter Utilities (Asia/Vientiane - UTC+07:00)
 // ============================================================

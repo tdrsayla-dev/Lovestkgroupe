@@ -74,46 +74,25 @@
             try { btn.remove(); } catch (e) { }
         });
 
-        const delTds = document.querySelectorAll('#biochemBody tr td:last-child');
-        delTds.forEach(td => {
-            td.style.setProperty('display', 'none', 'important');
-        });
-    }
-
-    // เรียกทำงานทันทีตั้งแต่ต้นสคริปต์ และเมื่อ DOM พร้อม
-    if (isReadOnlyMode) {
-        applyReadOnlyMode();
-        document.addEventListener('DOMContentLoaded', applyReadOnlyMode);
-        window.addEventListener('load', applyReadOnlyMode);
-    }
-
-    // 1. รายการตรวจมาตรฐาน (Default Standard Biochemistry Tests)
+        const delTds = document.querySelectorAll('#bioc    // 1. ລາຍການກວດມາດຕະຖານ (Default Standard Biochemistry Tests - 16 ລາຍການຕາມເຄື່ອງວິເຄາະ)
     const DEFAULT_TESTS = [
-        // ตับ (Liver Function)
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'ALBUMIN', sample: 'SER', unit: 'g/L', ref: '35 - 50', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'ALP (AMP)', sample: 'SER', unit: 'U/L', ref: '50 - 250', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'ALT (GPT)', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'AST (GOT)', sample: 'SER', unit: 'U/L', ref: '15 - 40', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'GAMMA-GT', sample: 'SER', unit: 'U/L', ref: '9 - 60', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'TOTAL PROTEIN', sample: 'SER', unit: 'g/dL', ref: '6.4 - 8.3', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກของຕັບ)', test: 'GLOBULIN', sample: 'SER', unit: 'g/dL', ref: '2.0 - 3.5', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກของຕັບ)', test: 'A/G RATIO', sample: 'SER', unit: '-', ref: '1.2 - 2.2', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'TOTAL BILIRUBIN', sample: 'SER', unit: 'mg/dL', ref: '0.2 - 1.2', val: '' },
-        { category: 'Liver Function (ການເຮັດວຽກຂອງຕັບ)', test: 'DIRECT BILIRUBIN', sample: 'SER', unit: 'mg/dL', ref: '0.0 - 0.3', val: '' },
-
-        // ไต (Kidney Function)
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'CREATININE', sample: 'SER', unit: 'mg/dL', ref: '0.50 - 1.40', val: '' },
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'UREA (BUN)', sample: 'SER', unit: 'mg/dL', ref: '6 - 21', val: '' },
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'eGFR', sample: 'SER', unit: 'mL/min', ref: '> 60', val: '' },
-        { category: 'Kidney Function (ການເຮັດວຽກຂອງໝາກໄຂ່ຫຼັງ)', test: 'URIC ACID', sample: 'SER', unit: 'mg/dL', ref: '3.50 - 7.20', val: '' },
-
-        // ไขมัน (Lipid Profile)
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'CHOLESTEROL', sample: 'SER', unit: 'mg/dL', ref: '100 - 200', val: '' },
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'TRIGLYCERIDES', sample: 'SER', unit: 'mg/dL', ref: '40 - 165', val: '' },
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'CHOL:HDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '40.0 - 110.0', val: '' },
-        { category: 'Lipid Profile (ລະດັບໄຂມັນໃນເລືອດ)', test: 'CHOL:LDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '50 - 140', val: '' },
-
-        // น้ำตาล และการเผาผลาญ (Glucose & Metabolism)
+        { test: 'ALBUMIN', sample: 'SER', unit: 'g/L', ref: '30 - 50', val: '' },
+        { test: 'ALP-AMP', sample: 'SER', unit: 'U/L', ref: '20 - 250', val: '' },
+        { test: 'ALT-GPT', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
+        { test: 'AMYLASE DIRECT', sample: 'SER', unit: 'U/L', ref: '5 - 122', val: '' },
+        { test: 'AST-GOT', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
+        { test: 'BILIRUBIN TOTAL', sample: 'SER', unit: 'mg/dL', ref: '0.0 - 1.5', val: '' },
+        { test: 'CALCIUM ARSENAZO', sample: 'SER', unit: 'mg/dL', ref: '8.00 - 11.00', val: '' },
+        { test: 'CHOL HDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '40.0 - 110.0', val: '' },
+        { test: 'CHOL LDL DIRECT', sample: 'SER', unit: 'mg/dL', ref: '50 - 190', val: '' },
+        { test: 'CHOLESTEROL', sample: 'SER', unit: 'mg/dL', ref: '120 - 220', val: '' },
+        { test: 'CREATININE', sample: 'SER', unit: 'mg/dL', ref: '0.50 - 1.42', val: '' },
+        { test: 'GAMMA-GT', sample: 'SER', unit: 'U/L', ref: '0 - 40', val: '' },
+        { test: 'GLUCOSE', sample: 'SER', unit: 'mg/dL', ref: '70 - 110', val: '' },
+        { test: 'TRIGLYCERIDES', sample: 'SER', unit: 'mg/dL', ref: '35 - 160', val: '' },
+        { test: 'UREA-BUN-UV', sample: 'SER', unit: 'mg/dL', ref: '5 - 38', val: '' },
+        { test: 'URIC ACID', sample: 'SER', unit: 'mg/dL', ref: '2.50 - 7.50', val: '' }
+    ];��ละการเผาผลาญ (Glucose & Metabolism)
         { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'GLUCOSE', sample: 'SER', unit: 'mg/dL', ref: '70 - 110', val: '' },
         { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'HbA1c', sample: 'WB', unit: '%', ref: '4.0 - 6.0', val: '' },
         { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'AMYLASE DIRECT', sample: 'SER', unit: 'U/L', ref: '40 - 120', val: '' },
@@ -382,6 +361,13 @@
                     const itUpper = it.test.trim().toUpperCase();
                     if (itUpper === defUpper) return true;
                     if (defUpper.includes('ALP') && itUpper.includes('ALP')) return true;
+                    if (defUpper.includes('ALT') && itUpper.includes('ALT')) return true;
+                    if (defUpper.includes('AST') && itUpper.includes('AST')) return true;
+                    if (defUpper.includes('BILIRUBIN') && (itUpper.includes('TOTAL') || itUpper.includes('T-BIL'))) return true;
+                    if (defUpper.includes('CALCIUM') && itUpper.includes('CALCIUM')) return true;
+                    if (defUpper.includes('HDL') && itUpper.includes('HDL')) return true;
+                    if (defUpper.includes('LDL') && itUpper.includes('LDL')) return true;
+                    if (defUpper.includes('UREA') && (itUpper.includes('UREA') || itUpper.includes('BUN'))) return true;
                     return false;
                 });
                 if (found) {
@@ -396,21 +382,29 @@
                 return { ...def };
             });
 
-            // เพิ่มรายการ Custom ที่ไม่ได้อยู่ในค่ามาตรฐาน
+            // เพิ่มรายการ Custom ที่ไม่ได้อยู่ในค่ามาตรฐาน (เฉพาะที่มีค่าผลตรวจจริงเท่านั้น)
             loadedItems.forEach(it => {
+                const valStr = String((it.result !== undefined ? it.result : it.val) || '').trim();
+                if (!valStr) return;
                 const itUpper = (it.test || '').trim().toUpperCase();
                 const isDef = DEFAULT_TESTS.some(d => {
                     const dUpper = d.test.trim().toUpperCase();
-                    return dUpper === itUpper || (dUpper.includes('ALP') && itUpper.includes('ALP'));
+                    return dUpper === itUpper ||
+                           (dUpper.includes('ALP') && itUpper.includes('ALP')) ||
+                           (dUpper.includes('ALT') && itUpper.includes('ALT')) ||
+                           (dUpper.includes('AST') && itUpper.includes('AST')) ||
+                           (dUpper.includes('BILIRUBIN') && itUpper.includes('BILIRUBIN')) ||
+                           (dUpper.includes('HDL') && itUpper.includes('HDL')) ||
+                           (dUpper.includes('LDL') && itUpper.includes('LDL')) ||
+                           (dUpper.includes('UREA') && itUpper.includes('UREA'));
                 });
                 if (!isDef && it.test) {
                     currentRows.push({
-                        category: it.category || 'ລາຍການກວດເພີ່ມເຕີມ',
                         test: it.test,
                         sample: it.sample || 'SER',
                         unit: it.unit || '',
                         ref: it.ref || '',
-                        val: it.result !== undefined ? it.result : (it.val || '')
+                        val: valStr
                     });
                 }
             });

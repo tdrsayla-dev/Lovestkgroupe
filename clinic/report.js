@@ -40,21 +40,70 @@ window.addEventListener('unhandledrejection', function (e) {
   }
 });
 
-// Supabase Clients Initialization
-const cfg = (typeof CONFIG !== 'undefined') ? CONFIG : {
-  SUPABASE_URL: window.SUPABASE_URL || '',
-  SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || '',
-  MLM_SUPABASE_URL: window.MLM_SUPABASE_URL || '',
-  MLM_SUPABASE_ANON_KEY: window.MLM_SUPABASE_ANON_KEY || ''
-};
+// Supabase Clients Initialization with Multi-Tier Fallbacks (Parent Frame -> Opener -> Config -> Default Credentials)
+let parentCfg = null;
+try {
+  if (window.parent && window.parent !== window && window.parent.CONFIG) parentCfg = window.parent.CONFIG;
+  else if (window.opener && window.opener.CONFIG) parentCfg = window.opener.CONFIG;
+} catch (e) { }
 
-const sbClient = (typeof supabase !== 'undefined' && cfg.SUPABASE_URL) 
-  ? supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) 
-  : null;
+const DEFAULT_CLINIC_URL = 'https://fpmstumpobbjozflkola.supabase.co';
+const DEFAULT_CLINIC_KEY = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+const DEFAULT_MLM_URL = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+const DEFAULT_MLM_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
 
-const mlmClient = (typeof supabase !== 'undefined' && cfg.MLM_SUPABASE_URL && cfg.MLM_SUPABASE_ANON_KEY)
-  ? supabase.createClient(cfg.MLM_SUPABASE_URL, cfg.MLM_SUPABASE_ANON_KEY)
-  : sbClient;
+const cfg = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) ? CONFIG : (parentCfg || {
+  SUPABASE_URL: window.SUPABASE_URL || DEFAULT_CLINIC_URL,
+  SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY,
+  MLM_SUPABASE_URL: window.MLM_SUPABASE_URL || DEFAULT_MLM_URL,
+  MLM_SUPABASE_ANON_KEY: window.MLM_SUPABASE_ANON_KEY || DEFAULT_MLM_KEY
+});
+
+// Ensure global variables are populated for safety
+if (typeof window !== 'undefined') {
+  window.CONFIG = cfg;
+  window.SUPABASE_URL = cfg.SUPABASE_URL;
+  window.SUPABASE_ANON_KEY = cfg.SUPABASE_ANON_KEY;
+}
+
+let sbClient = null;
+try {
+  if (window.parent && window.parent !== window && window.parent._supabase) {
+    sbClient = window.parent._supabase;
+  } else if (window.opener && window.opener._supabase) {
+    sbClient = window.opener._supabase;
+  }
+} catch (e) { }
+
+if (!sbClient && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+  try {
+    const url = cfg.SUPABASE_URL || DEFAULT_CLINIC_URL;
+    const key = cfg.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY;
+    if (url && key) sbClient = supabase.createClient(url, key);
+  } catch (err) {
+    console.warn('Failed to init sbClient in report.js:', err);
+  }
+}
+
+let mlmClient = null;
+try {
+  if (window.parent && window.parent !== window && window.parent._mlmSupabase) {
+    mlmClient = window.parent._mlmSupabase;
+  } else if (window.opener && window.opener._mlmSupabase) {
+    mlmClient = window.opener._mlmSupabase;
+  }
+} catch (e) { }
+
+if (!mlmClient && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+  try {
+    const mlmUrl = cfg.MLM_SUPABASE_URL || DEFAULT_MLM_URL;
+    const mlmKey = cfg.MLM_SUPABASE_ANON_KEY || DEFAULT_MLM_KEY;
+    if (mlmUrl && mlmKey) mlmClient = supabase.createClient(mlmUrl, mlmKey);
+  } catch (err) {
+    mlmClient = sbClient;
+  }
+}
+if (!mlmClient) mlmClient = sbClient;
 
 // Helper: Format Money in LAK
 function formatMoney(amount) {
@@ -327,7 +376,18 @@ function applyClinicBranding() {
 // Fetch all reporting datasets for selected date window (Ultra-optimized)
 async function loadReportData() {
   if (!sbClient) {
-    alert('Supabase client is not configured. Please check config.js.');
+    if (window.parent && window.parent !== window && window.parent._supabase) {
+      sbClient = window.parent._supabase;
+    } else if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+      try {
+        const url = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || (window.parent && window.parent.SUPABASE_URL) || DEFAULT_CLINIC_URL;
+        const key = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || (window.parent && window.parent.SUPABASE_ANON_KEY) || DEFAULT_CLINIC_KEY;
+        sbClient = supabase.createClient(url, key);
+      } catch (e) { }
+    }
+  }
+  if (!sbClient) {
+    console.warn('Supabase client is not configured.');
     return;
   }
 
@@ -531,15 +591,17 @@ function getProductMasterPrices(rawName) {
   return null;
 }
 
-function getProductPrice(rawName, existingPrice) {
+function getProductPrice(rawName, existingPrice, explicitTier) {
   const nameStr = (rawName || '');
-  if (/(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i.test(nameStr)) {
+  const tierStr = String(explicitTier || '').toLowerCase();
+  if (/(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i.test(nameStr) || /(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i.test(tierStr) || tierStr === 'free') {
     return 0;
   }
   if (existingPrice !== undefined && existingPrice !== null && existingPrice !== '') {
     const num = Number(existingPrice);
-    if (!isNaN(num) && num > 0) {
-      return num;
+    if (!isNaN(num)) {
+      if (num === 0) return 0;
+      if (num > 0) return num;
     }
   }
   const master = getProductMasterPrices(nameStr);
@@ -891,6 +953,29 @@ function processNutrientOrders(rawOrders, visitsList) {
       }
     }
 
+    // 🌟 เงื่อนไขยืนยันรับเงินฝั่ง MLM:
+    // หากเป็นออเดอร์ฝั่ง MLM / สั่งอาหารเสริมแยก (ที่ไม่ได้ผูกกับ Visit ตรวจของคลินิกโดยตรง)
+    // จะต้องเป็นรายการที่ได้รับการยืนยันการรับเงิน/ขายสำเร็จแล้วเท่านั้น (เช่น 'ขายสำเร็จแล้ว', 'ชำระเงินแล้ว', 'paid', 'completed')
+    // รายการที่ยังรอดำเนินการ/แบบร่าง จะไม่ถูกนำเข้ามาในรายงาน
+    const hasLinkedVisit = vid && vid !== '-' && currentVisits && currentVisits.some(x => {
+      const xVid = normalizeIdStr(x.visit_id);
+      return xVid && xVid === normalizeIdStr(vid);
+    });
+
+    if (!hasLinkedVisit) {
+      const isPaidOrCompleted = 
+        st.includes('ขายสำเร็จแล้ว') || 
+        st.includes('ชำระเงินแล้ว') || 
+        st.includes('ชำระแล้ว') || 
+        st.includes('ຊຳລະແລ້ວ') || 
+        st.includes('สำเร็จ') || 
+        st.includes('completed') || 
+        st.includes('paid');
+      if (!isPaidOrCompleted) {
+        return false;
+      }
+    }
+
     let dStr = toLocalDateStr(o.created_at);
     if (!dStr && o.visit_id && currentVisits) {
       const v = currentVisits.find(x => x.visit_id === o.visit_id);
@@ -920,16 +1005,20 @@ function processNutrientOrders(rawOrders, visitsList) {
       items.forEach(it => {
         const rawName = it.name || it.item_name || it.title || 'ອາຫານເສີມ';
         const qty = Number(it.quantity || it.qty || 1);
-        const unitPrice = getProductPrice(rawName, it.price || it.unit_price || it.sale_price);
         const explicitTier = it.tier || it.type || it.priceType || it.price_type || it.tierName;
+        let unitPrice = getProductPrice(rawName, it.price || it.unit_price || it.sale_price, explicitTier);
         const parsed = parseProductTierAndName(rawName, explicitTier, unitPrice);
+        const isFree = (parsed.tier === 'free');
+        if (isFree) {
+          unitPrice = 0;
+        }
         cleanItems.push({
           name: rawName,
           clean_name: parsed.cleanName,
           tier: parsed.tier,
           qty: qty,
           unit_price: unitPrice,
-          total_price: qty * unitPrice
+          total_price: isFree ? 0 : (qty * unitPrice)
         });
       });
     }
@@ -949,16 +1038,20 @@ function processNutrientOrders(rawOrders, visitsList) {
           vParsed.forEach(it => {
             const rawName = it.name || it.item_name || it.medicine_name || 'ຢາປິ່ນປົວ';
             const qty = Number(it.quantity || it.qty || 1);
-            const unitPrice = getProductPrice(rawName, it.price || it.unit_price);
             const explicitTier = it.tier || it.type || it.priceType || it.price_type || it.tierName;
+            let unitPrice = getProductPrice(rawName, it.price || it.unit_price, explicitTier);
             const parsed = parseProductTierAndName(rawName, explicitTier, unitPrice);
+            const isFree = (parsed.tier === 'free');
+            if (isFree) {
+              unitPrice = 0;
+            }
             cleanItems.push({
               name: rawName,
               clean_name: parsed.cleanName,
               tier: parsed.tier,
               qty: qty,
               unit_price: unitPrice,
-              total_price: qty * unitPrice
+              total_price: isFree ? 0 : (qty * unitPrice)
             });
           });
         }
@@ -1019,16 +1112,20 @@ function processNutrientOrders(rawOrders, visitsList) {
           items = parsed.map(m => {
             const rawName = m.name || m.medicine_name || m.item_name || 'ຢາປິ່ນປົວ';
             const qty = Number(m.qty || m.quantity || 1);
-            const unitPrice = getProductPrice(rawName, m.price);
             const explicitTier = m.tier || m.type || m.priceType || m.price_type || m.tierName;
+            let unitPrice = getProductPrice(rawName, m.price, explicitTier);
             const parsedInfo = parseProductTierAndName(rawName, explicitTier, unitPrice);
+            const isFree = (parsedInfo.tier === 'free');
+            if (isFree) {
+              unitPrice = 0;
+            }
             return {
               name: rawName,
               clean_name: parsedInfo.cleanName,
               tier: parsedInfo.tier,
               qty: qty,
               unit_price: unitPrice,
-              total_price: qty * unitPrice
+              total_price: isFree ? 0 : (qty * unitPrice)
             };
           });
         }
@@ -1421,17 +1518,21 @@ function renderNutrientsTab() {
 
     (o.items || []).forEach(it => {
       const q = Number(it.qty) || 1;
-      const unitP = Number(it.unit_price) || 0;
-      const totP = Number(it.total_price) || (q * unitP);
+      const rawTier = it.tier || it.type || it.priceType || it.price_type || it.tierName || '';
+      let unitP = Number(it.unit_price) || 0;
+
+      const parsed = parseProductTierAndName(it.name || it.clean_name, rawTier, unitP);
+      const cleanName = parsed.cleanName;
+      const tier = parsed.tier;
+      const isFree = (tier === 'free' || /(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i.test(it.name || '') || /(แถมฟรี|แถม|ແຖມຟຣີ|แຖມ|free|gift)/i.test(rawTier));
+      if (isFree) {
+        unitP = 0;
+      }
+      const totP = isFree ? 0 : (Number(it.total_price) !== undefined && !isNaN(Number(it.total_price)) ? Number(it.total_price) : (q * unitP));
 
       totalItemsCount += q;
       doctorStats[dr].totalUnits += q;
       doctorStats[dr].totalAmount += totP;
-
-      const rawTier = it.tier || it.type || it.priceType || it.price_type || it.tierName || '';
-      const parsed = parseProductTierAndName(it.name || it.clean_name, rawTier, unitP);
-      const cleanName = parsed.cleanName;
-      const tier = parsed.tier;
 
       // Doctor's med breakdown
       if (!doctorStats[dr].medMap[cleanName]) {
@@ -1453,13 +1554,13 @@ function renderNutrientsTab() {
         prod[tier] = { qty: 0, unitPrice: 0, totalPrice: 0 };
       }
       prod[tier].qty += q;
-      prod[tier].totalPrice += totP;
-      if (unitP > 0) {
+      prod[tier].totalPrice += (isFree ? 0 : totP);
+      if (!isFree && unitP > 0) {
         prod[tier].unitPrice = unitP;
       }
       prod.totalQty += q;
       prod.qty = prod.totalQty;
-      prod.totalPrice += totP;
+      prod.totalPrice += (isFree ? 0 : totP);
 
       // Overall med stats
       if (!medStats[cleanName]) {
@@ -1705,6 +1806,7 @@ function renderDoctorStatsCards(doctorList) {
     let sumProQty = 0;
     let sumMemberQty = 0;
     let sumFreeQty = 0;
+    let doctorCalculatedTotalAmount = 0;
 
     const medRows = medEntries.map((m, mIdx) => {
       const nQty = m.normal?.qty || 0;
@@ -1726,6 +1828,13 @@ function renderDoctorStatsCards(doctorList) {
       sumProQty += pQty;
       sumMemberQty += memQty;
       sumFreeQty += fQty;
+
+      // 🌟 FREE TIER (ແຖມຟຣີ) IS STRICTLY 0 THB AND NEVER CONTRIBUTES TO MONETARY TOTAL!
+      const rowNormalPrice = nQty * nPrice;
+      const rowProPrice = pQty * pPrice;
+      const rowMemberPrice = memQty * memPrice;
+      const rowTotalPrice = rowNormalPrice + rowProPrice + rowMemberPrice;
+      doctorCalculatedTotalAmount += rowTotalPrice;
 
       const renderTierCell = (qty, unitPrice, badgeClass, isFree = false) => {
         if (!qty || qty <= 0) {
@@ -1758,7 +1867,7 @@ function renderDoctorStatsCards(doctorList) {
           <td class="text-center">
             <span class="badge bg-info-subtle text-info-emphasis fw-bold px-2 py-1">${formatNumber(m.totalQty || m.qty || 0)} ກ່ອງ</span>
           </td>
-          <td class="text-end fw-bold text-success">${formatPrice(m.totalPrice)}</td>
+          <td class="text-end fw-bold text-success">${formatPrice(rowTotalPrice)}</td>
         </tr>
       `;
     }).join('');
@@ -1782,7 +1891,7 @@ function renderDoctorStatsCards(doctorList) {
               </div>
               <div class="d-flex align-items-center gap-1">
                 <span class="text-muted small">ມູນຄ່າຢາລວມ:</span>
-                <span class="badge bg-success text-white fs-6 px-3 py-1 ms-1">${formatPrice(ds.totalAmount)}</span>
+                <span class="badge bg-success text-white fs-6 px-3 py-1 ms-1">${formatPrice(doctorCalculatedTotalAmount)}</span>
               </div>
             </div>
           </div>
@@ -1824,7 +1933,7 @@ function renderDoctorStatsCards(doctorList) {
                     ${formatNumber(ds.totalUnits)} ກ່ອງ
                   </td>
                   <td class="text-end text-success fs-6 fw-bold">
-                    ${formatPrice(ds.totalAmount)}
+                    ${formatPrice(doctorCalculatedTotalAmount)}
                   </td>
                 </tr>
               </tfoot>
@@ -1966,12 +2075,17 @@ function renderPatientsTab() {
     if (vOid) handledOrderIds.add(vOid);
   });
 
-  // Also collect existing order visits by HN + Date to prevent duplicate standalone orders
+  // Also collect existing visits by HN + Date to prevent duplicate standalone orders
   const existingOrderHnDateSet = new Set();
+  const existingConsultedHnDateSet = new Set();
   visits.forEach(v => {
-    if (v.hn && v.hn !== '-' && isOrderVisit(v)) {
-      const d = toLocalDateStr(v.created_at);
-      if (d) existingOrderHnDateSet.add(`${v.hn}_${d}`);
+    const d = toLocalDateStr(v.created_at);
+    if (v.hn && v.hn !== '-' && d) {
+      if (isOrderVisit(v)) {
+        existingOrderHnDateSet.add(`${v.hn}_${d}`);
+      } else {
+        existingConsultedHnDateSet.add(`${v.hn}_${d}`);
+      }
     }
   });
 
@@ -1986,8 +2100,8 @@ function renderPatientsTab() {
     if (oVid && handledVisitIds.has(oVid)) return;
     if (oId && (handledOrderIds.has(oId) || handledVisitIds.has(oId))) return;
 
-    // 2. Check if this HN already has an Order visit on the same date
-    if (oHn && oDate && existingOrderHnDateSet.has(`${oHn}_${oDate}`)) return;
+    // 2. Check if this HN already has an Order visit or a Consulted visit on the same date
+    if (oHn && oDate && (existingOrderHnDateSet.has(`${oHn}_${oDate}`) || existingConsultedHnDateSet.has(`${oHn}_${oDate}`))) return;
 
     // If not matched, register and push standalone order
     if (oVid) handledVisitIds.add(oVid);
