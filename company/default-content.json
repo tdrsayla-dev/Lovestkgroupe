@@ -40,7 +40,7 @@
       "growDesc": "เปิดรับแนวคิดใหม่ และสร้างความร่วมมือเพื่อการเติบโตในระยะยาว",
       "aboutNewsEyebrow": "NEWS & UPDATES",
       "aboutNewsTitle": "ข่าวสารและกิจกรรม",
-      "aboutNewsNote": "ข่าวตัวอย่างสำหรับดูรูปแบบเว็บไซต์",
+      "aboutNewsNote": "",
       "aboutAllNews": "ดูข่าวทั้งหมด",
       "aboutContactTitle": "เชื่อมต่อกับ LOVE STK GROUPE",
       "aboutContactDesc": "รู้จักบริษัทเพิ่มเติม และสำรวจโอกาสในการร่วมงานกับเรา",
@@ -74,13 +74,13 @@
       "leadershipEyebrow": "OUR LEADERSHIP — ผู้บริหาร",
       "leadershipTitle": "ผู้บริหารที่ขับเคลื่อน<br><em>LOVE STK GROUPE</em>",
       "leadershipIntro": "รู้จักผู้บริหาร วิสัยทัศน์ และแนวทางในการนำองค์กรไปข้างหน้า",
-      "executiveMockNotice": "MOCKUP · ชื่อ ภาพ ประวัติ และข้อความของผู้บริหารทั้ง 3 คนเป็นข้อมูลสมมติสำหรับดูดีไซน์ ไม่ใช่ผู้บริหารจริงของบริษัท",
-      "executiveMockBadge": "ผู้บริหารตัวอย่าง",
+      "executiveMockNotice": "",
+      "executiveMockBadge": "",
       "mockCeoName": "คุณอธิป วัฒนกุล",
       "mockCeoRole": "ประธานเจ้าหน้าที่บริหาร",
       "mockCeoSummary": "นำองค์กรด้วยวิสัยทัศน์ที่ชัดเจน เชื่อมโยงธุรกิจและทีมงานให้เติบโตไปในทิศทางเดียวกัน",
       "executiveBioTitle": "ประวัติย่อ",
-      "mockCeoBio": "ผู้บริหารตัวอย่างที่ให้ความสำคัญกับกลยุทธ์องค์กร การพัฒนาธุรกิจ และการสร้างความสัมพันธ์กับพันธมิตร โดยมุ่งเน้นคุณค่าที่ส่งต่อถึงลูกค้าและทีมงาน",
+      "mockCeoBio": "ผู้บริหารที่ให้ความสำคัญกับกลยุทธ์องค์กร การพัฒนาธุรกิจ และการสร้างความสัมพันธ์กับพันธมิตร โดยมุ่งเน้นคุณค่าที่ส่งต่อถึงลูกค้าและทีมงาน",
       "executiveFocusTitle": "บทบาทหลัก",
       "mockCeoFocus1": "กำหนดวิสัยทัศน์และกลยุทธ์องค์กร",
       "mockCeoFocus2": "สร้างความร่วมมือและโอกาสทางธุรกิจ",
@@ -91,21 +91,21 @@
       "mockCfoName": "คุณณิชา วรากุล",
       "mockCfoRole": "ประธานเจ้าหน้าที่การเงิน",
       "mockCfoSummary": "ดูแลทิศทางการเงินด้วยความรอบคอบ เพื่อสนับสนุนการตัดสินใจและการเติบโตอย่างมีวินัย",
-      "mockCfoBio": "ผู้บริหารตัวอย่างด้านการวางแผนการเงิน การจัดสรรทรัพยากร และการรายงานผล เพื่อเชื่อมโยงเป้าหมายทางธุรกิจกับการบริหารการเงิน",
+      "mockCfoBio": "ผู้บริหารด้านการวางแผนการเงิน การจัดสรรทรัพยากร และการรายงานผล เพื่อเชื่อมโยงเป้าหมายทางธุรกิจกับการบริหารการเงิน",
       "mockCfoFocus1": "วางแผนงบประมาณและบริหารทรัพยากร",
       "mockCfoFocus2": "ติดตามผลการเงินและสนับสนุนการตัดสินใจ",
       "mockCfoFocus3": "ดูแลความเสี่ยงและความโปร่งใสทางการเงิน",
       "mockCooName": "คุณธนา ภัทรกุล",
       "mockCooRole": "ประธานเจ้าหน้าที่ปฏิบัติการ",
       "mockCooSummary": "เชื่อมโยงทีมงานและกระบวนการ ให้การดำเนินงานมีประสิทธิภาพและใส่ใจประสบการณ์ของลูกค้า",
-      "mockCooBio": "ผู้บริหารตัวอย่างที่มุ่งเน้นการพัฒนากระบวนการ การประสานงานระหว่างทีม และการติดตามคุณภาพบริการ เพื่อให้เป้าหมายองค์กรเกิดขึ้นในการทำงานประจำวัน",
+      "mockCooBio": "ผู้บริหารที่มุ่งเน้นการพัฒนากระบวนการ การประสานงานระหว่างทีม และการติดตามคุณภาพบริการ เพื่อให้เป้าหมายองค์กรเกิดขึ้นในการทำงานประจำวัน",
       "mockCooFocus1": "ดูแลกระบวนการและมาตรฐานการทำงาน",
       "mockCooFocus2": "ประสานงานทีมและธุรกิจในเครือ",
       "mockCooFocus3": "พัฒนาคุณภาพบริการและประสบการณ์ลูกค้า",
-      "mockMessageEyebrow": "สารจาก CEO · ข้อความตัวอย่าง",
+      "mockMessageEyebrow": "สารจาก CEO",
       "messageTitle": "สารจากผู้บริหาร",
       "mockCeoQuote": "“การเติบโตที่มีความหมาย เริ่มจากการดูแลผู้คน และการสร้างคุณค่าร่วมกันในทุกวัน”",
-      "mockQuoteAttribution": "คุณอธิป วัฒนกุล · CEO สมมติ",
+      "mockQuoteAttribution": "คุณอธิป วัฒนกุล · CEO",
       "discoverCompany": "รู้จัก LOVE STK GROUPE เพิ่มเติม",
       "discoverDesc": "สำรวจธุรกิจและแนวทางการดำเนินงานของบริษัท",
       "newsTitle": "ข่าวสาร<br><em>และกิจกรรมของเรา</em>",
@@ -127,7 +127,7 @@
       "companyIntroCareLabel": "ผู้คนและคุณภาพชีวิต",
       "companyIntroGrowth": "เติบโต",
       "companyIntroGrowthLabel": "ไปด้วยกัน",
-      "companyIntroImageNote": "ภาพตัวอย่างบริษัท",
+      "companyIntroImageNote": "",
       "groupPurposeLead": "ผู้นำกลุ่มธุรกิจเพื่อสุขภาพและนวัตกรรมที่เป็นมิตรต่อสิ่งแวดล้อมแห่งประเทศลาว",
       "groupPurposeDesc": "LOVE STK GROUPE คือกลุ่มบริษัทชั้นนำในประเทศลาวที่ดำเนินธุรกิจอย่างมั่นคงและเติบโตอย่างต่อเนื่องมานานกว่า 8 ปี มุ่งมั่นสู่การเป็นผู้สร้างสรรค์ระบบนิเวศทางธุรกิจ (BUSINESS ECOSYSTEM) ที่ยกระดับคุณภาพชีวิตของผู้คน ควบคู่ไปกับการดูแลรักษาสิ่งแวดล้อมอย่างยั่งยืน",
       "groupVisionTitle": "วิสัยทัศน์",
@@ -218,13 +218,13 @@
       "newsConnectLabel": "CONNECT WITH LOVE STK",
       "newsConnectTitle": "Discover our company and businesses",
       "newsConnectDesc": "Explore all five businesses across health, electric mobility, land development, and travel.",
-      "executiveMockNotice": "MOCKUP · The names, portraits, biographies, and messages of all three executives are fictional design examples. They do not represent the company’s actual leaders.",
-      "executiveMockBadge": "Sample executive",
+      "executiveMockNotice": "",
+      "executiveMockBadge": "",
       "mockCeoName": "Athip Wattanakul",
       "mockCeoRole": "Chief Executive Officer",
       "mockCeoSummary": "Leading with a clear vision and bringing businesses and people together around a shared direction.",
       "executiveBioTitle": "Brief profile",
-      "mockCeoBio": "A fictional executive focused on organisational strategy, business development, and partner relationships, with an emphasis on value for customers and colleagues.",
+      "mockCeoBio": "Executive focused on organisational strategy, business development, and partner relationships, with an emphasis on value for customers and colleagues.",
       "executiveFocusTitle": "Key responsibilities",
       "mockCeoFocus1": "Define the organisation’s vision and strategy",
       "mockCeoFocus2": "Build partnerships and business opportunities",
@@ -235,20 +235,20 @@
       "mockCfoName": "Nicha Warakul",
       "mockCfoRole": "Chief Financial Officer",
       "mockCfoSummary": "Shaping financial direction with care to support informed decisions and disciplined growth.",
-      "mockCfoBio": "A fictional executive focused on financial planning, resource allocation, and reporting, connecting business goals with financial management.",
+      "mockCfoBio": "Executive focused on financial planning, resource allocation, and reporting, connecting business goals with financial management.",
       "mockCfoFocus1": "Plan budgets and allocate resources",
       "mockCfoFocus2": "Monitor financial results and inform decisions",
       "mockCfoFocus3": "Oversee financial risk and transparency",
       "mockCooName": "Thana Phattharakul",
       "mockCooRole": "Chief Operating Officer",
       "mockCooSummary": "Connecting teams and processes to support effective operations and thoughtful customer experiences.",
-      "mockCooBio": "A fictional executive focused on process improvement, coordination between teams, and service quality, turning organisational goals into everyday work.",
+      "mockCooBio": "Executive focused on process improvement, coordination between teams, and service quality, turning organisational goals into everyday work.",
       "mockCooFocus1": "Oversee processes and working standards",
       "mockCooFocus2": "Coordinate teams and group businesses",
       "mockCooFocus3": "Improve service quality and customer experience",
-      "mockMessageEyebrow": "MESSAGE FROM THE CEO · SAMPLE TEXT",
+      "mockMessageEyebrow": "MESSAGE FROM THE CEO",
       "mockCeoQuote": "“Meaningful growth begins with caring for people and creating value together, every day.”",
-      "mockQuoteAttribution": "Athip Wattanakul · Fictional CEO",
+      "mockQuoteAttribution": "Athip Wattanakul · CEO",
       "pharmacyBusinessDesc": "Pharmacy and supplement products supporting health and quality of life.",
       "pharmacyBusinessDetail": "Sales of medicines and supplements, with a focus on product development and coordination with manufacturing partners.",
       "longevityBusinessDesc": "Preventive and restorative healthcare, with medical services supporting long-term quality of life.",
@@ -281,7 +281,7 @@
       "aboutApproachTitle": "Care in everything<br>we do.",
       "aboutNewsEyebrow": "NEWS & UPDATES",
       "aboutNewsTitle": "News and activities",
-      "aboutNewsNote": "Sample news for previewing the website",
+      "aboutNewsNote": "",
       "aboutAllNews": "View all news",
       "aboutContactTitle": "Connect with LOVE STK GROUPE",
       "aboutContactDesc": "Learn more about our company and explore opportunities to work together.",
@@ -306,7 +306,7 @@
       "companyIntroCareLabel": "People and quality of life",
       "companyIntroGrowth": "Growth",
       "companyIntroGrowthLabel": "Moving forward together",
-      "companyIntroImageNote": "Company concept images",
+      "companyIntroImageNote": "",
       "groupPurposeLead": "A leading business group for health and environmentally responsible innovation in Laos.",
       "groupPurposeDesc": "LOVE STK GROUPE is a leading group of companies in Laos, with more than eight years of steady operations and continuous growth. We aspire to build a business ecosystem that improves quality of life while caring for the environment sustainably.",
       "groupVisionTitle": "Vision",
@@ -397,13 +397,13 @@
       "newsConnectLabel": "ເຊື່ອມຕໍ່ກັບ LOVE STK",
       "newsConnectTitle": "ຮູ້ຈັກບໍລິສັດ ແລະ ທຸລະກິດຂອງເຮົາ",
       "newsConnectDesc": "ສຳຫຼວດທັງ 5 ທຸລະກິດ ດ້ານສຸຂະພາບ ຍານຍົນໄຟຟ້າ ການພັດທະນາທີ່ດິນ ແລະ ການທ່ອງທ່ຽວ",
-      "executiveMockNotice": "MOCKUP · ຊື່ ຮູບ ປະຫວັດ ແລະ ຂໍ້ຄວາມຂອງຜູ້ບໍລິຫານທັງ 3 ຄົນແມ່ນຂໍ້ມູນສົມມຸດສຳລັບເບິ່ງດີໄຊ ບໍ່ແມ່ນຜູ້ບໍລິຫານຈິງຂອງບໍລິສັດ",
-      "executiveMockBadge": "ຜູ້ບໍລິຫານຕົວຢ່າງ",
+      "executiveMockNotice": "",
+      "executiveMockBadge": "",
       "mockCeoName": "ທ່ານ ອະທິບ ວັດທະນະກຸນ",
       "mockCeoRole": "ປະທານເຈົ້າໜ້າທີ່ບໍລິຫານ",
       "mockCeoSummary": "ນຳອົງກອນດ້ວຍວິໄສທັດທີ່ຊັດເຈນ ເຊື່ອມໂຍງທຸລະກິດ ແລະ ທີມງານໃຫ້ເຕີບໂຕໃນທິດທາງດຽວກັນ",
       "executiveBioTitle": "ປະຫວັດຫຍໍ້",
-      "mockCeoBio": "ຜູ້ບໍລິຫານຕົວຢ່າງທີ່ໃຫ້ຄວາມສຳຄັນກັບກົນລະຍຸດອົງກອນ ການພັດທະນາທຸລະກິດ ແລະ ຄວາມສຳພັນກັບຄູ່ຮ່ວມງານ ໂດຍເນັ້ນຄຸນຄ່າຕໍ່ລູກຄ້າ ແລະ ທີມງານ",
+      "mockCeoBio": "ຜູ້ບໍລິຫານທີ່ໃຫ້ຄວາມສຳຄັນກັບກົນລະຍຸດອົງກອນ ການພັດທະນາທຸລະກິດ ແລະ ຄວາມສຳພັນກັບຄູ່ຮ່ວມງານ ໂດຍເນັ້ນຄຸນຄ່າຕໍ່ລູກຄ້າ ແລະ ທີມງານ",
       "executiveFocusTitle": "ບົດບາດຫຼັກ",
       "mockCeoFocus1": "ກຳນົດວິໄສທັດ ແລະ ກົນລະຍຸດອົງກອນ",
       "mockCeoFocus2": "ສ້າງຄວາມຮ່ວມມື ແລະ ໂອກາດທາງທຸລະກິດ",
@@ -414,20 +414,20 @@
       "mockCfoName": "ທ່ານ ນິຊາ ວໍລະກຸນ",
       "mockCfoRole": "ປະທານເຈົ້າໜ້າທີ່ການເງິນ",
       "mockCfoSummary": "ດູແລທິດທາງການເງິນຢ່າງຮອບຄອບ ເພື່ອສົ່ງເສີມການຕັດສິນໃຈ ແລະ ການເຕີບໂຕຢ່າງມີວິໄນ",
-      "mockCfoBio": "ຜູ້ບໍລິຫານຕົວຢ່າງດ້ານການວາງແຜນການເງິນ ການຈັດສັນຊັບພະຍາກອນ ແລະ ການລາຍງານຜົນ ເພື່ອເຊື່ອມໂຍງເປົ້າໝາຍທຸລະກິດກັບການບໍລິຫານການເງິນ",
+      "mockCfoBio": "ຜູ້ບໍລິຫານດ້ານການວາງແຜນການເງິນ ການຈັດສັນຊັບພະຍາກອນ ແລະ ການລາຍງານຜົນ ເພື່ອເຊື່ອມໂຍງເປົ້າໝາຍທຸລະກິດກັບການບໍລິຫານການເງິນ",
       "mockCfoFocus1": "ວາງແຜນງົບປະມານ ແລະ ບໍລິຫານຊັບພະຍາກອນ",
       "mockCfoFocus2": "ຕິດຕາມຜົນການເງິນ ແລະ ສົ່ງເສີມການຕັດສິນໃຈ",
       "mockCfoFocus3": "ດູແລຄວາມສ່ຽງ ແລະ ຄວາມໂປ່ງໃສທາງການເງິນ",
       "mockCooName": "ທ່ານ ທະນາ ພັດທະລະກຸນ",
       "mockCooRole": "ປະທານເຈົ້າໜ້າທີ່ປະຕິບັດການ",
       "mockCooSummary": "ເຊື່ອມໂຍງທີມງານ ແລະ ຂະບວນການ ໃຫ້ການດຳເນີນງານມີປະສິດທິພາບ ແລະ ໃສ່ໃຈປະສົບການລູກຄ້າ",
-      "mockCooBio": "ຜູ້ບໍລິຫານຕົວຢ່າງທີ່ເນັ້ນການພັດທະນາຂະບວນການ ການປະສານງານລະຫວ່າງທີມ ແລະ ຄຸນນະພາບບໍລິການ ເພື່ອໃຫ້ເປົ້າໝາຍອົງກອນເກີດຂຶ້ນໃນວຽກປະຈຳວັນ",
+      "mockCooBio": "ຜູ້ບໍລິຫານທີ່ເນັ້ນການພັດທະນາຂະບວນການ ການປະສານງານລະຫວ່າງທີມ ແລະ ຄຸນນະພາບບໍລິການ ເພື່ອໃຫ້ເປົ້າໝາຍອົງກອນເກີດຂຶ້ນໃນວຽກປະຈຳວັນ",
       "mockCooFocus1": "ດູແລຂະບວນການ ແລະ ມາດຕະຖານການເຮັດວຽກ",
       "mockCooFocus2": "ປະສານງານທີມ ແລະ ທຸລະກິດໃນເຄືອ",
       "mockCooFocus3": "ພັດທະນາຄຸນນະພາບບໍລິການ ແລະ ປະສົບການລູກຄ້າ",
-      "mockMessageEyebrow": "ສານຈາກ CEO · ຂໍ້ຄວາມຕົວຢ່າງ",
+      "mockMessageEyebrow": "ສານຈາກ CEO",
       "mockCeoQuote": "“ການເຕີບໂຕທີ່ມີຄວາມໝາຍ ເລີ່ມຈາກການດູແລຜູ້ຄົນ ແລະ ການສ້າງຄຸນຄ່າຮ່ວມກັນໃນທຸກວັນ”",
-      "mockQuoteAttribution": "ທ່ານ ອະທິບ ວັດທະນະກຸນ · CEO ສົມມຸດ",
+      "mockQuoteAttribution": "ທ່ານ ອະທິບ ວັດທະນະກຸນ · CEO",
       "pharmacyBusinessDesc": "ທຸລະກິດຮ້ານຂາຍຢາ ແລະ ຜະລິດຕະພັນເສີມອາຫານ ເພື່ອການດູແລສຸຂະພາບ ແລະ ຄຸນນະພາບຊີວິດ",
       "pharmacyBusinessDetail": "ຈຳໜ່າຍຢາ ແລະ ຜະລິດຕະພັນເສີມອາຫານ ໂດຍໃຫ້ຄວາມສຳຄັນກັບການພັດທະນາຜະລິດຕະພັນ ແລະ ການປະສານງານກັບຄູ່ຮ່ວມງານຜູ້ຜະລິດ",
       "longevityBusinessDesc": "ການດູແລສຸຂະພາບເຊີງປ້ອງກັນ ແລະ ການຟື້ນຟູ ພ້ອມບໍລິການທາງການແພດເພື່ອຄຸນນະພາບຊີວິດໄລຍະຍາວ",
@@ -460,7 +460,7 @@
       "aboutApproachTitle": "ຄວາມໃສ່ໃຈ<br>ໃນທຸກສິ່ງທີ່ເຮົາເຮັດ",
       "aboutNewsEyebrow": "NEWS & UPDATES",
       "aboutNewsTitle": "ຂ່າວສານ ແລະ ກິດຈະກຳ",
-      "aboutNewsNote": "ຂ່າວຕົວຢ່າງສຳລັບເບິ່ງຮູບແບບເວັບໄຊ",
+      "aboutNewsNote": "",
       "aboutAllNews": "ເບິ່ງຂ່າວທັງໝົດ",
       "aboutContactTitle": "ເຊື່ອມຕໍ່ກັບ LOVE STK GROUPE",
       "aboutContactDesc": "ຮູ້ຈັກບໍລິສັດເພີ່ມເຕີມ ແລະ ສຳຫຼວດໂອກາດໃນການຮ່ວມງານ",
@@ -485,7 +485,7 @@
       "companyIntroCareLabel": "ຜູ້ຄົນ ແລະ ຄຸນນະພາບຊີວິດ",
       "companyIntroGrowth": "ເຕີບໂຕ",
       "companyIntroGrowthLabel": "ໄປດ້ວຍກັນ",
-      "companyIntroImageNote": "ພາບຕົວຢ່າງບໍລິສັດ",
+      "companyIntroImageNote": "",
       "groupPurposeLead": "ຜູ້ນຳກຸ່ມທຸລະກິດເພື່ອສຸຂະພາບ ແລະ ນະວັດຕະກຳທີ່ເປັນມິດຕໍ່ສິ່ງແວດລ້ອມໃນປະເທດລາວ",
       "groupPurposeDesc": "LOVE STK GROUPE ແມ່ນກຸ່ມບໍລິສັດຊັ້ນນຳໃນປະເທດລາວ ທີ່ດຳເນີນທຸລະກິດຢ່າງໝັ້ນຄົງ ແລະ ເຕີບໂຕຢ່າງຕໍ່ເນື່ອງມາຫຼາຍກວ່າ 8 ປີ ມຸ່ງໝັ້ນສູ່ການສ້າງລະບົບນິເວດທາງທຸລະກິດ (BUSINESS ECOSYSTEM) ເພື່ອຍົກລະດັບຄຸນນະພາບຊີວິດຂອງຜູ້ຄົນ ຄຽງຄູ່ກັບການດູແລຮັກສາສິ່ງແວດລ້ອມຢ່າງຍືນຍົງ",
       "groupVisionTitle": "ວິໄສທັດ",
@@ -550,348 +550,7 @@
       "theme_switcher": true
     }
   },
-  "news": [
-    {
-      "id": "mock-01",
-      "category": "company",
-      "image": "assets/architecture.webp",
-      "date": "2026-10-06",
-      "content": {
-        "th": {
-          "title": "LOVE STK GROUPE เปิดมุมมองใหม่สู่การเติบโตร่วมกัน",
-          "summary": "แนวคิดการเชื่อมโยงงานด้านสุขภาพและธุรกิจ เพื่อสร้างคุณค่าให้ลูกค้า ทีมงาน และพันธมิตร",
-          "body": [
-            "แนวคิดการเชื่อมโยงงานด้านสุขภาพและธุรกิจ เพื่อสร้างคุณค่าให้ลูกค้า ทีมงาน และพันธมิตร",
-            "แนวคิดหลักคือการสื่อสารข้อมูลให้ชัดเจน และเปิดโอกาสให้แต่ละส่วนขององค์กรแลกเปลี่ยนความรู้ เพื่อวางแนวทางการพัฒนาร่วมกัน"
-          ]
-        },
-        "lo": {
-          "title": "LOVE STK GROUPE ເປີດມຸມມອງໃໝ່ສູ່ການເຕີບໂຕຮ່ວມກັນ",
-          "summary": "ແນວຄິດການເຊື່ອມໂຍງວຽກດ້ານສຸຂະພາບ ແລະ ທຸລະກິດ ເພື່ອສ້າງຄຸນຄ່າໃຫ້ລູກຄ້າ ທີມງານ ແລະ ຄູ່ຮ່ວມງານ",
-          "body": [
-            "ແນວຄິດການເຊື່ອມໂຍງວຽກດ້ານສຸຂະພາບ ແລະ ທຸລະກິດ ເພື່ອສ້າງຄຸນຄ່າໃຫ້ລູກຄ້າ ທີມງານ ແລະ ຄູ່ຮ່ວມງານ",
-            "ແນວຄິດຫຼັກຄືການສື່ສານຂໍ້ມູນໃຫ້ຊັດເຈນ ແລະ ເປີດໂອກາດໃຫ້ແຕ່ລະສ່ວນຂອງອົງກອນແລກປ່ຽນຄວາມຮູ້ ເພື່ອພັດທະນາຮ່ວມກັນ"
-          ]
-        },
-        "en": {
-          "title": "LOVE STK GROUPE explores a shared path forward",
-          "summary": "An approach to connecting healthcare and business to create value for customers, colleagues, and partners.",
-          "body": [
-            "An approach to connecting healthcare and business to create value for customers, colleagues, and partners.",
-            "The concept centres on clear information and opportunities for different parts of the organisation to exchange knowledge and shape a shared direction."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-02",
-      "category": "health",
-      "image": "assets/clinic.webp",
-      "date": "2026-10-04",
-      "content": {
-        "th": {
-          "title": "Love STK Clinic เตรียมกิจกรรมให้ความรู้เรื่องการตรวจสุขภาพ",
-          "summary": "นำเสนอการดูแลสุขภาพเชิงป้องกัน และการเตรียมตัวก่อนเข้ารับบริการตรวจสุขภาพ",
-          "body": [
-            "นำเสนอการดูแลสุขภาพเชิงป้องกัน และการเตรียมตัวก่อนเข้ารับบริการตรวจสุขภาพ",
-            "รูปแบบเนื้อหาเน้นการสร้างความเข้าใจด้วยภาษาที่เข้าถึงง่าย พร้อมเปิดพื้นที่สำหรับคำถามเกี่ยวกับการดูแลสุขภาพ เนื้อหาตัวอย่างนี้ไม่ได้เป็นคำแนะนำทางการแพทย์เฉพาะบุคคล"
-          ]
-        },
-        "lo": {
-          "title": "Love STK Clinic ກຽມກິດຈະກຳໃຫ້ຄວາມຮູ້ເລື່ອງການກວດສຸຂະພາບ",
-          "summary": "ນຳສະເໜີການດູແລສຸຂະພາບເຊີງປ້ອງກັນ ແລະ ການກຽມຕົວກ່ອນກວດສຸຂະພາບ",
-          "body": [
-            "ນຳສະເໜີການດູແລສຸຂະພາບເຊີງປ້ອງກັນ ແລະ ການກຽມຕົວກ່ອນກວດສຸຂະພາບ",
-            "ຮູບແບບເນື້ອຫາເນັ້ນການສ້າງຄວາມເຂົ້າໃຈດ້ວຍພາສາທີ່ເຂົ້າໃຈງ່າຍ ແລະ ເປີດພື້ນທີ່ສຳລັບຄຳຖາມກ່ຽວກັບສຸຂະພາບ ເນື້ອຫາຕົວຢ່າງນີ້ບໍ່ແມ່ນຄຳແນະນຳທາງການແພດສະເພາະບຸກຄົນ"
-          ]
-        },
-        "en": {
-          "title": "Love STK Clinic plans a health-check awareness session",
-          "summary": "An introduction to preventive care and preparing for a health-check appointment.",
-          "body": [
-            "An introduction to preventive care and preparing for a health-check appointment.",
-            "The format uses accessible language and creates room for questions about wellbeing. This sample content is not personalised medical advice."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-03",
-      "category": "health",
-      "image": "assets/clinic.webp",
-      "date": "2026-10-02",
-      "content": {
-        "th": {
-          "title": "STK Longevity Center ชวนสำรวจแนวคิด Healthspan",
-          "summary": "ทำความรู้จักการดูแลคุณภาพชีวิตระยะยาว ผ่านโภชนาการ การเคลื่อนไหว และการพักผ่อน",
-          "body": [
-            "ทำความรู้จักการดูแลคุณภาพชีวิตระยะยาว ผ่านโภชนาการ การเคลื่อนไหว และการพักผ่อน",
-            "รูปแบบเนื้อหาเน้นการสร้างความเข้าใจด้วยภาษาที่เข้าถึงง่าย พร้อมเปิดพื้นที่สำหรับคำถามเกี่ยวกับการดูแลสุขภาพ เนื้อหาตัวอย่างนี้ไม่ได้เป็นคำแนะนำทางการแพทย์เฉพาะบุคคล"
-          ]
-        },
-        "lo": {
-          "title": "STK Longevity Center ຊວນຮູ້ຈັກແນວຄິດ Healthspan",
-          "summary": "ຮູ້ຈັກການດູແລຄຸນນະພາບຊີວິດໄລຍະຍາວ ຜ່ານໂພຊະນາການ ການເຄື່ອນໄຫວ ແລະ ການພັກຜ່ອນ",
-          "body": [
-            "ຮູ້ຈັກການດູແລຄຸນນະພາບຊີວິດໄລຍະຍາວ ຜ່ານໂພຊະນາການ ການເຄື່ອນໄຫວ ແລະ ການພັກຜ່ອນ",
-            "ຮູບແບບເນື້ອຫາເນັ້ນການສ້າງຄວາມເຂົ້າໃຈດ້ວຍພາສາທີ່ເຂົ້າໃຈງ່າຍ ແລະ ເປີດພື້ນທີ່ສຳລັບຄຳຖາມກ່ຽວກັບສຸຂະພາບ ເນື້ອຫາຕົວຢ່າງນີ້ບໍ່ແມ່ນຄຳແນະນຳທາງການແພດສະເພາະບຸກຄົນ"
-          ]
-        },
-        "en": {
-          "title": "STK Longevity Center introduces the idea of healthspan",
-          "summary": "Exploring long-term wellbeing through nutrition, movement, and rest.",
-          "body": [
-            "Exploring long-term wellbeing through nutrition, movement, and rest.",
-            "The format uses accessible language and creates room for questions about wellbeing. This sample content is not personalised medical advice."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-04",
-      "category": "activity",
-      "image": "assets/team.webp",
-      "date": "2026-09-29",
-      "content": {
-        "th": {
-          "title": "เวิร์กช็อปทีมงาน ยกระดับประสบการณ์การบริการ",
-          "summary": "พื้นที่แลกเปลี่ยนแนวคิดเรื่องการรับฟัง การสื่อสาร และการดูแลลูกค้าอย่างใส่ใจ",
-          "body": [
-            "พื้นที่แลกเปลี่ยนแนวคิดเรื่องการรับฟัง การสื่อสาร และการดูแลลูกค้าอย่างใส่ใจ",
-            "แนวทางกิจกรรมให้ความสำคัญกับการมีส่วนร่วม การรับฟัง และการสรุปแนวคิดที่สามารถนำไปพัฒนาการทำงานต่อได้"
-          ]
-        },
-        "lo": {
-          "title": "ເວີກຊັອບທີມງານ ພັດທະນາປະສົບການບໍລິການ",
-          "summary": "ພື້ນທີ່ແລກປ່ຽນແນວຄິດເລື່ອງການຮັບຟັງ ການສື່ສານ ແລະ ການດູແລລູກຄ້າ",
-          "body": [
-            "ພື້ນທີ່ແລກປ່ຽນແນວຄິດເລື່ອງການຮັບຟັງ ການສື່ສານ ແລະ ການດູແລລູກຄ້າ",
-            "ແນວທາງກິດຈະກຳໃຫ້ຄວາມສຳຄັນກັບການມີສ່ວນຮ່ວມ ການຮັບຟັງ ແລະ ການສະຫຼຸບແນວຄິດທີ່ນຳໄປພັດທະນາວຽກໄດ້"
-          ]
-        },
-        "en": {
-          "title": "A team workshop focused on the service experience",
-          "summary": "A space to exchange ideas on listening, communication, and thoughtful customer care.",
-          "body": [
-            "A space to exchange ideas on listening, communication, and thoughtful customer care.",
-            "The activity concept focuses on participation, listening, and gathering ideas that can support future improvements."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-05",
-      "category": "partner",
-      "image": "assets/team.webp",
-      "date": "2026-09-26",
-      "content": {
-        "th": {
-          "title": "แลกเปลี่ยนแนวคิดความร่วมมือด้านสุขภาพ ลาว–ไทย",
-          "summary": "แนวทางสร้างเครือข่ายความรู้และความร่วมมือ เพื่อพัฒนาประสบการณ์ด้านสุขภาพ",
-          "body": [
-            "แนวทางสร้างเครือข่ายความรู้และความร่วมมือ เพื่อพัฒนาประสบการณ์ด้านสุขภาพ",
-            "การแลกเปลี่ยนมุมมองช่วยให้เห็นความต้องการและโอกาสของแต่ละฝ่าย โดยเน้นการสื่อสารอย่างชัดเจนและเป้าหมายที่สอดคล้องกัน"
-          ]
-        },
-        "lo": {
-          "title": "ແລກປ່ຽນແນວຄິດຄວາມຮ່ວມມືດ້ານສຸຂະພາບ ລາວ–ໄທ",
-          "summary": "ແນວທາງສ້າງເຄືອຂ່າຍຄວາມຮູ້ ແລະ ຄວາມຮ່ວມມື ເພື່ອພັດທະນາປະສົບການດ້ານສຸຂະພາບ",
-          "body": [
-            "ແນວທາງສ້າງເຄືອຂ່າຍຄວາມຮູ້ ແລະ ຄວາມຮ່ວມມື ເພື່ອພັດທະນາປະສົບການດ້ານສຸຂະພາບ",
-            "ການແລກປ່ຽນມຸມມອງຊ່ວຍໃຫ້ເຫັນຄວາມຕ້ອງການ ແລະ ໂອກາດຂອງແຕ່ລະຝ່າຍ ໂດຍເນັ້ນການສື່ສານທີ່ຊັດເຈນ ແລະ ເປົ້າໝາຍທີ່ສອດຄ່ອງກັນ"
-          ]
-        },
-        "en": {
-          "title": "Exploring healthcare collaboration between Laos and Thailand",
-          "summary": "Ideas for knowledge exchange and cooperation to improve healthcare experiences.",
-          "body": [
-            "Ideas for knowledge exchange and cooperation to improve healthcare experiences.",
-            "Exchanging perspectives can reveal each party’s needs and opportunities, with an emphasis on clear communication and aligned goals."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-06",
-      "category": "company",
-      "image": "assets/architecture.webp",
-      "date": "2026-09-23",
-      "content": {
-        "th": {
-          "title": "LSTK Showroom ชวนสำรวจแนวคิดการเดินทางด้วยรถยนต์ไฟฟ้า",
-          "summary": "ตัวอย่างข่าวแนะนำธุรกิจ EV Showroom และทางเลือกด้านยานยนต์ไฟฟ้าของกลุ่มบริษัท",
-          "body": [
-            "LSTK Showroom เป็นธุรกิจด้านรถยนต์ไฟฟ้าในกลุ่ม LOVE STK GROUPE เนื้อหาตัวอย่างนี้แสดงรูปแบบข่าวสำหรับแนะนำธุรกิจและแนวคิดการเดินทาง",
-            "พื้นที่ข่าวสามารถใช้แนะนำรถยนต์ กิจกรรมโชว์รูม และข้อมูลการบริการเมื่อบริษัทมีข้อมูลจริงที่พร้อมเผยแพร่"
-          ]
-        },
-        "lo": {
-          "title": "LSTK Showroom ຊວນສຳຫຼວດແນວຄິດການເດີນທາງດ້ວຍລົດຍົນໄຟຟ້າ",
-          "summary": "ຂ່າວຕົວຢ່າງແນະນຳທຸລະກິດ EV Showroom ແລະ ທາງເລືອກດ້ານຍານຍົນໄຟຟ້າຂອງກຸ່ມບໍລິສັດ",
-          "body": [
-            "LSTK Showroom ແມ່ນທຸລະກິດດ້ານລົດຍົນໄຟຟ້າໃນກຸ່ມ LOVE STK GROUPE ເນື້ອຫາຕົວຢ່າງນີ້ສະແດງຮູບແບບຂ່າວສຳລັບແນະນຳທຸລະກິດ ແລະ ແນວຄິດການເດີນທາງ",
-            "ພື້ນທີ່ຂ່າວສາມາດໃຊ້ແນະນຳລົດຍົນ ກິດຈະກຳໂຊຣູມ ແລະ ຂໍ້ມູນບໍລິການເມື່ອບໍລິສັດມີຂໍ້ມູນຈິງທີ່ພ້ອມເຜີຍແຜ່"
-          ]
-        },
-        "en": {
-          "title": "LSTK Showroom explores the idea of electric mobility",
-          "summary": "A sample introduction to the group’s EV Showroom business and electric vehicle choices.",
-          "body": [
-            "LSTK Showroom is the electric vehicle business within LOVE STK GROUPE. This example demonstrates a news format for introducing the business and its approach to mobility.",
-            "The newsroom can present vehicles, showroom activities, and service information once the company has confirmed material ready to publish."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-07",
-      "category": "activity",
-      "image": "assets/clinic.webp",
-      "date": "2026-09-20",
-      "content": {
-        "th": {
-          "title": "กิจกรรมสุขภาพในชุมชน ใส่ใจการดูแลในชีวิตประจำวัน",
-          "summary": "รูปแบบกิจกรรมที่เปิดพื้นที่ให้ผู้เข้าร่วมถามคำถามและแลกเปลี่ยนมุมมองการดูแลตนเอง",
-          "body": [
-            "รูปแบบกิจกรรมที่เปิดพื้นที่ให้ผู้เข้าร่วมถามคำถามและแลกเปลี่ยนมุมมองการดูแลตนเอง",
-            "แนวทางกิจกรรมให้ความสำคัญกับการมีส่วนร่วม การรับฟัง และการสรุปแนวคิดที่สามารถนำไปพัฒนาการทำงานต่อได้"
-          ]
-        },
-        "lo": {
-          "title": "ກິດຈະກຳສຸຂະພາບໃນຊຸມຊົນ ໃສ່ໃຈການດູແລປະຈຳວັນ",
-          "summary": "ຮູບແບບກິດຈະກຳທີ່ເປີດໃຫ້ຜູ້ເຂົ້າຮ່ວມຖາມຄຳຖາມ ແລະ ແລກປ່ຽນມຸມມອງການດູແລຕົນເອງ",
-          "body": [
-            "ຮູບແບບກິດຈະກຳທີ່ເປີດໃຫ້ຜູ້ເຂົ້າຮ່ວມຖາມຄຳຖາມ ແລະ ແລກປ່ຽນມຸມມອງການດູແລຕົນເອງ",
-            "ແນວທາງກິດຈະກຳໃຫ້ຄວາມສຳຄັນກັບການມີສ່ວນຮ່ວມ ການຮັບຟັງ ແລະ ການສະຫຼຸບແນວຄິດທີ່ນຳໄປພັດທະນາວຽກໄດ້"
-          ]
-        },
-        "en": {
-          "title": "A community activity centred on everyday wellbeing",
-          "summary": "An activity format that invites questions and shared perspectives on self-care.",
-          "body": [
-            "An activity format that invites questions and shared perspectives on self-care.",
-            "The activity concept focuses on participation, listening, and gathering ideas that can support future improvements."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-08",
-      "category": "activity",
-      "image": "assets/team.webp",
-      "date": "2026-09-17",
-      "content": {
-        "th": {
-          "title": "ร่วมชื่นชมทีมงาน กับแนวคิด Social Awards",
-          "summary": "แนวคิดกิจกรรมขอบคุณทีมงานและส่งเสริมการสร้างสรรค์เนื้อหาที่มีคุณค่า",
-          "body": [
-            "แนวคิดกิจกรรมขอบคุณทีมงานและส่งเสริมการสร้างสรรค์เนื้อหาที่มีคุณค่า",
-            "แนวทางกิจกรรมให้ความสำคัญกับการมีส่วนร่วม การรับฟัง และการสรุปแนวคิดที่สามารถนำไปพัฒนาการทำงานต่อได้"
-          ]
-        },
-        "lo": {
-          "title": "ຮ່ວມຊື່ນຊົມທີມງານ ກັບແນວຄິດ Social Awards",
-          "summary": "ແນວຄິດກິດຈະກຳຂອບໃຈທີມງານ ແລະ ສົ່ງເສີມການສ້າງເນື້ອຫາທີ່ມີຄຸນຄ່າ",
-          "body": [
-            "ແນວຄິດກິດຈະກຳຂອບໃຈທີມງານ ແລະ ສົ່ງເສີມການສ້າງເນື້ອຫາທີ່ມີຄຸນຄ່າ",
-            "ແນວທາງກິດຈະກຳໃຫ້ຄວາມສຳຄັນກັບການມີສ່ວນຮ່ວມ ການຮັບຟັງ ແລະ ການສະຫຼຸບແນວຄິດທີ່ນຳໄປພັດທະນາວຽກໄດ້"
-          ]
-        },
-        "en": {
-          "title": "Celebrating team creativity through Social Awards",
-          "summary": "A concept for appreciating colleagues and encouraging valuable creative content.",
-          "body": [
-            "A concept for appreciating colleagues and encouraging valuable creative content.",
-            "The activity concept focuses on participation, listening, and gathering ideas that can support future improvements."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-09",
-      "category": "company",
-      "image": "assets/architecture.webp",
-      "date": "2026-09-14",
-      "content": {
-        "th": {
-          "title": "ปรับประสบการณ์ดิจิทัล ให้รู้จัก LOVE STK ได้ง่ายขึ้น",
-          "summary": "แนวคิดเว็บไซต์ที่รวมข้อมูลบริษัท ธุรกิจ ผู้บริหาร และข่าวสารในพื้นที่เดียว",
-          "body": [
-            "แนวคิดเว็บไซต์ที่รวมข้อมูลบริษัท ธุรกิจ ผู้บริหาร และข่าวสารในพื้นที่เดียว",
-            "แนวคิดหลักคือการสื่อสารข้อมูลให้ชัดเจน และเปิดโอกาสให้แต่ละส่วนขององค์กรแลกเปลี่ยนความรู้ เพื่อวางแนวทางการพัฒนาร่วมกัน"
-          ]
-        },
-        "lo": {
-          "title": "ປັບປະສົບການດິຈິຕອນ ໃຫ້ຮູ້ຈັກ LOVE STK ໄດ້ງ່າຍຂຶ້ນ",
-          "summary": "ແນວຄິດເວັບໄຊທີ່ລວມຂໍ້ມູນບໍລິສັດ ທຸລະກິດ ຜູ້ບໍລິຫານ ແລະ ຂ່າວສານໃນບ່ອນດຽວ",
-          "body": [
-            "ແນວຄິດເວັບໄຊທີ່ລວມຂໍ້ມູນບໍລິສັດ ທຸລະກິດ ຜູ້ບໍລິຫານ ແລະ ຂ່າວສານໃນບ່ອນດຽວ",
-            "ແນວຄິດຫຼັກຄືການສື່ສານຂໍ້ມູນໃຫ້ຊັດເຈນ ແລະ ເປີດໂອກາດໃຫ້ແຕ່ລະສ່ວນຂອງອົງກອນແລກປ່ຽນຄວາມຮູ້ ເພື່ອພັດທະນາຮ່ວມກັນ"
-          ]
-        },
-        "en": {
-          "title": "Making the LOVE STK digital experience easier to explore",
-          "summary": "A website concept bringing company information, businesses, leadership, and news together.",
-          "body": [
-            "A website concept bringing company information, businesses, leadership, and news together.",
-            "The concept centres on clear information and opportunities for different parts of the organisation to exchange knowledge and shape a shared direction."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    },
-    {
-      "id": "mock-10",
-      "category": "partner",
-      "image": "assets/team.webp",
-      "date": "2026-09-10",
-      "content": {
-        "th": {
-          "title": "พื้นที่แลกเปลี่ยนความรู้ เพื่อการพัฒนาร่วมกัน",
-          "summary": "ตัวอย่างกิจกรรมที่เชื่อมโยงทีมงานและพันธมิตร ผ่านการพูดคุยและการเรียนรู้ร่วมกัน",
-          "body": [
-            "ตัวอย่างกิจกรรมที่เชื่อมโยงทีมงานและพันธมิตร ผ่านการพูดคุยและการเรียนรู้ร่วมกัน",
-            "การแลกเปลี่ยนมุมมองช่วยให้เห็นความต้องการและโอกาสของแต่ละฝ่าย โดยเน้นการสื่อสารอย่างชัดเจนและเป้าหมายที่สอดคล้องกัน"
-          ]
-        },
-        "lo": {
-          "title": "ພື້ນທີ່ແລກປ່ຽນຄວາມຮູ້ ເພື່ອການພັດທະນາຮ່ວມກັນ",
-          "summary": "ຕົວຢ່າງກິດຈະກຳທີ່ເຊື່ອມໂຍງທີມງານ ແລະ ຄູ່ຮ່ວມງານ ຜ່ານການສົນທະນາ ແລະ ການຮຽນຮູ້ຮ່ວມກັນ",
-          "body": [
-            "ຕົວຢ່າງກິດຈະກຳທີ່ເຊື່ອມໂຍງທີມງານ ແລະ ຄູ່ຮ່ວມງານ ຜ່ານການສົນທະນາ ແລະ ການຮຽນຮູ້ຮ່ວມກັນ",
-            "ການແລກປ່ຽນມຸມມອງຊ່ວຍໃຫ້ເຫັນຄວາມຕ້ອງການ ແລະ ໂອກາດຂອງແຕ່ລະຝ່າຍ ໂດຍເນັ້ນການສື່ສານທີ່ຊັດເຈນ ແລະ ເປົ້າໝາຍທີ່ສອດຄ່ອງກັນ"
-          ]
-        },
-        "en": {
-          "title": "Sharing knowledge to support collective development",
-          "summary": "An example of bringing colleagues and partners together through conversation and shared learning.",
-          "body": [
-            "An example of bringing colleagues and partners together through conversation and shared learning.",
-            "Exchanging perspectives can reveal each party’s needs and opportunities, with an emphasis on clear communication and aligned goals."
-          ]
-        }
-      },
-      "isMock": true,
-      "visible": true
-    }
-  ],
+  "news": [],
   "businessMedia": {
     "pharmacy": {
       "image": "",
@@ -919,297 +578,6 @@
       "logo": "assets/business-icon-travel.svg"
     }
   },
-  "products": [
-    {
-      "id": "mock-product-01",
-      "category": "health",
-      "image": "assets/product-mock-capsule.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Daily Capsule",
-          "summary": "ตัวอย่างบรรจุภัณฑ์ชนิดแคปซูลในขวดโทนน้ำเงิน–ขาว",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดสำหรับการนำเสนอผลิตภัณฑ์\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Daily Capsule",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນຊະນິດແຄັບຊູນ ໂທນສີນ້ຳເງິນ–ຂາວ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດສຳລັບນຳສະເໜີຜະລິດຕະພັນ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Daily Capsule",
-          "summary": "A blue-and-white capsule bottle packaging concept.",
-          "description": "A bottle packaging concept for a product catalogue.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [
-        "assets/product-mock-capsule-side.webp",
-        "assets/product-mock-capsule-back.webp",
-        "assets/product-mock-capsule-top.webp"
-      ],
-      "price": 450000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-02",
-      "category": "health",
-      "image": "assets/product-mock-capsule.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Blue Capsule",
-          "summary": "ตัวอย่างบรรจุภัณฑ์ชนิดแคปซูลในขวดโทนน้ำเงิน–ขาว",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดสำหรับการนำเสนอผลิตภัณฑ์\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Blue Capsule",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນຊະນິດແຄັບຊູນ ໂທນສີນ້ຳເງິນ–ຂາວ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດສຳລັບນຳສະເໜີຜະລິດຕະພັນ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Blue Capsule",
-          "summary": "A blue-and-white capsule bottle packaging concept.",
-          "description": "A bottle packaging concept for a product catalogue.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [
-        "assets/product-mock-capsule-side.webp",
-        "assets/product-mock-capsule-back.webp",
-        "assets/product-mock-capsule-top.webp"
-      ],
-      "price": 490000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-03",
-      "category": "health",
-      "image": "assets/product-mock-capsule.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Balance Capsule",
-          "summary": "ตัวอย่างบรรจุภัณฑ์ชนิดแคปซูลในขวดโทนน้ำเงิน–ขาว",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดสำหรับการนำเสนอผลิตภัณฑ์\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Balance Capsule",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນຊະນິດແຄັບຊູນ ໂທນສີນ້ຳເງິນ–ຂາວ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດສຳລັບນຳສະເໜີຜະລິດຕະພັນ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Balance Capsule",
-          "summary": "A blue-and-white capsule bottle packaging concept.",
-          "description": "A bottle packaging concept for a product catalogue.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [
-        "assets/product-mock-capsule-side.webp",
-        "assets/product-mock-capsule-back.webp",
-        "assets/product-mock-capsule-top.webp"
-      ],
-      "price": 550000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-04",
-      "category": "health",
-      "image": "assets/product-mock-capsule.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Active Capsule",
-          "summary": "ตัวอย่างบรรจุภัณฑ์ชนิดแคปซูลในขวดโทนน้ำเงิน–ขาว",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดสำหรับการนำเสนอผลิตภัณฑ์\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Active Capsule",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນຊະນິດແຄັບຊູນ ໂທນສີນ້ຳເງິນ–ຂາວ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດສຳລັບນຳສະເໜີຜະລິດຕະພັນ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Active Capsule",
-          "summary": "A blue-and-white capsule bottle packaging concept.",
-          "description": "A bottle packaging concept for a product catalogue.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [
-        "assets/product-mock-capsule-side.webp",
-        "assets/product-mock-capsule-back.webp",
-        "assets/product-mock-capsule-top.webp"
-      ],
-      "price": 590000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-05",
-      "category": "health",
-      "image": "assets/product-mock-capsule.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Pure Capsule",
-          "summary": "ตัวอย่างบรรจุภัณฑ์ชนิดแคปซูลในขวดโทนน้ำเงิน–ขาว",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดสำหรับการนำเสนอผลิตภัณฑ์\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Pure Capsule",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນຊະນິດແຄັບຊູນ ໂທນສີນ້ຳເງິນ–ຂາວ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດສຳລັບນຳສະເໜີຜະລິດຕະພັນ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Pure Capsule",
-          "summary": "A blue-and-white capsule bottle packaging concept.",
-          "description": "A bottle packaging concept for a product catalogue.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [
-        "assets/product-mock-capsule-side.webp",
-        "assets/product-mock-capsule-back.webp",
-        "assets/product-mock-capsule-top.webp"
-      ],
-      "price": 650000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-06",
-      "category": "beauty",
-      "image": "assets/product-mock-serum.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Glow Serum",
-          "summary": "ตัวอย่างบรรจุภัณฑ์แบบขวดปั๊ม ดีไซน์เรียบหรู",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดปั๊มโทนน้ำเงิน–ขาว\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Glow Serum",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນແບບຂວດປັ໊ມ ດີໄຊຮຽບຫຼູ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດປັ໊ມ ໂທນສີນ້ຳເງິນ–ຂາວ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Glow Serum",
-          "summary": "A minimal pump-bottle packaging concept.",
-          "description": "A blue-and-white pump bottle packaging concept.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [],
-      "price": 390000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-07",
-      "category": "beauty",
-      "image": "assets/product-mock-serum.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Soft Serum",
-          "summary": "ตัวอย่างบรรจุภัณฑ์แบบขวดปั๊ม ดีไซน์เรียบหรู",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดปั๊มโทนน้ำเงิน–ขาว\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Soft Serum",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນແບບຂວດປັ໊ມ ດີໄຊຮຽບຫຼູ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດປັ໊ມ ໂທນສີນ້ຳເງິນ–ຂາວ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Soft Serum",
-          "summary": "A minimal pump-bottle packaging concept.",
-          "description": "A blue-and-white pump bottle packaging concept.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [],
-      "price": 420000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-08",
-      "category": "beauty",
-      "image": "assets/product-mock-serum.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Clear Serum",
-          "summary": "ตัวอย่างบรรจุภัณฑ์แบบขวดปั๊ม ดีไซน์เรียบหรู",
-          "description": "แนวคิดบรรจุภัณฑ์แบบขวดปั๊มโทนน้ำเงิน–ขาว\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Clear Serum",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນແບບຂວດປັ໊ມ ດີໄຊຮຽບຫຼູ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຂວດປັ໊ມ ໂທນສີນ້ຳເງິນ–ຂາວ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Clear Serum",
-          "summary": "A minimal pump-bottle packaging concept.",
-          "description": "A blue-and-white pump bottle packaging concept.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [],
-      "price": 460000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-09",
-      "category": "weight",
-      "image": "assets/product-mock-sachet.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "Blue Sachet",
-          "summary": "ตัวอย่างบรรจุภัณฑ์แบบซอง โทนน้ำเงิน–ขาว",
-          "description": "แนวคิดบรรจุภัณฑ์แบบซองตั้ง สำหรับการนำเสนอในแคตตาล็อก\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "Blue Sachet",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນແບບຊອງ ໂທນສີນ້ຳເງິນ–ຂາວ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຊອງຕັ້ງ ສຳລັບນຳສະເໜີໃນແຄັດຕາລັອກ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "Blue Sachet",
-          "summary": "A blue-and-white stand-up pouch packaging concept.",
-          "description": "A stand-up pouch packaging concept for the catalogue.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [],
-      "price": 290000,
-      "currency": "LAK"
-    },
-    {
-      "id": "mock-product-10",
-      "category": "weight",
-      "image": "assets/product-mock-sachet.webp",
-      "visible": true,
-      "isMock": true,
-      "content": {
-        "th": {
-          "name": "White Sachet",
-          "summary": "ตัวอย่างบรรจุภัณฑ์แบบซอง โทนน้ำเงิน–ขาว",
-          "description": "แนวคิดบรรจุภัณฑ์แบบซองตั้ง สำหรับการนำเสนอในแคตตาล็อก\nชื่อ รูปภาพ และรายละเอียดเป็นข้อมูลสมมติสำหรับ Mockup เท่านั้น ไม่ใช่ผลิตภัณฑ์จริงของบริษัท"
-        },
-        "lo": {
-          "name": "White Sachet",
-          "summary": "ຕົວຢ່າງບັນຈຸພັນແບບຊອງ ໂທນສີນ້ຳເງິນ–ຂາວ",
-          "description": "ແນວຄິດບັນຈຸພັນແບບຊອງຕັ້ງ ສຳລັບນຳສະເໜີໃນແຄັດຕາລັອກ\nຊື່ ຮູບພາບ ແລະ ລາຍລະອຽດເປັນຂໍ້ມູນສົມມຸດສຳລັບ Mockup ເທົ່ານັ້ນ ບໍ່ແມ່ນຜະລິດຕະພັນຈິງຂອງບໍລິສັດ"
-        },
-        "en": {
-          "name": "White Sachet",
-          "summary": "A blue-and-white stand-up pouch packaging concept.",
-          "description": "A stand-up pouch packaging concept for the catalogue.\nThe name, image and details are fictional mockup content, not an actual company product."
-        }
-      },
-      "gallery": [],
-      "price": 320000,
-      "currency": "LAK"
-    }
-  ],
+  "products": [],
   "sampleProductsV1Applied": true
 }

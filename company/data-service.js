@@ -239,7 +239,7 @@
             }
 
             try {
-                const res = await originalFetch(`${restUrl()}/products?status=eq.published&is_visible=eq.true&order=sort_order.asc&select=*`, { headers });
+                const res = await originalFetch(`${restUrl()}/products?status=eq.published&is_visible=eq.true&is_mock=eq.false&order=sort_order.asc&select=*`, { headers });
                 if (res.ok) {
                     const list = await res.json();
                     if (Array.isArray(list) && list.length > 0) {
@@ -266,7 +266,7 @@
             } catch (e) {}
 
             try {
-                const res = await originalFetch(`${restUrl()}/news?status=eq.published&is_visible=eq.true&order=news_date.desc&select=*`, { headers });
+                const res = await originalFetch(`${restUrl()}/news?status=eq.published&is_visible=eq.true&is_mock=eq.false&order=news_date.desc&select=*`, { headers });
                 if (res.ok) {
                     const list = await res.json();
                     if (Array.isArray(list) && list.length > 0) {
@@ -344,7 +344,7 @@
             } catch (e) {}
 
             try {
-                const res = await originalFetch(`${restUrl()}/products?order=sort_order.asc&select=*`, { headers });
+                const res = await originalFetch(`${restUrl()}/products?order=sort_order.asc&is_mock=eq.false&select=*`, { headers });
                 if (res.ok) {
                     const list = await res.json();
                     if (Array.isArray(list) && list.length > 0) {
@@ -371,7 +371,7 @@
             } catch (e) {}
 
             try {
-                const res = await originalFetch(`${restUrl()}/news?order=news_date.desc&select=*`, { headers });
+                const res = await originalFetch(`${restUrl()}/news?order=news_date.desc&is_mock=eq.false&select=*`, { headers });
                 if (res.ok) {
                     const list = await res.json();
                     if (Array.isArray(list) && list.length > 0) {
@@ -389,6 +389,24 @@
                                     lo: { title: item.slug, summary: '', body: [] },
                                     en: { title: item.slug, summary: '', body: [] }
                                 }
+                            };
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const res = await originalFetch(`${restUrl()}/businesses?order=sort_order.asc&select=*`, { headers });
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) {
+                        businesses = {};
+                        list.forEach(item => {
+                            const meta = item.metadata || {};
+                            businesses[item.slug] = {
+                                image: meta.image || '',
+                                logo: meta.logo || '',
+                                url: item.website_url || ''
                             };
                         });
                     }
@@ -425,16 +443,36 @@
                 if (ws.slide_seconds) content.settings.slideSeconds = ws.slide_seconds;
             }
 
-            if (Array.isArray(supaData?.products) && supaData.products.length > 0) {
+            if ((!content.products || content.products.length === 0) && Array.isArray(supaData?.products) && supaData.products.length > 0) {
                 content.products = supaData.products;
             }
 
-            if (Array.isArray(supaData?.news) && supaData.news.length > 0) {
+            if ((!content.news || content.news.length === 0) && Array.isArray(supaData?.news) && supaData.news.length > 0) {
                 content.news = supaData.news;
             }
 
             if (supaData?.businesses && typeof supaData.businesses === 'object' && Object.keys(supaData.businesses).length > 0) {
-                content.businessMedia = Object.assign(content.businessMedia || {}, supaData.businesses);
+                content.businessMedia = content.businessMedia || {};
+                for (const [key, b] of Object.entries(supaData.businesses)) {
+                    content.businessMedia[key] = Object.assign(content.businessMedia[key] || {}, b);
+                }
+            }
+
+            if (Array.isArray(content.products)) {
+                content.products = content.products.filter(p => !p.isMock);
+            }
+            if (Array.isArray(content.news)) {
+                content.news = content.news.filter(n => !n.isMock);
+            }
+            if (content.texts) {
+                ['th', 'lo', 'en'].forEach(l => {
+                    if (content.texts[l]) {
+                        content.texts[l].executiveMockNotice = '';
+                        content.texts[l].executiveMockBadge = '';
+                        content.texts[l].aboutNewsNote = '';
+                        content.texts[l].companyIntroImageNote = '';
+                    }
+                });
             }
 
             return content;
@@ -532,10 +570,6 @@
                             is_visible: n.visible !== false,
                             is_mock: !!n.isMock,
                             status: isPub ? 'published' : 'draft',
-                            metadata: {
-                                image: n.image || '',
-                                content: n.content || {}
-                            },
                             updated_at: new Date().toISOString()
                         };
 
@@ -713,6 +747,12 @@
                 if (cached) {
                     const parsed = JSON.parse(cached);
                     const finalContent = parsed.content || parsed;
+                    if (Array.isArray(finalContent.products)) {
+                        finalContent.products = finalContent.products.filter(p => !p.isMock);
+                    }
+                    if (Array.isArray(finalContent.news)) {
+                        finalContent.news = finalContent.news.filter(n => !n.isMock);
+                    }
                     if (finalContent.settings) {
                         setTimeout(() => {
                             hydrateContactMenu(finalContent.settings);
@@ -820,6 +860,12 @@
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     const content = parsed.content || parsed;
+                    if (Array.isArray(content.products)) {
+                        content.products = content.products.filter(p => !p.isMock);
+                    }
+                    if (Array.isArray(content.news)) {
+                        content.news = content.news.filter(n => !n.isMock);
+                    }
                     return new Response(JSON.stringify({
                         content: content,
                         revision: parsed.revision || 1,
@@ -974,6 +1020,8 @@
         document.body.style.overflow = 'hidden';
     }
 
+    function enforceFeatureFlags(customFeatures) {
+        const path = window.location.pathname.toLowerCase();
         const features = customFeatures || getActiveFeatures();
         if (!features) return;
 

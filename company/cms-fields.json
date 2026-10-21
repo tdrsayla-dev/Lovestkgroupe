@@ -300,38 +300,28 @@
     "group": "leadership"
   },
   {
-    "key": "executiveMockNotice",
-    "label": "MOCKUP · ชื่อ ภาพ ประวัติ และข้อความของผู้บริหารทั้ง 3 คนเป็นข้อมูลสมมติสำหรับดูดีไซน",
-    "group": "leadership"
-  },
-  {
-    "key": "executiveMockBadge",
-    "label": "ผู้บริหารตัวอย่าง",
-    "group": "leadership"
-  },
-  {
     "key": "mockCeoName",
-    "label": "คุณอธิป วัฒนกุล",
+    "label": "ชื่อ CEO",
     "group": "leadership"
   },
   {
     "key": "mockCeoRole",
-    "label": "ประธานเจ้าหน้าที่บริหาร",
+    "label": "ตำแหน่ง CEO",
     "group": "leadership"
   },
   {
     "key": "mockCeoSummary",
-    "label": "นำองค์กรด้วยวิสัยทัศน์ที่ชัดเจน เชื่อมโยงธุรกิจและทีมงานให้เติบโตไปในทิศทางเดียวกัน",
+    "label": "วิสัยทัศน์ / สรุป CEO",
     "group": "leadership"
   },
   {
     "key": "executiveBioTitle",
-    "label": "ประวัติย่อ",
+    "label": "หัวข้อประวัติย่อ",
     "group": "leadership"
   },
   {
     "key": "mockCeoBio",
-    "label": "ผู้บริหารตัวอย่างที่ให้ความสำคัญกับกลยุทธ์องค์กร การพัฒนาธุรกิจ และการสร้างความสัมพัน",
+    "label": "ประวัติย่อ CEO",
     "group": "leadership"
   },
   {
@@ -371,77 +361,77 @@
   },
   {
     "key": "mockCfoName",
-    "label": "คุณณิชา วรากุล",
+    "label": "ชื่อ CFO",
     "group": "leadership"
   },
   {
     "key": "mockCfoRole",
-    "label": "ประธานเจ้าหน้าที่การเงิน",
+    "label": "ตำแหน่ง CFO",
     "group": "leadership"
   },
   {
     "key": "mockCfoSummary",
-    "label": "ดูแลทิศทางการเงินด้วยความรอบคอบ เพื่อสนับสนุนการตัดสินใจและการเติบโตอย่างมีวินัย",
+    "label": "วิสัยทัศน์ / สรุป CFO",
     "group": "leadership"
   },
   {
     "key": "mockCfoBio",
-    "label": "ผู้บริหารตัวอย่างด้านการวางแผนการเงิน การจัดสรรทรัพยากร และการรายงานผล เพื่อเชื่อมโยง",
+    "label": "ประวัติย่อ CFO",
     "group": "leadership"
   },
   {
     "key": "mockCfoFocus1",
-    "label": "วางแผนงบประมาณและบริหารทรัพยากร",
+    "label": "บทบาทหลัก CFO ข้อ 1",
     "group": "leadership"
   },
   {
     "key": "mockCfoFocus2",
-    "label": "ติดตามผลการเงินและสนับสนุนการตัดสินใจ",
+    "label": "บทบาทหลัก CFO ข้อ 2",
     "group": "leadership"
   },
   {
     "key": "mockCfoFocus3",
-    "label": "ดูแลความเสี่ยงและความโปร่งใสทางการเงิน",
+    "label": "บทบาทหลัก CFO ข้อ 3",
     "group": "leadership"
   },
   {
     "key": "mockCooName",
-    "label": "คุณธนา ภัทรกุล",
+    "label": "ชื่อ COO",
     "group": "leadership"
   },
   {
     "key": "mockCooRole",
-    "label": "ประธานเจ้าหน้าที่ปฏิบัติการ",
+    "label": "ตำแหน่ง COO",
     "group": "leadership"
   },
   {
     "key": "mockCooSummary",
-    "label": "เชื่อมโยงทีมงานและกระบวนการ ให้การดำเนินงานมีประสิทธิภาพและใส่ใจประสบการณ์ของลูกค้า",
+    "label": "วิสัยทัศน์ / สรุป COO",
     "group": "leadership"
   },
   {
     "key": "mockCooBio",
-    "label": "ผู้บริหารตัวอย่างที่มุ่งเน้นการพัฒนากระบวนการ การประสานงานระหว่างทีม และการติดตามคุณภ",
+    "label": "ประวัติย่อ COO",
     "group": "leadership"
   },
   {
     "key": "mockCooFocus1",
-    "label": "ดูแลกระบวนการและมาตรฐานการทำงาน",
+    "label": "บทบาทหลัก COO ข้อ 1",
     "group": "leadership"
   },
   {
     "key": "mockCooFocus2",
-    "label": "ประสานงานทีมและธุรกิจในเครือ",
+    "label": "บทบาทหลัก COO ข้อ 2",
     "group": "leadership"
   },
   {
     "key": "mockCooFocus3",
-    "label": "พัฒนาคุณภาพบริการและประสบการณ์ลูกค้า",
+    "label": "บทบาทหลัก COO ข้อ 3",
     "group": "leadership"
   },
   {
     "key": "mockMessageEyebrow",
-    "label": "สารจาก CEO · ข้อความตัวอย่าง",
+    "label": "หัวข้อสารจาก CEO",
     "group": "leadership"
   },
   {
@@ -451,12 +441,12 @@
   },
   {
     "key": "mockCeoQuote",
-    "label": "“การเติบโตที่มีความหมาย เริ่มจากการดูแลผู้คน และการสร้างคุณค่าร่วมกันในทุกวัน”",
+    "label": "ข้อความสำคัญจาก CEO",
     "group": "leadership"
   },
   {
     "key": "mockQuoteAttribution",
-    "label": "คุณอธิป วัฒนกุล · CEO สมมติ",
+    "label": "ชื่อผู้กล่าว",
     "group": "leadership"
   },
   {
