@@ -44,6 +44,7 @@
     const CheckCircle = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
     const X = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
     const FileText = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>;
+    const Clock = ({ size = 14, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 
     const SALES_PER_PAGE = 50;
 
@@ -65,6 +66,10 @@
             if (match) return match[1];
             return str;
         }
+        const directTimeMatch = str.match(/^(\d{1,2}:\d{2})(?::\d{2})?$/);
+        if (directTimeMatch) {
+            return `${directTimeMatch[1].padStart(5, '0')} น.`;
+        }
         try {
             let d = null;
             if (str.includes('T')) {
@@ -76,7 +81,8 @@
             } else if (str.includes(' ')) {
                 const parts = str.split(' ');
                 if (parts[1] && parts[1].includes(':')) {
-                    const isoStr = parts[0] + 'T' + parts[1] + 'Z';
+                    const timePart = parts[1];
+                    const isoStr = parts[0] + 'T' + timePart + (timePart.endsWith('Z') || timePart.includes('+') || timePart.includes('-', 5) ? '' : 'Z');
                     d = new Date(isoStr);
                 }
             }
@@ -440,6 +446,7 @@
                             date: s.date || s.created_at, 
                             createdAt: s.created_at || s.createdAt || s.date, 
                             time: s.time || s.created_time || s.created_at,
+                            created_at: s.created_at || s.createdAt || s.date,
                             recordedBy: s.recordedBy || s.recorded_by,
                             paymentNote: s.paymentNote || s.payment_note
                         }));
@@ -498,6 +505,7 @@
                                 date: s.date || s.created_at, 
                                 createdAt: s.created_at || s.createdAt || s.date, 
                                 time: s.time || s.created_time || s.created_at,
+                                created_at: s.created_at || s.createdAt || s.date,
                                 recordedBy: s.recordedBy || s.recorded_by,
                                 paymentNote: s.paymentNote || s.payment_note
                             }));
@@ -1806,8 +1814,9 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                 <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
                                     <span>{formatDbDateForFilter(viewBillDetail.date)}</span>
                                     {formatOrderTime(viewBillDetail) && (
-                                        <span className="text-xs font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">
-                                            ⏰ {formatOrderTime(viewBillDetail)}
+                                        <span className="text-xs font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                                            <Clock size={12} className="text-amber-700 shrink-0" />
+                                            <span>{formatOrderTime(viewBillDetail)}</span>
                                         </span>
                                     )}
                                 </p>
@@ -2019,7 +2028,9 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                         className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 font-bold text-xs sm:text-sm rounded-2xl shadow-xs transition-all flex items-center gap-2 cursor-pointer hover:shadow-sm"
                         title="ดูประวัติไทม์ไลน์บิลที่ถูกยกเลิก/ลบในระบบ (บันทึกใน Database)"
                     >
-                        <span className="p-1 bg-rose-100 rounded-lg text-rose-600">🗑️</span>
+                        <span className="p-1 bg-rose-100 rounded-lg text-rose-600 flex items-center justify-center">
+                            <Trash2 size={16} />
+                        </span>
                         <span>ประวัติบิลถูกยกเลิก</span>
                         <span className="bg-rose-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-mono font-black shadow-xs">
                             {deletedOrdersLog.length}
@@ -2176,7 +2187,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
     <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200 font-bold shadow-xs text-center">บิล: <span className="font-black">{rs.id}</span></span>
     {formatOrderTime(rs) && (
         <span className="text-[10px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200 font-bold shadow-xs flex items-center gap-1" title="เวลาออกบิล">
-            <span>⏰</span>
+            <Clock size={11} className="text-amber-600 shrink-0" />
             <span>{formatOrderTime(rs)}</span>
         </span>
     )}
@@ -2295,7 +2306,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
       const [sales, setSales] = useState(() => {
           if (initialCache && Array.isArray(initialCache.sales)) {
-             return initialCache.sales.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)').map(s => ({ ...s, id: s.id || s.sale_id || s.receipt_id || s.order_id, customerId: s.customerId || s.customer_id, memberId: s.memberId || s.sellerId || s.seller_id, totalAmount: s.totalAmount || s.total_amount, saleType: s.saleType || s.sale_type, date: s.date || s.created_at, createdAt: s.created_at || s.createdAt || s.date, time: s.time || s.created_time || s.created_at, recordedBy: s.recordedBy || s.recorded_by, paymentNote: s.paymentNote || s.payment_note }));
+             return initialCache.sales.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)').map(s => ({ ...s, id: s.id || s.sale_id || s.receipt_id || s.order_id, customerId: s.customerId || s.customer_id, memberId: s.memberId || s.sellerId || s.seller_id, totalAmount: s.totalAmount || s.total_amount, saleType: s.saleType || s.sale_type, date: s.date || s.created_at, createdAt: s.created_at || s.createdAt || s.date, time: s.time || s.created_time || s.created_at, created_at: s.created_at || s.createdAt || s.date, recordedBy: s.recordedBy || s.recorded_by, paymentNote: s.paymentNote || s.payment_note }));
           }
           return [];
       });
@@ -2373,7 +2384,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                 memberId: s.memberId || s.sellerId || s.seller_id,
                 totalAmount: s.totalAmount || s.total_amount,
                 saleType: s.saleType || s.sale_type,
-                date: s.date || s.created_at, createdAt: s.created_at || s.createdAt || s.date, time: s.time || s.created_time || s.created_at,
+                date: s.date || s.created_at, createdAt: s.created_at || s.createdAt || s.date, time: s.time || s.created_time || s.created_at, created_at: s.created_at || s.createdAt || s.date,
                 recordedBy: s.recordedBy || s.recorded_by,
                 paymentNote: s.paymentNote || s.payment_note
              })));
@@ -2429,7 +2440,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
             try {
                 // ⚡ โหลดบิลเฉพาะของวันนี้แบบวันต่อวัน เพื่อความเร็วสูงสุดและประหยัด Egress
                 const todayIsoStr = (typeof getLocalISODate === 'function') ? getLocalISODate() : new Date().toISOString().split('T')[0];
-                let query = `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json&date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
+                let query = `select=order_id,date,created_at,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json,exchange_rate&date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
                 const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
                 
                 if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
@@ -2455,7 +2466,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                         memberId: s.memberId || s.sellerId || s.seller_id,
                         totalAmount: s.totalAmount || s.total_amount,
                         saleType: s.saleType || s.sale_type,
-                        date: s.date || s.created_at, createdAt: s.created_at || s.createdAt || s.date, time: s.time || s.created_time || s.created_at,
+                        date: s.date || s.created_at, createdAt: s.created_at || s.createdAt || s.date, time: s.time || s.created_time || s.created_at, created_at: s.created_at || s.createdAt || s.date,
                         recordedBy: s.recordedBy || s.recorded_by,
                         paymentNote: s.paymentNote || s.payment_note
                     }));
@@ -2529,7 +2540,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
         // ⚡ ดึงข้อมูลโหลดแรกสุด: ดึงเฉพาะบิลของวันนี้ (วันต่อวัน) เพื่อโหลดไวปานสายฟ้าแลบ ไม่ต้องรอโหลด 800 บิล
         const todayIsoStr = (typeof getLocalISODate === 'function') ? getLocalISODate() : new Date().toISOString().split('T')[0];
-        let salesQuery = `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json&date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
+        let salesQuery = `select=order_id,date,created_at,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json,exchange_rate&date=gte.${todayIsoStr}&order=order_id.desc&limit=300`;
         const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
         if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
             salesQuery += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;

@@ -378,6 +378,7 @@
       // Physical Count State for Daily Audit: { [productId]: countNumber }
       const [physicalCounts, setPhysicalCounts] = useState({});
       const [dailySalesMap, setDailySalesMap] = useState({});
+      const [gapSalesMap, setGapSalesMap] = useState({});
       const [auditNotes, setAuditNotes] = useState('');
       const [isSavingAudit, setIsSavingAudit] = useState(false);
 
@@ -595,7 +596,10 @@
           const fetchSalesPromise = (async () => {
             if (auditDate && typeof window.supabaseSelect === 'function') {
               try {
-                return await window.supabaseSelect('stk_sales', `select=date,items_json,status&date=eq.${auditDate}&limit=3000` + cacheParam);
+                const dt = new Date(auditDate);
+                dt.setDate(dt.getDate() - 14);
+                const minDate = dt.toISOString().split('T')[0];
+                return await window.supabaseSelect('stk_sales', `select=date,items_json,status&date=gte.${minDate}&date=lte.${auditDate}&limit=3000` + cacheParam);
               } catch(e) {
                 console.warn('fetchSales error:', e);
               }
@@ -710,14 +714,27 @@
           // บันทึกและอัปเดต Daily Sales Map (ยอดขายสำเร็จจริง พร้อมแปลงสินค้าชุด/โปรโมชั่นกลับเป็นสินค้าจริง)
           if (salesResult.status === 'fulfilled' && Array.isArray(salesResult.value)) {
             const sMap = {};
+            const gMap = {};
             const pList = prodResult.value || products || [];
+
+            // หา priorAuditDate เพื่อแยกยอดขายของช่วงค้างตรวจนับ ไม่ให้ปนกับยอดขายของ auditDate
+            const cachedAudits = auditResult.status === 'fulfilled' && Array.isArray(auditResult.value) ? auditResult.value : (auditRecordsCache || []);
+            const priorDates = cachedAudits.map(r => r.balance_date).filter(d => d && d < auditDate).sort((a,b) => b.localeCompare(a));
+            const pAuditDate = priorDates[0] || null;
+
             salesResult.value.forEach(bill => {
               const bStatus = String(bill.status || '').toUpperCase();
               if (bStatus === 'CANCELLED' || bStatus === 'ยกเลิก' || bStatus === 'DELETED') return;
+              const bDate = String(bill.date || '').slice(0, 10);
+              const isToday = bDate === auditDate;
+              const isGap = pAuditDate && bDate > pAuditDate && bDate < auditDate;
+              if (!isToday && !isGap) return;
+
+              const targetMap = isToday ? sMap : gMap;
               if (window.StockLogic?.resolveBillItemsToStock) {
                 const billStockMap = window.StockLogic.resolveBillItemsToStock(bill, pList);
                 Object.keys(billStockMap).forEach(pid => {
-                  sMap[pid] = (sMap[pid] || 0) + (billStockMap[pid] || 0);
+                  targetMap[pid] = (targetMap[pid] || 0) + (billStockMap[pid] || 0);
                 });
               } else {
                 let items = [];
@@ -734,13 +751,14 @@
                     }
                     const q = Number(it.qty || it.quantity || 0);
                     if (pid && q > 0) {
-                      sMap[pid] = (sMap[pid] || 0) + q;
+                      targetMap[pid] = (targetMap[pid] || 0) + q;
                     }
                   });
                 }
               }
             });
             setDailySalesMap(sMap);
+            setGapSalesMap(gMap);
           }
 
           // บันทึกและอัปเดต GRN History
@@ -809,18 +827,36 @@
               setAuditSavedInfo(null);
             }
 
-            // 2. ดึงยอดขายประจำวัน เฉพาะคอลัมน์จำเป็นและจำกัดขอบเขต (รักษา Egress ต่ำสุด)
-            const salesRes = await window.supabaseSelect('stk_sales', `date=eq.${auditDate}&select=order_id,date,items_json,status&limit=3000`).catch(() => []);
+            // 2. ดึงยอดขายประจำวันและช่วงค้างตรวจนับ (รักษา Egress ต่ำสุด)
+            const priorDates = (auditRecordsCache || []).map(r => r.balance_date).filter(d => d && d < auditDate).sort((a,b) => b.localeCompare(a));
+            const pAuditDate = priorDates[0] || null;
+            let minDate = auditDate;
+            if (pAuditDate) {
+              minDate = pAuditDate;
+            } else {
+              const dt = new Date(auditDate);
+              dt.setDate(dt.getDate() - 14);
+              minDate = dt.toISOString().split('T')[0];
+            }
+
+            const salesRes = await window.supabaseSelect('stk_sales', `date=gte.${minDate}&date=lte.${auditDate}&select=order_id,date,items_json,status&limit=3000`).catch(() => []);
             if (Array.isArray(salesRes)) {
               const sMap = {};
+              const gMap = {};
               const pList = products || [];
               salesRes.forEach(bill => {
                 const bStatus = String(bill.status || '').toUpperCase();
                 if (bStatus === 'CANCELLED' || bStatus === 'ยกเลิก' || bStatus === 'DELETED') return;
+                const bDate = String(bill.date || '').slice(0, 10);
+                const isToday = bDate === auditDate;
+                const isGap = pAuditDate && bDate > pAuditDate && bDate < auditDate;
+                if (!isToday && !isGap) return;
+
+                const targetMap = isToday ? sMap : gMap;
                 if (window.StockLogic?.resolveBillItemsToStock) {
                   const billStockMap = window.StockLogic.resolveBillItemsToStock(bill, pList);
                   Object.keys(billStockMap).forEach(pid => {
-                    sMap[pid] = (sMap[pid] || 0) + (billStockMap[pid] || 0);
+                    targetMap[pid] = (targetMap[pid] || 0) + (billStockMap[pid] || 0);
                   });
                 } else {
                   let items = [];
@@ -837,13 +873,14 @@
                       }
                       const q = Number(it.qty || it.quantity || 0);
                       if (pid && q > 0) {
-                        sMap[pid] = (sMap[pid] || 0) + q;
+                        targetMap[pid] = (targetMap[pid] || 0) + q;
                       }
                     });
                   }
                 }
               });
               setDailySalesMap(sMap);
+              setGapSalesMap(gMap);
             }
           } catch(e) {
             console.warn('auditDate fetch balance/sales error:', e);
@@ -1732,9 +1769,39 @@
         }
       };
 
-      // Daily Reconciliation Ledger Calculation
+      // Daily Reconciliation Ledger Calculation (Dynamic Hybrid Gap Audit System)
       const dailyReconciliation = useMemo(() => {
-        // Daily formula: Opening + Transfer In - Sales = System Closing
+        // ตรวจหา priorAuditDate จากประวัติที่มีการบันทึกตรวจนับไว้จริง (Strictly < auditDate)
+        const priorDates = (auditRecordsCache || [])
+          .map(r => r.balance_date)
+          .filter(d => d && d < auditDate);
+        priorDates.sort((a, b) => b.localeCompare(a));
+        const latestPriorAuditDate = priorDates[0] || null;
+
+        let hasAuditGap = false;
+        let gapDaysCount = 0;
+        let gapDateRangeStr = '';
+        if (latestPriorAuditDate) {
+          const d1 = new Date(latestPriorAuditDate + 'T00:00:00');
+          const d2 = new Date(auditDate + 'T00:00:00');
+          const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+          if (diffDays > 1) {
+            hasAuditGap = true;
+            gapDaysCount = diffDays - 1;
+            if (gapDaysCount === 1) {
+              const skippedDate = new Date(d1);
+              skippedDate.setDate(skippedDate.getDate() + 1);
+              gapDateRangeStr = skippedDate.toISOString().split('T')[0];
+            } else {
+              const startSkip = new Date(d1);
+              startSkip.setDate(startSkip.getDate() + 1);
+              const endSkip = new Date(d2);
+              endSkip.setDate(endSkip.getDate() - 1);
+              gapDateRangeStr = `${startSkip.toISOString().split('T')[0]} ถึง ${endSkip.toISOString().split('T')[0]}`;
+            }
+          }
+        }
+
         const rawTransfers = [...(transfers || []), ...(transferHistoryList || [])];
         const seenTrfIds = new Set();
         const validTransfers = rawTransfers.filter(t => {
@@ -1744,21 +1811,20 @@
             if (seenTrfIds.has(trfId)) return false;
             seenTrfIds.add(trfId);
           }
-
-          const isToday = (t.transfer_date === auditDate || (t.created_at && t.created_at.slice(0, 10) === auditDate));
           const isNotCancelled = t.status !== 'CANCELLED';
           const isToFrontStore = String(t.to_warehouse || '').toUpperCase().includes('FRONT');
-          const isNotGRN = !trfId.startsWith('GRN'); // แยกใบเบิก(TRF)ออกจากใบรับ(GRN)
-          
-          return isToday && isNotCancelled && isToFrontStore && isNotGRN;
+          const isNotGRN = !trfId.startsWith('GRN');
+          return isNotCancelled && isToFrontStore && isNotGRN;
         });
 
         return productStockSummary
           .filter(item => !item.isPromoBundle && !isProductDiscontinued(item.product))
           .map(item => {
           const pid = item.product.product_id;
-          // Calculate transfers in on this date (นับเฉพาะ TRF ที่เบิกเข้าหน้าร้านเท่านั้น ไม่นับ GRN หรือรับเข้าคลังใหญ่)
+
+          // 1. เบิกเข้าหน้าร้านในวันตรวจนับ (auditDate)
           const dateTransfersIn = validTransfers
+            .filter(t => (t.transfer_date === auditDate || (t.created_at && t.created_at.slice(0, 10) === auditDate)))
             .reduce((sum, t) => {
               let items = [];
               try { items = typeof t.items_json === 'string' ? JSON.parse(t.items_json) : t.items_json; } catch(e){}
@@ -1766,9 +1832,20 @@
               return sum + (found ? Number(found.quantity || found.qty || 0) : 0);
             }, 0);
 
-          // Calculate sales on this date: อ้างอิงจากบิลขายสำเร็จจริง (Single Source of Truth) + รายการตัดสต๊อกหน้าร้าน (Zero Out)
-          let dateSales = (dailySalesMap && dailySalesMap[pid] !== undefined) ? dailySalesMap[pid] : 0;
+          // 2. เบิกเข้าหน้าร้านในช่วงค้างตรวจนับ (strictly between latestPriorAuditDate and auditDate)
+          const gapTransfersIn = (hasAuditGap && latestPriorAuditDate) ? validTransfers
+            .filter(t => {
+              const tDate = String(t.transfer_date || t.created_at || '').slice(0, 10);
+              return tDate > latestPriorAuditDate && tDate < auditDate;
+            })
+            .reduce((sum, t) => {
+              let items = [];
+              try { items = typeof t.items_json === 'string' ? JSON.parse(t.items_json) : t.items_json; } catch(e){}
+              const found = (Array.isArray(items) ? items : []).find(i => (i.product_id === pid || i.productId === pid || i.id === pid));
+              return sum + (found ? Number(found.quantity || found.qty || 0) : 0);
+            }, 0) : 0;
 
+          // 3. ยอดตัดศูนย์ในวันตรวจนับ (auditDate)
           const zeroOutMoves = (movements || []).filter(m => {
             const mDate = String(m.date || m.created_at || '').slice(0, 10);
             if (mDate !== auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
@@ -1777,59 +1854,47 @@
             return subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
           }).reduce((s, m) => s + Number(m.quantity || 0), 0);
 
-          if (!dailySalesMap || dailySalesMap[pid] === undefined) {
-            // Fallback: Net movements (OUT sales minus IN returns)
-            const salesOut = movements
-              .filter(m => {
-                const mDate = String(m.date || m.created_at || '').slice(0, 10);
-                if (mDate !== auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
-                
-                const subType = String(m.sub_type || '').toLowerCase();
-                const notesStr = String(m.notes || '').toLowerCase();
-                const whId = String(m.warehouse_id || '').toUpperCase();
-                
-                // ดักจับ: ต้องไม่ใช่คลังใหญ่ และต้องไม่ใช่ใบเบิก หรือใบรับเข้า หรือรายการปรับสต๊อก
-                const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
-                const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
-                const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
-                const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
+          // 4. ยอดตัดศูนย์ในช่วงค้างตรวจนับ (strictly between latestPriorAuditDate and auditDate)
+          const gapZeroOutMoves = (hasAuditGap && latestPriorAuditDate) ? (movements || []).filter(m => {
+            const mDate = String(m.date || m.created_at || '').slice(0, 10);
+            if (mDate <= latestPriorAuditDate || mDate >= auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
+            const subType = String(m.sub_type || '').toLowerCase();
+            const notesStr = String(m.notes || '').toLowerCase();
+            return subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
+          }).reduce((s, m) => s + Number(m.quantity || 0), 0) : 0;
 
-                return (subType.includes('ขาย') || subType.includes('sale') || notesStr.includes('ขาย') || notesStr.includes('บิล') || notesStr.includes('sale') || isZeroOut) && !isTransfer && !isGrn && !isMainWh && (!isAdjustment || isZeroOut);
-              })
-              .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
+          // 5. ยอดขายเฉพาะวันตรวจนับ (auditDate) เพียวๆ ไม่ปูด
+          let dateSales = (dailySalesMap && dailySalesMap[pid] !== undefined) ? dailySalesMap[pid] : 0;
+          dateSales += zeroOutMoves;
 
-            const salesReturn = movements
-              .filter(m => {
-                const mDate = String(m.date || m.created_at || '').slice(0, 10);
-                if (mDate !== auditDate || m.product_id !== pid || m.type !== 'IN') return false;
-                
-                const subType = String(m.sub_type || '').toLowerCase();
-                const notesStr = String(m.notes || '').toLowerCase();
-                const whId = String(m.warehouse_id || '').toUpperCase();
-                
-                const isMainWh = whId === 'MAIN_WH' || whId === 'PHARMA_MAIN' || whId === 'MED_DEVICE_MAIN';
-                const isZeroOut = subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
-                const isTransfer = (subType.includes('เบิกย้าย') || m.type === 'TRANSFER' || (subType.includes('เบิก') && !isZeroOut && !subType.includes('ตัดสต๊อก')));
-                const isGrn = subType.includes('รับสินค้า') || subType.includes('รับเข้า') || notesStr.includes('grn');
-                const isAdjustment = subType.includes('ปรับ') || subType.includes('adjust') || notesStr.includes('ปรับยอด');
-
-                return (subType.includes('คืน') || subType.includes('ยกเลิก') || subType.includes('return') || subType.includes('cancel') || notesStr.includes('คืน') || notesStr.includes('ยกเลิก') || notesStr.includes('cancel')) && !isTransfer && !isGrn && !isMainWh && !isAdjustment;
-              })
-              .reduce((sum, m) => sum + Number(m.quantity || 0), 0);
-
-            dateSales = Math.max(0, salesOut - salesReturn);
-          } else {
-            dateSales += zeroOutMoves;
-          }
+          // 6. ยอดขายช่วงค้างตรวจนับ (gapSales)
+          let gapSales = (gapSalesMap && gapSalesMap[pid] !== undefined) ? gapSalesMap[pid] : 0;
+          gapSales += gapZeroOutMoves;
 
           // ตรวจสอบว่าวันที่เลือก (auditDate) มีการบันทึกปิดยอดไว้แล้วหรือไม่
           const existingAudit = (auditRecordsCache || []).find(r => r.product_id === pid && r.balance_date === auditDate);
+
+          // ค้นหาประวัติการตรวจนับจริงรอบล่าสุดก่อนวันนี้
+          const prevAudit = (auditRecordsCache || [])
+            .filter(r => r.product_id === pid && r.balance_date < auditDate)
+            .sort((a, b) => b.balance_date.localeCompare(a.balance_date))[0];
+
+          const prevDate = prevAudit ? prevAudit.balance_date : null;
+          const prevPhysicalCount = prevAudit ? (prevAudit.physical_count_qty !== null && prevAudit.physical_count_qty !== undefined ? Number(prevAudit.physical_count_qty) : null) : null;
+          const prevSystemClosing = prevAudit ? Number(prevAudit.system_closing_qty || 0) : null;
+          const prevDiff = prevAudit ? (prevAudit.diff_qty !== null && prevAudit.diff_qty !== undefined ? Number(prevAudit.diff_qty) : (prevPhysicalCount !== null ? prevPhysicalCount - prevSystemClosing : 0)) : null;
+
+          // ฐานยอดยกมาตั้งต้นจากรอบก่อน: ให้เกียรติยอดนับจริง (physical_count_qty) ก่อนเสมอ
+          const priorClosingQty = prevAudit 
+            ? (prevPhysicalCount !== null ? prevPhysicalCount : prevSystemClosing)
+            : null;
 
           let opening = 0;
           let systemClosing = 0;
           let finalTransferIn = dateTransfersIn;
           let finalSales = dateSales;
+          let finalGapIn = gapTransfersIn;
+          let finalGapSales = gapSales;
 
           if (existingAudit) {
             // 1. กรณีวันที่นี้มีประวัติการบันทึกกระทบยอดไว้แล้ว: แสดงตาม Snapshot ที่บันทึกไว้ในประวัติ
@@ -1845,23 +1910,16 @@
               : Math.max(0, opening + finalTransferIn - finalSales));
           } else {
             // 2. กรณียังไม่ได้บันทึกปิดยอด (เช่น วันนี้ หรือวันที่สุ่มตรวจนับ):
-            // ดึง "สต็อกห้องขายหน้าร้านปัจจุบัน (item.frontStock)" จากแท็บ 1 เป็นฐานหลัก (Single Source of Truth) ตรงกัน 100%
-            systemClosing = Math.max(0, Number(item.frontStock || 0));
-
-            // คำนวณยอดยกมาต้นวันแบบ Auto-Backtrack: ยอดยกมา = สต็อกหน้าร้านปัจจุบัน - เบิกเข้าวันนี้ + ขายวันนี้
-            // สูตรนี้จะดูดซับยอดเคลื่อนไหวของวันที่ไม่ได้ปิดยอด (เช่น วันอาทิตย์หยุดทำการ) เข้าสู่ยอดยกมาต้นวันโดยอัตโนมัติ
-            opening = Math.max(0, systemClosing - finalTransferIn + finalSales);
+            if (priorClosingQty !== null) {
+              // 💡 DYNAMIC HYBRID AUDIT: ยอดยกมาต้นวัน = ยอดปิดตรวจนับจริงรอบก่อน + รับเข้าช่วงค้างนับ - ขายช่วงค้างนับ
+              opening = Math.max(0, priorClosingQty + finalGapIn - finalGapSales);
+              systemClosing = Math.max(0, opening + finalTransferIn - finalSales);
+            } else {
+              // Fallback กรณีสินค้าใหม่ยังไม่เคยมีรอบตรวจนับในระบบมาก่อน
+              systemClosing = Math.max(0, Number(item.frontStock || 0));
+              opening = Math.max(0, systemClosing - finalTransferIn + finalSales);
+            }
           }
-
-          // ค้นหาประวัติการตรวจนับจริงรอบล่าสุดก่อนวันนี้ (Strictly < auditDate และมีการกรอก physical_count_qty)
-          const prevAudit = (auditRecordsCache || [])
-            .filter(r => r.product_id === pid && r.balance_date < auditDate && r.physical_count_qty !== null && r.physical_count_qty !== undefined)
-            .sort((a, b) => b.balance_date.localeCompare(a.balance_date))[0];
-
-          const prevDate = prevAudit ? prevAudit.balance_date : null;
-          const prevPhysicalCount = prevAudit ? Number(prevAudit.physical_count_qty) : null;
-          const prevSystemClosing = prevAudit ? Number(prevAudit.system_closing_qty || 0) : null;
-          const prevDiff = prevAudit ? (prevAudit.diff_qty !== null && prevAudit.diff_qty !== undefined ? Number(prevAudit.diff_qty) : (prevPhysicalCount - prevSystemClosing)) : null;
 
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
@@ -1932,6 +1990,14 @@
           return {
             productId: pid,
             name: item.product.name,
+            hasGap: hasAuditGap,
+            gapDaysCount: gapDaysCount,
+            gapDateRangeStr: gapDateRangeStr,
+            latestPriorAuditDate: latestPriorAuditDate,
+            priorClosingQty: priorClosingQty,
+            gapInQty: finalGapIn,
+            gapSalesQty: finalGapSales,
+            gapNetQty: finalGapIn - finalGapSales,
             openingQty: opening,
             transferInQty: finalTransferIn,
             salesQty: finalSales,
@@ -1952,7 +2018,7 @@
             diffBadgeClass: diffBadgeClass
           };
         });
-      }, [productStockSummary, transfers, transferHistoryList, movements, auditDate, physicalCounts, dailySalesMap, isProductDiscontinued, auditRecordsCache]);
+      }, [productStockSummary, transfers, transferHistoryList, movements, auditDate, physicalCounts, dailySalesMap, gapSalesMap, isProductDiscontinued, auditRecordsCache]);
 
       // Handle Physical Count Input Change
       const handlePhysicalCountChange = (productId, val) => {
@@ -5105,7 +5171,7 @@
                       )}
 
                       {/* Weekend / Non-Audit Gap Banner */}
-                      {lastAuditInfo && lastAuditInfo.isGap && (
+                      {Boolean(dailyReconciliation && dailyReconciliation[0]?.hasGap) && (
                         <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start sm:items-center gap-3 shadow-xs">
                           <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 font-bold">
                             <AlertTriangle size={17} />
@@ -5113,14 +5179,14 @@
                           <div className="flex-1 text-xs">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-black text-amber-900 dark:text-amber-200">
-                                ข้ามรอบตรวจนับ {lastAuditInfo.gapDays - 1} วัน (รอบตรวจจริงล่าสุด: วันที่ {lastAuditInfo.date})
+                                ตรวจพบค้างตรวจนับ {dailyReconciliation[0]?.gapDaysCount} วัน (รอบตรวจจริงล่าสุด: {dailyReconciliation[0]?.latestPriorAuditDate})
                               </span>
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
-                                ระบบวิเคราะห์เทียบยอดให้อัตโนมัติ
+                                เชื่อมโยงยอดยกมาอัตโนมัติ (Dynamic Gap Audit)
                               </span>
                             </div>
                             <p className="text-amber-700 dark:text-amber-300/90 mt-0.5 text-[11px] leading-relaxed">
-                              ระบบเชื่อมต่อผลต่างจากรอบล่าสุด ({lastAuditInfo.date}) มาเปรียบเทียบกับยอดนับวันนี้ เพื่อแยกแยะว่าสินค้า <strong>"ขาดเท่าเดิม"</strong> หรือ <strong>"ขาดเพิ่มขึ้น"</strong> ได้อย่างแม่นยำ ไม่เพี้ยนจากวันหยุดทำการ
+                              ระบบนำยอดปิดจริงจากวันที่ {dailyReconciliation[0]?.latestPriorAuditDate} มาตั้งต้น และคำนวณเบิก/ขายช่วงที่ค้างนับ ({dailyReconciliation[0]?.gapDateRangeStr}) ให้อัตโนมัติ ทำให้ยอดยกมาถูกต้องแม่นยำ และช่องยอดขายแสดงเฉพาะยอดของวันที่ {auditDate} เท่านั้น
                             </p>
                           </div>
                         </div>
@@ -5145,6 +5211,16 @@
                             <thead>
                               <tr className="bg-slate-50/75 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800 text-[11px] font-semibold">
                                 <th className="py-3 px-4">รหัส / สินค้า</th>
+                                {Boolean(dailyReconciliation && dailyReconciliation[0]?.hasGap) && (
+                                  <>
+                                    <th className="py-3 px-3 text-center bg-amber-50/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-bold border-l border-amber-200/60">
+                                      ยอดปิดรอบก่อน ({dailyReconciliation[0]?.latestPriorAuditDate ? dailyReconciliation[0].latestPriorAuditDate.slice(5) : ''})
+                                    </th>
+                                    <th className="py-3 px-3 text-center bg-amber-50/50 dark:bg-amber-950/25 text-amber-700 dark:text-amber-400 font-semibold border-r border-amber-200/60">
+                                      เคลื่อนไหวช่วงค้างนับ
+                                    </th>
+                                  </>
+                                )}
                                 <th className="py-3 px-4 text-center">ยอดยกมา</th>
                                 <th className="py-3 px-4 text-center">เบิกเข้า (+)</th>
                                 <th className="py-3 px-4 text-center">ยอดขาย (-)</th>
@@ -5163,6 +5239,23 @@
                                       <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{r.name}</div>
                                       <div className="font-mono text-[11px] text-slate-400 tracking-wide">{r.productId}</div>
                                     </td>
+                                    {r.hasGap && (
+                                      <>
+                                        <td className="py-2.5 px-3 text-center font-semibold text-amber-900 dark:text-amber-200 bg-amber-50/40 dark:bg-amber-950/20 border-l border-amber-200/50">
+                                          {r.priorClosingQty ?? '-'}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center text-xs bg-amber-50/20 dark:bg-amber-950/10 border-r border-amber-200/50">
+                                          {r.gapInQty > 0 || r.gapSalesQty > 0 ? (
+                                            <div className="inline-flex items-center gap-1.5 font-mono text-[11px]">
+                                              {r.gapInQty > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+{r.gapInQty}</span>}
+                                              {r.gapSalesQty > 0 && <span className="text-rose-600 dark:text-rose-400 font-semibold">-{r.gapSalesQty}</span>}
+                                            </div>
+                                          ) : (
+                                            <span className="text-slate-300 dark:text-slate-600 font-mono">0</span>
+                                          )}
+                                        </td>
+                                      </>
+                                    )}
                                     <td className="py-2.5 px-4 text-center text-slate-600 dark:text-slate-300 font-medium">
                                       {r.openingQty}
                                     </td>
