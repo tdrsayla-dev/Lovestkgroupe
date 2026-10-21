@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="la">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ຕັ້ງຄ່າຂໍ້ມູນຄລີນິກ - Clinic Settings</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b3c73'/><path d='M40 20h20v20h20v20H60v20H40V60H20V40h20z' fill='%23ffffff'/></svg>">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js?v=1.0"></script>
+<link rel="stylesheet" href="setting.css?v=2.6">
+</head>
+<body>
+
+<div class="loader" id="loader"><div class="spin"></div></div>
+
+<div class="s-body">
+
+  <!-- Header -->
+  <div class="s-header-clean">
+    <div>
+      <h2>ຕັ້ງຄ່າຂໍ້ມູນຄລີນິກ</h2>
+      <p>Clinic Information Settings</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" class="btn-save" id="btnSave" onclick="saveSettings()">
+        <i class="bi bi-cloud-upload-fill"></i> ບັນທຶກການຕັ້ງຄ່າ
+      </button>
+      <a href="Clinic.html" class="btn-back" id="btnBackDirect" style="display:none;">
+        <i class="bi bi-arrow-left-short fs-5"></i> ກັບຄືນ
+      </a>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div id="statusBanner" class="mb-4"></div>
+
+  <!-- TIER 1: ຂໍ້ມູນທົ່ວໄປ, ໂລໂກ້ ແລະ ຕາປະທັບຄລີນິກ (Full Width) -->
+  <div class="s-card mb-4">
+    <div class="s-card-hdr">
+      <div class="hdr-icon ic-blue"><i class="bi bi-building"></i></div>
+      <div class="hdr-info">
+        <h5>ຂໍ້ມູນທົ່ວໄປ, ໂລໂກ້ ແລະ ຕາປະທັບຄລີນິກ</h5>
+        <p>ຊື່ຄລີນິກ, ປະເພດ, ເລກທະບຽນ, ຮູບພາບໂລໂກ້ ແລະ ຕາປະທັບປະຈຳຄລີນິກ</p>
+      </div>
+    </div>
+    <div class="s-card-body">
+      <div class="row g-4 align-items-center">
+        <!-- Clinic Details (Left) -->
+        <div class="col-lg-6 border-end-lg pe-lg-4">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label"><i class="bi bi-hospital text-primary"></i> ຊື່ຄລີນິກ (ລາວ)</label>
+              <input type="text" class="form-control" id="clinic_name_la" placeholder="ຕົວຢ່າງ: ຄລີນິກ ສຸຂະພາບ ABC">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label"><i class="bi bi-tag text-primary"></i> ປະເພດ</label>
+              <input type="text" class="form-control" id="clinic_type" placeholder="ຄລີນິກທົ່ວໄປ">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-upc-scan text-primary"></i> ເລກທະບຽນ</label>
+              <input type="text" class="form-control" id="clinic_reg_no" placeholder="LC-2024-0001">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-calendar3 text-primary"></i> ວັນເປີດດຳເນີນການ</label>
+              <input type="date" class="form-control" id="clinic_founded_date">
+            </div>
+          </div>
+        </div>
+
+        <!-- Logo & Branding (Middle) -->
+        <div class="col-lg-3 border-end-lg pe-lg-3 ps-lg-3">
+          <label class="form-label mb-2"><i class="bi bi-image text-primary"></i> ໂລໂກ້ຄລີນິກ (Logo)</label>
+          <div class="d-flex align-items-center gap-3">
+            <div id="logoBox" onclick="document.getElementById('logoFile').click()" title="ກົດເພື່ອອັບໂຫຼດຮູບ">
+              <img id="logoImg" src="" alt="" style="display:none">
+              <span class="ph" id="logoPh"><i class="bi bi-image"></i></span>
+            </div>
+            <div class="flex-grow-1">
+              <div class="d-flex gap-1.5 mb-1.5">
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2.5" onclick="document.getElementById('logoFile').click()">
+                  <i class="bi bi-upload me-1"></i> ອັບໂຫຼດ
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="clearLogo()" title="ລົບໂລໂກ້">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              <div class="text-muted small mb-1.5" style="font-size:0.72rem;">PNG, WebP, JPG (max 500 KB)</div>
+              <input type="text" class="form-control form-control-sm" id="clinic_logo_url" placeholder="URL ໂລໂກ້ ຫຼື ອັບໂຫຼດ" oninput="previewLogo(this.value)">
+              <input type="file" id="logoFile" accept="image/*" style="display:none" onchange="onLogoFile(event)">
+            </div>
+          </div>
+          <div class="d-flex gap-1 flex-wrap mt-2">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.68rem;">ໃບເສັດ / ໃບບິນ</span>
+            <span class="badge" style="background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4;font-size:0.68rem;">ລາຍງານ PDF</span>
+          </div>
+        </div>
+
+        <!-- Stamp & Seal (Right) -->
+        <div class="col-lg-3 ps-lg-3">
+          <label class="form-label mb-2"><i class="bi bi-patch-check text-primary"></i> ຕາປະທັບຄລີນິກ (Stamp)</label>
+          <div class="d-flex align-items-center gap-3">
+            <div id="stampBox" onclick="document.getElementById('stampFile').click()" title="ກົດເພື່ອອັບໂຫຼດຕາປະທັບ (ແນະນຳໄຟລ໌ PNG ໂປ່ງໃສ)">
+              <img id="stampImg" src="" alt="" style="display:none">
+              <span class="ph" id="stampPh"><i class="bi bi-patch-check"></i></span>
+            </div>
+            <div class="flex-grow-1">
+              <div class="d-flex gap-1.5 mb-1.5">
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2.5" onclick="document.getElementById('stampFile').click()">
+                  <i class="bi bi-upload me-1"></i> ອັບໂຫຼດ
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="clearStamp()" title="ລົບຕາປະທັບ">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              <div class="text-muted small mb-1.5" style="font-size:0.72rem;">ແນະນຳ PNG ໂປ່ງໃສ (max 500 KB)</div>
+              <input type="text" class="form-control form-control-sm" id="clinic_stamp_url" placeholder="URL ຕາປະທັບ ຫຼື ອັບໂຫຼດ" oninput="previewStamp(this.value)">
+              <input type="file" id="stampFile" accept="image/*" style="display:none" onchange="onStampFile(event)">
+            </div>
+          </div>
+          <div class="d-flex gap-1 flex-wrap mt-2">
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.68rem;">ຕາປະທັບໃບເສັດ</span>
+            <span class="badge" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-size:0.68rem;">ໃບຮັບຮອງແພດ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIER 1.5: ຮູບພາບພື້ນຫຼັງໜ້າ Login (Login Background Image) -->
+  <div class="s-card mb-4">
+    <div class="s-card-hdr">
+      <div class="hdr-icon ic-blue" style="background:#e0f2fe;color:#0284c7;"><i class="bi bi-image"></i></div>
+      <div class="hdr-info">
+        <h5>ຮູບພາບພື້ນຫຼັງໜ້າ Login (Login Page Background)</h5>
+        <p>ກຳນົດຮູບພາບພື້ນຫຼັງເຕັມຈໍ (ແທນທີ່ພື້ນທີ່ສີນ້ຳເງິນ) ໃນໜ້າເຂົ້າສູ່ລະບົບ (login.html)</p>
+      </div>
+    </div>
+    <div class="s-card-body">
+      <div class="row g-4 align-items-center">
+        <!-- Preview Box -->
+        <div class="col-lg-5">
+          <label class="form-label mb-2"><i class="bi bi-eye text-primary"></i> ຕົວຢ່າງພາບພື້ນຫຼັງ (Preview)</label>
+          <div id="loginBgBox" style="position:relative; width:100%; height:160px; border-radius:12px; border:2px dashed #cbd5e1; overflow:hidden; background:#02060E; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="document.getElementById('loginBgFile').click()" title="ກົດເພື່ອເລືອກຮູບພາບ">
+            <img id="loginBgImg" src="" alt="Background Preview" style="width:100%; height:100%; object-fit:cover; display:none;">
+            <div id="loginBgPh" class="text-center text-light" style="opacity:0.85;">
+              <i class="bi bi-cloud-arrow-up fs-2 d-block mb-1 text-primary"></i>
+              <span class="small">ກົດເພື່ອເລືອກຮູບ ຫຼື ອັບໂຫຼດໄຟລ໌</span>
+            </div>
+            <!-- Mini Login Card Mockup in preview -->
+            <div style="position:absolute; width:65px; height:85px; background:rgba(255,255,255,0.7); backdrop-filter:blur(4px); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.3); pointer-events:none; border:1px solid rgba(255,255,255,0.5);"></div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="col-lg-7">
+          <div class="d-flex gap-2 mb-2 flex-wrap">
+            <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" onclick="document.getElementById('loginBgFile').click()">
+              <i class="bi bi-upload me-1"></i> ອັບໂຫຼດຮູບພາບ
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="clearLoginBg()" title="ລົບຮູບພາບ (ກັບໄປໃຊ້ພື້ນຫຼັງສີນ້ຳເງິນເດີມ)">
+              <i class="bi bi-arrow-counterclockwise me-1"></i> ໃຊ້ສີນ້ຳເງິນເລີ່ມຕົ້ນ
+            </button>
+          </div>
+          <div class="text-muted small mb-2" style="font-size:0.78rem;">
+            ຮອງຮັບ JPG, PNG, WebP (ລະບົບຈະປັບຂະໜາດ ແລະ ບີບອັດໃຫ້ອັດຕະໂນມັດເພື່ອຄວາມໄວ)
+          </div>
+          <input type="text" class="form-control form-control-sm mb-2" id="clinic_login_bg_url" placeholder="ວາງ URL ຮູບພາບ ຫຼື ກົດປຸ່ມອັບໂຫຼດ" oninput="previewLoginBg(this.value)">
+          <input type="file" id="loginBgFile" accept="image/*" style="display:none" onchange="onLoginBgFile(event)">
+          <div class="form-text small text-muted">
+            <i class="bi bi-info-circle me-1"></i> ຮູບພາບນີ້ຈະສະແດງເຕັມຈໍ ແທນທີ່ພື້ນທີ່ສີນ້ຳເງິນໃນໜ້າເຂົ້າສູ່ລະບົບ (login.html)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIER 2: 2 Balanced Columns (Location & Contact Channels) -->
+  <div class="row g-4 mb-4">
+    <!-- LEFT: ສະຖານທີ່ / ທີ່ຕັ້ງ -->
+    <div class="col-lg-6">
+      <div class="s-card h-100 mb-0">
+        <div class="s-card-hdr">
+          <div class="hdr-icon ic-teal"><i class="bi bi-geo-alt"></i></div>
+          <div class="hdr-info">
+            <h5>ສະຖານທີ່ / ທີ່ຕັ້ງ</h5>
+            <p>ທີ່ຕັ້ງ, ທີ່ຢູ່ ແລະ ເວລາເປີດໃຫ້ບໍລິການ</p>
+          </div>
+        </div>
+        <div class="s-card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label"><i class="bi bi-map" style="color:#0d9488"></i> ທີ່ຢູ່ແບບລະອຽດ</label>
+              <textarea class="form-control" id="clinic_address" rows="2" placeholder="ບ້ານ ໂນນສະຫວ່າງ, ເມືອງໄຊທານີ, ນະຄອນຫຼວງວຽງຈັນ"></textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label"><i class="bi bi-signpost-2" style="color:#0d9488"></i> ເມືອງ / ອຳເພີ</label>
+              <input type="text" class="form-control" id="clinic_district" placeholder="ເມືອງໄຊທານີ">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label"><i class="bi bi-map-fill" style="color:#0d9488"></i> ແຂວງ</label>
+              <input type="text" class="form-control" id="clinic_province" placeholder="ນະຄອນຫຼວງວຽງຈັນ">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label"><i class="bi bi-flag" style="color:#0d9488"></i> ປະເທດ</label>
+              <input type="text" class="form-control" id="clinic_country" value="ສ.ປ.ປ. ລາວ">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-pin-map" style="color:#0d9488"></i> Google Maps URL</label>
+              <input type="url" class="form-control" id="clinic_maps_url" placeholder="https://maps.google.com/?q=...">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-clock" style="color:#0d9488"></i> ເວລາເປີດ-ປິດ</label>
+              <input type="text" class="form-control" id="clinic_hours" placeholder="ຈັນ-ສຸກ 08:00-17:00">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: ຂໍ້ມູນຕິດຕໍ່ -->
+    <div class="col-lg-6">
+      <div class="s-card h-100 mb-0">
+        <div class="s-card-hdr">
+          <div class="hdr-icon ic-orange"><i class="bi bi-telephone"></i></div>
+          <div class="hdr-info">
+            <h5>ຂໍ້ມູນຕິດຕໍ່</h5>
+            <p>ເບີໂທ, ອີເມວ ແລະ ຊ່ອງທາງສື່ສັງຄົມ</p>
+          </div>
+        </div>
+        <div class="s-card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-telephone-fill" style="color:#f97316"></i> ເບີໂທຫຼັກ</label>
+              <input type="tel" class="form-control" id="clinic_phone" placeholder="020 XXXX XXXX">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-telephone" style="color:#f97316"></i> ເບີໂທສຳຮອງ</label>
+              <input type="tel" class="form-control" id="clinic_phone2" placeholder="021 XXX XXX">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-envelope-fill" style="color:#f97316"></i> ອີເມວ</label>
+              <input type="email" class="form-control" id="clinic_email" placeholder="clinic@example.com">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-globe" style="color:#f97316"></i> ເວັບໄຊ</label>
+              <input type="url" class="form-control" id="clinic_website" placeholder="https://www.clinic.com">
+            </div>
+            <div class="col-12">
+              <label class="form-label"><i class="bi bi-facebook" style="color:#f97316"></i> Facebook</label>
+              <input type="text" class="form-control" id="clinic_facebook" placeholder="facebook.com/clinic">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-chat-dots" style="color:#f97316"></i> WhatsApp / LINE</label>
+              <input type="text" class="form-control" id="clinic_line" placeholder="020 XXXX XXXX">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="bi bi-tiktok" style="color:#f97316"></i> TikTok / ອື່ນໆ</label>
+              <input type="text" class="form-control" id="clinic_social_other" placeholder="@clinicname">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIER 3: ໝາຍເຫດ ແລະ ຂໍ້ຄວາມໃບເສັດ (Full Width) -->
+  <div class="s-card mb-4">
+    <div class="s-card-hdr">
+      <div class="hdr-icon ic-purple"><i class="bi bi-file-earmark-text"></i></div>
+      <div class="hdr-info">
+        <h5>ໝາຍເຫດ ແລະ ຂໍ້ຄວາມໃບເສັດ</h5>
+        <p>ຂໍ້ຄວາມທ້າຍໃບເສັດ/ໃບບິນ ແລະ ນະໂຍບາຍການໃຫ້ບໍລິການ</p>
+      </div>
+    </div>
+    <div class="s-card-body">
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <label class="form-label"><i class="bi bi-card-text text-primary"></i> Footer ໃບເສັດ (ຂໍ້ຄວາມທ້າຍໃບເສັດ)</label>
+          <textarea class="form-control" id="clinic_receipt_footer" rows="3"
+            placeholder="ຕົວຢ່າງ: ຂໍຂອບໃຈທີ່ໃຊ້ບໍລິການ. ກະລຸນາຮັກສາໃບເສັດໄວ້ເປັນຫຼັກຖານ."></textarea>
+          <div class="text-muted small mt-1" style="font-size:0.75rem;">* ຂໍ້ຄວາມນີ້ຈະສະແດງຢູ່ດ້ານລຸ່ມສຸດຂອງໃບເສັດ/ໃບບິນຮັບເງິນ</div>
+        </div>
+        <div class="col-lg-6">
+          <label class="form-label"><i class="bi bi-shield-check text-primary"></i> ນະໂຍບາຍ / ຂໍ້ກຳນົດຄລີນິກ</label>
+          <textarea class="form-control" id="clinic_policy" rows="3"
+            placeholder="ຕົວຢ່າງ: ຄ່າໃຊ້ຈ່າຍໃນການກວດ ບໍ່ສາມາດຄືນໄດ້ຫຼັງຮັບບໍລິການ."></textarea>
+          <div class="text-muted small mt-1" style="font-size:0.75rem;">* ຂໍ້ກຳນົດ ແລະ ນະໂຍບາຍໃນການຮັບບໍລິການ</div>
+        </div>
+      </div>
+    </div>
+  <!-- TIER 4: ຈັດການລະຫັດພະຍາດ ICD-10 (ICD-10 Diseases Management) -->
+  <div class="s-card mb-4" id="icd10Section">
+    <div class="s-card-hdr d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2.5">
+        <div class="hdr-icon" style="background:#e0f2fe;color:#0284c7;"><i class="bi bi-clipboard2-pulse"></i></div>
+        <div class="hdr-info">
+          <h5>ຈັດການລະຫັດພະຍາດ ICD-10 (ICD-10 Diseases Master Data)</h5>
+          <p>ເພີ່ມ, ແກ້ໄຂ, ລົບ ແລະ ກຳນົດພະຍາດທີ່ພົບບ່ອຍ ສຳລັບໃຊ້ໃນຫ້ອງກວດແພດ</p>
+        </div>
+      </div>
+      <div>
+        <button type="button" class="btn btn-primary px-3.5 py-1.5 rounded-pill fw-semibold shadow-xs" onclick="openAddDiseaseModal()">
+          <i class="bi bi-plus-circle me-1"></i> ເພີ່ມພະຍາດໃໝ່
+        </button>
+      </div>
+    </div>
+    <div class="s-card-body">
+      <!-- Toolbar: Search & Filter -->
+      <div class="row g-2 mb-3 align-items-center">
+        <div class="col-md-5">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="diseaseSearchInput" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ພະຍາດ (ລາວ/ໄທ/Eng)..." oninput="filterDiseasesTable()">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <select class="form-select form-select-sm" id="diseaseCategoryFilter" onchange="filterDiseasesTable()">
+            <option value="">-- ທຸກໝວດໝູ່ (All Categories) --</option>
+          </select>
+        </div>
+        <div class="col-md-3 text-md-end">
+          <span class="badge bg-light text-secondary border px-2.5 py-1.5" id="diseaseCountBadge" style="font-size: 0.8rem;">
+            ທັງໝົດ: <strong class="text-primary" id="diseaseTotalCount">0</strong> ລາຍການ
+          </span>
+        </div>
+      </div>
+
+      <!-- Diseases Table -->
+      <div class="table-responsive border rounded-3" style="max-height: 480px; overflow-y: auto;">
+        <table class="table table-hover align-middle mb-0" id="diseasesTable" style="font-size: 0.88rem;">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th width="90">ລະຫັດ</th>
+              <th>ຊື່ພະຍາດ (ພາສາລາວ)</th>
+              <th>ชื่อภาษาไทย</th>
+              <th>English Name</th>
+              <th width="140">ໝວດໝູ່</th>
+              <th width="110" class="text-center">ພົບບ່ອຍ</th>
+              <th width="100" class="text-center">ຈັດການ</th>
+            </tr>
+          </thead>
+          <tbody id="diseasesTableBody">
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                <span class="spinner-border spinner-border-sm me-2"></span> ກຳລັງໂຫຼດຂໍ້ມູນພະຍາດ...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: ເພີ່ມ / ແກ້ໄຂ ພະຍາດ ICD-10 -->
+  <div class="modal fade" id="diseaseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-bottom py-3">
+          <h5 class="modal-title fw-bold" id="diseaseModalTitle">
+            <i class="bi bi-clipboard2-plus text-primary me-2"></i>ເພີ່ມພະຍາດໃໝ່
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <input type="hidden" id="modalDiseaseId" value="">
+          <div class="mb-3">
+            <label class="form-label fw-semibold"><span class="text-danger">*</span> ລະຫັດ ICD-10 Code</label>
+            <input type="text" class="form-control" id="modalDiseaseCode" placeholder="ຕົວຢ່າງ: J00, I10, E11.9" required>
+            <div class="form-text">ລະຫັດມາດຕະຖານສາກົນ (ຫ້າມຊ້ຳກັນ)</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold"><span class="text-danger">*</span> ຊື່ພະຍາດ (ພາສາລາວ)</label>
+            <input type="text" class="form-control" id="modalDiseaseNameLa" placeholder="ຕົວຢ່າງ: ໄຂ້ຫວັດທຳມະດາ" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">ຊື່ພະຍາດ (ພາສາໄທ)</label>
+            <input type="text" class="form-control" id="modalDiseaseNameTh" placeholder="ตัวอย่าง: ไข้หวัดเฉียบพลัน">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">English Name</label>
+            <input type="text" class="form-control" id="modalDiseaseNameEn" placeholder="e.g. Acute nasopharyngitis">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-8">
+              <label class="form-label fw-semibold">ໝວດໝູ່ (Category)</label>
+              <input type="text" class="form-control" id="modalDiseaseCategory" placeholder="ຕົວຢ່າງ: ລະບົບຫາຍໃຈ" list="categoryDatalist">
+              <datalist id="categoryDatalist">
+                <option value="ລະບົບຫາຍໃຈ">
+                <option value="ລະບົບຫົວໃຈ ແລະ ຫຼອດເລືອດ">
+                <option value="ລະບົບຕ່ອມໄຮ້ທໍ່ ແລະ ເມຕາບອລິຊຶມ">
+                <option value="ລະບົບທາງເດີນອາຫານ">
+                <option value="ກ້າມຊີ້ນ ແລະ ຂໍ້ຕໍ່">
+                <option value="ລະບົບປະສາດ ແລະ ອາການທົ່ວໄປ">
+                <option value="ລະບົບຜິວໜັງ">
+                <option value="ລະບົບທາງເດີນຍ່ຽວ">
+                <option value="ຕາ ແລະ ຫູ">
+                <option value="ກວດສຸຂະພາບທົ່ວໄປ">
+              </datalist>
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold">ລຳດັບ (Sort)</label>
+              <input type="number" class="form-control" id="modalDiseaseSort" value="0" min="0">
+            </div>
+          </div>
+          <div class="form-check form-switch p-3 bg-light rounded-3">
+            <input class="form-check-input ms-0 me-2.5" type="checkbox" role="switch" id="modalDiseaseIsCommon" checked>
+            <label class="form-check-label fw-semibold" for="modalDiseaseIsCommon">
+              <i class="bi bi-lightning-charge-fill text-warning me-1"></i>ຕັ້ງເປັນ "ພະຍາດທີ່ພົບບ່ອຍ"
+            </label>
+            <div class="text-muted small ps-4" style="font-size:0.75rem;">(ຈະສະແດງເປັນປຸ່ມລັດໃຫ້ແພດກົດເລືອກໄດ້ທັນທີໃນຫ້ອງກວດ)</div>
+          </div>
+        </div>
+        <div class="modal-footer border-top py-2.5">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">ຍົກເລີກ</button>
+          <button type="button" class="btn btn-primary px-4 fw-semibold" id="btnSaveDisease" onclick="saveDiseaseData()">
+            <i class="bi bi-check-lg me-1"></i> ບັນທຶກ
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.s-body -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ================================================================
+//  CLINIC SETTINGS  —  setting.html
+//  Table: public.clinic_settings  { key TEXT PK, value TEXT }
+// ================================================================
+
+let parentCfg = null;
+try {
+  if (window.parent && window.parent !== window && window.parent.CONFIG) parentCfg = window.parent.CONFIG;
+  else if (window.opener && window.opener.CONFIG) parentCfg = window.opener.CONFIG;
+} catch (e) { }
+
+const DEFAULT_CLINIC_URL = 'https://fpmstumpobbjozflkola.supabase.co';
+const DEFAULT_CLINIC_KEY = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+
+const _cfg = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) ? CONFIG : (parentCfg || {
+  SUPABASE_URL: window.SUPABASE_URL || DEFAULT_CLINIC_URL,
+  SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY
+});
+
+let _sb = null;
+try {
+  if (window.parent && window.parent !== window && window.parent._supabase) {
+    _sb = window.parent._supabase;
+  } else if (window.opener && window.opener._supabase) {
+    _sb = window.opener._supabase;
+  }
+} catch (e) { }
+
+if (!_sb && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+  try {
+    const url = _cfg.SUPABASE_URL || DEFAULT_CLINIC_URL;
+    const key = _cfg.SUPABASE_ANON_KEY || DEFAULT_CLINIC_KEY;
+    if (url && key) _sb = supabase.createClient(url, key);
+  } catch (sbErr) {
+    console.warn('Setting Supabase init warning:', sbErr);
+  }
+}
+
+// All field IDs that map 1:1 to Supabase keys
+const FIELDS = [
+  'clinic_name_la',
+  'clinic_type','clinic_reg_no','clinic_founded_date',
+  'clinic_address','clinic_district','clinic_province','clinic_country',
+  'clinic_maps_url','clinic_hours',
+  'clinic_phone','clinic_phone2','clinic_email','clinic_website',
+  'clinic_facebook','clinic_line','clinic_social_other',
+  'clinic_logo_url',
+  'clinic_stamp_url',
+  'clinic_login_bg_url',
+  'clinic_receipt_footer','clinic_policy'
+];
+
+// If directly opened (not inside iframe in Clinic.html), show back button
+if (window.self === window.top) {
+  const backBtn = document.getElementById('btnBackDirect');
+  if (backBtn) backBtn.style.display = 'inline-flex';
+}
+
+// ── Helpers ─────────────────────────────────────────────────────
+function setLoading(on) {
+  const el = document.getElementById('loader');
+  if (el) el.classList.toggle('on', on);
+}
+
+function showStatus(type, html) {
+  const el = document.getElementById('statusBanner');
+  if (!el) return;
+  const cfg = {
+    success: ['bg-success-subtle text-success border border-success-subtle', 'bi-check-circle-fill'],
+    error:   ['bg-danger-subtle text-danger border border-danger-subtle', 'bi-exclamation-triangle-fill'],
+    info:    ['bg-info-subtle text-info border border-info-subtle', 'bi-info-circle-fill']
+  };
+  const [cls, ico] = cfg[type] || cfg.info;
+  el.className = 'mb-4 ' + cls;
+  el.innerHTML = '<i class="bi ' + ico + '"></i> ' + html;
+  el.classList.add('show');
+  if (type === 'success') setTimeout(() => el.classList.remove('show'), 4000);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Logo ─────────────────────────────────────────────────────────
+function previewLogo(url) {
+  const img = document.getElementById('logoImg');
+  const ph  = document.getElementById('logoPh');
+  if (url && url.trim()) {
+    img.src = url.trim();
+    img.onload  = () => { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.onerror = () => { img.style.display = 'none';  ph.style.display = 'block'; };
+  } else {
+    img.style.display = 'none';
+    ph.style.display  = 'block';
+  }
+}
+
+function onLogoFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 512 * 1024) {
+    showStatus('error', 'ໄຟລ໌ຂະໜາດໃຫຍ່ເກີນ 500 KB — ກະລຸນາ resize ກ່ອນ');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('clinic_logo_url').value = ev.target.result;
+    previewLogo(ev.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearLogo() {
+  document.getElementById('clinic_logo_url').value = '';
+  document.getElementById('logoFile').value = '';
+  document.getElementById('logoImg').style.display = 'none';
+  document.getElementById('logoPh').style.display  = 'block';
+}
+
+// ── Stamp ────────────────────────────────────────────────────────
+function previewStamp(url) {
+  const img = document.getElementById('stampImg');
+  const ph  = document.getElementById('stampPh');
+  if (url && url.trim()) {
+    img.src = url.trim();
+    img.onload  = () => { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.onerror = () => { img.style.display = 'none';  ph.style.display = 'block'; };
+  } else {
+    img.style.display = 'none';
+    ph.style.display  = 'block';
+  }
+}
+
+function onStampFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 512 * 1024) {
+    showStatus('error', 'ໄຟລ໌ຕາປະທັບຂະໜາດໃຫຍ່ເກີນ 500 KB — ກະລຸນາ resize ກ່ອນ');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('clinic_stamp_url').value = ev.target.result;
+    previewStamp(ev.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearStamp() {
+  document.getElementById('clinic_stamp_url').value = '';
+  document.getElementById('stampFile').value = '';
+  document.getElementById('stampImg').style.display = 'none';
+  document.getElementById('stampPh').style.display  = 'block';
+}
+
+// ── Login Background ─────────────────────────────────────────────
+function previewLoginBg(url) {
+  const img = document.getElementById('loginBgImg');
+  const ph  = document.getElementById('loginBgPh');
+  if (url && url.trim()) {
+    img.src = url.trim();
+    img.onload  = () => { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.onerror = () => { img.style.display = 'none';  ph.style.display = 'block'; };
+  } else {
+    img.style.display = 'none';
+    ph.style.display  = 'block';
+  }
+}
+
+// ── Storage Safe Helper ──────────────────────────────────────────
+function safeSetStorage(key, val) {
+  try {
+    localStorage.setItem(key, val);
+  } catch(e) {
+    // Quota exceeded or blocked on file:// - safe to ignore
+    console.warn('LocalStorage save skipped for ' + key + ':', e.message);
+  }
+}
+
+function safeRemoveStorage(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch(e) {}
+}
+
+async function onLoginBgFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    // บีบอัดขนาดภาพให้พอดี (1280px, quality 0.65) ทำให้ขนาดเหลือเพียง ~50-80 KB
+    const compressedUrl = await compressImageFile(file, 1280, 0.65);
+    document.getElementById('clinic_login_bg_url').value = compressedUrl;
+    previewLoginBg(compressedUrl);
+    safeSetStorage('clinic_login_bg_url', compressedUrl);
+    showStatus('info', 'ເລືອກຮູບພາບພື້ນຫຼັງແລ້ວ — ກະລຸນາກົດ <b>"ບັນທຶກການຕັ້ງຄ່າ"</b> ເພື່ອນຳໃຊ້');
+  } catch(err) {
+    showStatus('error', 'ອັບໂຫຼດຮູບພາບຜິດພາດ: ' + err.message);
+  }
+}
+
+function clearLoginBg() {
+  document.getElementById('clinic_login_bg_url').value = '';
+  document.getElementById('loginBgFile').value = '';
+  document.getElementById('loginBgImg').style.display = 'none';
+  document.getElementById('loginBgPh').style.display  = 'block';
+  safeRemoveStorage('clinic_login_bg_url');
+  showStatus('info', 'ຣີເຊັດເປັນສີນ້ຳເງິນເລີ່ມຕົ້ນ — ກະລຸນາກົດ <b>"ບັນທຶກການຕັ້ງຄ່າ"</b>');
+}
+
+function compressImageFile(file, maxWidth = 1280, quality = 0.65) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = ev => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width;
+        let h = img.height;
+        if (w > maxWidth) {
+          h = Math.round((h * maxWidth) / w);
+          w = maxWidth;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── Load ─────────────────────────────────────────────────────────
+async function loadSettings() {
+  setLoading(true);
+  try {
+    const { data, error } = await _sb.from('clinic_settings').select('key, value');
+    if (error) {
+      showStatus('error', 'ໂຫຼດຜິດພາດ: ' + error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      showStatus('info', 'ຍັງບໍ່ມີຂໍ້ມູນ — ກຳນົດຂໍ້ມູນຄລີນິກ ແລ້ວກົດ "ບັນທຶກການຕັ້ງຄ່າ"');
+      return;
+    }
+    const map = Object.fromEntries(data.map(r => [r.key, r.value]));
+    FIELDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && map[id] !== undefined) el.value = map[id] || '';
+    });
+    if (map['clinic_logo_url']) previewLogo(map['clinic_logo_url']);
+    if (map['clinic_stamp_url']) previewStamp(map['clinic_stamp_url']);
+    if (map['clinic_login_bg_url']) {
+      previewLoginBg(map['clinic_login_bg_url']);
+      safeSetStorage('clinic_login_bg_url', map['clinic_login_bg_url']);
+    }
+    window.clinicSettings = map;
+  } catch(e) {
+    showStatus('error', 'ເກີດຂໍ້ຜິດພາດ: ' + e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Save ─────────────────────────────────────────────────────────
+async function saveSettings() {
+  const btn = document.getElementById('btnSave');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> ກຳລັງບັນທຶກ...';
+  setLoading(true);
+  try {
+    const rows = FIELDS.map(id => ({
+      key:   id,
+      value: (document.getElementById(id)?.value || '').trim()
+    }));
+    const { error } = await _sb.from('clinic_settings').upsert(rows, { onConflict: 'key' });
+    if (error) throw error;
+    window.clinicSettings = Object.fromEntries(rows.map(r => [r.key, r.value]));
+    showStatus('success', '<b>ບັນທຶກສຳເລັດ!</b> ຂໍ້ມູນຄລີນິກໄດ້ຖືກອັບເດດໃສ່ Supabase ແລ້ວ.');
+    
+    // Notify parent Clinic.html if in iframe
+    if (window.parent && window.parent !== window && typeof window.parent.clinicSettings !== 'undefined') {
+      window.parent.clinicSettings = window.clinicSettings;
+    }
+  } catch(e) {
+    showStatus('error', 'ບັນທຶກຜິດພາດ: ' + e.message);
+  } finally {
+    setLoading(false);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-upload-fill"></i> ບັນທຶກການຕັ້ງຄ່າ';
+  }
+}
+
+// ── Global loader (for Clinic.html) ─────────────────────────────
+window.loadClinicSettings = async function() {
+  try {
+    const { data } = await _sb.from('clinic_settings').select('key, value');
+    if (data) window.clinicSettings = Object.fromEntries(data.map(r => [r.key, r.value]));
+    return window.clinicSettings || {};
+  } catch { return {}; }
+};
+
+// ================================================================
+//  ICD-10 DISEASES MANAGEMENT  —  setting.html
+//  Table: public.icd10_diseases
+// ================================================================
+let allDiseasesList = [];
+
+async function loadIcd10Diseases() {
+  const tbody = document.getElementById('diseasesTableBody');
+  if (!tbody) return;
+  try {
+    const { data, error } = await _sb
+      .from('icd10_diseases')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('code', { ascending: true });
+
+    if (error) {
+      console.warn('Error loading icd10_diseases:', error);
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-exclamation-circle text-warning me-1"></i> ຍັງບໍ່ທັນມີຂໍ້ມູນ ຫຼື ບໍ່ສາມາດເຊື່ອມຕໍ່ຕາຕະລາງ icd10_diseases (ກະລຸນາກວດສອບ SQL)</td></tr>`;
+      return;
+    }
+
+    allDiseasesList = data || [];
+    populateCategoryFilter();
+    renderDiseasesTable(allDiseasesList);
+  } catch (err) {
+    console.error('loadIcd10Diseases err:', err);
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດ: ${err.message}</td></tr>`;
+  }
+}
+
+function populateCategoryFilter() {
+  const sel = document.getElementById('diseaseCategoryFilter');
+  if (!sel) return;
+  const currentVal = sel.value;
+  const cats = [...new Set(allDiseasesList.map(d => d.category).filter(Boolean))].sort();
+  let optHtml = '<option value="">-- ທຸກໝວດໝູ່ (All Categories) --</option>';
+  cats.forEach(c => {
+    optHtml += `<option value="${c}" ${c === currentVal ? 'selected' : ''}>${c}</option>`;
+  });
+  sel.innerHTML = optHtml;
+}
+
+function renderDiseasesTable(list) {
+  const tbody = document.getElementById('diseasesTableBody');
+  const countEl = document.getElementById('diseaseTotalCount');
+  if (countEl) countEl.innerText = (list || []).length;
+  if (!tbody) return;
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">ບໍ່ພົບຂໍ້ມູນພະຍາດ</td></tr>`;
+    return;
+  }
+
+  let html = '';
+  list.forEach(item => {
+    const isCommon = Boolean(item.is_common);
+    const starBadge = isCommon
+      ? `<span class="badge bg-warning text-dark px-2.5 py-1 rounded-pill cursor-pointer" onclick="toggleDiseaseCommon(${item.id}, false)" title="ກົດເພື່ອຍົກເລີກພົບບ່ອຍ" style="cursor:pointer;"><i class="bi bi-star-fill text-dark me-1"></i> ພົບບ່ອຍ</span>`
+      : `<span class="badge bg-light text-muted border px-2.5 py-1 rounded-pill cursor-pointer" onclick="toggleDiseaseCommon(${item.id}, true)" title="ກົດເພື່ອຕັ້ງເປັນພົບບ່ອຍ" style="cursor:pointer;"><i class="bi bi-star me-1"></i> ທຳມະດາ</span>`;
+
+    html += `
+      <tr>
+        <td>
+          <span class="badge bg-primary px-2.5 py-1 fw-bold" style="font-size:0.84rem;">${item.code || '-'}</span>
+        </td>
+        <td>
+          <strong class="text-dark">${item.name_la || '-'}</strong>
+        </td>
+        <td>
+          <span class="text-secondary">${item.name_th || '-'}</span>
+        </td>
+        <td>
+          <span class="text-muted small">${item.name_en || '-'}</span>
+        </td>
+        <td>
+          <span class="badge bg-light text-secondary border">${item.category || 'ທົ່ວໄປ'}</span>
+        </td>
+        <td class="text-center">
+          ${starBadge}
+        </td>
+        <td class="text-center">
+          <div class="d-inline-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary border-0 rounded-circle py-1 px-2" title="ແກ້ໄຂ" onclick="openEditDiseaseModal(${item.id})">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-circle py-1 px-2" title="ລົບ" onclick="deleteDisease(${item.id}, '${item.code}', '${(item.name_la || '').replace(/'/g, "\\'")}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function filterDiseasesTable() {
+  const search = (document.getElementById('diseaseSearchInput')?.value || '').trim().toLowerCase();
+  const cat = document.getElementById('diseaseCategoryFilter')?.value || '';
+
+  const filtered = allDiseasesList.filter(d => {
+    const matchSearch = !search ||
+      (d.code && d.code.toLowerCase().includes(search)) ||
+      (d.name_la && d.name_la.toLowerCase().includes(search)) ||
+      (d.name_th && d.name_th.toLowerCase().includes(search)) ||
+      (d.name_en && d.name_en.toLowerCase().includes(search));
+
+    const matchCat = !cat || d.category === cat;
+    return matchSearch && matchCat;
+  });
+
+  renderDiseasesTable(filtered);
+}
+
+function openAddDiseaseModal() {
+  document.getElementById('diseaseModalTitle').innerHTML = '<i class="bi bi-clipboard2-plus text-primary me-2"></i>ເພີ່ມພະຍາດໃໝ່';
+  document.getElementById('modalDiseaseId').value = '';
+  document.getElementById('modalDiseaseCode').value = '';
+  document.getElementById('modalDiseaseNameLa').value = '';
+  document.getElementById('modalDiseaseNameTh').value = '';
+  document.getElementById('modalDiseaseNameEn').value = '';
+  document.getElementById('modalDiseaseCategory').value = 'ລະບົບຫາຍໃຈ';
+  document.getElementById('modalDiseaseSort').value = allDiseasesList.length + 1;
+  document.getElementById('modalDiseaseIsCommon').checked = true;
+
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('diseaseModal'));
+  modal.show();
+}
+
+function openEditDiseaseModal(id) {
+  const item = allDiseasesList.find(d => d.id === id);
+  if (!item) return;
+
+  document.getElementById('diseaseModalTitle').innerHTML = '<i class="bi bi-pencil-square text-primary me-2"></i>ແກ້ໄຂຂໍ້ມູນພະຍາດ';
+  document.getElementById('modalDiseaseId').value = item.id;
+  document.getElementById('modalDiseaseCode').value = item.code || '';
+  document.getElementById('modalDiseaseNameLa').value = item.name_la || '';
+  document.getElementById('modalDiseaseNameTh').value = item.name_th || '';
+  document.getElementById('modalDiseaseNameEn').value = item.name_en || '';
+  document.getElementById('modalDiseaseCategory').value = item.category || '';
+  document.getElementById('modalDiseaseSort').value = item.sort_order || 0;
+  document.getElementById('modalDiseaseIsCommon').checked = Boolean(item.is_common);
+
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('diseaseModal'));
+  modal.show();
+}
+
+async function saveDiseaseData() {
+  const id = document.getElementById('modalDiseaseId').value;
+  const code = (document.getElementById('modalDiseaseCode').value || '').trim().toUpperCase();
+  const nameLa = (document.getElementById('modalDiseaseNameLa').value || '').trim();
+  const nameTh = (document.getElementById('modalDiseaseNameTh').value || '').trim();
+  const nameEn = (document.getElementById('modalDiseaseNameEn').value || '').trim();
+  const category = (document.getElementById('modalDiseaseCategory').value || '').trim();
+  const sortOrder = parseInt(document.getElementById('modalDiseaseSort').value || '0', 10);
+  const isCommon = document.getElementById('modalDiseaseIsCommon').checked;
+
+  if (!code || !nameLa) {
+    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາລະບຸ ລະຫັດ ICD-10 ແລະ ຊື່ພະຍາດ (ພາສາລາວ)', 'warning');
+    return;
+  }
+
+  const payload = {
+    code: code,
+    name_la: nameLa,
+    name_th: nameTh,
+    name_en: nameEn,
+    category: category,
+    sort_order: sortOrder,
+    is_common: isCommon,
+    is_active: true
+  };
+
+  const btn = document.getElementById('btnSaveDisease');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> ກຳລັງບັນທຶກ...';
+
+  try {
+    if (id) {
+      const { error } = await _sb.from('icd10_diseases').update(payload).eq('id', id);
+      if (error) throw error;
+      Swal.fire({ icon: 'success', title: 'ແກ້ໄຂສຳເລັດ!', timer: 1500, showConfirmButton: false });
+    } else {
+      const { error } = await _sb.from('icd10_diseases').insert([payload]);
+      if (error) throw error;
+      Swal.fire({ icon: 'success', title: 'ເພີ່ມພະຍາດສຳເລັດ!', timer: 1500, showConfirmButton: false });
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('diseaseModal')).hide();
+    await loadIcd10Diseases();
+
+    // Trigger update in parent examination window if open
+    if (window.parent && window.parent.loadIcd10DiseasesFromDb) {
+      window.parent.loadIcd10DiseasesFromDb();
+    }
+  } catch (err) {
+    Swal.fire('ເກີດຂໍ້ຜິດພາດ', err.message || 'ບໍ່ສາມາດບັນທຶກໄດ້', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> ບັນທຶກ';
+  }
+}
+
+async function toggleDiseaseCommon(id, newVal) {
+  try {
+    const { error } = await _sb.from('icd10_diseases').update({ is_common: newVal }).eq('id', id);
+    if (error) throw error;
+    const item = allDiseasesList.find(d => d.id === id);
+    if (item) item.is_common = newVal;
+    filterDiseasesTable();
+    if (window.parent && window.parent.loadIcd10DiseasesFromDb) {
+      window.parent.loadIcd10DiseasesFromDb();
+    }
+  } catch (err) {
+    console.error('toggleDiseaseCommon error:', err);
+  }
+}
+
+async function deleteDisease(id, code, name) {
+  const res = await Swal.fire({
+    title: 'ຢືນຢັນການລົບ?',
+    html: `ທ່ານຕ້ອງການລົບພະຍາດ <strong>${code} - ${name}</strong> ແທ້ບໍ່?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    confirmButtonText: 'ລົບທັນທີ',
+    cancelButtonText: 'ຍົກເລີກ'
+  });
+
+  if (!res.isConfirmed) return;
+
+  try {
+    const { error } = await _sb.from('icd10_diseases').delete().eq('id', id);
+    if (error) throw error;
+    Swal.fire({ icon: 'success', title: 'ລົບສຳເລັດ!', timer: 1200, showConfirmButton: false });
+    await loadIcd10Diseases();
+    if (window.parent && window.parent.loadIcd10DiseasesFromDb) {
+      window.parent.loadIcd10DiseasesFromDb();
+    }
+  } catch (err) {
+    Swal.fire('ເກີດຂໍ້ຜິດພາດ', err.message, 'error');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  loadIcd10Diseases();
+});
+</script>
+</body>
+</html>

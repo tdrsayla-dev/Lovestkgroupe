@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="lo">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recover Lab — ລາຍງານຜົນກວດທາງຫ້ອງປະຕິບັດການ</title>
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- ✅ Recover Lab CSS (แยกออกมาจาก style.css) -->
+    <link rel="stylesheet" href="Recover Lab.css">
+
+    <style>
+        /* Override body default ใน Recover Lab.css ให้เหมาะกับ standalone page */
+        body {
+            background: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        /* No-report placeholder */
+        .rl-no-report {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            gap: 16px;
+            color: #64748b;
+        }
+
+        .rl-no-report i {
+            font-size: 64px;
+            color: #cbd5e1;
+        }
+
+        .rl-no-report h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #334155;
+            margin: 0;
+        }
+
+        .rl-no-report p {
+            font-size: 14px;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ====== TOOLBAR ====== -->
+    <div class="rl-toolbar" id="rlToolbar">
+        <div class="rl-toolbar-title">
+            <i class="bi bi-file-earmark-medical"></i>
+            <span>ລາຍງານຜົນກວດທາງຫ້ອງປະຕິບັດການ / Laboratory Report</span>
+        </div>
+        <div class="rl-toolbar-actions">
+            <button class="rl-btn rl-btn-print" onclick="rlPrint()" title="ພິມ / ບັນທຶກ PDF">
+                <i class="bi bi-printer-fill"></i>
+                <span>ພິມ / PDF</span>
+            </button>
+            <button class="rl-btn rl-btn-close" onclick="window.close()" title="ປິດ">
+                <i class="bi bi-x-lg"></i>
+                <span>ປິດ</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ====== REPORT PREVIEW AREA ====== -->
+    <div class="rl-preview-wrapper" id="rlPreviewWrapper">
+
+        <!-- Report content จะถูก inject ด้วย JS -->
+        <div id="rlReportContainer">
+            <!-- Placeholder ก่อนโหลดข้อมูล -->
+            <div class="rl-no-report" id="rlNoReport">
+                <i class="bi bi-file-earmark-x"></i>
+                <h2>ຍັງບໍ່ມີຂໍ້ມູນລາຍງານ</h2>
+                <p>ກະລຸນາເປີດໜ້ານີ້ຈາກລະບົບຄລີນິກ (ປຸ່ມ "ແປງຜົນຕ.ຈ.ວ")</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ====== SCRIPT ====== -->
+    <script>
+        // -------------------------------------------------------
+        // โหลด Report HTML จาก sessionStorage
+        // (ข้อมูลถูกส่งมาจาก Recover Lab.js ใน Clinic.html)
+        // -------------------------------------------------------
+        (function () {
+            const reportHtml = sessionStorage.getItem('recoverLabReportHtml');
+            const visitNo    = sessionStorage.getItem('recoverLabVisitNo') || 'Report';
+
+            // อัพเดต title
+            document.title = `Lab Report — ${visitNo}`;
+
+            if (reportHtml) {
+                // ซ่อน placeholder
+                const noReport = document.getElementById('rlNoReport');
+                if (noReport) noReport.style.display = 'none';
+
+                // inject HTML ลงใน container
+                const container = document.getElementById('rlReportContainer');
+                if (container) {
+                    const wrapper = document.createElement('div');
+                    wrapper.classList.add('shadow-lg', 'my-3', 'd-inline-block');
+                    wrapper.style.background = '#fff';
+                    wrapper.innerHTML = reportHtml;
+                    container.appendChild(wrapper);
+                }
+
+                // ล้าง sessionStorage เพื่อความปลอดภัย
+                sessionStorage.removeItem('recoverLabReportHtml');
+                sessionStorage.removeItem('recoverLabVisitNo');
+            }
+        })();
+
+        // -------------------------------------------------------
+        // ฟังก์ชันพิมพ์
+        // -------------------------------------------------------
+        function rlPrint() {
+            const toolbar = document.getElementById('rlToolbar');
+            if (toolbar) toolbar.style.display = 'none';
+            window.print();
+            setTimeout(function () {
+                if (toolbar) toolbar.style.display = '';
+            }, 1000);
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="lo">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Comprehensive Laboratory Analysis Report | STK Clinic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="combined-lab.css?v=3.2">
+  <style>
+    body, button, input, select, textarea, table, th, td, h1, h2, h3, p, span, div {
+      font-family: 'Noto Sans Lao', 'Sarabun', system-ui, -apple-system, sans-serif !important;
+    }
+  </style>
+  <script>
+    (function () {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var m = (p.get('mode') || '').toLowerCase();
+        var isRO = (m === 'print' || m === 'history' || m === 'view' || p.get('readonly') === '1' || p.get('readonly') === 'true');
+        if (!isRO && window.parent && window.parent !== window) {
+          try {
+            var pDoc = window.parent.document;
+            var hSec = pDoc.getElementById('history');
+            if (hSec && (hSec.classList.contains('active') || pDoc.querySelector('.page-section.active#history'))) isRO = true;
+            var hMod = pDoc.getElementById('patientHistoryModal');
+            if (hMod && (hMod.classList.contains('show') || hMod.style.display === 'block')) isRO = true;
+            var rxMod = pDoc.getElementById('prescribeModal');
+            if (rxMod && (rxMod.classList.contains('show') || rxMod.style.display === 'block')) isRO = true;
+          } catch (e) { }
+        }
+        if (isRO) {
+          document.documentElement.classList.add('readonly-mode');
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    if (typeof CONFIG === 'undefined') {
+      document.write('<script src="../config.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+
+  <!-- แຖບຄວບຄຸມການເລືອກໝວດໝູ່ (Section Selectors Toolbar) -->
+  <div class="section-selector-bar no-print">
+    <div class="selector-inner">
+      <span class="selector-label"><i class="bi bi-ui-checks me-1"></i>ເລືອກໝວດໝູ່ຜົນກວດທີ່ຕ້ອງການລວມໃນໄຟລ໌ນີ້:</span>
+      <div class="btn-group-sections">
+        <button type="button" class="btn-toggle-sec active" id="toggleCbc" data-section="cbc">
+          <i class="bi bi-droplet-fill text-danger me-1"></i>+ CBC (ກວດເລືອດ)
+        </button>
+        <button type="button" class="btn-toggle-sec active" id="toggleBiochem" data-section="biochem">
+          <i class="bi bi-activity text-info me-1"></i>+ Biochemistry (ເຄມີຄລີນິກ)
+        </button>
+        <button type="button" class="btn-toggle-sec active" id="toggleUrine" data-section="urine">
+          <i class="bi bi-eyedropper text-warning me-1"></i>+ Urinalysis (ກວດຍ່ຽວ)
+        </button>
+        <button type="button" class="btn-toggle-sec active" id="toggleOther" data-section="other">
+          <i class="bi bi-journal-medical text-success me-1"></i>+ Other Lab (ຜົນກວດອື່ນໆ)
+        </button>
+      </div>
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        <button type="button" class="btn btn-sm btn-outline-primary btn-ref-icon-only" id="btnSaveRefRanges" title="ບັນທຶກຄ່າອ້າງອີງມາດຕະຖານ (Save as Default Ranges)">
+          <i class="bi bi-sliders"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main class="paper">
+    <!-- Header ໃບລາຍງານລວມ: Official Clinic Header (ตรงตามรูปที่ 2) -->
+    <header class="report-top-header">
+      <div class="clinic-brand-row">
+        <div class="clinic-brand-left">
+          <img id="clinicLogoImg" src="" alt="Clinic Logo" class="clinic-header-logo" style="display: none;">
+          <div id="clinicLogoFallback" class="clinic-header-logo-fallback">
+            <i class="bi bi-hospital"></i>
+          </div>
+          <div class="clinic-brand-titles">
+            <div class="clinic-title-la">
+              <span id="clinicNameLa" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຊື່ຄລີນິກ">ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ</span>
+            </div>
+            <div class="clinic-title-en">
+              <span id="clinicNameEn" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຊື່ພາສາອັງກິດ">Love STK Medical And Treatment Center</span>
+            </div>
+          </div>
+        </div>
+        <div class="report-title-right">
+          <div class="report-main-title">
+            <span id="reportTitleText" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຫົວຂໍ້">LABORATORY REPORT</span>
+          </div>
+          <div class="report-sub-title">
+            <span id="reportSubtitleText" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຄຳອະທິບາຍ">ຜົນການກວດທາງຫ້ອງປະຕິບັດການ</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Divider เส้นคั่น -->
+      <div class="header-divider-line"></div>
+
+      <!-- ກ່ອງຂໍ້ມູນຜູ້ປ່ວຍ / Patient Information Box (ຕັດ ABO Blood Group ແລະ ວັນທີ ຊ້ຳຊ້ອນອອກ) -->
+      <div class="patient-info-card">
+        <div class="patient-info-ribbon">
+          <i class="bi bi-person-badge me-1"></i>
+          <span>ຂໍ້ມູນຜູ້ປ່ວຍ / Patient Information</span>
+        </div>
+        <div class="patient-info-grid">
+          <div class="info-item">
+            <span class="info-label">HN</span>
+            <span class="info-sep">:</span>
+            <strong id="metaHn" class="info-val">-</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-label">ເບີໂທ</span>
+            <span class="info-sep">:</span>
+            <strong id="metaPhone" class="info-val">-</strong>
+          </div>
+          <div class="info-item info-item-right">
+            <span class="info-label">ວັນທີກວດ:</span>
+            <strong id="metaTestDate" class="info-val">-</strong>
+          </div>
+
+          <div class="info-item">
+            <span class="info-label">Visit No.</span>
+            <span class="info-sep">:</span>
+            <strong id="metaVisitId" class="info-val">-</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-label">ອາຍຸ / ເພດ</span>
+            <span class="info-sep">:</span>
+            <strong id="metaAgeGender" class="info-val"><span id="metaAge">-</span> <span id="metaGender">-</span></strong>
+          </div>
+          <div class="info-item info-item-right">
+            <span class="info-label">ອອກລາຍງານ:</span>
+            <strong id="metaReportDate" class="info-val">-</strong>
+          </div>
+
+          <div class="info-item">
+            <span class="info-label">ຊື່-ນາມສະກຸນ</span>
+            <span class="info-sep">:</span>
+            <strong id="metaPatientName" class="info-val">-</strong>
+          </div>
+          <div class="info-item info-item-span2">
+            <span class="info-label">ທີ່ຢູ່</span>
+            <span class="info-sep">:</span>
+            <strong id="metaAddress" class="info-val">-</strong>
+          </div>
+          <!-- Hidden fallbacks for script safety -->
+          <span id="metaDate" style="display: none;">-</span>
+          <span id="metaBloodGroupBadge" style="display: none;">-</span>
+        </div>
+      </div>
+    </header>
+
+    <form id="combinedReportForm" autocomplete="off" onsubmit="return false;">
+
+      <!-- ==========================================
+           ໝວດ 1: COMPLETE BLOOD COUNT (CBC)
+           ตรงกับ cbc.html ทุกคอลัมน์ + Histograms + Blood Group
+           ========================================== -->
+      <section class="lab-section-block" id="secCbc">
+        <div class="section-header">
+          <div class="sec-title-wrap">
+            <span class="sec-badge cbc-badge">HEMATOLOGY</span>
+            <h3>
+              <i class="bi bi-droplet-fill text-danger me-1"></i>
+              <span class="editable-title" contenteditable="true">Complete Blood Count</span>
+            </h3>
+          </div>
+          <div class="sec-actions no-print">
+            <button type="button" class="btn-sec-action text-danger btn-remove-sec" data-target="cbc" title="ປິດໝວດນີ້ອອກຈາກໃບ">
+              <i class="bi bi-x-circle me-1"></i>ປິດໝວດນີ້
+            </button>
+          </div>
+        </div>
+
+        <div class="cbc-layout-grid">
+          <div class="cbc-table-col">
+            <div class="table-wrap">
+              <table class="lab-table cbc-table" id="tableCbc">
+                <thead>
+                  <tr>
+                    <th style="width: 28%;">Parameter</th>
+                    <th style="width: 18%;">Result</th>
+                    <th style="width: 14%;">Unit</th>
+                    <th style="width: 13%;">Min</th>
+                    <th style="width: 13%;">Max</th>
+                    <th style="width: 14%; text-align: center;">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyCbc">
+                  <!-- Dynamic rows with section headers (WBC, RBC, PLT) -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="cbc-hist-col">
+            <div class="histogram-grid" id="real-histograms">
+              <!-- WBC, RBC, PLT Histogram SVG curves matching cbc.js -->
+            </div>
+            <p class="hist-caption no-print">ກຣາຟຈຳລອງການກະຈາຍຕົວຂອງເມັດເລືອດ (WBC, RBC, PLT) ຄຳນວນຈາກຄ່າຜົນກວດອັດຕະໂນມັດ</p>
+            <div class="blood-group-box">
+              <label for="bloodGroupInput" class="blood-group-label">🩸 Blood Group</label>
+              <input type="text" id="bloodGroupInput" list="bloodGroupOptions" placeholder="ເລືອກ ຫຼື ພິມ (A, B, AB, O)..." class="blood-group-input">
+              <datalist id="bloodGroupOptions">
+                <option value="A"></option>
+                <option value="B"></option>
+                <option value="AB"></option>
+                <option value="O"></option>
+                <option value="A Pos (+)"></option>
+                <option value="B Pos (+)"></option>
+                <option value="AB Pos (+)"></option>
+                <option value="O Pos (+)"></option>
+                <option value="Rh Positive (+)"></option>
+                <option value="Rh Negative (-)"></option>
+              </datalist>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           ໝວດ 2: BIOCHEMISTRY (ເຄມີຄລີນິກ)
+           ตรงกับ biochem.html: Tests | Type | Conc. | Unit | Flags | Ref. Ranges
+           ========================================== -->
+      <section class="lab-section-block" id="secBiochem">
+        <div class="section-header">
+          <div class="sec-title-wrap">
+            <span class="sec-badge biochem-badge">BIOCHEMISTRY</span>
+            <h3>
+              <i class="bi bi-activity text-info me-1"></i>
+              <span class="editable-title" contenteditable="true">Biochemistry Analysis Report</span>
+            </h3>
+          </div>
+          <div class="sec-actions no-print">
+            <button type="button" class="btn-sec-action btn-add-row" data-target="biochem">
+              <i class="bi bi-plus-circle me-1"></i>+ ເພີ່ມແຖວ
+            </button>
+            <button type="button" class="btn-sec-action text-danger btn-remove-sec" data-target="biochem" title="ປິດໝວດນີ້ອອກຈາກໃບ">
+              <i class="bi bi-x-circle me-1"></i>ປິດໝວດນີ້
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="lab-table biochem-table" id="tableBiochem">
+            <thead>
+              <tr>
+                <th style="width: 28%;">Tests (ລາຍການກວດ)</th>
+                <th style="width: 10%; text-align: center;">Type</th>
+                <th style="width: 18%;">Conc. (ຜົນກວດ)</th>
+                <th style="width: 14%;">Unit (ໜ່ວຍ)</th>
+                <th style="width: 10%; text-align: center;">Flags</th>
+                <th style="width: 16%;">Ref. Ranges (ຄ່າອ້າງອີງ)</th>
+                <th style="width: 4%; text-align: center;" class="no-print"></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyBiochem">
+              <!-- Rendered with section rows: Liver, Kidney, Lipid, Glucose, Electrolytes -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           ໝວດ 3: URINALYSIS (ກວດຍ່ຽວ)
+           ตรงกับ urine.html: Test | Result | Reference range (13 รายการมาตรฐาน)
+           ========================================== -->
+      <section class="lab-section-block" id="secUrine">
+        <div class="section-header">
+          <div class="sec-title-wrap">
+            <span class="sec-badge urine-badge">URINALYSIS</span>
+            <h3>
+              <i class="bi bi-eyedropper text-warning me-1"></i>
+              <span class="editable-title" contenteditable="true">Urinalysis</span>
+            </h3>
+          </div>
+          <div class="sec-actions no-print">
+            <button type="button" class="btn-sec-action text-danger btn-remove-sec" data-target="urine" title="ປິດໝວດນີ້ອອກຈາກໃບ">
+              <i class="bi bi-x-circle me-1"></i>ປິດໝວດນີ້
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="lab-table urine-table" id="tableUrine">
+            <thead>
+              <tr>
+                <th style="width: 35%;">Test (ລາຍການກວດ)</th>
+                <th style="width: 35%;">Result (ຜົນກວດ)</th>
+                <th style="width: 30%;">Reference range (ຄ່າອ້າງອີງ)</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyUrine">
+              <!-- 13 standard items matching urine.html -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           ໝວດ 4: OTHER LAB (ຜົນກວດອື່ນໆ)
+           ສະເພາະໝວດນີ້ສາມາດແກ້ Column ໄດ້: ເພີ່ມ, ລຶບ, ປ່ຽນຊື່ (Dynamic Columns)
+           ========================================== -->
+      <section class="lab-section-block" id="secOther">
+        <div class="section-header">
+          <div class="sec-title-wrap">
+            <span class="sec-badge other-badge">OTHER LAB</span>
+            <h3>
+              <i class="bi bi-journal-medical text-success me-1"></i>
+              <span class="editable-title" contenteditable="true">Other & Specialized Tests</span>
+            </h3>
+          </div>
+          <div class="sec-actions no-print">
+            <button type="button" class="btn-sec-action text-primary" id="btnAddColOther" title="ເພີ່ມຖັນໃໝ່ (Add Column)">
+              <i class="bi bi-layout-three-columns me-1"></i>+ ເພີ່ມ Column
+            </button>
+            <button type="button" class="btn-sec-action text-secondary" id="btnResetColsOther" title="ຄືນຄ່າຖັນມາດຕະຖານ (Reset Columns)">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Columns
+            </button>
+            <button type="button" class="btn-sec-action text-success" id="btnAddRowOther" title="ເພີ່ມແຖວໃໝ່ (Add Row)">
+              <i class="bi bi-plus-circle me-1"></i>+ ເພີ່ມແຖວ
+            </button>
+            <button type="button" class="btn-sec-action text-danger btn-remove-sec" data-target="other" title="ປິດໝວດນີ້ອອກຈາກໃບ">
+              <i class="bi bi-x-circle me-1"></i>ປິດໝວດນີ້
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="lab-table other-table" id="tableOther">
+            <thead>
+              <tr id="otherLabHeaderRow">
+                <!-- Dynamic column headers with rename and delete buttons -->
+              </tr>
+            </thead>
+            <tbody id="tbodyOther">
+              <!-- Dynamic rows populated with dynamic columns -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           BOTTOM SECTION: RECOMMENDATION + STAMP + FOOTER (ตรงตามรูปที่ 2)
+           ==================================================== -->
+      <div class="bottom-report-section">
+        <div class="bottom-content-row">
+          <!-- Left: 2 Cards (Digital Verification QR Card + Recommendation) -->
+          <div class="bottom-cards-col">
+            <!-- Digital Verification Card (QR Code) -->
+            <div class="qr-verify-card">
+              <div class="qr-box">
+                <img id="qrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=4&data=STK-CLINIC-LAB-REPORT" alt="QR Code">
+              </div>
+              <div class="qr-details">
+                <div class="qr-header-title">
+                  <i class="bi bi-qr-code-scan text-primary"></i>
+                  <span>ກວດສອບເອກະສານ / Digital Lab Verification</span>
+                </div>
+                <div class="qr-sub-text">
+                  ສະແກນເພື່ອເປີດເບິ່ງໃບຜົນກວດດິຈິຕອນ (Digital Report)
+                </div>
+                <div class="qr-meta-text">
+                  <span>Visit: <strong id="verifyVisitId">-</strong></span> | 
+                  <span>HN: <strong id="verifyHn">-</strong></span> | 
+                  <span class="verified-authentic-tag"><i class="bi bi-patch-check-fill"></i> Verified Authentic</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recommendation Card (ຄຳແນະນຳຈາກແພດ) -->
+            <div class="recommendation-card">
+              <div class="recommendation-header">
+                <span>ຄຳແນະນຳຈາກແພດ / Doctor's Recommendation</span>
+                <span class="no-print edit-hint-text">(ຄລິກເພື່ອແກ້ໄຂຄຳແນະນຳ)</span>
+              </div>
+              <div id="doctorAdviceDisplay" class="editable-advice" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຄຳແນະນຳຂອງທ່ານໝໍ">
+                <div>• ຮັບປະທານອາຫານໃຫ້ຄົບ 5 ໝູ່, ຫຼຸດຜ່ອນອາຫານຫວານ, ມັນ, ເຄັມ</div>
+                <div>• ອອກກຳລັງກາຍຢ່າງສະໝ່ຳສະເໝີ, ພັກຜ່ອນໃຫ້ພຽງພໍ 7-8 ຊົ່ວໂມງ/ມື້</div>
+                <div>• ກວດສຸຂະພາບປະຈຳປີ ທຸກໆ 1 ປີ ຫຼື ຕາມຄຳແນະນຳຂອງທ່ານໝໍ</div>
+              </div>
+              <textarea id="doctorComment" style="display: none;"></textarea>
+            </div>
+          </div>
+
+          <!-- Right: Clinic Stamp (ຂະໜາດ 46mm x 46mm ພໍດີງາມ) -->
+          <div class="bottom-stamp-col" id="bottomStampCol">
+            <div class="stamp-box" id="stampBoxInteractive" title="ຄລິກເພື່ອ ເປີດ/ປິດ ຕາປະທັບ">
+              <img id="clinicStampImg" src="" alt="ຕາປະທັບ" style="width: 46mm; height: 46mm; max-width: 46mm; max-height: 46mm; object-fit: contain; display: none;">
+              <div id="clinicStampFallback" class="official-stamp-fallback">
+                <div class="stamp-inner-circle">
+                  <div class="stamp-star">★ ບໍລິສັດ ★</div>
+                  <div class="stamp-name-la">ຄລີນິກ ເລີຟເຮັສທີເຄ</div>
+                  <div class="stamp-name-en">Clinic Love STK</div>
+                  <div class="stamp-loc">ນະຄອນຫຼວງວຽງຈັນ</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Bar -->
+        <div class="clinic-footer-bar">
+          <div id="footerAddress"><i class="bi bi-geo-alt-fill me-1"></i>-</div>
+          <div id="footerPhone"><i class="bi bi-telephone-fill me-1"></i>-</div>
+          <div id="footerWebsite"><i class="bi bi-globe me-1"></i>-</div>
+        </div>
+      </div>
+
+    </form>
+  </main>
+
+  <!-- Toolbar ດ້ານລຸ່ມ -->
+  <div class="bottom-toolbar no-print">
+    <div class="toolbar-content">
+      <div class="toolbar-group-left">
+        <button type="button" class="btn btn-save-all" id="btnSaveAll">
+          <i class="bi bi-cloud-arrow-up-fill me-1"></i>ບັນທຶກທັງໝົດ (Save All)
+        </button>
+        <button type="button" class="btn btn-download-pdf" id="btnDownloadPdf">
+          <i class="bi bi-download me-1"></i>ດາວໂຫຼດ PDF
+        </button>
+        <button type="button" class="btn btn-print-all" id="btnPrintAll">
+          <i class="bi bi-printer-fill me-1"></i>Print
+        </button>
+        <button type="button" class="btn btn-toggle-stamp" id="btnToggleStamp" title="ຄລິກເພື່ອ ເປີດ/ປິດ ຕາປະທັບ (ເລືອກປະທັບຕາ ຫຼື ບໍ່ເລືອກ)">
+          <i class="bi bi-patch-check-fill me-1" id="stampToggleIcon"></i><span id="stampToggleText">ປະທັບຕາ (Stamp: ON)</span>
+        </button>
+      </div>
+      <div class="toolbar-group-right">
+        <button type="button" class="btn btn-clear-all" id="btnClearAll">
+          <i class="bi bi-eraser me-1"></i>Clear
+        </button>
+        <button type="button" class="btn btn-close-modal" id="btnClosePage">
+          <i class="bi bi-x-lg me-1"></i>ປິດໜ້ານີ້
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-popup" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="combined-lab.js?v=3.5"></script>
+</body>
+</html>

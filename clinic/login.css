@@ -1,0 +1,381 @@
+/* ==========================================================================
+   Clinic System — Login Stylesheet (login.css)
+   ========================================================================== */
+
+/* 1. ตั้งค่าพื้นหลังหน้า Login ด้วยรหัสสีใหม่ และรองรับภาพพื้นหลังจาก Setting */
+body,
+body.login-page {
+    /* 🌟 ใช้ภาพพื้นหลังที่อัปโหลด หรือ สีไล่เฉด #02060E และ #0356C5 */
+    background: var(--clinic-custom-bg, linear-gradient(-45deg, #02060E, #0356C5, #02060E, #012b63)) !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-attachment: fixed !important;
+
+    /* จัดการจัดวางให้เต็มหน้าจอและอยู่กึ่งกลาง */
+    min-height: 100vh !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+body.default-animated-bg {
+    background-size: 400% 400% !important;
+    animation: premiumMotion 12s ease infinite !important;
+}
+
+/* 2. คำสั่งแอนิเมชันให้สีพื้นหลังเคลื่อนไหวช้าๆ */
+@keyframes premiumMotion {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* 3. สไตล์สำหรับกล่อง Login แบบกระจกฝ้า (Glassmorphism) */
+.login-card {
+    background-color: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
+    border-radius: 16px !important;
+    width: 100%;
+    max-width: 420px;
+    padding: 2.5rem;
+}
+
+/* 4. สไตล์สำหรับไอคอนหน้า Login */
+.login-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem auto;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0356C5, #0ea5e9) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.85rem;
+    box-shadow: 0 8px 20px rgba(3, 86, 197, 0.35);
+}
+
+.login-icon i,
+.login-icon svg,
+.icon-container {
+    color: #ffffff !important;
+    fill: #ffffff !important;
+}
+
+.icon-wrapper-circle {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+}
+
+.lockout-banner {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #b91c1c;
+    font-size: 0.85rem;
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    margin-bottom: 1rem;
+    display: none;
+}
+
+/* ---------------- 5. 📱 Custom OTP Verification Modal (100% Match) ---------------- */
+.otp-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(3, 14, 30, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.otp-modal-overlay.show {
+    opacity: 1;
+}
+
+.otp-modal-box {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+    width: 440px;
+    max-width: 92vw;
+    padding: 34px 34px 28px 34px;
+    text-align: center;
+    font-family: 'Noto Sans Lao', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transform: scale(0.96);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.otp-modal-overlay.show .otp-modal-box {
+    transform: scale(1);
+}
+
+.otp-modal-title {
+    color: #0b3d75;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.45;
+    margin-bottom: 20px;
+    font-family: 'Noto Sans Lao', sans-serif;
+}
+
+.otp-display-card {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 0;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.otp-number-text {
+    font-size: 34px;
+    font-weight: 800;
+    color: #004ea2;
+    letter-spacing: 2px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.1;
+}
+
+.otp-input-wrapper {
+    margin-bottom: 22px;
+    position: relative;
+}
+
+.otp-code-input {
+    width: 100%;
+    height: 46px;
+    background: #ffffff;
+    border: 2px solid #8cbcee;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    font-family: 'Noto Sans Lao', sans-serif;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.otp-code-input::placeholder {
+    color: #94a3b8;
+    font-weight: 500;
+    font-family: 'Noto Sans Lao', sans-serif;
+}
+
+.otp-code-input:focus {
+    border-color: #0c4f9f;
+    box-shadow: 0 0 0 3px rgba(12, 79, 159, 0.15);
+}
+
+.otp-code-input.input-error {
+    border-color: #ef4444 !important;
+    animation: otpShake 0.4s ease;
+}
+
+@keyframes otpShake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20%,
+    60% {
+        transform: translateX(-6px);
+    }
+
+    40%,
+    80% {
+        transform: translateX(6px);
+    }
+}
+
+.otp-error-text {
+    color: #ef4444;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 6px;
+    font-family: 'Noto Sans Lao', sans-serif;
+}
+
+.otp-btn-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.otp-btn-confirm {
+    background-color: #0c4f9f;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 24px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'Noto Sans Lao', sans-serif;
+    cursor: pointer;
+    min-width: 90px;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.otp-btn-confirm:hover {
+    background-color: #083c7d;
+}
+
+.otp-btn-confirm:active {
+    transform: scale(0.98);
+}
+
+.otp-btn-cancel {
+    background-color: #a3a8af;
+    color: #111827;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'Noto Sans Lao', sans-serif;
+    cursor: pointer;
+    min-width: 85px;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.otp-btn-cancel:hover {
+    background-color: #8f959d;
+}
+
+.otp-btn-cancel:active {
+    transform: scale(0.98);
+}
+
+/* ---------------- 6. ❌ Custom Login Error Alert Modal (100% Match) ---------------- */
+.login-error-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(3, 14, 30, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.login-error-modal-overlay.show {
+    opacity: 1;
+}
+
+.login-error-modal-box {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+    width: 440px;
+    max-width: 92vw;
+    padding: 34px 30px 28px 30px;
+    text-align: center;
+    font-family: 'Noto Sans Lao', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transform: scale(0.96);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-error-modal-overlay.show .login-error-modal-box {
+    transform: scale(1);
+}
+
+.login-error-icon-circle {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    border: 3.5px solid #ef4444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px auto;
+}
+
+.login-error-icon-circle svg {
+    width: 32px;
+    height: 32px;
+    stroke: #ef4444;
+}
+
+.login-error-title {
+    color: #000000;
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    line-height: 1.3;
+    font-family: 'Noto Sans Lao', sans-serif;
+}
+
+.login-error-subtitle {
+    color: #000000;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    line-height: 1.4;
+    font-family: 'Noto Sans Lao', sans-serif;
+}
+
+.login-error-warning {
+    color: #003875;
+    font-size: 15.5px;
+    font-weight: 700;
+    margin-bottom: 22px;
+    line-height: 1.4;
+    font-family: 'Noto Sans Lao', sans-serif;
+}
+
+.login-error-btn-container {
+    display: flex;
+    justify-content: center;
+}
+
+.login-error-btn-ok {
+    background-color: #6366f1;
+    color: #ffffff;
+    border: none;
+    border-radius: 7px;
+    padding: 7px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    min-width: 58px;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.login-error-btn-ok:hover {
+    background-color: #4f46e5;
+}
+
+.login-error-btn-ok:active {
+    transform: scale(0.96);
+}

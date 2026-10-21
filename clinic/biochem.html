@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="lo">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Biochemistry Analysis Report | STK Clinic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="biochem.css?v=1.2">
+  <style>
+    body, button, input, select, textarea, table, th, td, h1, h2, p, span, div {
+      font-family: 'Noto Sans Lao', 'Sarabun', system-ui, -apple-system, sans-serif !important;
+    }
+  </style>
+  <script>
+    (function () {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var m = (p.get('mode') || '').toLowerCase();
+        var isRO = (m === 'print' || m === 'history' || m === 'view' || p.get('readonly') === '1' || p.get('readonly') === 'true');
+        if (!isRO && window.parent && window.parent !== window) {
+          try {
+            var pDoc = window.parent.document;
+            var hSec = pDoc.getElementById('history');
+            if (hSec && (hSec.classList.contains('active') || pDoc.querySelector('.page-section.active#history'))) isRO = true;
+            var hMod = pDoc.getElementById('patientHistoryModal');
+            if (hMod && (hMod.classList.contains('show') || hMod.style.display === 'block')) isRO = true;
+            var rxMod = pDoc.getElementById('prescribeModal');
+            if (rxMod && (rxMod.classList.contains('show') || rxMod.style.display === 'block')) isRO = true;
+          } catch (e) { }
+        }
+        if (isRO) {
+          document.documentElement.classList.add('readonly-mode');
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    if (typeof CONFIG === 'undefined') {
+      document.write('<script src="../config.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <main class="paper">
+    <header class="heading">
+      <div>
+        <h1><i class="bi bi-droplet-half me-2"></i>Biochemistry Analysis Report</h1>
+        <p class="subtitle">ໃບລາຍງານຜົນກວດເລືອດ ແລະ ເຄມີຄລີນິກ (Clinical Chemistry & Metabolic Profile)</p>
+      </div>
+      <span class="tag">BIOCHEMISTRY</span>
+    </header>
+
+    <!-- แถบข้อมูลผู้ป่วย -->
+    <div id="patientMetaBar">
+      <div>Visit: <span id="metaVisitId" style="color: #2563eb;">-</span></div>
+      <div>HN: <span id="metaHn" style="color: #2563eb;">-</span></div>
+      <div>ຊື່ຄົນເຈັບ: <span id="metaPatientName" style="color: #0b3c73;">-</span></div>
+      <div>ອາຍຸ: <span id="metaAge" style="color: #64748b;">-</span></div>
+      <div style="margin-left: auto;">ວັນທີ: <span id="metaDate" style="color: #64748b;">-</span></div>
+    </div>
+
+    <form id="reportForm" autocomplete="off" onsubmit="return false;">
+      <div class="section-title">
+        <h2>ລາຍການກວດເຄມີຄລີນິກ (Biochemistry Test Items)</h2>
+        <div class="no-print d-flex gap-2">
+          <button type="button" class="btn btn-sm" id="btnAutoExtract" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-size: 12px; padding: 5px 12px;">
+            <i class="bi bi-lightning-charge-fill text-warning me-1"></i>ດຶງຈາກໄຟລ໌ PDF/ຮູບພາບ
+          </button>
+          <button type="button" class="btn btn-sm" id="btnAddRow" style="background: #f1f5f9; color: #0f172a; border-color: #cbd5e1; font-size: 12px; padding: 5px 12px;">
+            <i class="bi bi-plus-circle me-1 text-primary"></i>ເພີ່ມລາຍການກວດ
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="biochemTable">
+          <thead>
+            <tr>
+              <th style="width: 28%;">Tests (ລາຍການກວດ)</th>
+              <th style="width: 10%; text-align: center;">Type</th>
+              <th style="width: 17%;">Conc. (ຜົນກວດ)</th>
+              <th style="width: 14%;">Unit (ໜ່ວຍ)</th>
+              <th style="width: 10%; text-align: center;">Flags</th>
+              <th style="width: 17%;">Ref. Ranges (ຄ່າອ້າງອີງ)</th>
+              <th style="width: 4%; text-align: center;" class="no-print"></th>
+            </tr>
+          </thead>
+          <tbody id="biochemBody">
+            <!-- แถวจะถูกโหลดหรือสร้างโดย biochem.js -->
+          </tbody>
+        </table>
+      </div>
+    </form>
+  </main>
+
+  <div class="toolbar no-print">
+    <button class="success" id="btnSave" type="button">
+      <i class="bi bi-floppy2-fill"></i>
+      <span>ບັນທຶກ (Save)</span>
+    </button>
+    <button id="btnPrint" type="button">
+      <i class="bi bi-printer-fill"></i>
+      <span>ພິມ (Print)</span>
+    </button>
+    <button id="btnClear" type="button" title="ລ້າງຄ່າ Result ທັງໝົດ">
+      <i class="bi bi-arrow-counterclockwise"></i>
+      <span>Clear</span>
+    </button>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="biochem.js?v=1.2" defer></script>
+</body>
+</html>

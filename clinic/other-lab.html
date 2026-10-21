@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="lo">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Other Laboratory Analysis Report | STK Clinic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="other-lab.css?v=2.1">
+  <style>
+    body, button, input, select, textarea, table, th, td, h1, h2, p, span, div {
+      font-family: 'Noto Sans Lao', 'Sarabun', system-ui, -apple-system, sans-serif !important;
+    }
+  </style>
+  <script>
+    (function () {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var m = (p.get('mode') || '').toLowerCase();
+        var isRO = (m === 'print' || m === 'history' || m === 'view' || p.get('readonly') === '1' || p.get('readonly') === 'true');
+        if (!isRO && window.parent && window.parent !== window) {
+          try {
+            var pDoc = window.parent.document;
+            var hSec = pDoc.getElementById('history');
+            if (hSec && (hSec.classList.contains('active') || pDoc.querySelector('.page-section.active#history'))) isRO = true;
+            var hMod = pDoc.getElementById('patientHistoryModal');
+            if (hMod && (hMod.classList.contains('show') || hMod.style.display === 'block')) isRO = true;
+            var rxMod = pDoc.getElementById('prescribeModal');
+            if (rxMod && (rxMod.classList.contains('show') || rxMod.style.display === 'block')) isRO = true;
+          } catch (e) { }
+        }
+        if (isRO) {
+          document.documentElement.classList.add('readonly-mode');
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    if (typeof CONFIG === 'undefined') {
+      document.write('<script src="../config.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <main class="paper">
+    <header class="heading">
+      <div>
+        <h1>
+          <i class="bi bi-journal-medical me-2"></i>
+          <span id="reportTitleText" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຫົວຂໍ້ (Click to Edit)">Laboratory Analysis Report</span>
+        </h1>
+        <p class="subtitle">
+          <span id="reportSubtitleText" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຄຳອະທິບາຍ (Click to Edit)">ໃບລາຍງານຜົນກວດວິເຄາະອື່ນໆ (Other & Specialized Laboratory Tests)</span>
+        </p>
+      </div>
+      <span class="tag">
+        <span id="reportTagText" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂ Tag (Click to Edit)">OTHER LAB</span>
+      </span>
+    </header>
+
+    <!-- แถบข้อมูลผู้ป่วย -->
+    <div id="patientMetaBar">
+      <div>Visit: <span id="metaVisitId" style="color: #2563eb;">-</span></div>
+      <div>HN: <span id="metaHn" style="color: #2563eb;">-</span></div>
+      <div>ຊື່ຄົນເຈັບ: <span id="metaPatientName" style="color: #0b3c73;">-</span></div>
+      <div>ອາຍຸ: <span id="metaAge" style="color: #64748b;">-</span></div>
+      <div style="margin-left: auto;">ວັນທີ: <span id="metaDate" style="color: #64748b;">-</span></div>
+    </div>
+
+    <form id="reportForm" autocomplete="off" onsubmit="return false;">
+      <div class="section-title">
+        <h2>
+          <span id="sectionTitleText" class="editable-title" contenteditable="true" title="ຄລິກເພື່ອແກ້ໄຂຫົວຂໍ້ຕາຕະລາງ (Click to Edit)">ລາຍການກວດວິເຄາະ (Test Items & Results)</span>
+        </h2>
+        <div class="no-print d-flex gap-2 align-items-center flex-wrap" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button type="button" class="btn btn-sm" id="btnAddCol" style="background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; font-size: 12px; padding: 5px 12px;" title="ເພີ່ມຖັນໃໝ່">
+            <i class="bi bi-layout-three-columns me-1 text-primary"></i>+ ເພີ່ມ Column
+          </button>
+          <button type="button" class="btn btn-sm" id="btnResetCols" style="background: #f8fafc; color: #64748b; border-color: #e2e8f0; font-size: 12px; padding: 5px 10px;" title="ຄືນຄ່າຖັນມາດຕະຖານ">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Columns
+          </button>
+          <button type="button" class="btn btn-sm" id="btnAddRow" style="background: #ecfdf5; color: #047857; border-color: #a7f3d0; font-size: 12px; padding: 5px 12px;" title="ເພີ່ມແຖວໃໝ່">
+            <i class="bi bi-plus-circle me-1 text-success"></i>+ ເພີ່ມແຖວ
+          </button>
+          <button type="button" class="btn btn-sm" id="btnAutoExtract" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-size: 12px; padding: 5px 12px;" title="ດຶງຈາກໄຟລ໌ເດີມ">
+            <i class="bi bi-lightning-charge-fill text-warning me-1"></i>ດຶງຈາກໄຟລ໌
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="otherLabTable">
+          <thead>
+            <tr id="otherLabHeaderRow">
+              <!-- Dynamic headers populated by other-lab.js -->
+            </tr>
+          </thead>
+          <tbody id="otherLabBody">
+            <!-- Dynamic rows populated by other-lab.js -->
+          </tbody>
+        </table>
+      </div>
+    </form>
+  </main>
+
+  <!-- รายการตรวจแนะนำใน datalist -->
+  <datalist id="suggestedTests">
+    <option value="Dengue NS1 Ag"></option>
+    <option value="Dengue IgG/IgM"></option>
+    <option value="Malaria RDT"></option>
+    <option value="Widal Test"></option>
+    <option value="H. Pylori Ag (Stool)"></option>
+    <option value="Influenza A/B Ag"></option>
+    <option value="COVID-19 Ag Rapid Test"></option>
+    <option value="HBsAg (Hepatitis B Surface Ag)"></option>
+    <option value="Anti-HBs (Hepatitis B Surface Ab)"></option>
+    <option value="Anti-HCV (Hepatitis C Ab)"></option>
+    <option value="VDRL / RPR (Syphilis)"></option>
+    <option value="Anti-HIV (Screening)"></option>
+    <option value="Stool Examination (ກວດອາຈົມ)"></option>
+    <option value="Occult Blood (Stool)"></option>
+    <option value="TSH (Thyroid Stimulating Hormone)"></option>
+    <option value="Free T3"></option>
+    <option value="Free T4"></option>
+    <option value="Troponin-I"></option>
+    <option value="Beta-hCG (Pregnancy Test)"></option>
+    <option value="ABO Blood Group"></option>
+    <option value="Rh Blood Group"></option>
+    <option value="ESR (Erythrocyte Sedimentation Rate)"></option>
+  </datalist>
+
+  <div class="toolbar no-print">
+    <button class="success" id="btnSave" type="button">
+      <i class="bi bi-floppy2-fill"></i>
+      <span>ບັນທຶກ (Save)</span>
+    </button>
+    <button id="btnPrint" type="button">
+      <i class="bi bi-printer-fill"></i>
+      <span>ພິມ (Print)</span>
+    </button>
+    <button id="btnClear" type="button" title="ລ້າງຄ່າທັງໝົດ">
+      <i class="bi bi-arrow-counterclockwise"></i>
+      <span>Clear</span>
+    </button>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="other-lab.js?v=2.2" defer></script>
+</body>
+</html>
