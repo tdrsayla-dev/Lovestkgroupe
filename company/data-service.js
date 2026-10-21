@@ -691,7 +691,12 @@
                 } catch (e) {}
 
                 if (mergedContent.settings) {
-                    setTimeout(() => hydrateContactMenu(mergedContent.settings), 10);
+                    setTimeout(() => {
+                        hydrateContactMenu(mergedContent.settings);
+                        if (mergedContent.settings.features) {
+                            enforceFeatureFlags(mergedContent.settings.features);
+                        }
+                    }, 0);
                 }
 
                 return new Response(JSON.stringify({ content: mergedContent }), {
@@ -708,7 +713,14 @@
                 if (cached) {
                     const parsed = JSON.parse(cached);
                     const finalContent = parsed.content || parsed;
-                    if (finalContent.settings) setTimeout(() => hydrateContactMenu(finalContent.settings), 10);
+                    if (finalContent.settings) {
+                        setTimeout(() => {
+                            hydrateContactMenu(finalContent.settings);
+                            if (finalContent.settings.features) {
+                                enforceFeatureFlags(finalContent.settings.features);
+                            }
+                        }, 0);
+                    }
                     return new Response(JSON.stringify({ content: finalContent }), {
                         status: 200,
                         headers: { 'Content-Type': 'application/json' }
@@ -718,7 +730,14 @@
 
             // Fallback 2: default-content.json
             if (baseContent) {
-                if (baseContent.settings) setTimeout(() => hydrateContactMenu(baseContent.settings), 10);
+                if (baseContent.settings) {
+                    setTimeout(() => {
+                        hydrateContactMenu(baseContent.settings);
+                        if (baseContent.settings.features) {
+                            enforceFeatureFlags(baseContent.settings.features);
+                        }
+                    }, 0);
+                }
                 return new Response(JSON.stringify({ content: baseContent }), {
                     status: 200,
                     headers: { 'Content-Type': 'application/json' }
@@ -955,11 +974,8 @@
         document.body.style.overflow = 'hidden';
     }
 
-    function enforceFeatureFlags() {
-        const path = window.location.pathname.toLowerCase();
-        if (path.includes('admin.html') || path.includes('login.html')) return;
-
-        const features = getActiveFeatures();
+        const features = customFeatures || getActiveFeatures();
+        if (!features) return;
 
         // Check if current page is disabled
         const pageAttr = document.documentElement.dataset.page || '';
@@ -977,42 +993,38 @@
 
         if (currentFeature && features[currentFeature] === false) {
             showComingSoonScreen(currentFeature);
+        } else {
+            const overlay = document.getElementById('stk-coming-soon-overlay');
+            if (overlay) {
+                overlay.remove();
+                document.body.style.overflow = '';
+            }
         }
 
-        // Apply navigation filters
-        if (features.businesses === false) {
-            document.querySelectorAll('a[href*="businesses.html"]').forEach(el => el.style.display = 'none');
-        }
-        if (features.leadership === false) {
-            document.querySelectorAll('a[href*="leadership.html"]').forEach(el => el.style.display = 'none');
-        }
-        if (features.products === false) {
-            document.querySelectorAll('.nav-products, a[href*="products.html"]').forEach(el => el.style.display = 'none');
-        }
-        if (features.news === false) {
-            document.querySelectorAll('a[href*="news.html"]').forEach(el => el.style.display = 'none');
-        }
-        if (features.ceo_dashboard === false) {
-            document.querySelectorAll('a[href*="ceo-login"], a[href*="CEO"]').forEach(el => el.style.display = 'none');
-        }
-        if (features.clinic_booking === false) {
-            document.querySelectorAll('a[href*="clinic/login"], a[href*="clinic"]').forEach(el => el.style.display = 'none');
-        }
-        if (features.human_resource === false) {
-            document.querySelectorAll('a[href*="Hr.html"], a[href*="hr."]').forEach(el => el.style.display = 'none');
-        }
-        if (features.crm_system === false) {
-            document.querySelectorAll('a[href*="mlm/Mlm"], a[href*="Mlm.html"]').forEach(el => el.style.display = 'none');
-        }
-        if (features.stk_smart === false) {
-            document.querySelectorAll('[data-system="stk_smart"], a[href*="smart"], .nav-smart').forEach(el => el.style.display = 'none');
-        }
-        if (features.language_switcher === false) {
-            document.querySelectorAll('.languages').forEach(el => el.style.display = 'none');
-        }
-        if (features.theme_switcher === false) {
-            document.querySelectorAll('.theme-control').forEach(el => el.style.display = 'none');
-        }
+        // Apply navigation filters (handles both show and hide dynamically)
+        const toggleEl = (selector, isEnabled) => {
+            document.querySelectorAll(selector).forEach(el => {
+                if (isEnabled === false) {
+                    el.style.display = 'none';
+                    el.setAttribute('data-feature-hidden', 'true');
+                } else if (el.getAttribute('data-feature-hidden') === 'true') {
+                    el.style.display = '';
+                    el.removeAttribute('data-feature-hidden');
+                }
+            });
+        };
+
+        toggleEl('a[href*="businesses.html"]', features.businesses);
+        toggleEl('a[href*="leadership.html"]', features.leadership);
+        toggleEl('.nav-products, a[href*="products.html"]', features.products);
+        toggleEl('a[href*="news.html"]', features.news);
+        toggleEl('a[href*="ceo-login"], a[href*="CEO"]', features.ceo_dashboard);
+        toggleEl('a[href*="clinic/login"], a[href*="clinic"]', features.clinic_booking);
+        toggleEl('a[href*="Hr.html"], a[href*="hr."]', features.human_resource);
+        toggleEl('a[href*="mlm/Mlm"], a[href*="Mlm.html"]', features.crm_system);
+        toggleEl('[data-system="stk_smart"], a[href*="smart"], .nav-smart', features.stk_smart);
+        toggleEl('.languages', features.language_switcher);
+        toggleEl('.theme-control', features.theme_switcher);
 
         hydrateContactMenu();
     }
@@ -1445,10 +1457,25 @@ html[data-theme=dark] .nav-smart-link {
         renderLang();
     }
 
-    function initClientFeatures() {
+    async function initClientFeatures() {
         injectContactMenuStyles();
         initSmartMenu();
         enforceFeatureFlags();
+
+        // Quick micro-fetch to Supabase for immediate cross-device sync of Feature Flags
+        try {
+            const cfg = getCfg();
+            const res = await originalFetch(`${restUrl()}/website_settings?settings_key=eq.main&select=theme`, {
+                headers: { 'apikey': cfg.SUPABASE_ANON_KEY },
+                cache: 'no-store'
+            });
+            if (res.ok) {
+                const list = await res.json();
+                if (list?.[0]?.theme?.features) {
+                    enforceFeatureFlags(list[0].theme.features);
+                }
+            }
+        } catch (e) {}
     }
 
     document.addEventListener('stk-language-change', () => {
