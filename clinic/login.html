@@ -1,447 +1,144 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="th">
+
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>เข้าสู่ระบบจัดการเว็บไซต์ — LOVE STK GROUPE</title>
-    <link rel="icon" href="assets/favicon.svg">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-dark: #070e1c;
-            --card-bg: rgba(14, 27, 53, 0.75);
-            --border-glass: rgba(255, 255, 255, 0.12);
-            --primary-blue: #175bd2;
-            --primary-hover: #124ab0;
-            --gold-accent: #E0B840;
-            --text-main: #f0f4fa;
-            --text-muted: #8fa0bd;
-            --error-bg: rgba(239, 68, 68, 0.15);
-            --error-border: rgba(239, 68, 68, 0.35);
-            --error-text: #fca5a5;
-        }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ - Clinic System</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b3c73'/><path d='M40 20h20v20h20v20H60v20H40V60H20V40h20z' fill='%23ffffff'/></svg>">
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Kanit:wght@400;500;600&family=Sarabun:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-        body {
-            font-family: 'Manrope', 'Noto Sans Thai', 'Noto Sans Lao', sans-serif;
-            background: var(--bg-dark);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            position: relative;
-            overflow-x: hidden;
-        }
+    <!-- เรียกใช้งาน style.css -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Login Specific Stylesheet -->
+    <link rel="stylesheet" href="login.css?v=1.0">
 
-        /* Animated glowing background aura */
-        .bg-glow {
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(23, 91, 210, 0.28) 0%, rgba(7, 14, 28, 0) 70%);
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 0;
-            animation: pulseGlow 10s ease-in-out infinite alternate;
-        }
-
-        .bg-glow-gold {
-            position: absolute;
-            width: 450px;
-            height: 450px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(224, 184, 64, 0.12) 0%, rgba(7, 14, 28, 0) 70%);
-            top: 20%;
-            right: 15%;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        @keyframes pulseGlow {
-            0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.8; }
-            100% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
-        }
-
-        .login-card {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 440px;
-            background: var(--card-bg);
-            border: 1px solid var(--border-glass);
-            border-radius: 20px;
-            padding: 42px 36px;
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
-            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(24px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .brand-header {
-            text-align: center;
-            margin-bottom: 32px;
-        }
-
-        .brand-logo {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            text-decoration: none;
-            margin-bottom: 14px;
-        }
-
-        .brand-mark {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #175bd2 0%, #0d3886 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 26px;
-            font-weight: 800;
-            color: #fff;
-            box-shadow: 0 6px 20px rgba(23, 91, 210, 0.4);
-        }
-
-        .brand-mark span {
-            color: var(--gold-accent);
-        }
-
-        .brand-text {
-            text-align: left;
-            line-height: 1.1;
-        }
-
-        .brand-text .title {
-            font-size: 20px;
-            font-weight: 800;
-            color: #fff;
-            letter-spacing: -0.02em;
-        }
-
-        .brand-text .subtitle {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            letter-spacing: 0.24em;
-            margin-top: 2px;
-            display: block;
-        }
-
-        .login-card h1 {
-            font-size: 22px;
-            font-weight: 700;
-            color: #fff;
-            margin-bottom: 6px;
-        }
-
-        .login-card .subtitle-desc {
-            font-size: 13.5px;
-            color: var(--text-muted);
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .form-group label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #c9d5e8;
-            letter-spacing: 0.02em;
-        }
-
-        .input-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-
-        .input-wrapper input {
-            width: 100%;
-            height: 48px;
-            background: rgba(7, 16, 34, 0.65);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 10px;
-            padding: 0 16px;
-            font-size: 15px;
-            color: #fff;
-            outline: none;
-            transition: all 0.2s ease;
-        }
-
-        .input-wrapper input:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 3px rgba(23, 91, 210, 0.28);
-            background: rgba(7, 16, 34, 0.85);
-        }
-
-        .input-wrapper input::placeholder {
-            color: #4f6385;
-        }
-
-        .toggle-password {
-            position: absolute;
-            right: 14px;
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            transition: color 0.2s;
-        }
-
-        .toggle-password:hover {
-            color: #fff;
-        }
-
-        .btn-submit {
-            width: 100%;
-            height: 50px;
-            background: linear-gradient(135deg, var(--primary-blue) 0%, #104ab0 100%);
-            border: none;
-            border-radius: 10px;
-            color: #fff;
-            font-size: 15px;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            cursor: pointer;
-            margin-top: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: all 0.25s ease;
-            box-shadow: 0 10px 25px rgba(23, 91, 210, 0.35);
-        }
-
-        .btn-submit:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 30px rgba(23, 91, 210, 0.5);
-            background: linear-gradient(135deg, #1b66eb 0%, #1253c7 100%);
-        }
-
-        .btn-submit:active:not(:disabled) {
-            transform: translateY(0);
-        }
-
-        .btn-submit:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .error-message {
-            background: var(--error-bg);
-            border: 1px solid var(--error-border);
-            color: var(--error-text);
-            padding: 12px 16px;
-            border-radius: 10px;
-            font-size: 13.5px;
-            margin-bottom: 20px;
-            display: none;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-6px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .footer-nav {
-            margin-top: 26px;
-            text-align: center;
-            display: flex;
-            justify-content: center;
-            gap: 16px;
-            font-size: 13px;
-        }
-
-        .footer-nav a {
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: color 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .footer-nav a:hover {
-            color: var(--gold-accent);
-        }
-
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2.5px solid rgba(255, 255, 255, 0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            display: none;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 480px) {
-            .login-card {
-                padding: 32px 24px;
-            }
-        }
-    </style>
+    <!-- Config & i18n Engine -->
+    <script src="config.js"></script>
+    <script src="i18n.js"></script>
 </head>
-<body>
-    <div class="bg-glow"></div>
-    <div class="bg-glow-gold"></div>
 
-    <div class="login-card">
-        <div class="brand-header">
-            <a href="index.html" class="brand-logo" title="กลับสู่หน้าหลัก">
-                <div class="brand-text">
-                    <div class="title">LOVE STK</div>
-                    <span class="subtitle">G R O U P E</span>
-                </div>
-            </a>
-            <h1>เข้าสู่ระบบจัดการเว็บไซต์</h1>
-            <p class="subtitle-desc">ระบบจัดการเนื้อหา (CMS) — LOVE STK GROUPE</p>
+<body class="login-page">
+
+    <div class="login-card position-relative">
+        <!-- ตัวเลือกสลับภาษาหน้า Login -->
+        <div class="position-absolute top-0 end-0 m-3">
+            <select class="form-select form-select-sm clinic-lang-select shadow-xs border"
+                style="font-size:0.78rem;border-radius:8px;cursor:pointer;width:140px;"
+                onchange="setClinicLanguage(this.value)">
+                <option value="la">LA ພາສາລາວ</option>
+                <option value="th">TH ภาษาไทย</option>
+                <option value="en">EN English</option>
+            </select>
         </div>
 
-        <div id="login-error" class="error-message" role="alert"></div>
+        <div class="text-center mb-4 pt-2">
+            <div class="login-icon">
+                <i class="ph ph-hospital"></i>
+            </div>
+            <h3 class="fw-bold text-dark" data-i18n="app_title">ຄລີນິກ ເລີຟ ເອັສທີເຄ</h3>
+            <p class="text-muted small" data-i18n="login_subtitle">ลงชื่อเข้าใช้ด้วยอีเมลและรหัสผ่านพนักงาน</p>
+        </div>
 
-        <form id="login-form">
-            <div class="form-group">
-                <label for="admin-email">อีเมลผู้ดูแลระบบ (Admin Email)</label>
-                <div class="input-wrapper">
-                    <input type="email" id="admin-email" placeholder="admin@stkgroupe.com" required autocomplete="username">
+        <!-- Lockout Banner (Rate Limiting) -->
+        <div id="lockoutBanner" class="lockout-banner text-center fw-semibold">
+            <i class="ph ph-warning-circle me-1"></i> <span id="lockoutText" data-i18n="lockout_title">ระงับการเข้าสู่ระบบชั่วคราว</span>
+        </div>
+
+        <form id="loginForm">
+            <!-- 🛡️ CSRF Token (Security Feature) -->
+            <input type="hidden" id="csrfToken" name="csrfToken">
+
+            <div class="mb-3">
+                <label class="form-label fw-bold text-dark small" data-i18n="staff_email">อีเมลพนักงาน</label>
+                <div class="input-group">
+                    <span class="input-group-text border-end-0"><i class="ph ph-envelope"></i></span>
+                    <input type="email" id="loginEmail" class="form-control custom-input border-start-0 ps-0"
+                        placeholder="example@clinic.com" data-i18n-placeholder="login_email_placeholder" required>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold text-dark small" data-i18n="staff_password">รหัสผ่าน</label>
+                <div class="input-group">
+                    <span class="input-group-text border-end-0"><i class="ph ph-lock"></i></span>
+                    <input type="password" id="loginPassword" class="form-control custom-input border-start-0 ps-0"
+                        placeholder="••••••••" data-i18n-placeholder="login_password_placeholder" required>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label for="admin-password">รหัสผ่าน (Password)</label>
-                <div class="input-wrapper">
-                    <input type="password" id="admin-password" placeholder="••••••••••••" required autocomplete="current-password">
-                    <button type="button" id="toggle-pwd-btn" class="toggle-password" aria-label="แสดงรหัสผ่าน">👁️</button>
+            <!-- Checkbox: Remember Me -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="rememberMe" style="cursor: pointer;">
+                    <label class="form-check-label text-dark small fw-semibold" for="rememberMe"
+                        style="cursor: pointer; user-select: none;" data-i18n="remember_me">
+                        จดจำฉันไว้ (Remember Me)
+                    </label>
                 </div>
             </div>
 
-            <button type="submit" id="btn-login" class="btn-submit">
-                <span class="spinner" id="login-spinner"></span>
-                <span id="btn-text">เข้าสู่ระบบ (Sign In)</span>
+            <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold" id="loginBtn" data-i18n="login_button"
+                style="border-radius: 12px;">
+                <i class="ph ph-sign-in me-1"></i> เข้าสู่ระบบ
             </button>
         </form>
+    </div>
 
-        <div class="footer-nav">
-            <a href="index.html">← กลับหน้าเว็บไซต์ (Back to Home)</a>
+    <!-- 📱 Custom OTP Verification Modal (100% Match with Reference) -->
+    <div id="otpModalOverlay" class="otp-modal-overlay">
+        <div class="otp-modal-box">
+            <div class="otp-modal-title">
+                ກະລຸນາປ້ອນລະຫັດຢືນຢັນ OTP<br>ເພື່ອເຂົ້າລະບົບຢ່າງປອດໄພ
+            </div>
+
+            <div class="otp-display-card">
+                <span id="otpGeneratedDisplay" class="otp-number-text">837130</span>
+            </div>
+
+            <div class="otp-input-wrapper">
+                <input type="text" id="otpCodeInput" class="otp-code-input" maxlength="6" inputmode="numeric"
+                    pattern="[0-9]*" placeholder="ປ້ອນລະຫັດ 6 ຫຼັກບ່ອນນີ້" autocomplete="one-time-code">
+                <div id="otpErrorText" class="otp-error-text" style="display: none;">ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ກະລຸນາລອງໃໝ່
+                </div>
+            </div>
+
+            <div class="otp-btn-group">
+                <button type="button" id="otpConfirmBtn" class="otp-btn-confirm">ຢືນຢັນ</button>
+                <button type="button" id="otpCancelBtn" class="otp-btn-cancel">ຍົກເລີກ</button>
+            </div>
         </div>
     </div>
 
-    <!-- เชื่อมโยงโมดูลคอนฟิกและดาต้าเซอร์วิสของ Company -->
-    <script src="config.js?v=20261021_01"></script>
-    <script src="data-service.js?v=20261021_01"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('login-form');
-            const emailInput = document.getElementById('admin-email');
-            const pwdInput = document.getElementById('admin-password');
-            const togglePwdBtn = document.getElementById('toggle-pwd-btn');
-            const errorBox = document.getElementById('login-error');
-            const btnLogin = document.getElementById('btn-login');
-            const btnText = document.getElementById('btn-text');
-            const spinner = document.getElementById('login-spinner');
+    <!-- ❌ Custom Login Error Alert Modal (100% Match with Reference) -->
+    <div id="loginErrorModalOverlay" class="login-error-modal-overlay">
+        <div class="login-error-modal-box">
+            <div class="login-error-icon-circle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.6" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </div>
 
-            // ตรวจสอบว่ามี Session อยู่แล้วหรือไม่ และยังไม่หมดอายุ
-            const existingSession = window.CompanyDataService?.getSession();
-            const now = Math.floor(Date.now() / 1000);
-            const urlParams = new URLSearchParams(window.location.search);
-            const isExpiredParam = urlParams.get('expired');
+            <h3 id="loginErrorTitle" class="login-error-title">ເຂົ້າລະບົບບໍ່ສຳເລັດ</h3>
+            <p id="loginErrorSubtitle" class="login-error-subtitle">ກະລຸນາກວດສອບ ອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຖືກຕ້ອງ</p>
+            <p id="loginErrorWarning" class="login-error-warning">“ທ່ານສາມາດລອງໄດ້ອີກສອງຄັ້ງ ”</p>
 
-            if (isExpiredParam) {
-                window.CompanyDataService?.signOut();
-                errorBox.textContent = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง';
-                errorBox.style.display = 'block';
-            } else if (existingSession?.access_token) {
-                if (!existingSession.expires_at || existingSession.expires_at > now) {
-                    location.href = 'admin.html';
-                    return;
-                } else {
-                    window.CompanyDataService?.signOut();
-                }
-            }
+            <div class="login-error-btn-container">
+                <button type="button" id="loginErrorOkBtn" class="login-error-btn-ok">OK</button>
+            </div>
+        </div>
+    </div>
 
-            // ปุ่มเปิด/ปิดการแสดงรหัสผ่าน
-            togglePwdBtn.addEventListener('click', () => {
-                const isPassword = pwdInput.type === 'password';
-                pwdInput.type = isPassword ? 'text' : 'password';
-                togglePwdBtn.textContent = isPassword ? '🙈' : '👁️';
-            });
-
-            // การส่งฟอร์มเข้าสู่ระบบ
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                errorBox.style.display = 'none';
-                errorBox.textContent = '';
-
-                const email = emailInput.value.trim();
-                const password = pwdInput.value;
-
-                if (!email || !password) return;
-
-                // สถานะกำลังโหลด
-                btnLogin.disabled = true;
-                spinner.style.display = 'inline-block';
-                btnText.textContent = 'กำลังตรวจสอบข้อมูล…';
-
-                try {
-                    if (!window.CompanyDataService) {
-                        throw new Error('ไม่พบระบบเชื่อมต่อฐานข้อมูล (กรุณาตรวจสอบ data-service.js)');
-                    }
-
-                    // ล็อกอินผ่าน Supabase Auth
-                    await window.CompanyDataService.signIn(email, password);
-
-                    btnText.textContent = 'เข้าสู่ระบบสำเร็จ!';
-                    setTimeout(() => {
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const returnTo = urlParams.get('return_to') || 'admin.html';
-                        window.location.href = returnTo;
-                    }, 500);
-
-                } catch (err) {
-                    console.error('Login failed:', err);
-                    errorBox.textContent = err.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
-                    errorBox.style.display = 'block';
-                    btnLogin.disabled = false;
-                    spinner.style.display = 'none';
-                    btnText.textContent = 'เข้าสู่ระบบ (Sign In)';
-                }
-            });
-        });
-    </script>
+    <!-- Login Specific Logic -->
+    <script src="login.js?v=1.0"></script>
 </body>
+
 </html>
