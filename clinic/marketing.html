@@ -898,6 +898,19 @@
             box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.15), 0 -8px 10px -6px rgba(0, 0, 0, 0.1) !important;
         }
 
+        @media (max-width: 768px) {
+            .addr-dropdown-menu,
+            .addr-dropdown-menu-up {
+                top: calc(100% + 4px) !important;
+                bottom: auto !important;
+                left: 0 !important;
+                right: 0 !important;
+                min-width: 100% !important;
+                max-width: 100% !important;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+            }
+        }
+
         .addr-dropdown-item {
             padding: 8px 12px;
             font-size: 13px;
@@ -5615,20 +5628,28 @@
                 return;
             }
 
+            const currentSelected = (document.getElementById('orderAssistantAdvice')?.value || '').trim();
+
             let itemsHTML = '';
             matches.slice(0, 50).forEach(m => {
                 const memberId = m.user_id || m.username || '';
                 const memberName = m.name || '-';
                 const team = m.business_team ? ` [${m.business_team}]` : '';
+                const isSelected = currentSelected && (
+                    currentSelected === memberName ||
+                    currentSelected === memberId ||
+                    currentSelected === `${memberId} - ${memberName}` ||
+                    currentSelected.startsWith(memberId)
+                );
 
                 itemsHTML += `
-                    <div class="addr-dropdown-item" onclick="selectAssistantMember('${memberId}', '${memberName.replace(/'/g, "\\'")}')">
+                    <div class="addr-dropdown-item ${isSelected ? 'is-selected' : ''}" onclick="selectAssistantMember('${memberId}', '${memberName.replace(/'/g, "\\'")}')">
                         <div>
                             <span class="fw-bold text-dark">${memberName}</span>
                             ${memberId ? `<span class="badge bg-light text-secondary border ms-1 font-monospace" style="font-size: 10.5px;">${memberId}</span>` : ''}
                             ${m.business_team ? `<span class="text-muted small ms-1" style="font-size: 11px;">(${m.business_team})</span>` : ''}
                         </div>
-                        <i class="ph ph-check text-primary fs-6"></i>
+                        ${isSelected ? '<i class="ph-bold ph-check text-primary fs-6"></i>' : ''}
                     </div>
                 `;
             });
@@ -5677,41 +5698,82 @@
                         return;
                     }
                     if (Array.isArray(window.parent.allStaffUsers) && window.parent.allStaffUsers.length > 0) {
-                        const docs = window.parent.allStaffUsers.filter(s => s.role === 'doctor' || s.role === 'แพทย์');
+                        const docs = window.parent.allStaffUsers.filter(s => {
+                            const r = (s.role || '').toLowerCase();
+                            const act = s.is_active !== false && s.is_active !== 'false';
+                            const notTester = !(s.full_name || '').toLowerCase().includes('tester') && !(s.emp_code || '').toLowerCase().includes('t6395');
+                            return (r === 'doctor' || r === 'แพทย์') && act && notTester;
+                        });
                         if (docs.length > 0) {
-                            allClinicDoctors = docs.map(d => ({ name: d.full_name || d.emp_code || d.email, role: d.role }));
+                            allClinicDoctors = docs.map(d => ({ name: d.full_name || d.emp_code, code: d.emp_code || '', role: 'ທ່ານໝໍ' }));
                             return;
                         }
                     }
                 }
             } catch (e) { }
 
-            // 2. ດຶງຈາກ Supabase Database (ຕາຕະລາງ staff_users ຫຼື staff ຫຼື visits ທີ່ຜ່ານມາ)
+            // 2. ດຶງຈາກ Supabase Database (ຕາຕະລາງ staff_users)
             try {
-                if (typeof _supabase !== 'undefined' && _supabase) {
-                    const { data: docData } = await _supabase
+                const sb = (typeof getClinicSupabaseClient === 'function' ? getClinicSupabaseClient() : null)
+                    || (typeof _supabase !== 'undefined' && _supabase)
+                    || (window.parent && window.parent._supabase);
+                if (sb) {
+                    const { data: docData, error } = await sb
                         .from('staff_users')
-                        .select('full_name, emp_code, role')
-                        .in('role', ['doctor', 'แพทย์']);
-                    if (docData && docData.length > 0) {
-                        allClinicDoctors = docData.map(d => ({ name: d.full_name || d.emp_code, role: 'ທ່ານໝໍ' }));
-                        return;
-                    }
-
-                    const { data: staffData } = await _supabase
-                        .from('staff')
-                        .select('name, role')
-                        .eq('role', 'แพทย์');
-                    if (staffData && staffData.length > 0) {
-                        allClinicDoctors = staffData.map(d => ({ name: d.name, role: 'ທ່ານໝໍ' }));
-                        return;
+                        .select('full_name, emp_code, role, is_active')
+                        .in('role', ['doctor', 'แพทย์', 'Doctor', 'DOCTOR'])
+                        .neq('is_active', false)
+                        .order('emp_code', { ascending: true });
+                    if (!error && docData && docData.length > 0) {
+                        const validDocs = docData.filter(d => {
+                            const name = (d.full_name || '').toLowerCase();
+                            const code = (d.emp_code || '').toLowerCase();
+                            return !name.includes('tester') && !code.includes('t6395');
+                        });
+                        if (validDocs.length > 0) {
+                            allClinicDoctors = validDocs.map(d => ({
+                                name: d.full_name || d.emp_code,
+                                code: d.emp_code || '',
+                                role: 'ທ່ານໝໍ'
+                            }));
+                            return;
+                        }
                     }
                 }
             } catch (e) {
                 console.warn('Error fetching doctors from db:', e);
             }
 
-            // 3. ດຶງຈາກລາຍຊື່ທ່ານໝໍທີ່ເຄີຍກວດໃນ allPatientsData
+            // 3. Fallback: ດຶງຜ່ານ REST API ໂດຍກົງ
+            try {
+                const url = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co';
+                const key = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+                const res = await fetch(`${url}/rest/v1/staff_users?select=emp_code,full_name,role,is_active&role=in.(doctor,แพทย์)&is_active=neq.false&order=emp_code.asc`, {
+                    headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        const validDocs = data.filter(d => {
+                            const name = (d.full_name || '').toLowerCase();
+                            const code = (d.emp_code || '').toLowerCase();
+                            return !name.includes('tester') && !code.includes('t6395');
+                        });
+                        if (validDocs.length > 0) {
+                            allClinicDoctors = validDocs.map(d => ({
+                                name: d.full_name || d.emp_code,
+                                code: d.emp_code || '',
+                                role: 'ທ່ານໝໍ'
+                            }));
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Error fetching doctors via REST:', e);
+            }
+
+            // 4. Fallback ສຸດທ້າຍ: ດຶງຈາກລາຍຊື່ທ່ານໝໍທີ່ເຄີຍກວດໃນ allPatientsData
             try {
                 const docSet = new Set();
                 (allPatientsData || []).forEach(p => {
@@ -5725,14 +5787,8 @@
                 }
             } catch (e) { }
 
-            // 4. Default ທ່ານໝໍປະຈຳຄລີນິກ (ຖ້າ Database ຍັງບໍ່ມີຂໍ້ມູນ)
-            if (allClinicDoctors.length === 0) {
-                allClinicDoctors = [
-                    { name: 'ແພດປະຈຳຄລີນິກ', role: 'ແພດທົ່ວໄປ' },
-                    { name: 'ດຣ. ສົມພອນ ພອນປະເສີດ', role: 'ແພດຊ່ຽວຊານ' },
-                    { name: 'ດຣ. ວິໄລພອນ ໄຊຍະວົງ', role: 'ແພດຊ່ຽວຊານ' }
-                ];
-            }
+            // ຫມາຍເຫດ: ເອົາ Mockup ອອກຕາມຄວາມຕ້ອງການຂອງຜູ້ໃຊ້ (ດຶງສະເພາະທ່ານໝໍທີ່ມີຢູ່ຈິງ)
+            allClinicDoctors = [];
         }
 
         function openDoctorDropdown() {
@@ -5779,17 +5835,22 @@
             const listEl = document.getElementById('orderDocList');
             if (!listEl) return;
 
+            const currentSelected = (document.getElementById('orderDocAdvice')?.value || '').trim();
+
             const q = (filter || '').trim().toLowerCase();
             let matches = allClinicDoctors;
             if (q) {
-                matches = allClinicDoctors.filter(d => (d.name || '').toLowerCase().includes(q));
+                matches = allClinicDoctors.filter(d => 
+                    (d.name || '').toLowerCase().includes(q) || 
+                    (d.code || '').toLowerCase().includes(q)
+                );
             }
 
             const headerHTML = `<div class="addr-dropdown-header">ລາຍຊື່ທ່ານໝໍ (${matches.length} ທ່ານ)</div>`;
             if (matches.length === 0) {
                 listEl.innerHTML = headerHTML + `
                     <div class="p-3 text-center text-muted" style="font-size: 12px;">
-                        ບໍ່ພົບທ່ານໝໍທີ່ກົງກັບ "${filter}"
+                        ${filter ? `ບໍ່ພົບທ່ານໝໍທີ່ກົງກັບ "${filter}"` : 'ຍັງບໍ່ມີລາຍຊື່ທ່ານໝໍ'}
                     </div>
                 `;
                 return;
@@ -5798,14 +5859,16 @@
             let itemsHTML = '';
             matches.forEach(d => {
                 const docName = d.name || '';
+                const isSelected = currentSelected && currentSelected === docName;
                 itemsHTML += `
-                    <div class="addr-dropdown-item" onclick="selectDoctorMember('${docName.replace(/'/g, "\\'")}')">
-                        <div>
+                    <div class="addr-dropdown-item ${isSelected ? 'is-selected' : ''}" onclick="selectDoctorMember('${docName.replace(/'/g, "\\'")}')">
+                        <div class="d-flex align-items-center gap-1">
                             <i class="ph-fill ph-stethoscope text-info me-1"></i>
                             <span class="fw-bold text-dark">${docName}</span>
+                            ${d.code ? `<span class="badge bg-light text-muted border ms-1 font-monospace" style="font-size: 10px;">${d.code}</span>` : ''}
                             ${d.role ? `<span class="badge bg-light text-secondary border ms-1" style="font-size: 10.5px;">${d.role}</span>` : ''}
                         </div>
-                        <i class="ph ph-check text-primary fs-6"></i>
+                        ${isSelected ? '<i class="ph-bold ph-check text-primary fs-6"></i>' : ''}
                     </div>
                 `;
             });
@@ -8091,7 +8154,7 @@
                                         onclick="toggleDoctorDropdown(event)">
                                     <i class="ph ph-caret-down addr-caret" style="cursor: pointer; pointer-events: auto;"
                                         onclick="toggleDoctorDropdown(event)"></i>
-                                    <div class="addr-dropdown-menu addr-dropdown-menu-up shadow-lg border" id="orderDocDropdown" style="border-radius: 12px; overflow: hidden; min-width: 260px;"></div>
+                                    <div class="addr-dropdown-menu shadow-lg border" id="orderDocDropdown" style="border-radius: 12px; overflow: hidden; min-width: 260px;"></div>
                                 </div>
                             </div>
                             <div class="col-sm-6 col-12">
@@ -8104,7 +8167,7 @@
                                         onclick="toggleAssistantDropdown(event)">
                                     <i class="ph ph-caret-down addr-caret" style="cursor: pointer; pointer-events: auto;"
                                         onclick="toggleAssistantDropdown(event)"></i>
-                                    <div class="addr-dropdown-menu addr-dropdown-menu-up shadow-lg border" id="orderAssistantDropdown" style="border-radius: 12px; overflow: hidden; min-width: 280px;"></div>
+                                    <div class="addr-dropdown-menu shadow-lg border" id="orderAssistantDropdown" style="border-radius: 12px; overflow: hidden; min-width: 280px;"></div>
                                 </div>
                             </div>
                         </div>

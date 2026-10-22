@@ -5766,8 +5766,8 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
     });
 
     try {
-        // 1. บันทึกลงตาราง bills ใน Supabase (ปรับฟิลด์ให้ตรงตาม Schema ฐานข้อมูล 100% เพื่อไม่ให้เกิด Error 400)
-        const primaryBillPayload = {
+        // 1. บันทึกลงตาราง bills ใน Supabase (พร้อมระบบป้องกันและลองใหม่หากรหัสบิลซ้ำ Collision-Safe Retry)
+        let primaryBillPayload = {
             bill_id: billId,
             visit_id: visitId,
             hn: hn,
@@ -5783,19 +5783,53 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             note: billNote + (paymentMethodSummary ? ` [ช่องทาง: ${paymentMethodSummary}]` : '')
         };
 
-        try {
-            let res = await _supabase.from('bills').insert([primaryBillPayload]);
+        let billInserted = false;
+        let lastInsertError = null;
 
-            if (res && res.error) {
-                // หาก items ในฐานข้อมูลเป็นประเภท TEXT/VARCHAR ให้ลองแปลงเป็น JSON String
-                const fallbackPayload = {
-                    ...primaryBillPayload,
-                    items: JSON.stringify(billItems)
-                };
-                await _supabase.from('bills').insert([fallbackPayload]);
+        if (typeof _supabase !== 'undefined') {
+            for (let attempt = 0; attempt < 5; attempt++) {
+                if (attempt > 0) {
+                    const newSuffix = Math.floor(1000 + Math.random() * 9000);
+                    billId = `BILL-${dateCode}-${newSuffix}`;
+                    primaryBillPayload.bill_id = billId;
+                    billPayload.bill_id = billId;
+                }
+
+                try {
+                    let res = await _supabase.from('bills').insert([primaryBillPayload]);
+                    if (!res || !res.error) {
+                        billInserted = true;
+                        break;
+                    }
+                    lastInsertError = res.error;
+                    // หาก items ในฐานข้อมูลเป็นประเภท TEXT/VARCHAR ให้ลองแปลงเป็น JSON String
+                    if (res.error && !res.error.message?.includes('duplicate') && !res.error.message?.includes('unique') && res.error.code !== '23505') {
+                        const fallbackPayload = {
+                            ...primaryBillPayload,
+                            items: JSON.stringify(billItems)
+                        };
+                        let fbRes = await _supabase.from('bills').insert([fallbackPayload]);
+                        if (!fbRes || !fbRes.error) {
+                            billInserted = true;
+                            break;
+                        }
+                        lastInsertError = fbRes.error;
+                    }
+                } catch (bErr) {
+                    lastInsertError = bErr;
+                    console.warn('Bills DB insert attempt error:', bErr);
+                }
             }
-        } catch (bErr) {
-            console.warn('Bills DB insert exception:', bErr);
+
+            if (!billInserted) {
+                console.error('Critical: Failed to insert bill into Supabase after retries:', lastInsertError);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ບໍ່ສາມາດບັນທຶກໃບບິນໄດ້',
+                    text: 'ເກີດຂໍ້ຜິດພາດໃນການບັນທຶກໃບບິນລົງຖານຂໍ້ມູນ: ' + (lastInsertError?.message || 'DB Error') + ' ກະລຸນາກົດລອງໃໝ່ອີກຄັ້ງ'
+                });
+                return;
+            }
         }
 
         // 🌟 บันทึกลง LocalStorage และลดจำนวนแคชจาก 50 เหลือ 20 รายการ เพื่อป้องกันความจำเต็ม (QuotaExceededError)
