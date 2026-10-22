@@ -1384,40 +1384,60 @@
         }
 
         .order-btn-cancel {
-            background-color: #0284c7;
-            color: #ffffff;
-            border-radius: 8px;
-            padding: 8px 24px;
-            font-size: 14px;
+            background-color: #f8fafc;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 9px 22px;
+            font-size: 13.5px;
             font-weight: 600;
-            border: none;
             cursor: pointer;
-            transition: background-color 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .order-btn-cancel:hover {
-            background-color: #0369a1;
-            color: #ffffff;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            border-color: #94a3b8;
+            transform: translateY(-1px);
+        }
+
+        .order-btn-cancel:active {
+            transform: translateY(0);
+            background-color: #e2e8f0;
         }
 
         .order-btn-save {
-            background-color: #059669;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
             color: #ffffff;
-            border-radius: 8px;
-            padding: 8px 24px;
-            font-size: 14px;
+            border-radius: 10px;
+            padding: 9px 24px;
+            font-size: 13.5px;
             font-weight: 600;
             border: none;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            transition: background-color 0.15s;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.32);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .order-btn-save:hover {
-            background-color: #047857;
+            background: linear-gradient(135deg, #047857 0%, #059669 100%);
             color: #ffffff;
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .order-btn-save:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
         }
 
         /* ==========================================================
@@ -1834,42 +1854,15 @@
 
             /* Footer Bar & Action Buttons Fix for Mobile */
             .order-footer-bar {
-                flex-direction: column !important;
-                align-items: stretch !important;
-                gap: 12px !important;
-                width: 100% !important;
-                box-sizing: border-box !important;
-                padding-top: 12px !important;
-            }
-
-            .order-footer-bar>div:first-child {
-                width: 100% !important;
-                max-width: 100% !important;
-                flex-direction: column !important;
-                gap: 10px !important;
-            }
-
-            .order-footer-bar>div:first-child>div {
-                min-width: 0 !important;
-                width: 100% !important;
-                flex: 1 1 100% !important;
-            }
-
-            .order-footer-bar .ms-auto {
-                margin-left: 0 !important;
-                margin-top: 4px !important;
-                width: 100% !important;
                 display: flex !important;
                 flex-direction: row !important;
-                gap: 8px !important;
+                align-items: center !important;
                 justify-content: space-between !important;
+                gap: 10px !important;
+                width: 100% !important;
                 box-sizing: border-box !important;
-                position: sticky !important;
-                bottom: -20px !important;
-                background: #ffffff !important;
-                padding: 12px 0 12px 0 !important;
-                z-index: 25 !important;
-                box-shadow: 0 -8px 16px rgba(255, 255, 255, 0.95);
+                padding-top: 14px !important;
+                margin-top: 8px !important;
             }
 
             /* Ensure bottom navigation bar stays completely visible above all modal windows */
@@ -1897,36 +1890,57 @@
             }
 
             .order-btn-cancel {
-                flex: 1 1 35% !important;
-                max-width: 38% !important;
-                height: 44px !important;
-                padding: 0 8px !important;
+                flex: 0 0 105px !important;
+                max-width: 120px !important;
+                height: 46px !important;
+                padding: 0 12px !important;
                 font-size: 13.5px !important;
                 font-weight: 600 !important;
-                border-radius: 10px !important;
+                border-radius: 12px !important;
+                background-color: #f8fafc !important;
+                color: #475569 !important;
+                border: 1.5px solid #cbd5e1 !important;
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
+                gap: 6px !important;
                 text-align: center !important;
                 white-space: nowrap !important;
                 box-sizing: border-box !important;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+                transition: all 0.15s ease !important;
+            }
+
+            .order-btn-cancel:active {
+                background-color: #e2e8f0 !important;
+                color: #1e293b !important;
+                transform: scale(0.98) !important;
             }
 
             .order-btn-save {
-                flex: 1 1 65% !important;
-                height: 44px !important;
-                padding: 0 8px !important;
-                font-size: 12.5px !important;
+                flex: 1 1 auto !important;
+                height: 46px !important;
+                padding: 0 16px !important;
+                font-size: 13.5px !important;
                 font-weight: 600 !important;
-                border-radius: 10px !important;
+                border-radius: 12px !important;
+                background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+                color: #ffffff !important;
+                border: none !important;
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
+                gap: 8px !important;
                 text-align: center !important;
                 white-space: nowrap !important;
                 box-sizing: border-box !important;
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
+                box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+                transition: all 0.15s ease !important;
+            }
+
+            .order-btn-save:active {
+                transform: scale(0.98) !important;
+                box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25) !important;
             }
 
             .clinic-modal-card {
@@ -7348,9 +7362,45 @@
             }
         }
 
+        function showOrderValidationAlert(message, targetEl, onConfirmed) {
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur();
+            }
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
+                    text: message,
+                    confirmButtonText: 'ຮັບຊາບ'
+                }).then(() => {
+                    if (typeof onConfirmed === 'function') {
+                        onConfirmed();
+                    } else if (targetEl) {
+                        setTimeout(() => {
+                            if (typeof targetEl.focus === 'function') targetEl.focus();
+                            if (typeof targetEl.scrollIntoView === 'function') {
+                                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }, 60);
+                    }
+                });
+            } else {
+                alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\n' + message);
+                if (typeof onConfirmed === 'function') {
+                    onConfirmed();
+                } else if (targetEl && typeof targetEl.focus === 'function') {
+                    targetEl.focus();
+                }
+            }
+        }
+
         let isSubmittingOrder = false;
         async function saveAndSubmitOrder() {
             if (isSubmittingOrder) return;
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur();
+            }
+
             const nameEl = document.getElementById('orderCustName');
             const prefixEl = document.getElementById('orderCustPrefix');
             const rawCustName = nameEl ? nameEl.value.trim() : '';
@@ -7365,33 +7415,13 @@
 
             // 1. 🌟 ກວດສອບ ຄຳນຳໜ້າ
             if (!prefixVal) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກະລຸນາເລືອກ ຄຳນຳໜ້າ',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກະລຸນາເລືອກ ຄຳນຳໜ້າ');
-                }
-                if (prefixEl) prefixEl.focus();
+                showOrderValidationAlert('ກະລຸນາເລືອກ ຄຳນຳໜ້າ', prefixEl);
                 return;
             }
 
             // 2. 🌟 ກວດສອບ ຊື່ ແລະ ນາມສະກຸນ
             if (!rawCustName) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກະລຸນາປ້ອນ ຊື່ ແລະ ນາມສະກຸນ',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກະລຸນາປ້ອນ ຊື່ ແລະ ນາມສະກຸນ');
-                }
-                if (nameEl) nameEl.focus();
+                showOrderValidationAlert('ກະລຸນາປ້ອນ ຊື່ ແລະ ນາມສະກຸນ', nameEl);
                 return;
             }
 
@@ -7399,17 +7429,7 @@
             const genderEl = document.getElementById('orderCustGender');
             const genderVal = genderEl ? genderEl.value.trim() : '';
             if (!genderVal) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກະລຸນາເລືອກ ເພດ',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກະລຸນາເລືອກ ເພດ');
-                }
-                if (genderEl) genderEl.focus();
+                showOrderValidationAlert('ກະລຸນາເລືອກ ເພດ', genderEl);
                 return;
             }
 
@@ -7417,17 +7437,7 @@
             const ageEl = document.getElementById('orderCustAge');
             const ageVal = ageEl ? ageEl.value.trim() : '';
             if (!ageVal) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກະລຸນາປ້ອນ ອາຍຸ',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກະລຸນາປ້ອນ ອາຍຸ');
-                }
-                if (ageEl) ageEl.focus();
+                showOrderValidationAlert('ກະລຸນາປ້ອນ ອາຍຸ', ageEl);
                 return;
             }
 
@@ -7435,17 +7445,7 @@
             const diseaseEl = document.getElementById('orderCustDisease');
             const diseaseVal = diseaseEl ? diseaseEl.value.trim() : '';
             if (!diseaseVal) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກະລຸນາປ້ອນ ອາການ / ພະຍາດ',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກະລຸນາປ້ອນ ອາການ / ພະຍາດ');
-                }
-                if (diseaseEl) diseaseEl.focus();
+                showOrderValidationAlert('ກະລຸນາປ້ອນ ອາການ / ພະຍາດ', diseaseEl);
                 return;
             }
 
@@ -7453,17 +7453,7 @@
             const phoneEl = document.getElementById('orderCustPhone');
             const phoneVal = phoneEl ? phoneEl.value.trim() : '';
             if (!phoneVal || phoneVal === '-' || phoneVal === '00000000000') {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກະລຸນາປ້ອນ ເບີໂທລະສັບ',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກະລຸນາປ້ອນ ເບີໂທລະສັບ');
-                }
-                if (phoneEl) phoneEl.focus();
+                showOrderValidationAlert('ກະລຸນາປ້ອນ ເບີໂທລະສັບ', phoneEl);
                 return;
             }
 
@@ -7471,32 +7461,13 @@
             const typeEl = document.getElementById('orderCustomerType');
             const custTypeVal = typeEl ? typeEl.value.trim() : '';
             if (!custTypeVal || custTypeVal === '-- ເລືອກປະເພດລູກຄ້າ --') {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້');
-                }
-                if (typeEl) typeEl.focus();
+                showOrderValidationAlert('ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້', typeEl);
                 return;
             }
 
             // 8. 🌟 ກວດສອບ ລາຍການສິນຄ້າ
             if (currentOrderItems.length === 0) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ບໍ່ມີລາຍການສິນຄ້າ',
-                        text: 'ກະລຸນາເລືອກຢາ ຫຼື ອາຫານເສີມຢ່າງໜ້ອຍ 1 ລາຍການ',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາເລືອກຢາ ຫຼື ອາຫານເສີມຢ່າງໜ້ອຍ 1 ລາຍການ');
-                }
+                showOrderValidationAlert('ກະລຸນາເລືອກຢາ ຫຼື ອາຫານເສີມຢ່າງໜ້ອຍ 1 ລາຍການ');
                 return;
             }
 
@@ -7507,16 +7478,7 @@
             const isSelf = chkSelf && chkSelf.checked;
 
             if (!isDoc && !isSelf) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້');
-                }
+                showOrderValidationAlert('ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້');
                 return;
             }
 
@@ -7524,19 +7486,9 @@
             const assistantEl = document.getElementById('orderAssistantAdvice');
             const assistantAdvice = assistantEl ? assistantEl.value.trim() : '';
             if (!assistantAdvice) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    }).then(() => {
-                        openAssistantDropdown();
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້');
+                showOrderValidationAlert('ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້', null, () => {
                     openAssistantDropdown();
-                }
+                });
                 return;
             }
 
@@ -7544,19 +7496,9 @@
             const docEl = document.getElementById('orderDocAdvice');
             let docAdvice = docEl ? docEl.value.trim() : '';
             if (isDoc && (!docAdvice || docAdvice === 'ສັ່ງຢາດ້ວຍຕົນເອງ')) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ',
-                        text: 'ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້',
-                        confirmButtonText: 'ຮັບຊາບ'
-                    }).then(() => {
-                        openDoctorDropdown();
-                    });
-                } else {
-                    alert('ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ\nກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້');
+                showOrderValidationAlert('ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້', null, () => {
                     openDoctorDropdown();
-                }
+                });
                 return;
             }
             if (isSelf) {
@@ -8200,11 +8142,13 @@
 
             <!-- Footer Buttons Bar (Below Notes) -->
             <div class="order-footer-bar mt-2 pt-2.5 border-top d-flex align-items-center justify-content-end gap-2" style="border-color: #f1f5f9;">
-                <button type="button" class="order-btn-cancel px-4 py-2" onclick="closeOrderModal()">
-                    ຍົກເລີກ
+                <button type="button" class="order-btn-cancel" onclick="closeOrderModal()">
+                    <i class="ph-bold ph-x fs-6"></i>
+                    <span>ຍົກເລີກ</span>
                 </button>
-                <button type="button" class="order-btn-save px-4 py-2" onclick="saveAndSubmitOrder()">
-                    <i class="ph-bold ph-floppy-disk"></i> ບັນທຶກ & ກົດສົ່ງອໍເດີ
+                <button type="button" class="order-btn-save" onclick="saveAndSubmitOrder()">
+                    <i class="ph-bold ph-floppy-disk fs-5"></i>
+                    <span>ບັນທຶກ & ກົດສົ່ງອໍເດີ</span>
                 </button>
             </div>
         </div>
