@@ -488,27 +488,16 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
         cleanExplicit === 'New Customer - Clinic Visit'
     );
 
-    if (!isGenericNewVisit) {
-        if (typeof window.normalizeCustomerType === 'function') {
-            const norm = window.normalizeCustomerType(cleanExplicit, curLang, context);
-            if (norm && norm.id) {
-                return norm;
-            }
-        }
-    }
-
-    // ตรวจสอบสถานะลูกค้าเก่าจาก explicitType ร่วมด้วย (กรณีไม่มี explicitType หรือต้องวิเคราะห์จาก Visit ID)
-    const hasExistingExplicit = (cleanExplicit && (
-        cleanExplicit.includes('เก่า') ||
-        cleanExplicit.includes('ເກົ່າ') ||
-        cleanExplicit === 'T006' ||
-        cleanExplicit === 'T002' ||
-        cleanExplicit === 'T005'
-    ));
-    const effectiveIsExisting = Boolean(isExistingCustomer || hasExistingExplicit);
-
     // 1. ตรวจสอบรหัส VIS-ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์ ห้ามเป็น "ลูกค้าใหม่มาตรวจ" เด็ดขาด)
     if (vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-')) {
+        const hasExistingExplicit = (cleanExplicit && (
+            cleanExplicit.includes('เก่า') ||
+            cleanExplicit.includes('ເກົ່າ') ||
+            cleanExplicit === 'T006' ||
+            cleanExplicit === 'T002' ||
+            cleanExplicit === 'T005'
+        ));
+        const effectiveIsExisting = Boolean(isExistingCustomer || hasExistingExplicit);
         const targetId = effectiveIsExisting ? 'T006' : 'T004';
         const item = list.find(t => t.id === targetId) || {
             id: targetId,
@@ -525,8 +514,24 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
         };
     }
 
-    // 2. ตรวจสอบรหัส VIS- ตามด้วยตัวเลข (คนไข้มาตรวจที่คลินิกจริง)
-    if (/^VIS-\d+/i.test(vStr)) {
+    // 2. ตรวจสอบประเภทที่ระบุมาอย่างชัดเจน (เช่น T003 ลูกค้าใหม่นำผลตรวจมาปรึกษา, T005, T007 ฯลฯ)
+    if (!isGenericNewVisit) {
+        if (typeof window.normalizeCustomerType === 'function') {
+            const norm = window.normalizeCustomerType(cleanExplicit, curLang, context);
+            if (norm && norm.id) {
+                // หากถูกตั้งค่าเป็น T002 (ลูกค้าเก่า) แต่ตรวจชัดเจนแล้วว่าไม่มีประวัติซื้อเดิมและเพิ่งมาตรวจครั้งแรก (isExistingCustomer === false)
+                // สำหรับเคสคนไข้คลินิก ให้ปรับคืนเป็นลูกค้าใหม่มาตรวจ T001
+                if (norm.id === 'T002' && isExistingCustomer === false && /^VIS-\d+/i.test(vStr)) {
+                    // ตกไปข้อ 3 ด้านล่าง
+                } else {
+                    return norm;
+                }
+            }
+        }
+    }
+
+    // 3. ตรวจสอบรหัส VIS- ตามด้วยตัวเลข (คนไข้มาตรวจที่คลินิกจริง) หรือกรณีทั่วไป
+    if (/^VIS-\d+/i.test(vStr) || isGenericNewVisit) {
         const targetId = isExistingCustomer ? 'T002' : 'T001';
         const item = list.find(t => t.id === targetId) || {
             id: targetId,

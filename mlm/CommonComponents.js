@@ -65,9 +65,9 @@
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        /* Fix Thai tone mark clipping and line heights globally */
-        body, button, input, select, textarea, .font-sans, [class*="font-"] {
-          font-family: 'Noto Sans Thai', 'Sarabun', 'Inter', sans-serif !important;
+        /* Fix Thai tone mark clipping and line heights globally with VAG Rounded Std for English/numbers */
+        body, button, input, select, textarea, .font-sans, [class*="font-"], table, th, td {
+          font-family: 'VAG Rounded Std', 'Noto Sans Thai', 'Sarabun', 'Inter', sans-serif !important;
         }
         h1, h2, h3, h4, h5, h6, p, span, button, a, label, td, th {
           line-height: 1.45;

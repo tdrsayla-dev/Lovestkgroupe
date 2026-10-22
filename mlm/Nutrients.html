@@ -340,11 +340,11 @@
               window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=1000').catch(() => []),
               window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status&order=user_id.asc').catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone,customer_type&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
               window.supabaseSelect('stk_closers').catch(() => []),
               window.supabaseSelect('stk_business_teams').catch(() => []),
               (window.fetchClinicDoctors ? window.fetchClinicDoctors() : Promise.resolve([])).catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('visits', 'select=visit_id,doctor_name,disease&order=created_at.desc&limit=500') : Promise.resolve([])).catch(() => [])
+              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('visits', 'select=visit_id,hn,doctor_name,disease&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => [])
             ]);
 
             if (Array.isArray(closersRes) && closersRes.length > 0) {
@@ -361,16 +361,28 @@
               setClinicDoctors(clinicDocsRes);
             }
 
-            // 🩺 แมปข้อมูลแพทย์ผู้ตรวจจริงจากตาราง visits ของระบบคลินิกภายนอก
+            // 🩺 แมปข้อมูลแพทย์ผู้ตรวจจริง และ นับจำนวน Visit ต่อ HN จากตาราง visits ของระบบคลินิกภายนอก
             const clinicVisitsDoctorMap = new Map();
+            const clinicVisitsCountByHn = new Map();
             if (Array.isArray(clinicVisitsRes)) {
               clinicVisitsRes.forEach(v => {
                 if (v && v.visit_id && v.doctor_name) {
                   clinicVisitsDoctorMap.set(String(v.visit_id).trim().toUpperCase(), String(v.doctor_name).trim());
                 }
+                if (v && v.hn) {
+                  const hList = (typeof window.normalizeHnCandidates === 'function')
+                    ? window.normalizeHnCandidates(v.hn)
+                    : [String(v.hn).trim().toUpperCase()];
+                  hList.forEach(cand => {
+                    if (cand && cand !== '-' && cand !== '--') {
+                      clinicVisitsCountByHn.set(cand, (clinicVisitsCountByHn.get(cand) || 0) + 1);
+                    }
+                  });
+                }
               });
             }
             window.clinicVisitsDoctorMap = clinicVisitsDoctorMap;
+            window.clinicVisitsCountByHn = clinicVisitsCountByHn;
 
             // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales
             const salesVisitMap = new Map();
@@ -389,11 +401,15 @@
             const phoneSet = new Set();
             const nameSet = new Set();
 
-            // ⚡ แมปผู้แนะนำการตลาด (Referrer) จากระบบคลินิก และ เจ้าของเคสเดิม
+            // ⚡ แมปผู้แนะนำการตลาด (Referrer) และ ประเภทลูกค้า (customer_type) จากระบบคลินิก และ เจ้าของเคสเดิม
             const clinicReferrerByHn = new Map();
             const clinicReferrerByPhone = new Map();
+            const clinicCustTypeByHn = new Map();
+            const clinicCustTypeByPhone = new Map();
             window.clinicReferrerByHn = clinicReferrerByHn;
             window.clinicReferrerByPhone = clinicReferrerByPhone;
+            window.clinicCustTypeByHn = clinicCustTypeByHn;
+            window.clinicCustTypeByPhone = clinicCustTypeByPhone;
             const custOwnerByHn = new Map();
             const custOwnerByPhone = new Map();
 
@@ -438,20 +454,26 @@
               });
             }
 
-            // 2. จากตาราง patients ของระบบคลินิก (ดึง referred_by เก็บเข้า Index Map อย่างแม่นยำ 100%)
+            // 2. จากตาราง patients ของระบบคลินิก (ดึง referred_by และ customer_type เก็บเข้า Index Map อย่างแม่นยำ 100%)
+            // 🛡️ ข้อควรระวัง: ห้ามใส่ p.hn / pPhone ลงใน hnSet/phoneSet เด็ดขาด เพราะคนไข้ใหม่ทุกคนถูกสร้างใน patients อยู่แล้ว
+            // การใส่ลงไปจะทำให้คนไข้ใหม่ทุกคนกลายเป็นลูกค้าเก่ากลับมาต่อยา
             if (Array.isArray(clinicPatientsRes)) {
               clinicPatientsRes.forEach(p => {
                 if (p && p.hn) {
-                  registerHnCandidates(p.hn);
                   if (p.referred_by && p.referred_by !== '-' && p.referred_by !== '--') {
                     registerHnReferrer(clinicReferrerByHn, p.hn, p.referred_by);
+                  }
+                  if (p.customer_type && p.customer_type !== '-' && p.customer_type !== '--') {
+                    registerHnReferrer(clinicCustTypeByHn, p.hn, p.customer_type);
                   }
                 }
                 const pPhone = String(p.phone_number || p.phone || '').replace(/[^0-9]/g, '');
                 if (pPhone.length >= 7) {
-                  phoneSet.add(pPhone);
                   if (p.referred_by && p.referred_by !== '-' && p.referred_by !== '--') {
                     clinicReferrerByPhone.set(pPhone, p.referred_by);
+                  }
+                  if (p.customer_type && p.customer_type !== '-' && p.customer_type !== '--') {
+                    clinicCustTypeByPhone.set(pPhone, p.customer_type);
                   }
                 }
               });
@@ -538,8 +560,21 @@
                   ? 'บิลถูกยกเลิก'
                   : (isCompleted ? 'ขายสำเร็จแล้ว' : (item.status || 'รอดำเนินการ'));
 
-                const isExisting = checkCustomerExists(item.hn || item.customer_id, item.phone || item.customer_phone, item.customer_name || item.customerName);
-                const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+                const hCandidates = (typeof window.normalizeHnCandidates === 'function')
+                  ? window.normalizeHnCandidates(item.hn || item.customer_id)
+                  : [String(item.hn || item.customer_id || '').trim().toUpperCase()].filter(Boolean);
+                const pClean = String(item.phone || item.customer_phone || '').replace(/[^0-9]/g, '');
+                const visitCount = hCandidates.map(c => clinicVisitsCountByHn.get(c) || 0).reduce((max, cnt) => Math.max(max, cnt), 0);
+                const isExisting = checkCustomerExists(item.hn || item.customer_id, item.phone || item.customer_phone, item.customer_name || item.customerName) || (visitCount > 1);
+
+                const clinicSourceType = hCandidates.map(c => clinicCustTypeByHn.get(c)).find(Boolean) || (pClean.length >= 7 ? clinicCustTypeByPhone.get(pClean) : '') || '';
+                const rawExplicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+                let explicit = (rawExplicit && rawExplicit !== '-' && rawExplicit !== '--') ? rawExplicit : clinicSourceType;
+                // 🛡️ หากเคยถูกบันทึกผิดเป็น 'ลูกค้าเก่ากลับมาต่อยา' ทั้งที่เป็นคนไข้ใหม่จริง (ไม่มีประวัติการซื้อเดิม และมาตรวจแค่ครั้งแรก) ให้แก้กลับเป็นประเภทของคลินิก
+                if (!isExisting && clinicSourceType && (explicit === 'ลูกค้าเก่ากลับมาต่อยา' || explicit === 'T002')) {
+                  explicit = clinicSourceType;
+                }
+
                 const resolvedCustType = (typeof window.resolveVisitCustomerType === 'function')
                   ? window.resolveVisitCustomerType(item.visit_id, isExisting, explicit, 'th', {
                       disease: item.disease || item.disease_name || '',
@@ -606,7 +641,7 @@
                     syncUpdates.status = 'ขายสำเร็จแล้ว';
                     syncUpdates.sale_order_id = matchingSaleId;
                   }
-                  if (resolvedCustType && resolvedCustType !== item.customer_type && item.customer_type === 'ลูกค้าใหม่มาตรวจ') {
+                  if (resolvedCustType && resolvedCustType !== item.customer_type && item.status !== 'ขายสำเร็จแล้ว') {
                     syncUpdates.customer_type = resolvedCustType;
                   }
                   if (isClinicVisit && matchedClinicDocStr && item.closer_dr !== matchedClinicDocStr) {
@@ -701,29 +736,38 @@
               total: Number(it.total || (it.price * it.qty) || 0)
             })) : [];
 
+            const hCandidatesLocal = (typeof window.normalizeHnCandidates === 'function')
+              ? window.normalizeHnCandidates(item.hn)
+              : [String(item.hn || '').trim().toUpperCase()];
+            const pCleanLocal = String(item.phone || '').replace(/[^0-9]/g, '');
+            const visitCountLocal = (window.clinicVisitsCountByHn ? hCandidatesLocal.map(c => window.clinicVisitsCountByHn.get(c) || 0).reduce((max, cnt) => Math.max(max, cnt), 0) : 0);
+
             const isExistingLocal = (() => {
+              if (visitCountLocal > 1) return true;
               if (existingCustomersData && existingCustomersData.hns) {
-                const candidates = (typeof window.normalizeHnCandidates === 'function')
-                  ? window.normalizeHnCandidates(item.hn)
-                  : [String(item.hn || '').trim().toUpperCase()];
-                if (candidates.some(c => c && c !== '-' && existingCustomersData.hns.has(c))) return true;
-                const p = String(item.phone || '').replace(/[^0-9]/g, '');
-                if (p && p.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(p)) return true;
+                if (hCandidatesLocal.some(c => c && c !== '-' && existingCustomersData.hns.has(c))) return true;
+                if (pCleanLocal && pCleanLocal.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pCleanLocal)) return true;
                 const n = String(item.customer_name || '').trim().toLowerCase();
                 if (n && n !== '-' && existingCustomersData.names && existingCustomersData.names.has(n)) return true;
               }
               return false;
             })();
 
-            const explicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+            const clinicSourceTypeLocal = (window.clinicCustTypeByHn ? hCandidatesLocal.map(c => window.clinicCustTypeByHn.get(c)).find(Boolean) : '') || (pCleanLocal.length >= 7 && window.clinicCustTypeByPhone ? window.clinicCustTypeByPhone.get(pCleanLocal) : '') || '';
+            const rawExplicitLocal = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+            let explicitLocal = (rawExplicitLocal && rawExplicitLocal !== '-' && rawExplicitLocal !== '--') ? rawExplicitLocal : clinicSourceTypeLocal;
+            if (!isExistingLocal && clinicSourceTypeLocal && (explicitLocal === 'ลูกค้าเก่ากลับมาต่อยา' || explicitLocal === 'T002')) {
+              explicitLocal = clinicSourceTypeLocal;
+            }
+
             const resolvedLocalCustType = (typeof window.resolveVisitCustomerType === 'function')
-              ? window.resolveVisitCustomerType(vId, isExistingLocal, explicit, 'th', {
+              ? window.resolveVisitCustomerType(vId, isExistingLocal, explicitLocal, 'th', {
                   disease: item.disease || item.disease_name || '',
                   symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
                   customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
                   hn: item.hn || item.customer_id || ''
                 }).name
-              : (explicit || 'ลูกค้าใหม่มาตรวจ');
+              : (explicitLocal || 'ลูกค้าใหม่มาตรวจ');
 
             // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง
             let localCloser = item.closer_dr || '';
@@ -979,21 +1023,29 @@
         const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
           ? window.normalizeHnCandidates(order.hn)
           : [String(order.hn || '').trim().toUpperCase()];
+        const visitCountDraft = (window.clinicVisitsCountByHn ? hnCandidates.map(c => window.clinicVisitsCountByHn.get(c) || 0).reduce((max, cnt) => Math.max(max, cnt), 0) : 0);
         const isHnExisting = hnCandidates.some(c => c && c !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(c));
         const pClean = String(order.phone || '').replace(/[^0-9]/g, '');
         const nClean = String(order.customer_name || '').trim().toLowerCase();
         const isExistingCustomer = Boolean(
+          visitCountDraft > 1 ||
           isHnExisting ||
           (pClean && pClean.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pClean)) ||
           (nClean && nClean !== '-' && existingCustomersData.names && existingCustomersData.names.has(nClean))
         );
 
+        const clinicSourceType = (window.clinicCustTypeByHn ? hnCandidates.map(c => window.clinicCustTypeByHn.get(c)).find(Boolean) : '') || (pClean.length >= 7 && window.clinicCustTypeByPhone ? window.clinicCustTypeByPhone.get(pClean) : '') || '';
+        let effectiveOrderType = order.customer_type || clinicSourceType;
+        if (!isExistingCustomer && clinicSourceType && (effectiveOrderType === 'ลูกค้าเก่ากลับมาต่อยา' || effectiveOrderType === 'T002')) {
+          effectiveOrderType = clinicSourceType;
+        }
+
         const closerInfo = resolveOrderCloserInfo(order);
         const normCustType = (typeof window.resolveVisitCustomerType === 'function')
-            ? window.resolveVisitCustomerType(order.visit_id, isExistingCustomer, order.customer_type, currentLang)
+            ? window.resolveVisitCustomerType(order.visit_id, isExistingCustomer, effectiveOrderType, currentLang)
             : ((typeof window.normalizeCustomerType === 'function')
-                ? window.normalizeCustomerType(order.customer_type)
-                : { id: 'T001', name: order.customer_type || 'ลูกค้าใหม่มาตรวจ', display: order.customer_type || 'ลูกค้าใหม่มาตรวจ', isOld: isExistingCustomer, lo: 'ລູກຄ້າໃໝ່ມາກວດ', th: 'ลูกค้าใหม่มาตรวจ', en: 'New Customer - Clinic Visit' });
+                ? window.normalizeCustomerType(effectiveOrderType)
+                : { id: 'T001', name: effectiveOrderType || 'ลูกค้าใหม่มาตรวจ', display: effectiveOrderType || 'ลูกค้าใหม่มาตรวจ', isOld: isExistingCustomer, lo: 'ລູກຄ້າໃໝ່ມາກວດ', th: 'ลูกค้าใหม่มาตรวจ', en: 'New Customer - Clinic Visit' });
         const custTypeDisplay = normCustType.display;
         const isOldCustomer = normCustType.isOld;
 
@@ -1645,10 +1697,12 @@
                                 const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
                                   ? window.normalizeHnCandidates(ord.hn)
                                   : [String(ord.hn || '').trim().toUpperCase()];
+                                const visitCountRender = (window.clinicVisitsCountByHn ? hnCandidates.map(c => window.clinicVisitsCountByHn.get(c) || 0).reduce((max, cnt) => Math.max(max, cnt), 0) : 0);
                                 const isHnInDb = hnCandidates.some(c => c && c !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(c));
                                 const pClean = String(ord.phone || '').replace(/[^0-9]/g, '');
                                 const nClean = String(ord.customer_name || '').trim().toLowerCase();
                                 const isExisting = Boolean(
+                                  visitCountRender > 1 ||
                                   isHnInDb ||
                                   (pClean && pClean.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pClean)) ||
                                   (nClean && nClean !== '-' && existingCustomersData.names && existingCustomersData.names.has(nClean))

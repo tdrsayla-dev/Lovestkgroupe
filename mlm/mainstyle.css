@@ -5,6 +5,55 @@
 /* 1. Typography Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
+@font-face {
+  font-family: 'VAG Rounded Std';
+  src: url('VAGRoundedStd-Light.woff2') format('woff2'),
+       url('fonts/VAGRoundedStd-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'VAG Rounded Std';
+  src: url('VAGRoundedStd-Light.woff2') format('woff2'),
+       url('fonts/VAGRoundedStd-Light.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'VAG Rounded Std';
+  src: url('VAGRoundedStd-Bold.woff2') format('woff2'),
+       url('fonts/VAGRoundedStd-Bold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'VAG Rounded Std';
+  src: url('VAGRoundedStd-Bold.woff2') format('woff2'),
+       url('fonts/VAGRoundedStd-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'VAG Rounded Std';
+  src: url('VAGRoundedStd-Black.woff2') format('woff2'),
+       url('fonts/VAGRoundedStd-Black.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'VAG Rounded Std';
+  src: url('VAGRoundedStd-Black.woff2') format('woff2'),
+       url('fonts/VAGRoundedStd-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* 2. Global Design Tokens & Variables — Light (default) */
 :root {
   --bg-main:          #f1f5f9;
@@ -652,7 +701,7 @@ html, body {
 }
 
 body {
-  font-family: 'Noto Sans Thai', 'Noto Sans Lao', 'Sarabun', 'Inter', system-ui, sans-serif;
+  font-family: 'VAG Rounded Std', 'Noto Sans Thai', 'Noto Sans Lao', 'Sarabun', 'Inter', system-ui, sans-serif;
   background-color: var(--bg-main);
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
@@ -660,9 +709,9 @@ body {
 }
 
 /* Force global font-family & line-height across elements */
-/* Noto Sans Thai first so every device renders the same (Sukhumvit Set only exists on Apple devices) */
-body, button, input, select, textarea, .font-sans, [class*="font-"] {
-  font-family: 'Noto Sans Thai', 'Noto Sans Lao', 'Sarabun', 'Inter', system-ui, sans-serif !important;
+/* VAG Rounded Std first for English and numbers, falling back to Noto Sans Thai / Lao */
+body, button, input, select, textarea, .font-sans, [class*="font-"], table, th, td {
+  font-family: 'VAG Rounded Std', 'Noto Sans Thai', 'Noto Sans Lao', 'Sarabun', 'Inter', system-ui, sans-serif !important;
 }
 
 /* Softer font weights for readability (900/800 -> 700, 700 -> 600) */
