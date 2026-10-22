@@ -401,7 +401,7 @@
             const phoneSet = new Set();
             const nameSet = new Set();
 
-            // ⚡ แมปผู้แนะนำการตลาด (Referrer) และ ประเภทลูกค้า (customer_type) จากระบบคลินิก และ เจ้าของเคสเดิม
+            // ⚡ แมปผู้แนะนำการตลาด (Referrer) และ ประเภทลูกค้า (customer_type) จากระบบคลินิก
             const clinicReferrerByHn = new Map();
             const clinicReferrerByPhone = new Map();
             const clinicCustTypeByHn = new Map();
@@ -454,9 +454,7 @@
               });
             }
 
-            // 2. จากตาราง patients ของระบบคลินิก (ดึง referred_by และ customer_type เก็บเข้า Index Map อย่างแม่นยำ 100%)
-            // 🛡️ ข้อควรระวัง: ห้ามใส่ p.hn / pPhone ลงใน hnSet/phoneSet เด็ดขาด เพราะคนไข้ใหม่ทุกคนถูกสร้างใน patients อยู่แล้ว
-            // การใส่ลงไปจะทำให้คนไข้ใหม่ทุกคนกลายเป็นลูกค้าเก่ากลับมาต่อยา
+            // 2. จากตาราง patients ของระบบคลินิก (ดึง referred_by และ customer_type เก็บเข้า Index Map)
             if (Array.isArray(clinicPatientsRes)) {
               clinicPatientsRes.forEach(p => {
                 if (p && p.hn) {
@@ -530,14 +528,17 @@
               const pClean = String(targetPhone || '').replace(/[^0-9]/g, '');
 
               // 1. ตรวจสอบจากตาราง patients ของระบบคลินิกก่อนเสมอ (เป็นผู้แนะนำตัวจริงที่พาลูกค้ามาตรวจในระบบคลินิก)
+              // 🛡️ กฎเหล็กเด็ดขาด: แพทย์หมอไม่มีสิทธิ์แนะนำคนเจ็บมารักษา! หมอมีหน้าที่แค่ปิดการขายหรือจ่ายยาเท่านั้น ห้ามให้ชื่อหมอขึ้นเป็นผู้แนะนำเด็ดขาด!
               let clinicRef = hCandidates.map(c => clinicReferrerByHn.get(c)).find(Boolean) || '';
               if (!clinicRef && pClean.length >= 7) clinicRef = clinicReferrerByPhone.get(pClean) || '';
-              if (clinicRef) return resolveReferrerMember(clinicRef);
+              const isClinicRefDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
+                ? window.isClinicDoctorIdentifier(clinicRef, clinicDocsRes || clinicDoctors)
+                : false;
+              if (clinicRef && !isClinicRefDoctor) return resolveReferrerMember(clinicRef);
 
               // 2. ตรวจสอบจากค่าที่มีการระบุมาในออเดอร์ (กรณีไม่ได้ระบุผู้พามาในคลินิก)
               const cleanExisting = String(existingRecorded || '').trim();
               const isRecordedValid = cleanExisting && cleanExisting !== '-' && cleanExisting !== '--';
-              // 🛡️ กฎเหล็ก: ถ้า cleanExisting เป็นชื่อหมอคลินิก ห้ามนำมาเป็น Referrer (ผู้แนะนำการตลาด) เด็ดขาด!
               const isDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
                 ? window.isClinicDoctorIdentifier(cleanExisting, clinicDocsRes || clinicDoctors)
                 : false;
@@ -546,7 +547,10 @@
               // 3. ตรวจสอบจากเจ้าของลูกค้าเดิมใน stk_customers
               let custRef = hCandidates.map(c => custOwnerByHn.get(c)).find(Boolean) || '';
               if (!custRef && pClean.length >= 7) custRef = custOwnerByPhone.get(pClean) || '';
-              if (custRef) return resolveReferrerMember(custRef);
+              const isCustRefDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
+                ? window.isClinicDoctorIdentifier(custRef, clinicDocsRes || clinicDoctors)
+                : false;
+              if (custRef && !isCustRefDoctor) return resolveReferrerMember(custRef);
 
               return '-';
             };
@@ -570,9 +574,15 @@
                 const clinicSourceType = hCandidates.map(c => clinicCustTypeByHn.get(c)).find(Boolean) || (pClean.length >= 7 ? clinicCustTypeByPhone.get(pClean) : '') || '';
                 const rawExplicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
                 let explicit = (rawExplicit && rawExplicit !== '-' && rawExplicit !== '--') ? rawExplicit : clinicSourceType;
-                // 🛡️ หากเคยถูกบันทึกผิดเป็น 'ลูกค้าเก่ากลับมาต่อยา' ทั้งที่เป็นคนไข้ใหม่จริง (ไม่มีประวัติการซื้อเดิม และมาตรวจแค่ครั้งแรก) ให้แก้กลับเป็นประเภทของคลินิก
-                if (!isExisting && clinicSourceType && (explicit === 'ลูกค้าเก่ากลับมาต่อยา' || explicit === 'T002')) {
-                  explicit = clinicSourceType;
+                // 🛡️ หากในระบบคลินิกมี customer_type ระบุไว้ชัดเจน (เช่น 'ลูกค้าใหม่มาตรวจ')
+                // และออเดอร์ถูกระบุเป็น 'โทรปิดการขายลูกค้าใหม่' หรือ 'ลูกค้าเก่ากลับมาต่อยา' (ทั้งที่เป็นคนไข้ใหม่จริง)
+                // ให้ใช้ประเภทที่แท้จริงจากระบบคลินิกเป็นหลักเสมอ
+                if (clinicSourceType) {
+                  if (!rawExplicit || rawExplicit === '-' || rawExplicit === '--') {
+                    explicit = clinicSourceType;
+                  } else if (!isExisting && (rawExplicit === 'ลูกค้าเก่ากลับมาต่อยา' || rawExplicit === 'T002' || rawExplicit === 'โทรปิดการขายลูกค้าใหม่' || rawExplicit === 'T004')) {
+                    explicit = clinicSourceType;
+                  }
                 }
 
                 const resolvedCustType = (typeof window.resolveVisitCustomerType === 'function')
@@ -593,8 +603,10 @@
                 const isCloserDoc = (typeof window.isClinicDoctorIdentifier === 'function')
                   ? window.isClinicDoctorIdentifier(itemCloser, clinicDocsRes || clinicDoctors)
                   : false;
-                if (isRecDoc && !isCloserDoc) {
-                  itemCloser = itemRecorded;
+                if (isRecDoc) {
+                  if (!isCloserDoc) {
+                    itemCloser = itemRecorded;
+                  }
                   itemRecorded = '';
                 }
 
@@ -641,9 +653,10 @@
                     syncUpdates.status = 'ขายสำเร็จแล้ว';
                     syncUpdates.sale_order_id = matchingSaleId;
                   }
-                  if (resolvedCustType && resolvedCustType !== item.customer_type && item.status !== 'ขายสำเร็จแล้ว') {
+                  if (resolvedCustType && resolvedCustType !== item.customer_type) {
                     syncUpdates.customer_type = resolvedCustType;
                   }
+
                   if (isClinicVisit && matchedClinicDocStr && item.closer_dr !== matchedClinicDocStr) {
                     syncUpdates.closer_dr = matchedClinicDocStr;
                     syncUpdates.closer_team = 'Center';
@@ -656,7 +669,9 @@
                       syncUpdates.closer_team = resolvedCloserInfo.closerTeam;
                     }
                   }
-                  if (resolvedRecordedBy && resolvedRecordedBy !== '-' && resolvedRecordedBy !== item.recorded_by && item.status !== 'ขายสำเร็จแล้ว') {
+                  if (isRecDoc) {
+                    syncUpdates.recorded_by = (resolvedRecordedBy && resolvedRecordedBy !== '-') ? resolvedRecordedBy : '-';
+                  } else if (resolvedRecordedBy && resolvedRecordedBy !== '-' && resolvedRecordedBy !== item.recorded_by && item.status !== 'ขายสำเร็จแล้ว') {
                     syncUpdates.recorded_by = resolvedRecordedBy;
                   }
                   if (Object.keys(syncUpdates).length > 0) {
@@ -778,8 +793,10 @@
             const isLocalCloserDoc = (typeof window.isClinicDoctorIdentifier === 'function')
               ? window.isClinicDoctorIdentifier(localCloser, clinicDocsRes || clinicDoctors)
               : false;
-            if (isLocalRecDoc && !isLocalCloserDoc) {
-              localCloser = localRecorded;
+            if (isLocalRecDoc) {
+              if (!isLocalCloserDoc) {
+                localCloser = localRecorded;
+              }
               localRecorded = '';
             }
 
@@ -1321,8 +1338,10 @@
             // 🛡️ ป้องกันชื่อหมอหลุดเข้าไปใน recorded_by (ผู้แนะนำการตลาด)
             let safeFinalSeller = selectedSeller;
             if (typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(safeFinalSeller, doctorsList)) {
-              safeFinalSeller = clinicMatch || '-';
+              safeFinalSeller = (clinicMatch && !window.isClinicDoctorIdentifier(clinicMatch, doctorsList)) ? clinicMatch : '-';
             }
+            const fallbackRecorded = (order.recorded_by && (typeof window.isClinicDoctorIdentifier !== 'function' || !window.isClinicDoctorIdentifier(order.recorded_by, doctorsList))) ? order.recorded_by : '-';
+            const finalDraftRecorded = (safeFinalSeller && safeFinalSeller !== '-') ? safeFinalSeller : fallbackRecorded;
 
             // บันทึก override เก็บไว้ใน localStorage เพื่อไม่ให้เด้งกลับไปเป็นลูกค้าใหม่
             try {
@@ -1337,7 +1356,7 @@
             if (typeof window.supabaseUpdate === 'function' && order.visit_id && order.visit_id !== '-') {
               window.supabaseUpdate('stk_nutrient_orders', order.visit_id, {
                 customer_type: finalCustTypeObj.name,
-                recorded_by: safeFinalSeller || order.recorded_by,
+                recorded_by: finalDraftRecorded,
                 closer_dr: chosenCloserName,
                 closer_team: chosenCloserTeam,
                 order_by_type: chosenOrderByType
@@ -1351,7 +1370,7 @@
                 customer_name: (order.customer_name && order.customer_name !== '-') ? order.customer_name : '',
                 phone: (order.phone && order.phone !== '-' && order.phone !== '--') ? order.phone : '',
                 disease: (order.disease && order.disease !== '-') ? order.disease : '',
-                recorded_by: safeFinalSeller || order.recorded_by,
+                recorded_by: finalDraftRecorded,
                 closer_dr: chosenCloserName,
                 closer: chosenCloserName,
                 closer_team: chosenCloserTeam,
@@ -1733,8 +1752,14 @@
                               })()}
                             </div>
                           </td>
-                          <td className="py-2 px-3 text-slate-600 align-middle border-r border-slate-100 ">{ord.disease || '-'}</td>
-                          <td className="py-2 px-3 font-bold text-slate-700 align-middle border-r border-slate-100 ">{ord.recorded_by || '-'}</td>
+                          <td className="py-2 px-3 font-bold text-slate-700 align-middle border-r border-slate-100 ">
+                            {(() => {
+                              const recStr = String(ord.recorded_by || '').trim();
+                              if (!recStr || recStr === '-' || recStr === '--') return '-';
+                              if (typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(recStr, clinicDoctors)) return '-';
+                              return recStr;
+                            })()}
+                          </td>
                           <td className="py-2 px-3 align-middle border-r border-slate-100 ">
                             {(() => {
                               const cInfo = resolveOrderCloserInfo(ord);
