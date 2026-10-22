@@ -5584,6 +5584,14 @@
         }
 
         function openAssistantDropdown() {
+            const chkDoc = document.getElementById('checkDoctorPrescribe');
+            const chkSelf = document.getElementById('checkSelfPrescribe');
+            if (!chkDoc?.checked && !chkSelf?.checked) {
+                showOrderValidationAlert('ກະລຸນາກົດເລືອກ ຮູບແບບການສັ່ງ (ທ່ານໝໍສັ່ງຢາໃຫ້ ຫຼື ສັ່ງຢາດ້ວຍຕົນເອງ) ກ່ອນເລືອກສະມາຊິກ');
+                if (typeof highlightPrescribeBox === 'function') highlightPrescribeBox();
+                return;
+            }
+
             const dropdown = document.getElementById('orderAssistantDropdown');
             if (!dropdown) return;
 
@@ -5673,6 +5681,14 @@
 
         function toggleAssistantDropdown(e) {
             if (e) e.stopPropagation();
+            const chkDoc = document.getElementById('checkDoctorPrescribe');
+            const chkSelf = document.getElementById('checkSelfPrescribe');
+            if (!chkDoc?.checked && !chkSelf?.checked) {
+                showOrderValidationAlert('ກະລຸນາກົດເລືອກ ຮູບແບບການສັ່ງ (ທ່ານໝໍສັ່ງຢາໃຫ້ ຫຼື ສັ່ງຢາດ້ວຍຕົນເອງ) ກ່ອນເລືອກສະມາຊິກ');
+                if (typeof highlightPrescribeBox === 'function') highlightPrescribeBox();
+                return;
+            }
+
             const dropdown = document.getElementById('orderAssistantDropdown');
             if (dropdown && dropdown.style.display === 'block') {
                 dropdown.style.display = 'none';
@@ -5806,7 +5822,14 @@
         }
 
         function openDoctorDropdown() {
+            const chkDoc = document.getElementById('checkDoctorPrescribe');
             const chkSelf = document.getElementById('checkSelfPrescribe');
+            if (!chkDoc?.checked && !chkSelf?.checked) {
+                showOrderValidationAlert('ກະລຸນາກົດເລືອກ ຮູບແບບການສັ່ງ (ທ່ານໝໍສັ່ງຢາໃຫ້ ຫຼື ສັ່ງຢາດ້ວຍຕົນເອງ) ກ່ອນເລືອກທ່ານໝໍ');
+                if (typeof highlightPrescribeBox === 'function') highlightPrescribeBox();
+                return;
+            }
+
             if (chkSelf && chkSelf.checked) {
                 openAssistantDropdown();
                 return;
@@ -5892,7 +5915,14 @@
 
         function toggleDoctorDropdown(e) {
             if (e) e.stopPropagation();
+            const chkDoc = document.getElementById('checkDoctorPrescribe');
             const chkSelf = document.getElementById('checkSelfPrescribe');
+            if (!chkDoc?.checked && !chkSelf?.checked) {
+                showOrderValidationAlert('ກະລຸນາກົດເລືອກ ຮູບແບບການສັ່ງ (ທ່ານໝໍສັ່ງຢາໃຫ້ ຫຼື ສັ່ງຢາດ້ວຍຕົນເອງ) ກ່ອນເລືອກທ່ານໝໍ');
+                if (typeof highlightPrescribeBox === 'function') highlightPrescribeBox();
+                return;
+            }
+
             if (chkSelf && chkSelf.checked) {
                 openAssistantDropdown();
                 return;
@@ -6972,6 +7002,72 @@
             if (grandTotalEl) grandTotalEl.innerText = `${grandTotal.toLocaleString()} ฿`;
         }
 
+        function highlightPrescribeBox() {
+            const box = document.getElementById('orderPrescribeHeaderBox');
+            if (!box) return;
+            box.style.transition = 'all 0.3s ease';
+            box.style.borderRadius = '8px';
+            box.style.backgroundColor = '#fff7ed';
+            box.style.boxShadow = '0 0 0 3px rgba(249, 115, 22, 0.45)';
+            box.style.padding = '4px 8px';
+            setTimeout(() => {
+                box.style.backgroundColor = '';
+                box.style.boxShadow = '';
+                box.style.padding = '';
+            }, 2000);
+        }
+
+        function updatePrescribeInputStates() {
+            const chkDoc = document.getElementById('checkDoctorPrescribe');
+            const chkSelf = document.getElementById('checkSelfPrescribe');
+            const docInput = document.getElementById('orderDocAdvice');
+            const assistantInput = document.getElementById('orderAssistantAdvice');
+            const docWrapper = document.getElementById('orderDocWrapper');
+            const assistantWrapper = document.getElementById('orderAssistantWrapper');
+            const isDoc = chkDoc && chkDoc.checked;
+            const isSelf = chkSelf && chkSelf.checked;
+
+            if (!isDoc && !isSelf) {
+                if (docInput) {
+                    docInput.value = '';
+                    docInput.placeholder = 'ກະລຸນາເລືອກຮູບແບບການສັ່ງກ່ອນ...';
+                    docInput.style.backgroundColor = '#f8fafc';
+                }
+                if (assistantInput) {
+                    assistantInput.value = '';
+                    assistantInput.placeholder = 'ກະລຸນາເລືອກຮູບແບບການສັ່ງກ່ອນ...';
+                    assistantInput.style.backgroundColor = '#f8fafc';
+                }
+                if (docWrapper) docWrapper.style.opacity = '0.75';
+                if (assistantWrapper) assistantWrapper.style.opacity = '0.75';
+            } else if (isDoc) {
+                if (docInput) {
+                    if (docInput.value === 'ສັ່ງຢາດ້ວຍຕົນເອງ') docInput.value = '';
+                    docInput.placeholder = 'ກົດເລືອກທ່ານໝໍ...';
+                    docInput.style.backgroundColor = '#ffffff';
+                }
+                if (assistantInput) {
+                    assistantInput.placeholder = 'ກົດເລືອກສະມາຊິກ (stk_members)...';
+                    assistantInput.style.backgroundColor = '#ffffff';
+                }
+                if (docWrapper) docWrapper.style.opacity = '1';
+                if (assistantWrapper) assistantWrapper.style.opacity = '1';
+            } else if (isSelf) {
+                const asstVal = assistantInput ? assistantInput.value.trim() : '';
+                if (docInput) {
+                    docInput.value = asstVal ? asstVal : 'ສັ່ງຢາດ້ວຍຕົນເອງ';
+                    docInput.placeholder = 'ດຶງຂໍ້ມູນຈາກຜູ້ຊ່ວຍ...';
+                    docInput.style.backgroundColor = '#f1f5f9';
+                }
+                if (assistantInput) {
+                    assistantInput.placeholder = 'ກົດເລືອກສະມາຊິກ (stk_members)...';
+                    assistantInput.style.backgroundColor = '#ffffff';
+                }
+                if (docWrapper) docWrapper.style.opacity = '1';
+                if (assistantWrapper) assistantWrapper.style.opacity = '1';
+            }
+        }
+
         function onPrescribeTypeChange(mode) {
             const chkDoc = document.getElementById('checkDoctorPrescribe');
             const chkSelf = document.getElementById('checkSelfPrescribe');
@@ -6985,10 +7081,10 @@
                     if (docInput && (docInput.value === 'ສັ່ງຢາດ້ວຍຕົນເອງ' || (asstVal && docInput.value === asstVal))) {
                         docInput.value = '';
                     }
-                    if (docInput) {
-                        docInput.placeholder = 'ກົດເລືອກທ່ານໝໍ...';
-                    }
+                    updatePrescribeInputStates();
                     openDoctorDropdown();
+                } else {
+                    updatePrescribeInputStates();
                 }
             } else if (mode === 'self') {
                 const docDrop = document.getElementById('orderDocDropdown');
@@ -6997,10 +7093,7 @@
                 if (chkSelf && chkSelf.checked) {
                     if (chkDoc) chkDoc.checked = false;
                     const asstVal = assistantInput ? assistantInput.value.trim() : '';
-                    if (docInput) {
-                        docInput.value = asstVal ? asstVal : 'ສັ່ງຢາດ້ວຍຕົນເອງ';
-                        docInput.placeholder = 'ດຶງຂໍ້ມູນຈາກຜູ້ຊ່ວຍ...';
-                    }
+                    updatePrescribeInputStates();
                     if (!asstVal) {
                         openAssistantDropdown();
                     }
@@ -7009,6 +7102,7 @@
                     if (docInput && (docInput.value === 'ສັ່ງຢາດ້ວຍຕົນເອງ' || (asstVal && docInput.value === asstVal))) {
                         docInput.value = '';
                     }
+                    updatePrescribeInputStates();
                 }
             }
         }
@@ -7021,6 +7115,7 @@
             const chkSelf = document.getElementById('checkSelfPrescribe');
             if (chkDoc) chkDoc.checked = false;
             if (chkSelf) chkSelf.checked = false;
+            updatePrescribeInputStates();
 
             loadOrderMedicinesCatalog();
             loadStkMembersCatalog();
@@ -8060,7 +8155,7 @@
                 <div class="col-lg-8 col-12">
                     <div class="p-3 rounded-3 border bg-white shadow-xs h-100 d-flex flex-column justify-content-between" style="border-color: #cbd5e1 !important;">
                         <!-- Header with Prescribe Mode Checkboxes -->
-                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pb-2 mb-2 border-bottom" style="border-color: #e2e8f0 !important;">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pb-2 mb-2 border-bottom" style="border-color: #e2e8f0 !important;" id="orderPrescribeHeaderBox">
                             <span class="fw-bold text-dark d-flex align-items-center gap-1.5" style="font-size: 13px;">
                                 <i class="ph-bold ph-clipboard-text text-primary fs-6"></i> ຮູບແບບການສັ່ງ: <span class="text-danger fw-bold">*</span>
                             </span>
