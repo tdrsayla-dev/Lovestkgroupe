@@ -478,67 +478,72 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
     // ให้เคารพและแปลงตาม explicitType เป็นหลักเสมอ!
     // ยกเว้นกรณีที่เป็นค่าดีฟอลต์ทั่วไป 'ลูกค้าใหม่มาตรวจ' / 'T001' ให้ส่งผ่านไปตรวจสอบตามรูปแบบ Visit ID และประวัติลูกค้า
     const cleanExplicit = String(explicitType || '').trim();
-    const isGenericNewVisit = (
+    const isMissingExplicit = (
         !cleanExplicit ||
         cleanExplicit === '-' ||
-        cleanExplicit === '--' ||
-        cleanExplicit === 'T001' ||
-        cleanExplicit === 'ลูกค้าใหม่มาตรวจ' ||
-        cleanExplicit === 'ລູກຄ້າໃໝ່ມາກວດ' ||
-        cleanExplicit === 'New Customer - Clinic Visit'
+        cleanExplicit === '--'
     );
 
-    // 1. ตรวจสอบรหัส VIS-ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์ ห้ามเป็น "ลูกค้าใหม่มาตรวจ" เด็ดขาด)
-    if (vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-')) {
-        const hasExistingExplicit = (cleanExplicit && (
-            cleanExplicit.includes('เก่า') ||
-            cleanExplicit.includes('ເກົ່າ') ||
-            cleanExplicit === 'T006' ||
-            cleanExplicit === 'T002' ||
-            cleanExplicit === 'T005'
-        ));
-        const effectiveIsExisting = Boolean(isExistingCustomer || hasExistingExplicit);
-        const targetId = effectiveIsExisting ? 'T006' : 'T004';
-        const item = list.find(t => t.id === targetId) || {
-            id: targetId,
-            name: effectiveIsExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
-            th: effectiveIsExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
-            lo: effectiveIsExisting ? 'ໂທປິດການຂາຍລູກຄ້າເກົ່າ' : 'ໂທປິດການຂາຍລູກຄ້າໃໝ່',
-            en: effectiveIsExisting ? 'Telesales - Returning Customer' : 'Telesales - New Customer',
-            isOld: Boolean(effectiveIsExisting)
-        };
-        return {
-            ...item,
-            label: item[curLang] || item.th,
-            display: item[curLang] || item.th
-        };
-    }
-
-    // 2. ตรวจสอบประเภทที่ระบุมาอย่างชัดเจน (เช่น T003 ลูกค้าใหม่นำผลตรวจมาปรึกษา, T005, T007 ฯลฯ)
-    if (!isGenericNewVisit) {
+    // 🛡️ กฎเหล็ก: หากมีการระบุประเภทลูกค้า (explicitType) มาจากระบบคลินิกหรือผู้ใช้คีย์มาอย่างชัดเจน
+    // ให้เคารพและแปลงตาม explicitType เป็นหลักเสมอ! ห้ามเดาเปลี่ยนประเภทเป็นอย่างอื่นเด็ดขาด
+    if (!isMissingExplicit) {
         if (typeof window.normalizeCustomerType === 'function') {
             const norm = window.normalizeCustomerType(cleanExplicit, curLang, context);
             if (norm && norm.id) {
-                // หากถูกตั้งค่าเป็น T002 (ลูกค้าเก่า) แต่ตรวจชัดเจนแล้วว่าไม่มีประวัติซื้อเดิมและเพิ่งมาตรวจครั้งแรก (isExistingCustomer === false)
-                // สำหรับเคสคนไข้คลินิก ให้ปรับคืนเป็นลูกค้าใหม่มาตรวจ T001
-                if (norm.id === 'T002' && isExistingCustomer === false && /^VIS-\d+/i.test(vStr)) {
-                    // ตกไปข้อ 3 ด้านล่าง
-                } else {
-                    return norm;
+                const isManualOverride = context && (context.manuallySelected === true || context.isManual === true);
+                if (!isManualOverride) {
+                    const isOrd = vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-');
+                    // 🛡️ หากลูกค้ารายนี้ยังไม่มีประวัติในระบบ (isExistingCustomer === false) แต่ประเภทถูกระบุเป็นลูกค้าเก่า (T002, T006, isOld)
+                    if (isExistingCustomer === false && (norm.id === 'T002' || norm.id === 'T006' || norm.isOld)) {
+                        const targetId = isOrd ? 'T004' : 'T001';
+                        const fallbackItem = list.find(t => t.id === targetId) || {
+                            id: targetId,
+                            name: isOrd ? 'โทรปิดการขายลูกค้าใหม่' : 'ลูกค้าใหม่มาตรวจ',
+                            th: isOrd ? 'โทรปิดการขายลูกค้าใหม่' : 'ลูกค้าใหม่มาตรวจ',
+                            lo: isOrd ? 'ໂທປິດການຂາຍລູກຄ້າໃໝ່' : 'ລູກຄ້າໃໝ່ມາກວດ',
+                            en: isOrd ? 'Telesales - New Customer' : 'New Customer - Clinic Visit',
+                            isOld: false
+                        };
+                        return {
+                            ...fallbackItem,
+                            label: fallbackItem[curLang] || fallbackItem.th,
+                            display: fallbackItem[curLang] || fallbackItem.th
+                        };
+                    }
+
+                    // 🛡️ หากลูกค้ารายนี้มีประวัติการซื้อหรือเคยตรวจในระบบแล้ว (isExistingCustomer === true) แต่ประเภทถูกระบุเป็นลูกค้าใหม่ (T001, T004, !isOld)
+                    if (isExistingCustomer === true && (norm.id === 'T001' || norm.id === 'T004' || norm.isOld === false)) {
+                        const targetId = isOrd ? 'T006' : 'T002';
+                        const fallbackItem = list.find(t => t.id === targetId) || {
+                            id: targetId,
+                            name: isOrd ? 'โทรปิดการขายลูกค้าเก่า' : 'ลูกค้าเก่ากลับมาต่อยา',
+                            th: isOrd ? 'โทรปิดการขายลูกค้าเก่า' : 'ลูกค้าเก่ากลับมาต่อยา',
+                            lo: isOrd ? 'ໂທປິດการขวดເກົ່າ' : 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ',
+                            en: isOrd ? 'Telesales - Returning Customer' : 'Returning Customer - Medicine Refill',
+                            isOld: true
+                        };
+                        return {
+                            ...fallbackItem,
+                            label: fallbackItem[curLang] || fallbackItem.th,
+                            display: fallbackItem[curLang] || fallbackItem.th
+                        };
+                    }
                 }
+                return norm;
             }
         }
     }
 
-    // 3. ตรวจสอบรหัส VIS- ตามด้วยตัวเลข (คนไข้มาตรวจที่คลินิกจริง) หรือกรณีทั่วไป
-    if (/^VIS-\d+/i.test(vStr) || isGenericNewVisit) {
-        const targetId = isExistingCustomer ? 'T002' : 'T001';
+    // กรณีไม่มีการระบุประเภทลูกค้ามา (isMissingExplicit): วิเคราะห์จากรูปแบบ Visit ID และประวัติลูกค้า
+    // 1. ตรวจสอบรหัส VIS-ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์)
+    if (vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-')) {
+        const targetId = isExistingCustomer ? 'T006' : 'T004';
         const item = list.find(t => t.id === targetId) || {
             id: targetId,
-            name: isExistingCustomer ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ',
-            th: isExistingCustomer ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ',
-            lo: isExistingCustomer ? 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ' : 'ລູກຄ້າໃໝ່ມາກວດ',
-            en: isExistingCustomer ? 'Returning Customer - Medicine Refill' : 'New Customer - Clinic Visit',
+            name: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
+            th: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
+            lo: isExistingCustomer ? 'ໂທປິດการขวดເກົ່າ' : 'ໂທປິດການຂາຍລູກຄ້າໃໝ່',
+            en: isExistingCustomer ? 'Telesales - Returning Customer' : 'Telesales - New Customer',
             isOld: Boolean(isExistingCustomer)
         };
         return {
@@ -547,6 +552,22 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
             display: item[curLang] || item.th
         };
     }
+
+    // 2. สำหรับเคสคนไข้ตรวจคลินิกทั่วไป (VIS-xxxxxx หรือกรณีทั่วไป)
+    const targetId = isExistingCustomer ? 'T002' : 'T001';
+    const item = list.find(t => t.id === targetId) || {
+        id: targetId,
+        name: isExistingCustomer ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ',
+        th: isExistingCustomer ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ',
+        lo: isExistingCustomer ? 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ' : 'ລູກຄ້າໃໝ່ມາກວດ',
+        en: isExistingCustomer ? 'Returning Customer - Medicine Refill' : 'New Customer - Clinic Visit',
+        isOld: Boolean(isExistingCustomer)
+    };
+    return {
+        ...item,
+        label: item[curLang] || item.th,
+        display: item[curLang] || item.th
+    };
 
     // 3. Fallback: หากไม่ใช่ทั้งสองรูปแบบ ให้ใช้ normalizeCustomerType เดิม
     if (typeof window.normalizeCustomerType === 'function') {
@@ -601,6 +622,10 @@ window.isClinicDoctorIdentifier = function(targetStr, clinicDoctorsPool) {
         strLower.includes('lava') ||
         strLower.includes('lavar') ||
         strLower.includes('nuna') ||
+        strLower.includes('nouna') ||
+        strLower.includes('sihathep') ||
+        strLower.includes('syiathep') ||
+        strLower.includes('sytathep') ||
         strLower.includes('phengphan') ||
         strLower.includes('phaengphan') ||
         strLower.includes('hatkeo') ||

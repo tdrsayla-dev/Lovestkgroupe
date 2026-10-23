@@ -119,10 +119,44 @@
             const [isSubmittingZero, setIsSubmittingZero] = useState(false);
             const requesterDropdownRef = useRef(null);
 
+            // 📋 State สำหรับแท็บเบิกสินค้าค้างชำระ / ติดหนี้ (Staff Credit & Arrears)
+            const [debtCart, setDebtCart] = useState([]);
+            const [debtSearch, setDebtSearch] = useState('');
+            const [debtForm, setDebtForm] = useState({
+                date: new Date().toISOString().split('T')[0],
+                debtorId: '',
+                debtorName: '',
+                debtorPhone: '',
+                defaultPriceType: 'ราคาสมาชิก',
+                notes: ''
+            });
+            const [debtorSearch, setDebtorSearch] = useState('');
+            const [isDebtorDropdownOpen, setIsDebtorDropdownOpen] = useState(false);
+            const [isSubmittingDebt, setIsSubmittingDebt] = useState(false);
+            const debtorDropdownRef = useRef(null);
+
+            // 💵 State สำหรับการรับชำระเงิน / เคลียร์หนี้
+            const [settlingDebtSale, setSettlingDebtSale] = useState(null);
+            const [settlePayMode, setSettlePayMode] = useState('โอน');
+            const [settlePayCashTHB, setSettlePayCashTHB] = useState('');
+            const [settlePayCashLAK, setSettlePayCashLAK] = useState('');
+            const [settlePayTransferThaiTHB, setSettlePayTransferThaiTHB] = useState('');
+            const [settlePayTransferThaiBank, setSettlePayTransferThaiBank] = useState('กสิกรไทย');
+            const [settlePayTransferLaosTHB, setSettlePayTransferLaosTHB] = useState('');
+            const [settlePayTransferLaosBankTHB, setSettlePayTransferLaosBankTHB] = useState('BCEL');
+            const [settlePayTransferLaosLAK, setSettlePayTransferLaosLAK] = useState('');
+            const [settlePayTransferLaosBankLAK, setSettlePayTransferLaosBankLAK] = useState('BCEL');
+            const [settleNote, setSettleNote] = useState('');
+            const [isSubmittingSettle, setIsSubmittingSettle] = useState(false);
+            const [debtFilterSearch, setDebtFilterSearch] = useState('');
+
             useEffect(() => {
                 const handleClickOutside = (e) => {
                     if (requesterDropdownRef.current && !requesterDropdownRef.current.contains(e.target)) {
                         setIsRequesterDropdownOpen(false);
+                    }
+                    if (debtorDropdownRef.current && !debtorDropdownRef.current.contains(e.target)) {
+                        setIsDebtorDropdownOpen(false);
                     }
                 };
                 document.addEventListener('mousedown', handleClickOutside);
@@ -1176,7 +1210,7 @@
                     let resolvedCustType = normPendingType || pending.customer_type || pending.type;
                     if (pending.customer_type_manually_selected) {
                         resolvedCustType = normPendingType || pending.customer_type;
-                    } else if (resolvedCustType && resolvedCustType !== 'ลูกค้าใหม่มาตรวจ') {
+                    } else if (resolvedCustType && !foundExistingCust) {
                         resolvedCustType = normPendingType || resolvedCustType;
                     } else if (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id) {
                         resolvedCustType = window.resolveVisitCustomerType(pending.visit_id, Boolean(foundExistingCust), resolvedCustType).name;
@@ -2949,7 +2983,11 @@
                     saleType: isHistoryBypass ? 'ยอดระบบเก่า (ไม่คิดเงิน)' : paymentSummaryStr,
                     totalAmount: isHistoryBypass ? 0 : cartTotals.amount,
                     paymentNote: paymentNote,
-                    items_json: currentItemsJson
+                    items_json: currentItemsJson,
+                    closer: (newCustomerObj ? newCustomerObj.closer : custData.closer) || '',
+                    closer_id: (newCustomerObj ? newCustomerObj.closer : custData.closer) || '',
+                    closerTeam: (newCustomerObj ? newCustomerObj.closerTeam : custData.closerTeam) || '',
+                    closer_team: (newCustomerObj ? newCustomerObj.closerTeam : custData.closerTeam) || ''
                 };
 
                 let sumFull = 0, sumPro = 0, sumMember = 0, sumZero = 0;
@@ -3133,6 +3171,23 @@
                                 await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
                             }
                         }
+
+                        // 🩺 ซิงค์ข้อมูล Closer ที่ถูกแก้ไขไปยัง stk_nutrient_orders (ถ้าออเดอร์นี้มาจาก visit ของคลินิก)
+                        try {
+                            const noteStr = String(newRecord.paymentNote || newRecord.payment_note || '');
+                            const vMatch = noteStr.match(/VISIT:\s*([^\)\s]+)/);
+                            if (vMatch && vMatch[1] && typeof supabaseUpdate === 'function') {
+                                const targetCloser = newRecord.closer || (newCustomerObj ? newCustomerObj.closer : '');
+                                const targetTeam = newRecord.closerTeam || (newCustomerObj ? newCustomerObj.closerTeam : '');
+                                if (targetCloser) {
+                                    supabaseUpdate('stk_nutrient_orders', vMatch[1].trim(), {
+                                        closer_dr: targetCloser,
+                                        closer_team: targetTeam || 'Center'
+                                    }, 'visit_id').catch(e => console.warn('Sync edited closer to stk_nutrient_orders failed:', e));
+                                }
+                            }
+                        } catch(eSync){}
+
                         if (!isHistoryBypass && window.StockLogic) {
                             const oldRecord = editingRawSale || (sales || []).find(s => s.id === editingSaleId || s.order_id === editingSaleId);
                             const stockChangeRes = await window.StockLogic.applyBillStockChange({
@@ -3347,30 +3402,20 @@
                                 status: 'Active'
                             };
 
-                            // 1. ถ้ามีฟังก์ชัน supabaseUpsert ให้ลอง Upsert ก่อน
-                            if (typeof supabaseUpsert === 'function') {
+                            // 🛡️ ป้องกันการเขียนทับลูกค้าเดิม (Race Condition): หากเป็นรหัส Cxxx ต้องค้นหาเลขที่ว่างจริงเสมอ ห้าม Upsert ทับลูกค้าเดิมเด็ดขาด
+                            if (String(currentCustId).match(/^C\d+$/i) && typeof supabaseSelect === 'function') {
                                 try {
-                                    await supabaseUpsert('stk_customers', custPayload);
-                                    custInsertSuccess = true;
-                                    newCustomerObj.id = currentCustId;
-                                    newRecord.customerId = currentCustId;
-                                } catch (eUpsert) {
-                                    // ถ้า schema ไม่รับ extra_details_json ลองตัดออก
-                                    const fallbackUpsert = { ...custPayload };
-                                    delete fallbackUpsert.extra_details_json;
-                                    try {
-                                        await supabaseUpsert('stk_customers', fallbackUpsert);
-                                        custInsertSuccess = true;
-                                        newCustomerObj.id = currentCustId;
-                                        newRecord.customerId = currentCustId;
-                                    } catch (eUp2) {
-                                        console.warn('Upsert customer failed, falling back to insert:', eUp2);
+                                    const latestCusts = await supabaseSelect('stk_customers', 'customer_id=like.C*&select=customer_id&limit=10000');
+                                    const usedSet = new Set((latestCusts || []).map(c => parseInt(String(c.customer_id || '').replace('C', ''), 10)).filter(n => !isNaN(n)));
+                                    while (usedSet.has(custNum)) {
+                                        custNum++;
                                     }
-                                }
+                                    currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                } catch (_) {}
                             }
 
-                            // 2. ถ้ายังไม่สำเร็จ ให้ลอง Insert โดยมี retry สำหรับ Cxxx และยอมรับ HN เดิม
-                            while (!custInsertSuccess && custRetryCount < 10) {
+                            // ทำการ Insert โดยมี retry และวนหาเลขถัดไปทันทีหากชน
+                            while (!custInsertSuccess && custRetryCount < 15) {
                                 const currentPayload = {
                                     ...custPayload,
                                     customer_id: currentCustId
@@ -3384,31 +3429,10 @@
                                     const errMsg = String(err.message || '').toLowerCase();
                                     const isConflict = errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists') || errMsg.includes('23505') || errMsg.includes('conflict');
                                     
-                                    if (isConflict) {
-                                        if (String(currentCustId).match(/^C\d+$/i)) {
-                                            custNum++;
-                                            currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                            custRetryCount++;
-                                        } else {
-                                            // ลูกค้าที่มีรหัสอยู่แล้ว (เช่น HN-xxxxxx จากคลินิก) ให้ใช้รหัสเดิมได้ทันที และอัปเดตข้อมูลล่าสุด
-                                            try {
-                                                const updatePayload = {};
-                                                if (custPayload.name && custPayload.name !== 'ลูกค้าใหม่มาตรวจ') updatePayload.name = custPayload.name;
-                                                if (custPayload.phone) updatePayload.phone = custPayload.phone;
-                                                if (custPayload.closer_id) updatePayload.closer_id = custPayload.closer_id;
-                                                if (custPayload.extra_details_json) updatePayload.extra_details_json = custPayload.extra_details_json;
-                                                if (custPayload.symptom_disease) updatePayload.symptom_disease = custPayload.symptom_disease;
-                                                if (Object.keys(updatePayload).length > 0 && typeof supabaseUpdate === 'function') {
-                                                    await supabaseUpdate('stk_customers', currentCustId, updatePayload, 'customer_id');
-                                                }
-                                            } catch (eUp) {
-                                                console.warn('Update customer on conflict error:', eUp);
-                                            }
-                                            custInsertSuccess = true;
-                                            newCustomerObj.id = currentCustId;
-                                            newRecord.customerId = currentCustId;
-                                            break;
-                                        }
+                                    if (isConflict && String(currentCustId).match(/^C\d+$/i)) {
+                                        custNum++;
+                                        currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                        custRetryCount++;
                                     } else {
                                         const fallbackCust = { ...currentPayload };
                                         delete fallbackCust.extra_details_json;
@@ -3420,30 +3444,12 @@
                                         } catch (e2) {
                                             const e2Msg = String(e2.message || '').toLowerCase();
                                             const isConflict2 = e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists') || e2Msg.includes('23505') || e2Msg.includes('conflict');
-                                            if (isConflict2) {
-                                                if (String(currentCustId).match(/^C\d+$/i)) {
-                                                    custNum++;
-                                                    currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                                    custRetryCount++;
-                                                } else {
-                                                    try {
-                                                        const updatePayload = {};
-                                                        if (custPayload.name && custPayload.name !== 'ลูกค้าใหม่มาตรวจ') updatePayload.name = custPayload.name;
-                                                        if (custPayload.phone) updatePayload.phone = custPayload.phone;
-                                                        if (custPayload.closer_id) updatePayload.closer_id = custPayload.closer_id;
-                                                        if (custPayload.extra_details_json) updatePayload.extra_details_json = custPayload.extra_details_json;
-                                                        if (custPayload.symptom_disease) updatePayload.symptom_disease = custPayload.symptom_disease;
-                                                        if (Object.keys(updatePayload).length > 0 && typeof supabaseUpdate === 'function') {
-                                                            await supabaseUpdate('stk_customers', currentCustId, updatePayload, 'customer_id');
-                                                        }
-                                                    } catch (eUp) {}
-                                                    custInsertSuccess = true;
-                                                    newCustomerObj.id = currentCustId;
-                                                    newRecord.customerId = currentCustId;
-                                                    break;
-                                                }
+                                            if (isConflict2 && String(currentCustId).match(/^C\d+$/i)) {
+                                                custNum++;
+                                                currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                                custRetryCount++;
                                             } else {
-                                                // หากเป็น Error อื่น และเป็นลูกค้า HN ให้ถือว่าผ่านและใช้รหัสนั้นต่อไปเพื่อไม่ให้บล็อกการเปิดบิล
+                                                // หากเป็นลูกค้า HN หรือ error อื่นๆ ให้ยอมรับรหัสนั้นต่อไปเพื่อไม่ให้บล็อกการเปิดบิล
                                                 if (!String(currentCustId).match(/^C\d+$/i)) {
                                                     custInsertSuccess = true;
                                                     newCustomerObj.id = currentCustId;
@@ -3456,6 +3462,13 @@
                                     }
                                 }
                             }
+
+                            // หากรหัสลูกค้าเปลี่ยนหลังจาก retry ให้ซิงค์กลับไปที่บิลใน stk_sales ด้วย
+                            if (newRecord.customerId && newCustomerObj.id && newRecord.customerId !== currentCustId && typeof supabaseUpdate === 'function') {
+                                await supabaseUpdate('stk_sales', newRecord.id, { customer_id: currentCustId }, 'order_id').catch(() => {});
+                                newRecord.customerId = currentCustId;
+                            }
+
                             if (!custInsertSuccess) {
                                 // ถ้ายังติดปัญหาแต่มีรหัสลูกค้าอยู่แล้ว ให้ยอมรับรหัสนั้นแทนการโยน Error
                                 if (currentCustId) {
@@ -4380,6 +4393,1057 @@
                 );
             };
 
+            // ==========================================
+            // 📋 แท็บเบิกสินค้าค้างชำระ / ติดหนี้ (Staff Credit & Arrears)
+            // ==========================================
+            const debtFilteredProducts = useMemo(() => {
+                const search = (debtSearch || '').trim().toLowerCase();
+                return (products || [])
+                    .filter(p => p && p.status !== 'เลิกขาย')
+                    .map(p => {
+                        if (p.isBundle || p.is_bundle) {
+                            const baseP = (products || []).find(bp => bp.name === (p.baseProduct || p.base_product));
+                            const bQty = Number(p.bundleQty || p.bundle_qty) || 1;
+                            const realStock = baseP ? Math.floor((baseP.stock || 0) / bQty) : 0;
+                            return { ...p, stock: realStock };
+                        }
+                        return p;
+                    })
+                    .filter(p => {
+                        if (!search) return true;
+                        return String(p.name || '').toLowerCase().includes(search) ||
+                            String(p.id || '').toLowerCase().includes(search) ||
+                            String(p.barcode || '').toLowerCase().includes(search) ||
+                            (p.category && String(p.category || '').toLowerCase().includes(search));
+                    });
+            }, [products, debtSearch]);
+
+            const handleDebtBarcodeScan = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const search = (debtSearch || '').trim().toLowerCase();
+                    if (!search) return;
+
+                    let matched = (products || []).find(p => p && p.status !== 'เลิกขาย' && (
+                        String(p.id || '').toLowerCase() === search ||
+                        String(p.name || '').toLowerCase() === search ||
+                        String(p.barcode || '').toLowerCase() === search
+                    ));
+                    if (!matched) {
+                        const matches = debtFilteredProducts;
+                        if (matches && matches.length === 1) matched = matches[0];
+                    }
+
+                    if (matched) {
+                        const defaultPType = debtForm.defaultPriceType || 'ราคาสมาชิก';
+                        let uPrice = Number(matched.priceMember || matched.price_member || 0);
+                        if (defaultPType === 'ราคาเต็ม') uPrice = Number(matched.priceFull || matched.price_full || 0);
+                        else if (defaultPType === 'ราคาโปร') uPrice = Number(matched.pricePromo || matched.price_promo || 0);
+
+                        setDebtCart(prev => {
+                            const existing = prev.find(it => it.productId === matched.id || it.productName === matched.name);
+                            if (existing) {
+                                return prev.map(it => (it.productId === matched.id || it.productName === matched.name) ? { ...it, qty: it.qty + 1 } : it);
+                            }
+                            return [...prev, {
+                                productId: matched.id,
+                                productName: matched.name,
+                                stock: matched.stock,
+                                priceType: defaultPType,
+                                price: uPrice,
+                                qty: 1
+                            }];
+                        });
+                        setDebtSearch('');
+                        showToast(`เพิ่ม ${matched.name} ลงรายการเบิกค้างชำระแล้ว`, 'success');
+                    } else {
+                        showToast(`ไม่พบสินค้าหรือบาร์โค้ด: "${search}"`, 'error');
+                    }
+                }
+            };
+
+            const handleDebtSubmit = async (e) => {
+                if (e && e.preventDefault) e.preventDefault();
+                if (!debtCart || debtCart.length === 0) {
+                    showToast('กรุณาเลือกสินค้าที่จะเบิกค้างชำระอย่างน้อย 1 รายการ', 'error');
+                    return;
+                }
+                if (!debtForm.debtorName && !debtForm.debtorId) {
+                    showToast('กรุณาระบุผู้ขอเบิก / ผู้ค้างชำระ', 'error');
+                    return;
+                }
+
+                setIsSubmittingDebt(true);
+                let preOpenedPrintWin = null;
+                try {
+                    preOpenedPrintWin = window.open('about:blank', '_blank');
+                    if (preOpenedPrintWin && preOpenedPrintWin.document) {
+                        preOpenedPrintWin.document.write('<!DOCTYPE html><html><head><title>กำลังเตรียมใบเบิกสินค้าค้างชำระ...</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fffbeb;color:#92400e;font-size:14px;font-weight:bold;}</style></head><body><div style="text-align:center;"><div>กำลังเตรียมเอกสารใบเบิกสินค้าค้างชำระ...</div><div style="font-size:12px;color:#b45309;margin-top:6px;">ระบบกำลังบันทึกข้อมูลและตัดสต๊อกหน้าร้าน</div></div></body></html>');
+                    }
+                } catch (_) {}
+
+                try {
+                    const dateVal = debtForm.date || new Date().toISOString().split('T')[0];
+                    const dateParts = dateVal.split('-');
+                    const datePrefix = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
+
+                    let dbMaxRun = 0;
+                    try {
+                        const dbSales = await supabaseSelect(
+                            'stk_sales',
+                            `order_id=like.${datePrefix}*&select=order_id&order=order_id.desc&limit=50`
+                        );
+                        if (Array.isArray(dbSales) && dbSales.length > 0) {
+                            dbSales.forEach(s => {
+                                const parts = String(s.order_id || '').split('-');
+                                if (parts.length === 2) {
+                                    const runNum = parseInt(parts[1], 10);
+                                    if (!isNaN(runNum) && runNum > dbMaxRun) dbMaxRun = runNum;
+                                }
+                            });
+                        }
+                    } catch (err) {
+                        const prefixSales = (sales || []).filter(s => String(s.id).startsWith(datePrefix));
+                        prefixSales.forEach(s => {
+                            const parts = String(s.id).split('-');
+                            if (parts.length === 2) {
+                                const runNum = parseInt(parts[1], 10);
+                                if (!isNaN(runNum) && runNum > dbMaxRun) dbMaxRun = runNum;
+                            }
+                        });
+                    }
+
+                    let finalRun = dbMaxRun + 1;
+                    let idCheckAttempts = 0;
+                    while (idCheckAttempts < 5) {
+                        try {
+                            const existCheck = await supabaseSelect(
+                                'stk_sales',
+                                `order_id=eq.${datePrefix}-${String(finalRun).padStart(3, '0')}&select=order_id`
+                            );
+                            if (!Array.isArray(existCheck) || existCheck.length === 0) {
+                                break;
+                            }
+                            finalRun++;
+                        } catch (_) {
+                            break;
+                        }
+                        idCheckAttempts++;
+                    }
+                    const billId = `${datePrefix}-${String(finalRun).padStart(3, '0')}`;
+
+                    const totalBottles = debtCart.reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                    let totalDebtAmount = 0;
+
+                    const debtItemsJson = debtCart.map(item => {
+                        const prodObj = (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName || p.id === item.productId || p.product_id === item.productId)) || {};
+                        const effectivePid = item.productId || prodObj.product_id || prodObj.id || '';
+                        const pType = item.priceType || debtForm.defaultPriceType || 'ราคาสมาชิก';
+                        let uPrice = Number(item.price);
+                        if (isNaN(uPrice) || uPrice <= 0) {
+                            if (pType === 'ราคาเต็ม') uPrice = Number(prodObj.priceFull || prodObj.price_full || 0);
+                            else if (pType === 'ราคาโปร') uPrice = Number(prodObj.pricePromo || prodObj.price_promo || 0);
+                            else uPrice = Number(prodObj.priceMember || prodObj.price_member || 0);
+                        }
+                        const q = parseInt(item.qty) || 0;
+                        const lineTotal = uPrice * q;
+                        totalDebtAmount += lineTotal;
+
+                        return {
+                            qty: q,
+                            prod: item.productName,
+                            productName: item.productName,
+                            type: pType,
+                            priceType: pType,
+                            id: effectivePid,
+                            productId: effectivePid,
+                            product_id: effectivePid,
+                            price: uPrice,
+                            unitPrice: uPrice,
+                            total: lineTotal
+                        };
+                    });
+
+                    const debtorMember = (members || []).find(m => m.id === debtForm.debtorId || m.name === debtForm.debtorName);
+                    const debtorId = debtorMember ? debtorMember.id : (debtForm.debtorId || 'STAFF');
+                    const debtorName = debtorMember ? debtorMember.name : (debtForm.debtorName || 'เจ้าหน้าที่');
+                    const noteText = (debtForm.notes || '').trim();
+
+                    const newRecord = {
+                        id: billId,
+                        order_id: billId,
+                        date: dateVal,
+                        created_at: new Date().toISOString(),
+                        customerName: `ค้างชำระ: ${debtorName}${noteText ? ` (${noteText})` : ''}`,
+                        customerType: 'ค้างชำระ (ติดหนี้)',
+                        customerId: debtorId || 'STAFF_DEBT',
+                        memberId: debtorId,
+                        memberName: debtorName,
+                        recordedBy: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'เจ้าหน้าที่',
+                        saleType: 'ค้างชำระ (ติดหนี้)',
+                        status: 'PendingPayment',
+                        payment_status: 'Unpaid',
+                        totalAmount: totalDebtAmount,
+                        total_amount: totalDebtAmount,
+                        total_bottles: totalBottles,
+                        paymentNote: `เบิกสินค้าค้างชำระ (ติดหนี้) | ผู้ติดหนี้: ${debtorName} (${debtorId}) | ยอดค้างชำระ: ฿${totalDebtAmount.toLocaleString()}${noteText ? ` | หมายเหตุ: ${noteText}` : ''}`,
+                        items_json: debtItemsJson
+                    };
+
+                    const allProductNamesToSave = [...new Set([
+                        ...activeProductsList,
+                        ...debtCart.map(item => item.productName)
+                    ])];
+                    allProductNamesToSave.forEach(product => {
+                        const itemsForProd = debtCart.filter(item => item.productName === product);
+                        const pFull = itemsForProd.filter(it => it.priceType === 'ราคาเต็ม').reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                        const pPro = itemsForProd.filter(it => it.priceType === 'ราคาโปร').reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                        const pMem = itemsForProd.filter(it => it.priceType === 'ราคาสมาชิก' || !it.priceType).reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                        const pZero = itemsForProd.filter(it => it.priceType === 'ราคาศูนย์').reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+
+                        newRecord[`${product}_ราคาเต็ม`] = pFull;
+                        newRecord[`${product}_ราคาโปร`] = pPro;
+                        newRecord[`${product}_ราคาสมาชิก`] = pMem;
+                        newRecord[`${product}_ราคาศูนย์`] = pZero;
+                    });
+
+                    const sumFull = debtCart.filter(it => it.priceType === 'ราคาเต็ม').reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                    const sumPro = debtCart.filter(it => it.priceType === 'ราคาโปร').reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                    const sumMem = debtCart.filter(it => it.priceType === 'ราคาสมาชิก' || !it.priceType).reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+                    const sumZero = debtCart.filter(it => it.priceType === 'ราคาศูนย์').reduce((sum, it) => sum + (parseInt(it.qty) || 0), 0);
+
+                    newRecord['รวมชิ้นราคาเต็ม'] = sumFull;
+                    newRecord['รวมชิ้นราคาโปร'] = sumPro;
+                    newRecord['รวมชิ้นราคาสมาชิก'] = sumMem;
+                    newRecord['รวมชิ้นราคาศูนย์'] = sumZero;
+                    newRecord['ยอดรวมชิ้นทั้งหมด'] = totalBottles;
+
+                    const supaSalesData = {
+                        order_id: billId,
+                        date: dateVal,
+                        seller_id: debtorId,
+                        customer_id: debtorId || 'STAFF_DEBT',
+                        sale_type: 'ค้างชำระ (ติดหนี้)',
+                        total_amount: totalDebtAmount,
+                        total_bottles: totalBottles,
+                        status: 'PendingPayment',
+                        recorded_by: newRecord.recordedBy,
+                        items_json: debtItemsJson,
+                        payment_note: newRecord.paymentNote
+                    };
+
+                    let saleInsertSuccess = false;
+                    let saleRetryCount = 0;
+                    let currentSaleId = billId;
+
+                    while (!saleInsertSuccess && saleRetryCount < 5) {
+                        supaSalesData.order_id = currentSaleId;
+                        try {
+                            await supabaseInsert('stk_sales', supaSalesData);
+                            saleInsertSuccess = true;
+                            newRecord.id = currentSaleId;
+                        } catch (e1) {
+                            const errMsg = String(e1.message || '').toLowerCase();
+                            if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                                const parts = currentSaleId.split('-');
+                                if (parts.length === 2) {
+                                    currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                                } else { break; }
+                                saleRetryCount++;
+                            } else {
+                                const fallbackData = { ...supaSalesData };
+                                delete fallbackData.payment_note;
+                                try {
+                                    await supabaseInsert('stk_sales', fallbackData);
+                                    saleInsertSuccess = true;
+                                    newRecord.id = currentSaleId;
+                                } catch (e2) {
+                                    const e2Msg = String(e2.message || '').toLowerCase();
+                                    if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
+                                        const parts = currentSaleId.split('-');
+                                        if (parts.length === 2) {
+                                            currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                                        } else { break; }
+                                        saleRetryCount++;
+                                    } else {
+                                        throw e2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!saleInsertSuccess) throw new Error("รหัสบิลชนกัน ระบบไม่สามารถบันทึกได้ กรุณาลองใหม่อีกครั้ง");
+
+                    // 📦 ตัดสต็อกสินค้าหน้าร้านผ่าน StockLogic ทันที!
+                    if (window.StockLogic) {
+                        const stockChangeRes = await window.StockLogic.applyBillStockChange({
+                            oldBill: null,
+                            newBill: newRecord,
+                            productsList: products || [],
+                            actor: newRecord.recordedBy,
+                            billId: newRecord.id,
+                            billDate: newRecord.date,
+                            preferredWarehouse: 'FRONT_STORE',
+                            saleType: 'ค้างชำระ (ติดหนี้)',
+                            reasonNote: `ตัดสต๊อกเบิกค้างชำระหน้าร้าน บิล ${newRecord.id} (${debtorName})`
+                        });
+                        if (stockChangeRes && stockChangeRes.details && setProducts) {
+                            setProducts(prev => (prev || []).map(p => {
+                                const matched = stockChangeRes.details.find(d => d.productId === (p.product_id || p.id));
+                                return matched ? { ...p, stock: matched.newStock, current_stock: matched.newStock } : p;
+                            }));
+                        }
+                    }
+
+                    setSales(prev => [newRecord, ...(prev || [])]);
+                    triggerGlobalRefresh();
+
+                    if (typeof window.invalidateTableCache === 'function') {
+                        window.invalidateTableCache('stk_sales');
+                        window.invalidateTableCache('stk_products');
+                        window.invalidateTableCache('stk_stock_movements');
+                        window.invalidateTableCache('stk_lots');
+                    }
+                    try {
+                        sessionStorage.removeItem('stk_warehouse_products');
+                        sessionStorage.removeItem('stk_warehouse_movements');
+                        sessionStorage.removeItem('stk_warehouse_lots');
+                        sessionStorage.removeItem('stk_warehouse_audit_cache');
+                        localStorage.removeItem('stk_warehouse_cache');
+                    } catch (_) {}
+
+                    // Reset form
+                    setDebtCart([]);
+                    setDebtForm(prev => ({
+                        ...prev,
+                        notes: ''
+                    }));
+
+                    setIsSubmittingDebt(false);
+                    showToast(`บันทึกเบิกสินค้าค้างชำระ บิล ${newRecord.id} และตัดสต๊อกหน้าร้านเรียบร้อย!`, 'success');
+                    handleSuccessFinish(newRecord);
+
+                    if (preOpenedPrintWin && !preOpenedPrintWin.closed) {
+                        try {
+                            handlePrintReceiptPopup(newRecord, preOpenedPrintWin);
+                        } catch (ePrint) {
+                            try { preOpenedPrintWin.close(); } catch(_) {}
+                        }
+                    }
+                } catch (err) {
+                    if (preOpenedPrintWin && !preOpenedPrintWin.closed) {
+                        try { preOpenedPrintWin.close(); } catch(_) {}
+                    }
+                    console.error("Debt Submit Error:", err);
+                    showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
+                    setIsSubmittingDebt(false);
+                }
+            };
+
+            const unpaidDebtBills = useMemo(() => {
+                const search = (debtFilterSearch || '').trim().toLowerCase();
+                return (sales || []).filter(s => {
+                    if (!s) return false;
+                    const sType = String(s.saleType || s.sale_type || '').trim();
+                    const pStatus = String(s.payment_status || s.paymentStatus || '').trim();
+                    const status = String(s.status || '').trim();
+                    const pNote = String(s.paymentNote || s.payment_note || '').trim();
+
+                    const isDebt = sType.includes('ค้างชำระ') || sType.includes('ติดหนี้') || status === 'PendingPayment' || pStatus === 'Unpaid' || pNote.includes('เบิกสินค้าค้างชำระ') || pNote.includes('เบิกค้างชำระ');
+                    const isPaid = (status === 'Completed' && pStatus === 'Paid' && !sType.includes('ค้างชำระ')) || (pNote.includes('เคลียร์ชำระเงินเรียบร้อย') || pNote.includes('เคลียร์เงินแล้ว'));
+                    const isCancelled = status === 'ยกเลิก' || status === 'Cancelled' || sType.includes('ยกเลิก');
+
+                    if (!isDebt || isPaid || isCancelled) return false;
+
+                    if (search) {
+                        const mName = String(s.memberName || s.customerName || '').toLowerCase();
+                        const mId = String(s.memberId || s.customerId || '').toLowerCase();
+                        const sId = String(s.id || s.order_id || '').toLowerCase();
+                        return mName.includes(search) || mId.includes(search) || sId.includes(search);
+                    }
+                    return true;
+                });
+            }, [sales, debtFilterSearch]);
+
+            const handleOpenSettleModal = (saleRecord) => {
+                setSettlingDebtSale(saleRecord);
+                setSettlePayMode('โอน');
+                setSettlePayCashTHB('');
+                setSettlePayCashLAK('');
+                const dueAmt = parseFloat(saleRecord.totalAmount || saleRecord.total_amount || 0);
+                setSettlePayTransferThaiTHB(dueAmt > 0 ? String(dueAmt) : '');
+                setSettlePayTransferThaiBank('กสิกรไทย');
+                setSettlePayTransferLaosTHB('');
+                setSettlePayTransferLaosBankTHB('BCEL');
+                setSettlePayTransferLaosLAK('');
+                setSettlePayTransferLaosBankLAK('BCEL');
+                setSettleNote('');
+            };
+
+            const handleConfirmSettleDebt = async () => {
+                if (!settlingDebtSale) return;
+                setIsSubmittingSettle(true);
+                let preOpenedPrintWin = null;
+                try {
+                    preOpenedPrintWin = window.open('about:blank', '_blank');
+                    if (preOpenedPrintWin && preOpenedPrintWin.document) {
+                        preOpenedPrintWin.document.write('<!DOCTYPE html><html><head><title>กำลังเตรียมพิมพ์ใบเสร็จรับเงิน...</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;color:#166534;font-size:14px;font-weight:bold;}</style></head><body><div style="text-align:center;"><div>กำลังเตรียมใบเสร็จรับเงิน...</div><div style="font-size:12px;color:#15803d;margin-top:6px;">ระบบกำลังบันทึกการชำระเงิน</div></div></body></html>');
+                    }
+                } catch (_) {}
+
+                try {
+                    const orderId = settlingDebtSale.id || settlingDebtSale.order_id;
+                    const cTHB = parseFloat(settlePayCashTHB) || 0;
+                    const cLAK = parseFloat(settlePayCashLAK) || 0;
+                    const tThaiTHB = parseFloat(settlePayTransferThaiTHB) || 0;
+                    const tLaosTHB = parseFloat(settlePayTransferLaosTHB) || 0;
+                    const tLaosLAK = parseFloat(settlePayTransferLaosLAK) || 0;
+
+                    let paymentMethods = [];
+                    if (settlePayMode === 'สด' || settlePayMode === 'สด+โอน') {
+                        if (cTHB > 0) paymentMethods.push(`สดบาท:${cTHB}`);
+                        if (cLAK > 0) paymentMethods.push(`สดกีบ:${cLAK}`);
+                    }
+                    if (settlePayMode === 'โอน' || settlePayMode === 'สด+โอน') {
+                        if (tThaiTHB > 0) paymentMethods.push(`โอนไทย(${settlePayTransferThaiBank}):${tThaiTHB}`);
+                        if (tLaosTHB > 0) paymentMethods.push(`โอนลาวบาท(${settlePayTransferLaosBankTHB}):${tLaosTHB}`);
+                        if (tLaosLAK > 0) paymentMethods.push(`โอนลาวกีบ(${settlePayTransferLaosBankLAK}):${tLaosLAK}`);
+                    }
+
+                    const formattedSaleType = paymentMethods.length > 0 ? paymentMethods.join(' | ') : (settlePayMode === 'สด' ? 'เงินสด' : 'โอนเงิน');
+                    const clearDate = typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0];
+                    const existingNote = settlingDebtSale.paymentNote || settlingDebtSale.payment_note || '';
+                    const updatedPaymentNote = `${existingNote} | เคลียร์ชำระเงินเรียบร้อยเมื่อ ${clearDate}${settleNote ? ` (${settleNote})` : ''} | ช่องทาง: ${formattedSaleType}`;
+
+                    const updatePayload = {
+                        status: 'Completed',
+                        payment_status: 'Paid',
+                        sale_type: formattedSaleType,
+                        payment_note: updatedPaymentNote
+                    };
+
+                    if (typeof supabaseUpdate === 'function') {
+                        await supabaseUpdate('stk_sales', orderId, updatePayload, 'order_id');
+                    }
+
+                    const updatedRecord = {
+                        ...settlingDebtSale,
+                        ...updatePayload,
+                        saleType: formattedSaleType,
+                        paymentNote: updatedPaymentNote
+                    };
+
+                    // คำนวณและให้ PV สมาชิกเมื่อชำระเงินเรียบร้อย
+                    if (typeof calculateBillPV === 'function' && typeof updateMemberPVInSupabase === 'function') {
+                        let itemsList = [];
+                        if (settlingDebtSale.items_json) {
+                            try { itemsList = typeof settlingDebtSale.items_json === 'string' ? JSON.parse(settlingDebtSale.items_json) : settlingDebtSale.items_json; } catch (_) {}
+                        }
+                        if (itemsList.length > 0) {
+                            const totalPV = calculateBillPV(itemsList, products || []);
+                            const debtorMemberId = settlingDebtSale.memberId || settlingDebtSale.seller_id;
+                            if (totalPV > 0 && debtorMemberId) {
+                                await updateMemberPVInSupabase(debtorMemberId, totalPV).catch(e => console.warn('PV grant error:', e));
+                            }
+                        }
+                    }
+
+                    setSales(prev => (prev || []).map(s => (s.id === orderId || s.order_id === orderId) ? updatedRecord : s));
+                    triggerGlobalRefresh();
+
+                    if (typeof window.invalidateTableCache === 'function') {
+                        window.invalidateTableCache('stk_sales');
+                    }
+
+                    setSettlingDebtSale(null);
+                    setIsSubmittingSettle(false);
+                    showToast(`รับชำระเงินบิล ${orderId} สำเร็จเรียบร้อย!`, 'success');
+
+                    if (preOpenedPrintWin && !preOpenedPrintWin.closed) {
+                        try {
+                            handlePrintReceiptPopup(updatedRecord, preOpenedPrintWin);
+                        } catch (ePrint) {
+                            try { preOpenedPrintWin.close(); } catch(_) {}
+                        }
+                    }
+                } catch (err) {
+                    if (preOpenedPrintWin && !preOpenedPrintWin.closed) {
+                        try { preOpenedPrintWin.close(); } catch(_) {}
+                    }
+                    console.error("Debt Settle Error:", err);
+                    showToast('เกิดข้อผิดพลาดในการรับชำระเงิน: ' + (err.message || err), 'error');
+                    setIsSubmittingSettle(false);
+                }
+            };
+
+            const renderCreditDebtView = () => {
+                const totalDebtBottles = debtCart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+                const totalDebtAmount = debtCart.reduce((sum, item) => sum + ((parseFloat(item.price) || 0) * (parseInt(item.qty) || 0)), 0);
+                const exRate = Number(systemSettings?.exchange_rate || 700);
+
+                const filteredDebtorList = [
+                    ...(members || []).map(m => ({
+                        id: m.id || m.user_id,
+                        name: m.name,
+                        phone: m.phone || m.phone_number || '',
+                        role: m.role || 'พนักงาน/สมาชิก',
+                        type: 'MEMBER'
+                    })),
+                    ...(customers || []).map(c => ({
+                        id: c.id || c.customer_id,
+                        name: c.name || c.customer_name,
+                        phone: c.phone || '',
+                        role: 'ลูกค้า',
+                        type: 'CUSTOMER'
+                    }))
+                ].filter(p => {
+                    if (!debtorSearch) return true;
+                    const q = debtorSearch.trim().toLowerCase();
+                    return String(p.name || '').toLowerCase().includes(q) ||
+                        String(p.id || '').toLowerCase().includes(q) ||
+                        String(p.phone || '').includes(q);
+                });
+
+                return (
+                    <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[calc(100vh-120px)] xl:min-h-[640px] mb-0 relative">
+                        {/* ซ้าย (52%): ฟอร์มบันทึกเบิกสินค้าค้างชำระ */}
+                        <div className="w-full xl:w-[52%] flex flex-col gap-3 xl:h-full relative">
+                            <div className="bg-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col gap-3.5 flex-1">
+                                <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                                    <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                                        <FileText size={18} className="text-amber-600" /> บันทึกเบิกสินค้าค้างชำระ (ติดหนี้)
+                                    </h4>
+                                    <span className="text-[11px] font-black text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 flex items-center gap-1 shadow-sm">
+                                        ⚡ ตัดสต็อกหน้าร้านทันที (รอเคลียร์เงิน)
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {/* วันที่เบิก */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-600 block mb-1">วันที่ทำรายการ</label>
+                                        <input
+                                            type="date"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-amber-500 outline-none transition-all shadow-sm"
+                                            value={debtForm.date}
+                                            onChange={(e) => setDebtForm({ ...debtForm, date: e.target.value })}
+                                        />
+                                    </div>
+
+                                    {/* ระดับราคาตั้งต้น */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-600 block mb-1">ระดับราคาที่คิดหนี้</label>
+                                        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                                            {['ราคาสมาชิก', 'ราคาเต็ม', 'ราคาโปร'].map(pType => (
+                                                <button
+                                                    key={pType}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDebtForm(prev => ({ ...prev, defaultPriceType: pType }));
+                                                        // อัปเดตราคาสินค้าในตะกร้าตามระดับราคาใหม่
+                                                        setDebtCart(prev => prev.map(item => {
+                                                            const pObj = (products || []).find(p => p && (p.id === item.productId || p.name === item.productName)) || {};
+                                                            let newP = Number(pObj.priceMember || pObj.price_member || 0);
+                                                            if (pType === 'ราคาเต็ม') newP = Number(pObj.priceFull || pObj.price_full || 0);
+                                                            else if (pType === 'ราคาโปร') newP = Number(pObj.pricePromo || pObj.price_promo || 0);
+                                                            return { ...item, priceType: pType, price: newP };
+                                                        }));
+                                                    }}
+                                                    className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
+                                                        debtForm.defaultPriceType === pType
+                                                            ? 'bg-amber-500 text-white shadow-sm'
+                                                            : 'text-slate-600 hover:text-slate-900'
+                                                    }`}
+                                                >
+                                                    {pType}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ผู้ขอเบิก / ผู้ติดหนี้ */}
+                                <div className="relative" ref={debtorDropdownRef}>
+                                    <label className="text-xs font-bold text-slate-600 block mb-1">ผู้ขอเบิก / ผู้ติดหนี้ (พนักงาน / สมาชิก / ลูกค้า)</label>
+                                    {debtForm.debtorName ? (
+                                        <div className="flex items-center justify-between p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl transition-all">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-orange-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+                                                    {debtForm.debtorName ? debtForm.debtorName.charAt(0) : 'U'}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="text-xs font-black text-amber-950 truncate">{debtForm.debtorName}</div>
+                                                    <div className="text-[10px] font-bold text-amber-700">รหัส: {debtForm.debtorId || 'ทั่วไป'} {debtForm.debtorPhone ? `| โทร ${debtForm.debtorPhone}` : ''}</div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setDebtForm(prev => ({ ...prev, debtorId: '', debtorName: '', debtorPhone: '' }));
+                                                    setDebtorSearch('');
+                                                    setIsDebtorDropdownOpen(true);
+                                                }}
+                                                className="text-[11px] font-bold text-amber-800 hover:text-white hover:bg-amber-600 px-2.5 py-1 bg-white rounded-lg border border-amber-200 transition-colors shadow-sm shrink-0"
+                                            >
+                                                เปลี่ยน
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:bg-white focus-within:border-amber-500 transition-all shadow-sm">
+                                                <SearchIcon size={16} className="text-slate-400 mr-2 shrink-0" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="พิมพ์ชื่อ, รหัส หรือเบอร์โทร เพื่อเลือกผู้เบิกติดหนี้..."
+                                                    className="w-full bg-transparent border-none outline-none text-xs font-bold text-slate-800 placeholder-slate-400"
+                                                    value={debtorSearch}
+                                                    onFocus={() => setIsDebtorDropdownOpen(true)}
+                                                    onChange={(e) => {
+                                                        setDebtorSearch(e.target.value);
+                                                        setIsDebtorDropdownOpen(true);
+                                                    }}
+                                                />
+                                                {debtorSearch && (
+                                                    <button type="button" onClick={() => setDebtorSearch('')} className="text-slate-400 hover:text-slate-600 p-0.5">
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Dropdown ผู้ติดหนี้ */}
+                                            {isDebtorDropdownOpen && (
+                                                <div className="absolute top-[100%] left-0 w-full mt-1 bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[220px] overflow-y-auto py-1 z-50 custom-scrollbar divide-y divide-slate-100">
+                                                    {currentUser && (
+                                                        <div
+                                                            onClick={() => {
+                                                                setDebtForm(prev => ({
+                                                                    ...prev,
+                                                                    debtorId: currentUser.id || 'STAFF',
+                                                                    debtorName: currentUser.name || currentUser.username || 'เจ้าหน้าที่'
+                                                                }));
+                                                                setDebtorSearch('');
+                                                                setIsDebtorDropdownOpen(false);
+                                                            }}
+                                                            className="px-3 py-2 hover:bg-amber-50 cursor-pointer flex items-center justify-between transition-colors bg-amber-50/40"
+                                                        >
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="text-amber-700 font-bold text-xs">👤 ตัวฉันเอง:</span>
+                                                                <span className="text-xs font-bold text-slate-800 truncate">{currentUser.name || currentUser.username}</span>
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">เข้าสู่ระบบอยู่</span>
+                                                        </div>
+                                                    )}
+                                                    {filteredDebtorList.length > 0 ? (
+                                                        filteredDebtorList.slice(0, 30).map(p => (
+                                                            <div
+                                                                key={`${p.type}-${p.id}`}
+                                                                onClick={() => {
+                                                                    setDebtForm(prev => ({
+                                                                        ...prev,
+                                                                        debtorId: p.id,
+                                                                        debtorName: p.name,
+                                                                        debtorPhone: p.phone,
+                                                                        debtorType: p.type
+                                                                    }));
+                                                                    setDebtorSearch('');
+                                                                    setIsDebtorDropdownOpen(false);
+                                                                }}
+                                                                className="px-3 py-2 hover:bg-amber-50 cursor-pointer flex items-center justify-between transition-colors"
+                                                            >
+                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold flex items-center justify-center shrink-0">
+                                                                        {p.name ? p.name.charAt(0) : 'U'}
+                                                                    </div>
+                                                                    <div className="min-w-0 truncate">
+                                                                        <span className="text-xs font-bold text-slate-800 truncate">{p.name}</span>
+                                                                        {p.phone && <span className="text-[10px] text-slate-400 ml-1.5">({p.phone})</span>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{p.role}</span>
+                                                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">#{p.id}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                                                            ไม่พบรายชื่อ
+                                                            {debtorSearch && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setDebtForm(prev => ({ ...prev, debtorId: 'CUSTOM', debtorName: debtorSearch }));
+                                                                        setDebtorSearch('');
+                                                                        setIsDebtorDropdownOpen(false);
+                                                                    }}
+                                                                    className="block mx-auto mt-1.5 text-amber-700 underline font-black"
+                                                                >
+                                                                    + ใช้ชื่อ "{debtorSearch}" เป็นผู้ติดหนี้
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ช่องค้นหาสินค้า / ยิงบาร์โค้ด */}
+                                <div className="relative z-30">
+                                    <label className="text-xs font-bold text-slate-600 block mb-1">เลือกสินค้าที่จะเบิกค้างชำระ</label>
+                                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:bg-white focus-within:border-amber-500 transition-all shadow-sm">
+                                        <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                                        <input
+                                            type="text"
+                                            className="w-full bg-transparent border-none outline-none text-xs sm:text-sm font-bold text-slate-800 placeholder-slate-400"
+                                            placeholder="ค้นหาสินค้า (พิมพ์ชื่อ, รหัส หรือ ยิงบาร์โค้ด แล้วกด Enter)..."
+                                            value={debtSearch}
+                                            onChange={(e) => setDebtSearch(e.target.value)}
+                                            onKeyDown={handleDebtBarcodeScan}
+                                        />
+                                        {debtSearch && (
+                                            <button type="button" onClick={() => setDebtSearch('')} className="text-slate-400 hover:text-red-500 p-1">
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Dropdown ผลค้นหาสินค้า */}
+                                    {debtSearch.trim() !== '' && (
+                                        <div className="absolute top-[105%] left-0 w-full bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[260px] overflow-y-auto py-1.5 z-50 custom-scrollbar divide-y divide-slate-100">
+                                            {debtFilteredProducts.length > 0 ? (
+                                                debtFilteredProducts.map(p => {
+                                                    const inCart = debtCart.find(it => it.productId === p.id || it.productName === p.name);
+                                                    const isOutOfStock = p.stock <= 0;
+                                                    const defaultPType = debtForm.defaultPriceType || 'ราคาสมาชิก';
+                                                    let uPrice = Number(p.priceMember || p.price_member || 0);
+                                                    if (defaultPType === 'ราคาเต็ม') uPrice = Number(p.priceFull || p.price_full || 0);
+                                                    else if (defaultPType === 'ราคาโปร') uPrice = Number(p.pricePromo || p.price_promo || 0);
+
+                                                    return (
+                                                        <div
+                                                            key={p.id}
+                                                            className={`flex items-center justify-between p-2.5 transition-all ${inCart ? 'bg-amber-50/70' : 'hover:bg-slate-50'}`}
+                                                        >
+                                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                                <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                                                    {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover" /> : <PackageIcon size={18} className="text-amber-500" />}
+                                                                </div>
+                                                                <div className="min-w-0 truncate">
+                                                                    <div className="font-bold text-xs text-slate-800 truncate">{p.name}</div>
+                                                                    <div className="text-[11px] font-bold text-amber-700">
+                                                                        ฿{uPrice.toLocaleString()} ({defaultPType}) • <span className={isOutOfStock ? 'text-red-500' : 'text-emerald-600'}>เหลือ {p.stock} ชิ้น</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setDebtCart(prev => {
+                                                                        const existing = prev.find(it => it.productId === p.id || it.productName === p.name);
+                                                                        if (existing) {
+                                                                            return prev.map(it => (it.productId === p.id || it.productName === p.name) ? { ...it, qty: it.qty + 1 } : it);
+                                                                        }
+                                                                        return [...prev, {
+                                                                            productId: p.id,
+                                                                            productName: p.name,
+                                                                            stock: p.stock,
+                                                                            priceType: defaultPType,
+                                                                            price: uPrice,
+                                                                            qty: 1
+                                                                        }];
+                                                                    });
+                                                                    setDebtSearch('');
+                                                                    showToast(`เพิ่ม ${p.name} แล้ว`, 'success');
+                                                                }}
+                                                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all shrink-0 flex items-center gap-1 active:scale-95"
+                                                            >
+                                                                <Plus size={14} /> เพิ่ม ฿{uPrice.toLocaleString()}
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="text-center py-5 text-xs text-slate-400 font-bold">ไม่พบสินค้าที่ค้นหา</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ตะกร้าสินค้าค้างชำระ */}
+                                <div className="border border-slate-200 rounded-xl overflow-hidden flex flex-col flex-1 min-h-[160px] max-h-[260px] bg-slate-50/50">
+                                    <div className="px-3 py-2 bg-slate-100/80 border-b border-slate-200 flex justify-between items-center shrink-0">
+                                        <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                            <ShoppingCart size={14} className="text-amber-600" /> สินค้าในรายการเบิก ({debtCart.length})
+                                        </span>
+                                        {debtCart.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setDebtCart([])}
+                                                className="text-[10px] font-bold text-red-500 hover:underline"
+                                            >
+                                                ล้างทั้งหมด
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="overflow-y-auto p-2 flex flex-col gap-1.5 flex-1 divide-y divide-slate-100">
+                                        {debtCart.length === 0 ? (
+                                            <div className="h-full flex items-center justify-center text-xs text-slate-400 font-bold py-6">
+                                                ยังไม่มีสินค้าในรายการเบิกค้างชำระ
+                                            </div>
+                                        ) : (
+                                            debtCart.map((item, idx) => {
+                                                const lineTotal = (parseFloat(item.price) || 0) * (parseInt(item.qty) || 0);
+                                                return (
+                                                    <div key={idx} className="flex items-center justify-between pt-1.5 first:pt-0">
+                                                        <div className="min-w-0 pr-2">
+                                                            <div className="text-xs font-bold text-slate-800 truncate">{item.productName}</div>
+                                                            <div className="text-[10px] text-amber-700 font-semibold">
+                                                                ฿{Number(item.price).toLocaleString()} / {item.priceType || 'ชิ้น'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <div className="flex items-center border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (item.qty > 1) {
+                                                                            setDebtCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty - 1 } : it));
+                                                                        } else {
+                                                                            setDebtCart(prev => prev.filter((_, i) => i !== idx));
+                                                                        }
+                                                                    }}
+                                                                    className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-black text-xs"
+                                                                >
+                                                                    -
+                                                                </button>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    value={item.qty}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                                        setDebtCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: val } : it));
+                                                                    }}
+                                                                    className="w-8 text-center font-bold text-xs text-slate-800 border-none outline-none"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setDebtCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it));
+                                                                    }}
+                                                                    className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-black text-xs"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                            <div className="text-xs font-black text-slate-800 w-16 text-right">
+                                                                ฿{lineTotal.toLocaleString()}
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDebtCart(prev => prev.filter((_, i) => i !== idx))}
+                                                                className="text-slate-400 hover:text-red-500 p-1"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* หมายเหตุ / กำหนดชำระ */}
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 block mb-1">หมายเหตุ / เงื่อนไขการเคลียร์เงิน</label>
+                                    <textarea
+                                        rows="2"
+                                        placeholder="เช่น หักเงินเดือนสิ้นเดือน, นำเงินมาเคลียร์วันพรุ่งนี้..."
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-amber-500 outline-none transition-all shadow-sm resize-none"
+                                        value={debtForm.notes}
+                                        onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* สรุปยอดและปุ่มบันทึก */}
+                                <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl flex flex-col gap-2 shrink-0">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="font-bold text-slate-600">รวมเบิก: <strong className="text-amber-800 text-sm">{totalDebtBottles}</strong> กล่อง</span>
+                                        <span className="font-black text-amber-900 text-base">
+                                            ยอดหนี้รวม: ฿{totalDebtAmount.toLocaleString()}
+                                            <span className="text-[11px] font-normal text-slate-500 ml-1.5">
+                                                (~{Math.round(totalDebtAmount * exRate).toLocaleString()} ₭)
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={debtCart.length === 0 || isSubmittingDebt}
+                                        onClick={handleDebtSubmit}
+                                        className={`w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md flex items-center justify-center gap-2 transition-all ${
+                                            debtCart.length === 0 || isSubmittingDebt
+                                                ? 'bg-slate-300 shadow-none cursor-not-allowed'
+                                                : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-98'
+                                        }`}
+                                    >
+                                        {isSubmittingDebt ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                กำลังบันทึกและตัดสต๊อก...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle size={16} /> ยืนยันบันทึกเบิกสินค้าค้างชำระ (ตัดสต็อกทันที)
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ขวา (48%): รายการบิลค้างชำระรอเคลียร์เงิน (Active Debts Ledger) */}
+                        <div className="w-full xl:w-[48%] flex flex-col gap-3 xl:h-full relative">
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col gap-3 flex-1 min-h-[400px]">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-black">
+                                            <Coins size={16} />
+                                        </div>
+                                        <h4 className="font-extrabold text-sm text-slate-800">
+                                            บิลค้างชำระรอเคลียร์เงิน
+                                        </h4>
+                                    </div>
+                                    <span className="text-[11px] font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                                        รอชำระ {unpaidDebtBills.length} รายการ
+                                    </span>
+                                </div>
+
+                                {/* ช่องค้นหาบิลค้างชำระ */}
+                                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:bg-white focus-within:border-amber-500 transition-all shadow-sm">
+                                    <SearchIcon size={16} className="text-slate-400 mr-2 shrink-0" />
+                                    <input
+                                        type="text"
+                                        placeholder="ค้นหาชื่อผู้ติดหนี้ หรือ เลขที่บิล..."
+                                        className="w-full bg-transparent border-none outline-none text-xs font-bold text-slate-800 placeholder-slate-400"
+                                        value={debtFilterSearch}
+                                        onChange={(e) => setDebtFilterSearch(e.target.value)}
+                                    />
+                                    {debtFilterSearch && (
+                                        <button type="button" onClick={() => setDebtFilterSearch('')} className="text-slate-400 hover:text-slate-600 p-0.5">
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* รายการบิลค้างชำระ */}
+                                <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5 custom-scrollbar min-h-0">
+                                    {unpaidDebtBills.length === 0 ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400 gap-2">
+                                            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                                <CheckCircle size={28} />
+                                            </div>
+                                            <div className="text-sm font-bold text-slate-700">ไม่มีรายการบิลค้างชำระ</div>
+                                            <div className="text-xs text-slate-400">ทุกรายการเคลียร์เงินครบถ้วนสมบูรณ์แล้ว</div>
+                                        </div>
+                                    ) : (
+                                        unpaidDebtBills.map(bill => {
+                                            const billId = bill.id || bill.order_id;
+                                            const totalAmt = parseFloat(bill.totalAmount || bill.total_amount || 0);
+                                            let itemsSummary = [];
+                                            if (bill.items_json) {
+                                                try {
+                                                    const parsed = typeof bill.items_json === 'string' ? JSON.parse(bill.items_json) : bill.items_json;
+                                                    if (Array.isArray(parsed)) {
+                                                        itemsSummary = parsed.map(it => `${it.prod || it.productName || 'สินค้า'} x${it.qty || 1}`);
+                                                    }
+                                                } catch (_) {}
+                                            }
+                                            if (itemsSummary.length === 0) {
+                                                itemsSummary = [`รวม ${bill.total_bottles || bill.ยอดรวมชิ้นทั้งหมด || 1} กล่อง`];
+                                            }
+
+                                            return (
+                                                <div key={billId} className="border border-amber-200/90 hover:border-amber-400 rounded-xl p-3 bg-gradient-to-r from-amber-50/40 to-white shadow-sm transition-all flex flex-col gap-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200">
+                                                                #{billId}
+                                                            </span>
+                                                            <span className="text-[11px] font-bold text-slate-500">
+                                                                {bill.date || formatDbDateForFilter(bill.date)}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 animate-pulse">
+                                                            🔴 ค้างชำระ
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-start gap-2">
+                                                        <div>
+                                                            <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                                                <span>👤 {bill.memberName || bill.customerName || bill.memberId || 'ไม่ระบุผู้เบิก'}</span>
+                                                                <span className="text-[10px] text-slate-400 font-bold">({bill.memberId || bill.customerId})</span>
+                                                            </div>
+                                                            <div className="text-[11px] text-slate-600 mt-1 flex flex-wrap gap-1">
+                                                                {itemsSummary.map((str, sIdx) => (
+                                                                    <span key={sIdx} className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-700">
+                                                                        {str}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                            {bill.paymentNote && (
+                                                                <div className="text-[10px] text-amber-800/80 italic mt-1 truncate max-w-[280px]">
+                                                                    📝 {bill.paymentNote}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-xs text-slate-400 font-bold">ยอดค้างชำระ</div>
+                                                            <div className="text-sm font-black text-amber-950">
+                                                                ฿{totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-amber-100/80">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setConfirmDelete({ show: true, id: billId, title: billId })}
+                                                            className="text-[11px] font-bold text-slate-400 hover:text-red-600 px-2 py-1 rounded transition-colors"
+                                                            title="ยกเลิกบิลและคืนสต๊อก"
+                                                        >
+                                                            ยกเลิก
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePrintReceiptPopup(bill)}
+                                                            className="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 shadow-sm"
+                                                        >
+                                                            <PrinterIcon size={12} /> ใบเบิก
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenSettleModal(bill)}
+                                                            className="text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                                                        >
+                                                            <Coins size={12} /> รับชำระเงิน
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
             const renderSalesForm = () => {
                 const cTHB = parseFloat(payCashTHB) || 0;
                 const cLAK = parseFloat(payCashLAK) || 0;
@@ -5135,6 +6199,212 @@
                         )}
                     </EditModal>
 
+                    {/* Modal เคลียร์หนี้ / รับชำระเงินบิลค้างชำระ */}
+                    <EditModal 
+                        isOpen={!!settlingDebtSale} 
+                        onClose={() => setSettlingDebtSale(null)} 
+                        title={`รับชำระเงินบิลค้างชำระ #${settlingDebtSale?.id || settlingDebtSale?.order_id || ''}`} 
+                        icon={Coins} 
+                        maxWidthClass="max-w-xl"
+                    >
+                        {settlingDebtSale && (() => {
+                            const totalDebtAmt = parseFloat(settlingDebtSale.totalAmount || settlingDebtSale.total_amount || 0);
+                            const exRate = Number(systemSettings?.exchange_rate || 700);
+                            const cTHB = parseFloat(settlePayCashTHB) || 0;
+                            const cLAK = parseFloat(settlePayCashLAK) || 0;
+                            const tThaiTHB = parseFloat(settlePayTransferThaiTHB) || 0;
+                            const tLaosTHB = parseFloat(settlePayTransferLaosTHB) || 0;
+                            const tLaosLAK = parseFloat(settlePayTransferLaosLAK) || 0;
+
+                            const showCash = settlePayMode === 'สด' || settlePayMode === 'สด+โอน';
+                            const showTransfer = settlePayMode === 'โอน' || settlePayMode === 'สด+โอน';
+
+                            const totalPaidTHB = (showCash ? cTHB + (cLAK / exRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK / exRate) : 0);
+                            const remainingTHB = Math.round((totalDebtAmt - totalPaidTHB) * 100) / 100;
+
+                            return (
+                                <div className="flex flex-col gap-4 text-xs">
+                                    <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-200 flex justify-between items-center">
+                                        <div>
+                                            <div className="font-black text-slate-800 text-sm">
+                                                ผู้ติดหนี้: {settlingDebtSale.memberName || settlingDebtSale.customerName || settlingDebtSale.memberId}
+                                            </div>
+                                            <div className="text-[11px] font-bold text-amber-800 mt-0.5">
+                                                วันที่เบิก: {settlingDebtSale.date || '-'} | บิล: {settlingDebtSale.id || settlingDebtSale.order_id}
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">ยอดหนี้ที่ต้องชำระ</div>
+                                            <div className="text-xl font-black text-amber-900">
+                                                ฿{totalDebtAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </div>
+                                            <div className="text-[10px] font-semibold text-slate-500">
+                                                (~{Math.round(totalDebtAmt * exRate).toLocaleString()} ₭)
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* เลือกช่องทางชำระเงิน */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-600 block mb-1.5">รูปแบบการชำระเงิน</label>
+                                        <div className="flex gap-2">
+                                            {['โอน', 'สด', 'สด+โอน'].map(mode => (
+                                                <button
+                                                    key={mode}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSettlePayMode(mode);
+                                                        if (mode === 'โอน') {
+                                                            setSettlePayTransferThaiTHB(String(totalDebtAmt));
+                                                            setSettlePayCashTHB('');
+                                                            setSettlePayCashLAK('');
+                                                        } else if (mode === 'สด') {
+                                                            setSettlePayCashTHB(String(totalDebtAmt));
+                                                            setSettlePayTransferThaiTHB('');
+                                                            setSettlePayTransferLaosTHB('');
+                                                            setSettlePayTransferLaosLAK('');
+                                                        }
+                                                    }}
+                                                    className={`flex-1 py-2 rounded-xl font-black text-xs transition-all ${
+                                                        settlePayMode === mode
+                                                            ? 'bg-emerald-600 text-white shadow-md'
+                                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                    }`}
+                                                >
+                                                    {mode === 'โอน' ? '💳 เงินโอน' : mode === 'สด' ? '💵 เงินสด' : '🔄 สด + โอน'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* กล่องกรอกยอดเงิน */}
+                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col gap-2.5">
+                                        {showCash && (
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-slate-600 block mb-1">สดบาท (THB)</label>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="0.00"
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                                        value={settlePayCashTHB}
+                                                        onChange={(e) => setSettlePayCashTHB(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-slate-600 block mb-1">สดกีบ (LAK)</label>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="0"
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                                        value={settlePayCashLAK}
+                                                        onChange={(e) => setSettlePayCashLAK(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {showTransfer && (
+                                            <div className="flex flex-col gap-2">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-slate-600 block mb-1">โอนไทย (THB)</label>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="0.00"
+                                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                                            value={settlePayTransferThaiTHB}
+                                                            onChange={(e) => setSettlePayTransferThaiTHB(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-slate-600 block mb-1">ธนาคารไทย</label>
+                                                        <select
+                                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                                            value={settlePayTransferThaiBank}
+                                                            onChange={(e) => setSettlePayTransferThaiBank(e.target.value)}
+                                                        >
+                                                            <option value="กสิกรไทย">กสิกรไทย (KBANK)</option>
+                                                            <option value="ไทยพาณิชย์">ไทยพาณิชย์ (SCB)</option>
+                                                            <option value="กรุงเทพ">กรุงเทพ (BBL)</option>
+                                                            <option value="กรุงไทย">กรุงไทย (KTB)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-slate-600 block mb-1">โอนลาวกีบ (BCEL LAK)</label>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="0"
+                                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                                            value={settlePayTransferLaosLAK}
+                                                            onChange={(e) => setSettlePayTransferLaosLAK(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-slate-600 block mb-1">โอนลาวบาท (BCEL THB)</label>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="0.00"
+                                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                                            value={settlePayTransferLaosTHB}
+                                                            onChange={(e) => setSettlePayTransferLaosTHB(e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* หมายเหตุการรับเงิน */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-600 block mb-1">หมายเหตุเพิ่มเติม</label>
+                                        <input
+                                            type="text"
+                                            placeholder="เช่น โอนผ่าน BCEL สลิปแนบห้องการเงิน..."
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                            value={settleNote}
+                                            onChange={(e) => setSettleNote(e.target.value)}
+                                        />
+                                    </div>
+
+                                    {/* สรุปยอดชำระ */}
+                                    <div className="flex justify-between items-center px-1 font-bold">
+                                        <span className="text-slate-600">รับแล้ว: <strong className="text-emerald-700 text-sm">฿{totalPaidTHB.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
+                                        <span className={remainingTHB > 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                                            {remainingTHB > 0 ? `ยังขาดอีก: ฿${remainingTHB.toLocaleString()}` : '✅ ชำระครบถ้วน'}
+                                        </span>
+                                    </div>
+
+                                    {/* ปุ่มยืนยัน */}
+                                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSettlingDebtSale(null)}
+                                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                                        >
+                                            ยกเลิก
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={totalPaidTHB <= 0 || isSubmittingSettle}
+                                            onClick={handleConfirmSettleDebt}
+                                            className={`px-6 py-2 rounded-xl font-bold text-white shadow-md flex items-center gap-1.5 ${
+                                                totalPaidTHB <= 0 || isSubmittingSettle
+                                                    ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                                                    : 'bg-emerald-600 hover:bg-emerald-700'
+                                            }`}
+                                        >
+                                            {isSubmittingSettle ? 'กำลังบันทึก...' : '✅ ยืนยันรับชำระเงิน'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </EditModal>
+
                     <EditModal isOpen={editingSaleId !== null} onClose={handleCancelEdit} title="แก้ไขประวัติการขาย (Edit Sale)" icon={Edit} maxWidthClass="max-w-6xl">
                         {renderSalesForm()}
                     </EditModal>
@@ -5143,8 +6413,13 @@
                         <div className="w-full flex flex-col h-full min-h-0">
                             <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between border-b border-slate-200 pb-0 mb-4 gap-3">
                                 <h3 className="text-lg font-bold flex items-center gap-2 text-blue-700 px-2 pb-2 shrink-0">
-                                    {saleTab === 'ZERO_PRICE' ? <PackageIcon size={20} className="text-purple-600" /> : <Plus size={20} />} 
-                                    {saleTab === 'ZERO_PRICE' ? 'เบิก / ตัดศูนย์สินค้า (Stock Clearance & Requisition)' : 'บันทึกรายการขายใหม่ (New Sale Entry)'}
+                                    {saleTab === 'ZERO_PRICE' ? (
+                                        <span className="flex items-center gap-2 text-purple-700"><PackageIcon size={20} className="text-purple-600" /> เบิก / ตัดศูนย์สินค้า (Stock Clearance & Requisition)</span>
+                                    ) : saleTab === 'CREDIT_DEBT' ? (
+                                        <span className="flex items-center gap-2 text-amber-700"><FileText size={20} className="text-amber-600" /> เบิกสินค้าค้างชำระ / ติดหนี้ (Staff Credit & Arrears)</span>
+                                    ) : (
+                                        <span className="flex items-center gap-2 text-blue-700"><Plus size={20} /> บันทึกรายการขายใหม่ (New Sale Entry)</span>
+                                    )}
                                 </h3>
                                 <div className="flex gap-1.5 px-2 sm:px-0 pb-2">
                                     <button onClick={() => setSaleTab('B2M')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm flex items-center gap-1.5 ${saleTab === 'B2M' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-500/30' : 'bg-white text-slate-500 hover:bg-blue-50 border border-slate-200'}`}>
@@ -5159,10 +6434,21 @@
                                         </svg>
                                         <span>เบิก / ตัดศูนย์สินค้า</span>
                                     </button>
+                                    <button onClick={() => setSaleTab('CREDIT_DEBT')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm flex items-center gap-1.5 ${saleTab === 'CREDIT_DEBT' ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-amber-500/30' : 'bg-white text-slate-500 hover:bg-amber-50 border border-slate-200'}`}>
+                                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                                        </svg>
+                                        <span>เบิกสินค้าค้างชำระ / ติดหนี้</span>
+                                        {unpaidDebtBills.length > 0 && (
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none ${saleTab === 'CREDIT_DEBT' ? 'bg-white text-orange-700' : 'bg-amber-500 text-white'}`}>
+                                                {unpaidDebtBills.length}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
 
-                            {saleTab === 'ZERO_PRICE' ? renderZeroPriceForm() : renderSalesForm()}
+                            {saleTab === 'ZERO_PRICE' ? renderZeroPriceForm() : (saleTab === 'CREDIT_DEBT' ? renderCreditDebtView() : renderSalesForm())}
                         </div>
                     )}
                 </div>

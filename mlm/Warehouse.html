@@ -1845,12 +1845,16 @@
               return sum + (found ? Number(found.quantity || found.qty || 0) : 0);
             }, 0) : 0;
 
-          // 3. ยอดตัดศูนย์ในวันตรวจนับ (auditDate)
+          // 3. ยอดตัดศูนย์ในวันตรวจนับ (auditDate) จาก stock movements ที่ไม่ได้สร้างจากบิลขาย
+          // (หมายเหตุ: บิลเบิกตัดศูนย์หน้าร้านที่เปิดผ่านระบบขาย จะถูกดึงและรวมอยู่ใน dailySalesMap จากตาราง stk_sales อยู่แล้ว จึงต้องข้ามเพื่อไม่ให้นับซ้ำ)
           const zeroOutMoves = (movements || []).filter(m => {
             const mDate = String(m.date || m.created_at || '').slice(0, 10);
             if (mDate !== auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
             const subType = String(m.sub_type || '').toLowerCase();
             const notesStr = String(m.notes || '').toLowerCase();
+            const lotIdStr = String(m.lot_id || '').toLowerCase();
+            const isFromBill = notesStr.includes('บิล') || lotIdStr.includes('-') || subType.includes('ขาย') || subType.includes('ตัดสต๊อก');
+            if (isFromBill) return false;
             return subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
           }).reduce((s, m) => s + Number(m.quantity || 0), 0);
 
@@ -1860,6 +1864,9 @@
             if (mDate <= latestPriorAuditDate || mDate >= auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
             const subType = String(m.sub_type || '').toLowerCase();
             const notesStr = String(m.notes || '').toLowerCase();
+            const lotIdStr = String(m.lot_id || '').toLowerCase();
+            const isFromBill = notesStr.includes('บิล') || lotIdStr.includes('-') || subType.includes('ขาย') || subType.includes('ตัดสต๊อก');
+            if (isFromBill) return false;
             return subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
           }).reduce((s, m) => s + Number(m.quantity || 0), 0) : 0;
 
@@ -1884,9 +1891,10 @@
           const prevSystemClosing = prevAudit ? Number(prevAudit.system_closing_qty || 0) : null;
           const prevDiff = prevAudit ? (prevAudit.diff_qty !== null && prevAudit.diff_qty !== undefined ? Number(prevAudit.diff_qty) : (prevPhysicalCount !== null ? prevPhysicalCount - prevSystemClosing : 0)) : null;
 
-          // ฐานยอดยกมาตั้งต้นจากรอบก่อน: ให้เกียรติยอดนับจริง (physical_count_qty) ก่อนเสมอ
+          // ฐานยอดยกมาตั้งต้นจากรอบก่อน: ยอดยกมาต้นวัน (opening) ต้องยกมาจากยอดยกไปตามระบบ (prevSystemClosing) เสมอ
+          // เพื่อให้ผลต่างจากการตรวจนับ (Diff / Discrepancy) ที่ยังไม่ได้ทำใบตัดสต๊อกสูญหาย ยังคงถูกส่งต่อและฟ้องผลต่างอย่างต่อเนื่อง
           const priorClosingQty = prevAudit 
-            ? (prevPhysicalCount !== null ? prevPhysicalCount : prevSystemClosing)
+            ? (prevSystemClosing !== null ? prevSystemClosing : prevPhysicalCount)
             : null;
 
           let opening = 0;
@@ -2061,6 +2069,11 @@
       // ฟังก์ชันปรับสต็อกตามยอดตรวจนับจริง (Stock Adjustment) เพื่อล้างยอดตกค้างจากบิลที่ถูกลบ/ของสูญหาย
       const [isAdjustingStock, setIsAdjustingStock] = useState(false);
       const handleAdjustStockToPhysicalCount = async () => {
+        if (currentUser && (currentUser.status === 'ระงับ' || currentUser.status === 'deactivated' || currentUser.status === 'inactive')) {
+          showToast('บัญชีของคุณถูกระงับการใช้งาน ไม่สามารถทำรายการได้', 'error');
+          return;
+        }
+
         const itemsToAdjust = dailyReconciliation.filter(r => r.physicalCount !== null && r.diff !== 0);
         if (itemsToAdjust.length === 0) {
           showToast('ไม่มีรายการที่มีผลต่าง (Diff) ให้ปรับสต็อก ทุกรายการตรงตามระบบแล้ว', 'info');
@@ -2069,41 +2082,130 @@
 
         const confirmMsg = `ยืนยันการปรับสต็อกในระบบตามยอดนับจริง (${auditDate}) หรือไม่?\n\n` +
           `มีรายการที่จะถูกปรับจำนวน ${itemsToAdjust.length} รายการ:\n` +
-          itemsToAdjust.slice(0, 5).map(it => `• ${it.name} (${it.productId}): ปัจจุบัน ${it.systemClosingQty} ➔ ปรับเป็น ${it.physicalCount} (${it.diff > 0 ? '+' : ''}${it.diff})`).join('\n') +
-          (itemsToAdjust.length > 5 ? `\n... และอีก ${itemsToAdjust.length - 5} รายการ` : '') +
-          `\n\nระบบจะปรับ current_stock ในฐานข้อมูล และบันทึกประวัติความเคลื่อนไหว (MOV-ADJ) เพื่อให้สต็อกหน้าร้านตรงกับของจริงบนชั้นวาง 100%`;
+          itemsToAdjust.slice(0, 10).map(it => `• ${it.name} (${it.productId}): ปัจจุบัน ${it.systemClosingQty} ➔ ปรับเป็น ${it.physicalCount} (${it.diff > 0 ? '+' : ''}${it.diff} ชิ้น)`).join('\n') +
+          (itemsToAdjust.length > 10 ? `\n... และอีก ${itemsToAdjust.length - 10} รายการ` : '') +
+          `\n\nการดำเนินการ:\n` +
+          `1. บันทึกประวัติความเคลื่อนไหว (MOV-ADJ) ในระบบบัญชีคลัง\n` +
+          `2. ปรับปรุงยอดสต็อกคงเหลือรวม (current_stock) ในฐานข้อมูล\n` +
+          `3. อัปเดตยอดปิดกระทบยอดสต๊อก (${auditDate}) ให้ตรงเป๊ะ (±0)\n` +
+          `4. ยอดยกมาวันถัดไปจะยกยอดใหม่ที่ถูกต้องตรงกับชั้นวาง`;
 
         if (!window.confirm(confirmMsg)) return;
 
         setIsAdjustingStock(true);
         try {
           let adjustedCount = 0;
+          const auditTime = new Date().toISOString();
+
           for (const item of itemsToAdjust) {
-            const targetStock = item.physicalCount;
-            // 1. อัปเดตตาราง stk_products
+            // 1. ปรับปรุง current_stock รวมในตาราง stk_products (หัก/เพิ่มตามผลต่าง diff)
             if (typeof window.supabaseUpdate === 'function') {
-              await window.supabaseUpdate('stk_products', item.productId, { current_stock: targetStock }, 'product_id').catch(e => {});
+              const liveStock = await (window.StockLogic?.fetchLiveProductStock 
+                ? window.StockLogic.fetchLiveProductStock(item.productId) 
+                : Promise.resolve(null));
+              const currentProd = (products || []).find(p => p.product_id === item.productId);
+              const baseStock = (liveStock !== null && liveStock !== undefined) ? Number(liveStock) : Number(currentProd?.current_stock || 0);
+              const newTotalStock = Math.max(0, baseStock + Number(item.diff));
+
+              await window.supabaseUpdate('stk_products', item.productId, { current_stock: newTotalStock }, 'product_id').catch(e => {
+                console.warn('Update product stock error:', e);
+              });
             }
-            // 2. บันทึก Movement การปรับยอด
+
+            // 2. บันทึก Movement การปรับยอด MOV-ADJ
             if (typeof window.supabaseInsert === 'function') {
-              const movId = `MOV-ADJ-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+              const movId = `MOV-ADJ-${Date.now()}-${item.productId}`;
               await window.supabaseInsert('stk_stock_movements', {
                 movement_id: movId,
-                date: auditDate,
+                date: (auditDate ? auditDate + 'T12:00:00Z' : auditTime),
                 product_id: item.productId,
                 type: item.diff > 0 ? 'IN' : 'OUT',
-                sub_type: 'ปรับสต็อกตามการตรวจนับจริง',
+                sub_type: 'ปรับสต็อกตามการตรวจนับจริง (MOV-ADJ)',
                 quantity: Math.abs(item.diff),
-                notes: `ปรับยอดสต็อกตามการตรวจนับจริง ประจำวันที่ ${auditDate} (ผลต่างเดิม: ${item.diff} ชิ้น)`,
+                notes: `ปรับยอดสต็อกตามการตรวจนับจริง ประจำวันที่ ${auditDate} (${item.diff > 0 ? 'สินค้าเกิน' : 'สินค้าขาด'} ${Math.abs(item.diff)} ชิ้น)`,
                 created_by: currentUser?.name || 'ADMIN'
-              }).catch(e => {});
+              }).catch(e => {
+                console.warn('Insert movement error:', e);
+              });
             }
+
+            // 3. ปรับปรุง stk_daily_balance ของรายการนี้โดยตรง
+            if (typeof window.supabaseUpdate === 'function') {
+              const balId = `BAL-FRONT_STORE-${auditDate}-${item.productId}`;
+              await window.supabaseUpdate('stk_daily_balance', balId, {
+                adjust_qty: item.diff,
+                system_closing_qty: item.physicalCount,
+                diff_qty: 0,
+                audit_status: 'BALANCED',
+                audit_notes: `ปรับสต็อกตามยอดนับจริง (MOV-ADJ ${item.diff > 0 ? '+' : ''}${item.diff})`
+              }, 'id').catch(e => console.warn('Update balance record error:', e));
+            }
+
             adjustedCount++;
           }
 
-          showToast(`✅ ปรับยอดสต็อกให้ตรงกับยอดนับจริงเรียบร้อยแล้ว (${adjustedCount} รายการ)`, 'success');
-          // โหลดข้อมูลคลังสินค้าใหม่ทันที
-          loadWarehouseData(true);
+          // 4. บันทึกชุดข้อมูลปิดยอดประจำวันทั้งหมดเพื่อความสมบูรณ์
+          const updatedAuditRecords = dailyReconciliation.map(r => {
+            const isAdj = itemsToAdjust.some(it => it.productId === r.productId);
+            const targetClosing = isAdj ? Number(r.physicalCount) : Number(r.systemClosingQty);
+            const adjQty = isAdj ? Number(r.diff) : (r.adjustQty || 0);
+            return {
+              productId: r.productId,
+              openingQty: r.openingQty,
+              receivedQty: r.transferInQty,
+              salesQty: r.salesQty,
+              adjustQty: adjQty,
+              closingQty: targetClosing,
+              physicalCount: r.physicalCount
+            };
+          });
+
+          if (window.StockLogic?.saveDailyAuditRecords) {
+            await window.StockLogic.saveDailyAuditRecords({
+              balanceDate: auditDate,
+              warehouseId: 'FRONT_STORE',
+              domainType: activeDomain,
+              auditRecords: updatedAuditRecords,
+              auditor: currentUser?.name || 'ADMIN',
+              notes: (auditNotes ? auditNotes + ' | ' : '') + `ปรับสต็อกตามยอดนับจริง (${adjustedCount} รายการ MOV-ADJ)`
+            });
+          }
+
+          // 5. อัปเดต Cache ในหน่วยความจำทันที (Zero Egress)
+          setAuditRecordsCache(prev => {
+            const updated = (prev || []).map(row => {
+              if (row.balance_date === auditDate) {
+                const adjItem = itemsToAdjust.find(it => it.productId === row.product_id);
+                if (adjItem) {
+                  return {
+                    ...row,
+                    adjust_qty: adjItem.diff,
+                    system_closing_qty: adjItem.physicalCount,
+                    diff_qty: 0,
+                    audit_status: 'BALANCED',
+                    audit_notes: `ปรับสต็อกตามยอดนับจริง (MOV-ADJ ${adjItem.diff > 0 ? '+' : ''}${adjItem.diff})`
+                  };
+                }
+              }
+              return row;
+            });
+            try { sessionStorage.setItem('stk_warehouse_audit_cache', JSON.stringify(updated)); } catch(e){}
+            return updated;
+          });
+
+          // 6. Invalidate Supabase cache
+          if (typeof window.invalidateTableCache === 'function') {
+            window.invalidateTableCache('stk_daily_balance');
+            window.invalidateTableCache('stk_products');
+            window.invalidateTableCache('stk_stock_movements');
+          }
+
+          showToast(`✅ ปรับยอดสต็อกให้ตรงกับยอดนับจริงและสร้างเอกสาร MOV-ADJ เรียบร้อยแล้ว (${adjustedCount} รายการ)`, 'success');
+
+          // 7. โหลดข้อมูลคลังสินค้าใหม่ทันที
+          await loadWarehouseData(true);
+          await loadLedgerBalances(auditDate);
+          await loadAuditHistorySessions();
         } catch (err) {
           console.error('Adjust stock error:', err);
           showToast('เกิดข้อผิดพลาดในการปรับสต็อก: ' + (err.message || String(err)), 'error');

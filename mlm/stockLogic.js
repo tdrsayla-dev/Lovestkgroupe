@@ -1429,6 +1429,7 @@
             transfer_in_qty: rec.receivedQty || 0,
             transfer_out_qty: rec.transferOutQty || 0,
             sales_qty: rec.salesQty || 0,
+            adjust_qty: rec.adjustQty !== undefined ? rec.adjustQty : (rec.adjust_qty !== undefined ? rec.adjust_qty : 0),
             system_closing_qty: rec.closingQty || 0,
             physical_count_qty: rec.physicalCount !== null ? Number(rec.physicalCount) : null,
             diff_qty: rec.physicalCount !== null ? (Number(rec.physicalCount) - Number(rec.closingQty)) : 0,

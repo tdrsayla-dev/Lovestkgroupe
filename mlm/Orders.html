@@ -794,7 +794,7 @@
                              (isCleanReceiptName(nutrientOrderReceipt?.customer_name) ? nutrientOrderReceipt.customer_name : null) || 
                              (isCleanReceiptName(saleRecord.customerName || saleRecord.customer_name) ? (saleRecord.customerName || saleRecord.customer_name) : '');
             const closersList = typeof closers !== 'undefined' ? closers : [];
-            const rawReceiptCloser = String(nutrientOrderReceipt?.closer_dr || nutrientOrderReceipt?.closer || saleRecord.closer || saleRecord.closer_id || custObj.closer || custObj.closerId || custObj.closer_id || '').trim();
+            const rawReceiptCloser = String(saleRecord.closer || saleRecord.closer_id || custObj.closer || custObj.closerId || custObj.closer_id || nutrientOrderReceipt?.closer_dr || nutrientOrderReceipt?.closer || '').trim();
             let closerName = '-';
             if (rawReceiptCloser) {
                 const rawUpper = rawReceiptCloser.toUpperCase();
@@ -1844,12 +1844,12 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                                       (isCleanModalName(nOrdModal?.customer_name) ? nOrdModal.customer_name : null) || 
                                                       (isCleanModalName(viewBillDetail.customerName) ? viewBillDetail.customerName : '');
 
-                                const rawModalCloser = (nOrdModal && (nOrdModal.closer_dr || nOrdModal.closer))
-                                    ? String(nOrdModal.closer_dr || nOrdModal.closer).trim()
-                                    : (viewBillDetail.closer || viewBillDetail.closer_id)
+                                const rawModalCloser = (viewBillDetail.closer || viewBillDetail.closer_id)
                                     ? String(viewBillDetail.closer || viewBillDetail.closer_id).trim()
                                     : (cObj && (cObj.closer_id || cObj.closer))
                                     ? String(cObj.closer_id || cObj.closer).trim()
+                                    : (nOrdModal && (nOrdModal.closer_dr || nOrdModal.closer))
+                                    ? String(nOrdModal.closer_dr || nOrdModal.closer).trim()
                                     : '';
 
                                 let modalCloserName = '-';
@@ -1870,10 +1870,13 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                         modalCloserName = rawModalCloser;
                                     }
                                 }
+                                const isDocModal = (typeof window.isClinicDoctorIdentifier === 'function')
+                                    ? window.isClinicDoctorIdentifier(modalCloserName)
+                                    : false;
                                 return (
                                     <React.Fragment>
                                         <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{modalCustName ? `${viewBillDetail.customerId || ''} (${modalCustName})` : (viewBillDetail.customerName || viewBillDetail.customerId || '-')}</span></div>
-                                        <div className="flex justify-between"><span className="text-slate-500">ผู้ปิดการขาย (หมอ):</span> <span className="font-bold text-emerald-700">{modalCloserName}</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-500">{isDocModal ? 'ผู้ปิดการขาย (หมอ):' : 'ผู้ปิดการขาย:'}</span> <span className="font-bold text-emerald-700">{modalCloserName}</span></div>
                                         <div className="flex justify-between"><span className="text-slate-500">ผู้แนะนำการตลาด (ผู้ขาย):</span> <span className="font-bold text-amber-700">{(() => {
                                             const targetMId = String(viewBillDetail.memberId || '').trim();
                                             const mObj = (members || []).find(m => m && safeUpper(m.id) === safeUpper(targetMId));
@@ -2151,15 +2154,18 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                               custFallbackLabel = 'ลูกค้าทั่วไป';
                           }
 
-                          const rawCloser = (nutrientOrderRow && (nutrientOrderRow.closer_dr || nutrientOrderRow.closer))
-                              ? String(nutrientOrderRow.closer_dr || nutrientOrderRow.closer).trim()
-                              : (rs.closer || rs.closer_id)
-                              ? String(rs.closer || rs.closer_id).trim()
-                              : (custObj && (custObj.closer_id || custObj.closer))
-                              ? String(custObj.closer_id || custObj.closer).trim()
-                              : (nutrientOrderRow && nutrientOrderRow.closer_team)
-                              ? String(nutrientOrderRow.closer_team).trim()
-                              : '';
+                          const getValidCloserStr = (v) => {
+                              if (!v) return '';
+                              const s = String(v).trim();
+                              return (s === '-' || s === '--' || s.toLowerCase() === 'undefined' || s.toLowerCase() === 'null') ? '' : s;
+                          };
+
+                          const rawCloser = getValidCloserStr(rs.closer) ||
+                              getValidCloserStr(rs.closer_id) ||
+                              getValidCloserStr(custObj && (custObj.closer_id || custObj.closer)) ||
+                              getValidCloserStr(nutrientOrderRow && (nutrientOrderRow.closer_dr || nutrientOrderRow.closer)) ||
+                              getValidCloserStr(nutrientOrderRow && nutrientOrderRow.closer_team) ||
+                              '';
                           let closerName = '-';
                           if (rawCloser) {
                               const rawUpper = rawCloser.toUpperCase();
@@ -2178,6 +2184,20 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                   closerName = rawCloser;
                               }
                           }
+                          const isDoctorCloser = (typeof window.isClinicDoctorIdentifier === 'function')
+                              ? window.isClinicDoctorIdentifier(closerName)
+                              : false;
+                          const sIdUpper = String(rs.memberId || '').trim().toUpperCase();
+                          const sNameUpper = String(mName || '').trim().toUpperCase();
+                          const clNameUpper = String(closerName || '').trim().toUpperCase();
+                          const isSelfCloser = Boolean(
+                              !isDoctorCloser && (
+                                  (sIdUpper && clNameUpper.includes(sIdUpper)) ||
+                                  (sNameUpper && (clNameUpper.includes(sNameUpper) || sNameUpper.includes(clNameUpper))) ||
+                                  (nutrientOrderRow && (nutrientOrderRow.order_by_type === 'สั่งจ่ายยาเอง' || (nutrientOrderRow.closer_team && nutrientOrderRow.closer_team.toUpperCase() !== 'CENTER'))) ||
+                                  (rs.closer_team && String(rs.closer_team).toUpperCase() !== 'CENTER')
+                              )
+                          );
                           return (
                            <tr key={index} className="hover:bg-slate-50/80 transition-colors">
                               <td className="py-2.5 px-3 align-top border-r border-slate-100 overflow-hidden">
@@ -2196,7 +2216,15 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                  <div className="text-[10px] font-bold text-slate-400 mb-0.5 truncate">ผู้ขาย: <span className="text-slate-700 font-semibold">{mName} ({rs.memberId})</span></div>
 
                                   <div className="flex flex-col gap-1 mt-2">
-                                    <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 w-fit">🩺 ผู้ปิดการขาย (หมอ): <span className="font-black">{closerName}</span></div>
+                                    {isDoctorCloser ? (
+                                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 w-fit">🩺 ผู้ปิดการขาย (หมอ): <span className="font-black">{closerName}</span></div>
+                                    ) : isSelfCloser ? (
+                                      <div className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100 w-fit">👤 ผู้ปิดการขาย: <span className="font-black">{closerName}</span> <span className="text-[9px] font-semibold text-teal-600">(สั่งเอง / สมาชิก)</span></div>
+                                    ) : closerName && closerName !== '-' ? (
+                                      <div className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 w-fit">👤 ผู้ปิดการขาย: <span className="font-black">{closerName}</span></div>
+                                    ) : (
+                                      <div className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 w-fit">ผู้ปิดการขาย: <span className="font-medium">-</span></div>
+                                    )}
                                     <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 w-fit">ผู้คีย์บิล: {rs.recordedBy || 'Admin'}</div>
                                   </div>
 
