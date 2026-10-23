@@ -1176,7 +1176,7 @@
                     let resolvedCustType = normPendingType || pending.customer_type || pending.type;
                     if (pending.customer_type_manually_selected) {
                         resolvedCustType = normPendingType || pending.customer_type;
-                    } else if (resolvedCustType && !foundExistingCust) {
+                    } else if (resolvedCustType && resolvedCustType !== 'ลูกค้าใหม่มาตรวจ') {
                         resolvedCustType = normPendingType || resolvedCustType;
                     } else if (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id) {
                         resolvedCustType = window.resolveVisitCustomerType(pending.visit_id, Boolean(foundExistingCust), resolvedCustType).name;
@@ -2949,11 +2949,7 @@
                     saleType: isHistoryBypass ? 'ยอดระบบเก่า (ไม่คิดเงิน)' : paymentSummaryStr,
                     totalAmount: isHistoryBypass ? 0 : cartTotals.amount,
                     paymentNote: paymentNote,
-                    items_json: currentItemsJson,
-                    closer: (newCustomerObj ? newCustomerObj.closer : custData.closer) || '',
-                    closer_id: (newCustomerObj ? newCustomerObj.closer : custData.closer) || '',
-                    closerTeam: (newCustomerObj ? newCustomerObj.closerTeam : custData.closerTeam) || '',
-                    closer_team: (newCustomerObj ? newCustomerObj.closerTeam : custData.closerTeam) || ''
+                    items_json: currentItemsJson
                 };
 
                 let sumFull = 0, sumPro = 0, sumMember = 0, sumZero = 0;
@@ -3137,23 +3133,6 @@
                                 await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
                             }
                         }
-
-                        // 🩺 ซิงค์ข้อมูล Closer ที่ถูกแก้ไขไปยัง stk_nutrient_orders (ถ้าออเดอร์นี้มาจาก visit ของคลินิก)
-                        try {
-                            const noteStr = String(newRecord.paymentNote || newRecord.payment_note || '');
-                            const vMatch = noteStr.match(/VISIT:\s*([^\)\s]+)/);
-                            if (vMatch && vMatch[1] && typeof supabaseUpdate === 'function') {
-                                const targetCloser = newRecord.closer || (newCustomerObj ? newCustomerObj.closer : '');
-                                const targetTeam = newRecord.closerTeam || (newCustomerObj ? newCustomerObj.closerTeam : '');
-                                if (targetCloser) {
-                                    supabaseUpdate('stk_nutrient_orders', vMatch[1].trim(), {
-                                        closer_dr: targetCloser,
-                                        closer_team: targetTeam || 'Center'
-                                    }, 'visit_id').catch(e => console.warn('Sync edited closer to stk_nutrient_orders failed:', e));
-                                }
-                            }
-                        } catch(eSync){}
-
                         if (!isHistoryBypass && window.StockLogic) {
                             const oldRecord = editingRawSale || (sales || []).find(s => s.id === editingSaleId || s.order_id === editingSaleId);
                             const stockChangeRes = await window.StockLogic.applyBillStockChange({
@@ -3368,20 +3347,30 @@
                                 status: 'Active'
                             };
 
-                            // 🛡️ ป้องกันการเขียนทับลูกค้าเดิม (Race Condition): หากเป็นรหัส Cxxx ต้องค้นหาเลขที่ว่างจริงเสมอ ห้าม Upsert ทับลูกค้าเดิมเด็ดขาด
-                            if (String(currentCustId).match(/^C\d+$/i) && typeof supabaseSelect === 'function') {
+                            // 1. ถ้ามีฟังก์ชัน supabaseUpsert ให้ลอง Upsert ก่อน
+                            if (typeof supabaseUpsert === 'function') {
                                 try {
-                                    const latestCusts = await supabaseSelect('stk_customers', 'customer_id=like.C*&select=customer_id&limit=10000');
-                                    const usedSet = new Set((latestCusts || []).map(c => parseInt(String(c.customer_id || '').replace('C', ''), 10)).filter(n => !isNaN(n)));
-                                    while (usedSet.has(custNum)) {
-                                        custNum++;
+                                    await supabaseUpsert('stk_customers', custPayload);
+                                    custInsertSuccess = true;
+                                    newCustomerObj.id = currentCustId;
+                                    newRecord.customerId = currentCustId;
+                                } catch (eUpsert) {
+                                    // ถ้า schema ไม่รับ extra_details_json ลองตัดออก
+                                    const fallbackUpsert = { ...custPayload };
+                                    delete fallbackUpsert.extra_details_json;
+                                    try {
+                                        await supabaseUpsert('stk_customers', fallbackUpsert);
+                                        custInsertSuccess = true;
+                                        newCustomerObj.id = currentCustId;
+                                        newRecord.customerId = currentCustId;
+                                    } catch (eUp2) {
+                                        console.warn('Upsert customer failed, falling back to insert:', eUp2);
                                     }
-                                    currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                } catch (_) {}
+                                }
                             }
 
-                            // ทำการ Insert โดยมี retry และวนหาเลขถัดไปทันทีหากชน
-                            while (!custInsertSuccess && custRetryCount < 15) {
+                            // 2. ถ้ายังไม่สำเร็จ ให้ลอง Insert โดยมี retry สำหรับ Cxxx และยอมรับ HN เดิม
+                            while (!custInsertSuccess && custRetryCount < 10) {
                                 const currentPayload = {
                                     ...custPayload,
                                     customer_id: currentCustId
@@ -3395,10 +3384,31 @@
                                     const errMsg = String(err.message || '').toLowerCase();
                                     const isConflict = errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists') || errMsg.includes('23505') || errMsg.includes('conflict');
                                     
-                                    if (isConflict && String(currentCustId).match(/^C\d+$/i)) {
-                                        custNum++;
-                                        currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                        custRetryCount++;
+                                    if (isConflict) {
+                                        if (String(currentCustId).match(/^C\d+$/i)) {
+                                            custNum++;
+                                            currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                            custRetryCount++;
+                                        } else {
+                                            // ลูกค้าที่มีรหัสอยู่แล้ว (เช่น HN-xxxxxx จากคลินิก) ให้ใช้รหัสเดิมได้ทันที และอัปเดตข้อมูลล่าสุด
+                                            try {
+                                                const updatePayload = {};
+                                                if (custPayload.name && custPayload.name !== 'ลูกค้าใหม่มาตรวจ') updatePayload.name = custPayload.name;
+                                                if (custPayload.phone) updatePayload.phone = custPayload.phone;
+                                                if (custPayload.closer_id) updatePayload.closer_id = custPayload.closer_id;
+                                                if (custPayload.extra_details_json) updatePayload.extra_details_json = custPayload.extra_details_json;
+                                                if (custPayload.symptom_disease) updatePayload.symptom_disease = custPayload.symptom_disease;
+                                                if (Object.keys(updatePayload).length > 0 && typeof supabaseUpdate === 'function') {
+                                                    await supabaseUpdate('stk_customers', currentCustId, updatePayload, 'customer_id');
+                                                }
+                                            } catch (eUp) {
+                                                console.warn('Update customer on conflict error:', eUp);
+                                            }
+                                            custInsertSuccess = true;
+                                            newCustomerObj.id = currentCustId;
+                                            newRecord.customerId = currentCustId;
+                                            break;
+                                        }
                                     } else {
                                         const fallbackCust = { ...currentPayload };
                                         delete fallbackCust.extra_details_json;
@@ -3410,23 +3420,28 @@
                                         } catch (e2) {
                                             const e2Msg = String(e2.message || '').toLowerCase();
                                             const isConflict2 = e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists') || e2Msg.includes('23505') || e2Msg.includes('conflict');
-                                            if (isConflict2 && String(currentCustId).match(/^C\d+$/i)) {
-                                                custNum++;
-                                                currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                                custRetryCount++;
-                                            } else {
-                                                throw e2;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // หากรหัสลูกค้าเปลี่ยนหลังจาก retry ให้ซิงค์กลับไปที่บิลใน stk_sales ด้วย
-                            if (newRecord.customerId && newCustomerObj.id && newRecord.customerId !== currentCustId && typeof supabaseUpdate === 'function') {
-                                await supabaseUpdate('stk_sales', newRecord.id, { customer_id: currentCustId }, 'order_id').catch(() => {});
-                                newRecord.customerId = currentCustId;
-                            }
+                                            if (isConflict2) {
+                                                if (String(currentCustId).match(/^C\d+$/i)) {
+                                                    custNum++;
+                                                    currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                                    custRetryCount++;
+                                                } else {
+                                                    try {
+                                                        const updatePayload = {};
+                                                        if (custPayload.name && custPayload.name !== 'ลูกค้าใหม่มาตรวจ') updatePayload.name = custPayload.name;
+                                                        if (custPayload.phone) updatePayload.phone = custPayload.phone;
+                                                        if (custPayload.closer_id) updatePayload.closer_id = custPayload.closer_id;
+                                                        if (custPayload.extra_details_json) updatePayload.extra_details_json = custPayload.extra_details_json;
+                                                        if (custPayload.symptom_disease) updatePayload.symptom_disease = custPayload.symptom_disease;
+                                                        if (Object.keys(updatePayload).length > 0 && typeof supabaseUpdate === 'function') {
+                                                            await supabaseUpdate('stk_customers', currentCustId, updatePayload, 'customer_id');
+                                                        }
+                                                    } catch (eUp) {}
+                                                    custInsertSuccess = true;
+                                                    newCustomerObj.id = currentCustId;
+                                                    newRecord.customerId = currentCustId;
+                                                    break;
+                                                }
                                             } else {
                                                 // หากเป็น Error อื่น และเป็นลูกค้า HN ให้ถือว่าผ่านและใช้รหัสนั้นต่อไปเพื่อไม่ให้บล็อกการเปิดบิล
                                                 if (!String(currentCustId).match(/^C\d+$/i)) {
