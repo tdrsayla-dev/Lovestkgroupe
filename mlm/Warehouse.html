@@ -1845,16 +1845,12 @@
               return sum + (found ? Number(found.quantity || found.qty || 0) : 0);
             }, 0) : 0;
 
-          // 3. ยอดตัดศูนย์ในวันตรวจนับ (auditDate) จาก stock movements ที่ไม่ได้สร้างจากบิลขาย
-          // (หมายเหตุ: บิลเบิกตัดศูนย์หน้าร้านที่เปิดผ่านระบบขาย จะถูกดึงและรวมอยู่ใน dailySalesMap จากตาราง stk_sales อยู่แล้ว จึงต้องข้ามเพื่อไม่ให้นับซ้ำ)
+          // 3. ยอดตัดศูนย์ในวันตรวจนับ (auditDate)
           const zeroOutMoves = (movements || []).filter(m => {
             const mDate = String(m.date || m.created_at || '').slice(0, 10);
             if (mDate !== auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
             const subType = String(m.sub_type || '').toLowerCase();
             const notesStr = String(m.notes || '').toLowerCase();
-            const lotIdStr = String(m.lot_id || '').toLowerCase();
-            const isFromBill = notesStr.includes('บิล') || lotIdStr.includes('-') || subType.includes('ขาย') || subType.includes('ตัดสต๊อก');
-            if (isFromBill) return false;
             return subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
           }).reduce((s, m) => s + Number(m.quantity || 0), 0);
 
@@ -1864,9 +1860,6 @@
             if (mDate <= latestPriorAuditDate || mDate >= auditDate || m.product_id !== pid || m.type !== 'OUT') return false;
             const subType = String(m.sub_type || '').toLowerCase();
             const notesStr = String(m.notes || '').toLowerCase();
-            const lotIdStr = String(m.lot_id || '').toLowerCase();
-            const isFromBill = notesStr.includes('บิล') || lotIdStr.includes('-') || subType.includes('ขาย') || subType.includes('ตัดสต๊อก');
-            if (isFromBill) return false;
             return subType.includes('ตัดศูนย์') || notesStr.includes('ตัดศูนย์') || subType.includes('zero_out') || subType.includes('zero');
           }).reduce((s, m) => s + Number(m.quantity || 0), 0) : 0;
 
