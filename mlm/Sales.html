@@ -5,18 +5,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ป้อนข้อมูลขาย (Sales) - LOVE STK GROUPE</title>
-    <link rel="stylesheet" href="mainstyle.css?v=2026.10.16.02">
-    <script>(function () { var w = console.warn; console.warn = function () { var m = arguments[0] ? String(arguments[0]) : ''; if (m.includes('cdn.tailwindcss.com') || m.includes('in-browser Babel transformer')) return; w.apply(console, arguments); }; })();</script>
+    <link rel="stylesheet" href="mainstyle.css?v=2026.10.27.01">
+    <script>(function () {
+      ['warn', 'info', 'error', 'log'].forEach(function(fn) {
+        var orig = console[fn];
+        if (!orig) return;
+        console[fn] = function () {
+          var m = arguments[0] ? String(arguments[0]) : '';
+          if (
+            m.includes('cdn.tailwindcss.com') ||
+            m.includes('in-browser Babel transformer') ||
+            m.includes('[BABEL]') ||
+            m.includes('code generator has deoptimised')
+          ) return;
+          orig.apply(console, arguments);
+        };
+      });
+    })();</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=2026.10.16.02"></script>
-    <script src="dictionary.js?v=2026.10.16.02"></script>
-    <script src="CommonComponents.js?v=2026.10.16.02"></script>
-    <script src="companySettings.js?v=2026.10.16.02"></script>
-    <script src="stockLogic.js?v=2026.10.16.02"></script>
+    <script src="config.js?v=2026.10.27.01"></script>
+    <script src="dictionary.js?v=2026.10.27.01"></script>
+    <script src="CommonComponents.js?v=2026.10.27.01"></script>
+    <script src="companySettings.js?v=2026.10.27.01"></script>
+    <script src="stockLogic.js?v=2026.10.27.01"></script>
     <script>
 
     </script>
@@ -48,7 +63,7 @@
             { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' },
             { id: 'T003', name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
             { id: 'T004', name: 'โทรปิดการขายลูกค้าใหม่', status: 'ใช้งาน' },
-            { id: 'T005', name: 'ลูกค้านำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+            { id: 'T005', name: 'ลูกค้าเก่านำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
             { id: 'T006', name: 'โทรปิดการขายลูกค้าเก่า', status: 'ใช้งาน' },
             { id: 'T007', name: 'ส่วนกลางใหม่', status: 'ใช้งาน' }
         ];
@@ -61,6 +76,43 @@
                 <polyline points="6 9 6 2 18 2 18 9"></polyline>
                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
                 <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+        );
+
+        const SvgCalendar = ({ size = 15, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+        );
+
+        const SvgTag = ({ size = 15, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                <line x1="7" y1="7" x2="7.01" y2="7"></line>
+            </svg>
+        );
+
+        const SvgShoppingBag = ({ size = 15, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <path d="M16 10a4 4 0 0 1-8 0"></path>
+            </svg>
+        );
+
+        const SvgFlame = ({ size = 15, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+            </svg>
+        );
+
+        const SvgUser = ({ size = 15, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
             </svg>
         );
 
@@ -149,6 +201,8 @@
             const [settleNote, setSettleNote] = useState('');
             const [isSubmittingSettle, setIsSubmittingSettle] = useState(false);
             const [debtFilterSearch, setDebtFilterSearch] = useState('');
+            const [debtorTypeFilter, setDebtorTypeFilter] = useState('ALL'); // 'ALL' | 'MEMBER' | 'CUSTOMER'
+            const [ledgerTypeFilter, setLedgerTypeFilter] = useState('ALL'); // 'ALL' | 'MEMBER' | 'CUSTOMER'
 
             useEffect(() => {
                 const handleClickOutside = (e) => {
@@ -267,7 +321,7 @@
                 return { lakAmt: 0, thbAmt: amt, isLakBill: false, isThbBill: true };
             };
 
-            const handlePrintReceiptPopup = (saleRecord, targetWindow = null) => {
+            const handlePrintReceiptPopup = async (saleRecord, targetWindow = null) => {
                 if (!saleRecord) return;
                 let printWindow = targetWindow;
                 if (!printWindow || printWindow.closed) {
@@ -293,7 +347,58 @@
                 const mName = memberObj.name || saleRecord.memberName || saleRecord.member_name || '-';
                 const mPhone = memberObj.phone || memberObj.phone_number || memberObj.phoneNumber || saleRecord.memberPhone || saleRecord.member_phone || saleRecord.sellerPhone || saleRecord.seller_phone || '';
                 const mDisplay = mPhone ? `<div>${mName}</div><div style="font-size: 10px; color: #475569; margin-top: 1px;">(โทร: ${mPhone})</div>` : mName;
-                const custObj = (customers || []).find(c => c && (c.id === saleRecord.customerId || c.id === saleRecord.customer_id)) || {};
+
+                const targetSaleCustId = String(saleRecord.customerId || saleRecord.customer_id || '').trim().toUpperCase();
+                const targetCleanHn = targetSaleCustId.replace(/^HN[-:\s]*/i, '');
+                const pNoteReceipt = String(saleRecord.paymentNote || saleRecord.payment_note || '').trim();
+                const vMatchReceipt = pNoteReceipt.match(/VISIT:\s*([^\)\s]+)/i);
+                const visitIdReceipt = vMatchReceipt ? vMatchReceipt[1].trim() : '';
+
+                const custObj = (customers || []).find(c => {
+                    if (!c) return false;
+                    const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
+                    const cCleanHn = cid.replace(/^HN[-:\s]*/i, '');
+                    return (cid && cid === targetSaleCustId) || (targetCleanHn && cCleanHn && cCleanHn === targetCleanHn);
+                }) || {};
+
+                let custDiseaseSymptom = String(
+                    saleRecord.symptom ||
+                    saleRecord.disease ||
+                    saleRecord.symptom_disease ||
+                    custObj.symptom_disease ||
+                    custObj.symptom ||
+                    custObj.disease ||
+                    custObj.past_history ||
+                    custObj.extra_details_json?.symptom ||
+                    (custData && custData.symptom && (targetSaleCustId === String(custData.id || '').toUpperCase() || targetCleanHn === String(custData.id || '').replace(/^HN[-:\s]*/i, '').toUpperCase()) ? custData.symptom : '') ||
+                    ''
+                ).trim();
+                if (custDiseaseSymptom === '-' || custDiseaseSymptom === '--') custDiseaseSymptom = '';
+
+                if (!custDiseaseSymptom) {
+                    try {
+                        if (visitIdReceipt && typeof window.supabaseSelect === 'function') {
+                            const nRes = await window.supabaseSelect('stk_nutrient_orders', `visit_id=eq.${encodeURIComponent(visitIdReceipt)}&select=symptom&limit=1`).catch(() => []);
+                            if (nRes && nRes[0] && nRes[0].symptom) {
+                                custDiseaseSymptom = String(nRes[0].symptom).trim();
+                            }
+                        }
+                        if (!custDiseaseSymptom && targetSaleCustId && typeof window.supabaseSelect === 'function') {
+                            const cRes = await window.supabaseSelect('stk_customers', `customer_id=eq.${encodeURIComponent(targetSaleCustId)}&select=symptom_disease&limit=1`).catch(() => []);
+                            if (cRes && cRes[0] && cRes[0].symptom_disease) {
+                                custDiseaseSymptom = String(cRes[0].symptom_disease).trim();
+                            }
+                        }
+                        if (!custDiseaseSymptom && targetCleanHn && typeof window.clinicSupabaseSelect === 'function') {
+                            const pRes = await window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(targetCleanHn)}&select=past_history&limit=1`).catch(() => []);
+                            if (pRes && pRes[0] && pRes[0].past_history) {
+                                custDiseaseSymptom = String(pRes[0].past_history).trim();
+                            }
+                        }
+                    } catch (_) {}
+                }
+                if (custDiseaseSymptom === '-' || custDiseaseSymptom === '--') custDiseaseSymptom = '';
+
                 const custName = custObj.name || saleRecord.customerName || saleRecord.customer_name || '';
                 const closersList = typeof closers !== 'undefined' ? closers : [];
                 const closerObj = closersList.find(cl => cl && (cl.id === (custObj.closer || custObj.closerId || custObj.closer_id) || cl.name === custObj.closer)) || {};
@@ -579,7 +684,7 @@
                   </table>
                   <div class="divider"></div>
                   <table class="meta-table">
-                    <tr class="bold"><td colspan="2" style="font-size: 11px; color: #1e3a8a; padding-bottom: 2px;">🐾 รายละเอียดการชำระเงิน</td></tr>
+                    <tr class="bold"><td colspan="2" style="font-size: 11px; color: #1e3a8a; padding-bottom: 2px;"><svg style="display:inline-block; vertical-align:middle; width:13px; height:13px; margin-right:5px; margin-top:-2px;" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>รายละเอียดการชำระเงิน</td></tr>
                     ${paymentBreakdownHtml}
                   </table>
                 `;
@@ -654,13 +759,28 @@
             <body>
               <div class="control-bar">
                 <div class="control-group">
-                  <span style="font-weight:700; font-size: 14px;">🐾 เลีอกขนาดกระดาษพิมพ์:</span>
-                  <button class="btn btn-size active" id="btn-thermal" onclick="setSize('thermal')">📄 บิลสลิปความร้อน (80mm)</button>
-                  <button class="btn btn-size" id="btn-a4" onclick="setSize('a4')">📅 กระดาษ A4</button>
+                  <span style="font-weight:700; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg style="width:16px; height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    เลือกขนาดกระดาษพิมพ์:
+                  </span>
+                  <button class="btn btn-size active" id="btn-thermal" onclick="setSize('thermal')" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <svg style="width:14px; height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    บิลสลิปความร้อน (80mm)
+                  </button>
+                  <button class="btn btn-size" id="btn-a4" onclick="setSize('a4')" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <svg style="width:14px; height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="16" y2="14"></line></svg>
+                    กระดาษ A4
+                  </button>
                 </div>
                 <div class="control-group">
-                  <button class="btn btn-close" onclick="window.close()" title="ปิดหน้าต่างนี้ (Esc)" style="font-size: 14px; padding: 10px 18px;">✕ ปิดหน้านี้</button>
-                  <button class="btn btn-primary" onclick="window.print()" style="font-size: 15px; padding: 10px 24px;">🐾 สั่งพิมพ์ใบเสร็จ</button>
+                  <button class="btn btn-close" onclick="window.close()" title="ปิดหน้าต่างนี้ (Esc)" style="font-size: 14px; padding: 10px 18px; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg style="width:14px; height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    ปิดหน้านี้
+                  </button>
+                  <button class="btn btn-primary" onclick="window.print()" style="font-size: 15px; padding: 10px 24px; display: inline-flex; align-items: center; gap: 8px;">
+                    <svg style="width:17px; height:17px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    สั่งพิมพ์ใบเสร็จ
+                  </button>
                 </div>
               </div>
 
@@ -680,6 +800,7 @@
                     <tr><td class="bold">เลขที่บิล:</td><td style="font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
                     <tr><td class="bold">วันที่/เวลา:</td><td>${formatDbDateForFilter(saleRecord.date)}${formatOrderTime(saleRecord) ? ` <span style="color:#2563eb; font-weight:700; margin-left:4px;">(${formatOrderTime(saleRecord)})</span>` : ""}</td></tr>
                     <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
+                    <tr><td class="bold">โรค/อาการ:</td><td style="color: #0f172a; font-weight: 600;">${custDiseaseSymptom || '-'}</td></tr>
                     <tr><td class="bold">ผู้ดูแล:</td><td>${mDisplay}</td></tr>
                     <tr><td class="bold">หมอสั่งจ่ายยา:</td><td>${cleanCloserName}</td></tr>
                     <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
@@ -752,6 +873,33 @@
             const [memberIdInput, setMemberIdInput] = useState('');
 
             const [custMode, setCustMode] = useState('');
+
+            // 🏷️ ฟังก์ชันช่วยจับคู่ประเภทลูกค้า (Customer Type) ให้ตรงกับ activeCustomerTypes เสมอ
+            const getMatchedCustomerType = useCallback((val) => {
+                if (!val) return null;
+                const str = String(val).trim();
+                const types = (activeCustomerTypes && activeCustomerTypes.length > 0) ? activeCustomerTypes : fallbackCustomerTypes;
+                // 1. Direct match by name or id
+                let matched = types.find(t => t && (t.name === str || t.id === str));
+                if (matched) return matched;
+                // 2. Normalized ID match (T001 - T007)
+                if (typeof window.normalizeCustomerType === 'function') {
+                    const normVal = window.normalizeCustomerType(str);
+                    if (normVal && normVal.id) {
+                        matched = types.find(t => t && (t.id === normVal.id || (typeof window.normalizeCustomerType === 'function' && window.normalizeCustomerType(t.name || t.id).id === normVal.id)));
+                        if (matched) return matched;
+                    }
+                }
+                // 3. Substring match
+                const strLower = str.toLowerCase();
+                matched = types.find(t => {
+                    if (!t || !t.name) return false;
+                    const tLower = t.name.toLowerCase();
+                    return tLower.includes(strLower) || strLower.includes(tLower);
+                });
+                return matched || null;
+            }, [activeCustomerTypes]);
+
             const isOldCustomerMode = (typeof window.normalizeCustomerType === 'function')
                 ? window.normalizeCustomerType(custMode).isOld
                 : ((custMode || '').includes('เก่า') || (custMode || '').includes('ເກົ່າ'));
@@ -1098,6 +1246,7 @@
             }, [centerDoctorsPool, marketingMembersPool, custData.closerTeam, custData.closer]);
 
             const [cart, setCart] = useState([]);
+            const prescribedOrderRef = useRef(null);
             const [catalogSearch, setCatalogSearch] = useState('');
             const [payMode, setPayMode] = useState('สด');
             const [payCashTHB, setPayCashTHB] = useState('');
@@ -1199,27 +1348,15 @@
                 }
 
                 if (foundExistingCust) {
-                    const normPendingType = (typeof window.normalizeCustomerType === 'function' && pending.customer_type)
-                        ? window.normalizeCustomerType(pending.customer_type, 'th', {
-                            disease: pending.disease || foundExistingCust.symptom || foundExistingCust.symptom_disease,
-                            symptom: pending.symptom,
-                            customer_name: pending.customer_name || foundExistingCust.name
-                        }).name
-                        : '';
-
-                    let resolvedCustType = normPendingType || pending.customer_type || pending.type;
-                    if (pending.customer_type_manually_selected) {
-                        resolvedCustType = normPendingType || pending.customer_type;
-                    } else if (resolvedCustType && !foundExistingCust) {
-                        resolvedCustType = normPendingType || resolvedCustType;
+                    let resolvedCustType = '';
+                    // 🛡️ หากมีการเลือกประเภทลูกค้ามาจากต้นทางอย่างชัดเจน ให้เคารพการเลือกของผู้ใช้ 100% ห้ามดีดเปลี่ยนกลับเด็ดขาด!
+                    if (pending.customer_type || pending.customer_type_id || pending.type) {
+                        const rawType = pending.customer_type || pending.customer_type_id || pending.type;
+                        const matched = getMatchedCustomerType(rawType);
+                        resolvedCustType = matched ? matched.name : String(rawType).trim();
                     } else if (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id) {
-                        resolvedCustType = window.resolveVisitCustomerType(pending.visit_id, Boolean(foundExistingCust), resolvedCustType).name;
-                    } else if (resolvedCustType === 'ลูกค้าใหม่มาตรวจ') {
-                        // คนไข้มีประวัติในระบบแล้ว หากระบบคลินิกส่งค่าเริ่มต้นมา ให้ปรับเป็นลูกค้าเก่าอัตโนมัติ
-                        resolvedCustType = (foundExistingCust.customer_type && foundExistingCust.customer_type !== 'ลูกค้าใหม่มาตรวจ')
-                            ? foundExistingCust.customer_type
-                            : (foundExistingCust.type && foundExistingCust.type !== 'ลูกค้าใหม่มาตรวจ' ? foundExistingCust.type : 'ลูกค้าเก่ากลับมาต่อยา');
-                    } else if (!resolvedCustType) {
+                        resolvedCustType = window.resolveVisitCustomerType(pending.visit_id, Boolean(foundExistingCust), '').name;
+                    } else {
                         resolvedCustType = foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่ากลับมาต่อยา';
                     }
 
@@ -1309,6 +1446,14 @@
 
                 try {
                     const pending = JSON.parse(pendingSaleStr);
+                    const prescribedTotal = Array.isArray(pending.items) 
+                        ? pending.items.reduce((sum, it) => sum + (parseInt(it.qty) || 1), 0) 
+                        : 0;
+                    prescribedOrderRef.current = {
+                        visit_id: pending.visit_id || '',
+                        prescribedBottles: prescribedTotal,
+                        customerName: pending.customer_name || ''
+                    };
 
                     let initSeller = String(pending.recorded_by || pending.seller_id || '').trim();
                     // 🛡️ ป้องกันชื่อหมอหลุดเข้ามาเป็นผู้ขาย (Seller/Marketer)
@@ -1386,23 +1531,30 @@
                     }
 
                     // 2. แมปประเภทลูกค้า (Customer Type) จากทุกภาษาให้เป็น Canonical Thai Name ที่ตรงกับ Dropdown และ Database 100%
-                    const isPendingOld = Boolean(
-                        pending.isExisting ||
-                        pending.isExistingCustomer ||
-                        pending.isOld ||
-                        pending.isOldCustomer ||
-                        (pending.customer_type && (pending.customer_type.includes('เก่า') || pending.customer_type.includes('ເກົ່າ')))
-                    );
-                    const normType = (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id && !pending.customer_type_manually_selected)
-                        ? window.resolveVisitCustomerType(pending.visit_id, isPendingOld, pending.customer_type, 'th')
-                        : ((typeof window.normalizeCustomerType === 'function')
-                            ? window.normalizeCustomerType(pending.customer_type || pending.customer_type_id || pending.type, 'th', {
-                                disease: pending.disease,
-                                symptom: pending.symptom,
-                                customer_name: pending.customer_name
-                            })
-                            : null);
-                    const mappedCustMode = normType ? normType.name : (String(pending.customer_type || pending.type || 'ลูกค้าใหม่มาตรวจ').trim());
+                    let mappedCustMode = '';
+                    if (pending.customer_type || pending.customer_type_id || pending.type) {
+                        const rawPendingType = pending.customer_type || pending.customer_type_id || pending.type;
+                        const matched = getMatchedCustomerType(rawPendingType);
+                        mappedCustMode = matched ? matched.name : String(rawPendingType).trim();
+                    } else if (typeof window.resolveVisitCustomerType === 'function' && pending.visit_id) {
+                        const isPendingOld = Boolean(
+                            pending.isExisting ||
+                            pending.isExistingCustomer ||
+                            pending.isOld ||
+                            pending.isOldCustomer ||
+                            (pending.customer_type && (pending.customer_type.includes('เก่า') || pending.customer_type.includes('ເກົ່າ')))
+                        );
+                        const resolvedObj = window.resolveVisitCustomerType(pending.visit_id, isPendingOld, '', 'th');
+                        const matched = getMatchedCustomerType(resolvedObj.name);
+                        mappedCustMode = matched ? matched.name : resolvedObj.name;
+                    } else {
+                        mappedCustMode = 'ลูกค้าใหม่มาตรวจ';
+                    }
+
+                    const canonicalMatch = getMatchedCustomerType(mappedCustMode);
+                    if (canonicalMatch && canonicalMatch.name) {
+                        mappedCustMode = canonicalMatch.name;
+                    }
                     setCustMode(mappedCustMode);
 
                     // 3. จัดการข้อมูลลูกค้า (HN, ชื่อ, เบอร์โทร, อาการ)
@@ -2987,7 +3139,8 @@
                     closer: (newCustomerObj ? newCustomerObj.closer : custData.closer) || '',
                     closer_id: (newCustomerObj ? newCustomerObj.closer : custData.closer) || '',
                     closerTeam: (newCustomerObj ? newCustomerObj.closerTeam : custData.closerTeam) || '',
-                    closer_team: (newCustomerObj ? newCustomerObj.closerTeam : custData.closerTeam) || ''
+                    closer_team: (newCustomerObj ? newCustomerObj.closerTeam : custData.closerTeam) || '',
+                    symptom: custData.symptom || (newCustomerObj && (newCustomerObj.symptom || newCustomerObj.symptom_disease)) || ''
                 };
 
                 let sumFull = 0, sumPro = 0, sumMember = 0, sumZero = 0;
@@ -3027,6 +3180,36 @@
                 newRecord['ยอดรวมชิ้นทั้งหมด'] = sumFull + sumPro + sumMember + sumZero;
 
                 if (newRecord['ยอดรวมชิ้นทั้งหมด'] === 0) { showToast('กรุณาระบุจำนวนสินค้าที่จะเปิดบิลอย่างน้อย 1 ชิ้น', 'error'); return; }
+
+                // 🛡️ ป้องกันกรณีสินค้าในบิลน้อยกว่าที่แพทย์สั่งจ่าย โดยไม่ได้ตั้งใจ
+                const prescribed = prescribedOrderRef.current;
+                const vNote = String(newRecord.paymentNote || paymentNote || '');
+                if (prescribed && prescribed.visit_id && vNote.includes(prescribed.visit_id) && prescribed.prescribedBottles > 0) {
+                    const diff = prescribed.prescribedBottles - newRecord['ยอดรวมชิ้นทั้งหมด'];
+                    if (diff > 0) {
+                        const confirmResult = await Swal.fire({
+                            icon: 'warning',
+                            title: '⚠️ จำนวนสินค้าน้อยกว่าที่แพทย์สั่งจ่าย!',
+                            html: `
+                                <div style="text-align: left; font-size: 13px; line-height: 1.6;">
+                                    <p>ใบสั่งยา <b>${prescribed.visit_id}</b> (${prescribed.customerName || 'ลูกค้า'}) ระบุจำนวนสั่งจ่าย: <b style="color: #2563eb;">${prescribed.prescribedBottles} กล่อง</b></p>
+                                    <p>แต่ในบิลขายนี้มีสินค้าเพียง: <b style="color: #dc2626;">${newRecord['ยอดรวมชิ้นทั้งหมด']} กล่อง</b> (ลดลง ${diff} กล่อง)</p>
+                                    <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 12px; margin-top: 10px; color: #92400e;">
+                                        ⚠️ กรุณาตรวจสอบว่าลูกค้ารับยาไม่ครบ หรือเป็นความตั้งใจปรับลดยาจริงหรือไม่
+                                    </div>
+                                </div>
+                            `,
+                            showCancelButton: true,
+                            confirmButtonText: 'ยืนยันเปิดบิลด้วยจำนวนนี้',
+                            cancelButtonText: 'กลับไปแก้ไขตะกร้า',
+                            confirmButtonColor: '#d97706',
+                            cancelButtonColor: '#64748b'
+                        });
+                        if (!confirmResult.isConfirmed) {
+                            return;
+                        }
+                    }
+                }
 
                 setIsSubmitting(true);
                 try {
@@ -3288,63 +3471,7 @@
                         setIsSubmitting(false);
                         return;
                     }
-                    const supaSalesData = {
-                        order_id: newRecord.id,
-                        date: newRecord.date,
-                        seller_id: newRecord.memberId,
-                        customer_id: newRecord.customerId,
-                        sale_type: newRecord.saleType,
-                        total_amount: newRecord.totalAmount,
-                        total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0),
-                        status: 'Completed',
-                        recorded_by: newRecord.recordedBy,
-                        items_json: currentItemsJson,
-                        payment_note: newRecord.paymentNote || newRecord.payment_note || ''
-                    };
-
-                    let saleInsertSuccess = false;
-                    let saleRetryCount = 0;
-                    let currentSaleId = newRecord.id;
-
-                    while (!saleInsertSuccess && saleRetryCount < 5) {
-                        supaSalesData.order_id = currentSaleId;
-                        try {
-                            await supabaseInsert('stk_sales', supaSalesData);
-                            saleInsertSuccess = true;
-                            newRecord.id = currentSaleId;
-                        } catch (e1) {
-                            const errMsg = String(e1.message || '').toLowerCase();
-                            if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
-                                const parts = currentSaleId.split('-');
-                                if (parts.length === 2) {
-                                    currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
-                                } else { break; }
-                                saleRetryCount++;
-                            } else {
-                                const fallbackData = { ...supaSalesData };
-                                delete fallbackData.payment_note;
-                                try {
-                                    await supabaseInsert('stk_sales', fallbackData);
-                                    saleInsertSuccess = true;
-                                    newRecord.id = currentSaleId;
-                                } catch (e2) {
-                                    const e2Msg = String(e2.message || '').toLowerCase();
-                                    if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
-                                        const parts = currentSaleId.split('-');
-                                        if (parts.length === 2) {
-                                            currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
-                                        } else { break; }
-                                        saleRetryCount++;
-                                    } else {
-                                        throw e2;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (!saleInsertSuccess) throw new Error("รหัสบิลชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
-
+                    // 🛡️ ATOMIC STEP 1: จัดการข้อมูลลูกค้า (stk_customers) ให้เสร็จสิ้นและได้รหัสลูกค้าที่แน่นอนก่อนเปิดบิล
                     if (newCustomerObj) {
                         if (newCustomerObj.isExistingCustomer) {
                             const preservedOwnerId = (originalCust && originalCust.memberId && originalCust.memberId !== '-' && originalCust.memberId !== '--')
@@ -3463,14 +3590,7 @@
                                 }
                             }
 
-                            // หากรหัสลูกค้าเปลี่ยนหลังจาก retry ให้ซิงค์กลับไปที่บิลใน stk_sales ด้วย
-                            if (newRecord.customerId && newCustomerObj.id && newRecord.customerId !== currentCustId && typeof supabaseUpdate === 'function') {
-                                await supabaseUpdate('stk_sales', newRecord.id, { customer_id: currentCustId }, 'order_id').catch(() => {});
-                                newRecord.customerId = currentCustId;
-                            }
-
                             if (!custInsertSuccess) {
-                                // ถ้ายังติดปัญหาแต่มีรหัสลูกค้าอยู่แล้ว ให้ยอมรับรหัสนั้นแทนการโยน Error
                                 if (currentCustId) {
                                     newCustomerObj.id = currentCustId;
                                     newRecord.customerId = currentCustId;
@@ -3481,20 +3601,88 @@
                         }
                     }
 
+                    // 🛡️ ATOMIC STEP 2: บันทึกข้อมูลบิลลงตาราง stk_sales
+                    const supaSalesData = {
+                        order_id: newRecord.id,
+                        date: newRecord.date,
+                        seller_id: newRecord.memberId,
+                        customer_id: newRecord.customerId,
+                        sale_type: newRecord.saleType,
+                        total_amount: newRecord.totalAmount,
+                        total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0),
+                        status: 'Completed',
+                        recorded_by: newRecord.recordedBy,
+                        items_json: currentItemsJson,
+                        payment_note: newRecord.paymentNote || newRecord.payment_note || ''
+                    };
+
+                    let saleInsertSuccess = false;
+                    let saleRetryCount = 0;
+                    let currentSaleId = newRecord.id;
+
+                    while (!saleInsertSuccess && saleRetryCount < 5) {
+                        supaSalesData.order_id = currentSaleId;
+                        try {
+                            await supabaseInsert('stk_sales', supaSalesData);
+                            saleInsertSuccess = true;
+                            newRecord.id = currentSaleId;
+                        } catch (e1) {
+                            const errMsg = String(e1.message || '').toLowerCase();
+                            if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                                const parts = currentSaleId.split('-');
+                                if (parts.length === 2) {
+                                    currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                                } else { break; }
+                                saleRetryCount++;
+                            } else {
+                                const fallbackData = { ...supaSalesData };
+                                delete fallbackData.payment_note;
+                                try {
+                                    await supabaseInsert('stk_sales', fallbackData);
+                                    saleInsertSuccess = true;
+                                    newRecord.id = currentSaleId;
+                                } catch (e2) {
+                                    const e2Msg = String(e2.message || '').toLowerCase();
+                                    if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
+                                        const parts = currentSaleId.split('-');
+                                        if (parts.length === 2) {
+                                            currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                                        } else { break; }
+                                        saleRetryCount++;
+                                    } else {
+                                        throw e2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!saleInsertSuccess) throw new Error("รหัสบิลชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
+
+                    // 🛡️ ATOMIC STEP 3: ตัดสต็อกสินค้าจริง พร้อมระบบ Rollback ป้องกันบิลผีค้างในระบบ
                     if (!isHistoryBypass && window.StockLogic) {
-                        const stockChangeRes = await window.StockLogic.applyBillStockChange({
-                            oldBill: null,
-                            newBill: newRecord,
-                            productsList: products || [],
-                            actor: newRecord.recordedBy || (currentUser ? (currentUser.name || currentUser.username) : 'SYSTEM'),
-                            billId: newRecord.id,
-                            billDate: newRecord.date
-                        });
-                        if (stockChangeRes && stockChangeRes.details && setProducts) {
-                            setProducts(prev => (prev || []).map(p => {
-                                const matched = stockChangeRes.details.find(d => d.productId === p.id);
-                                return matched ? { ...p, stock: matched.newStock } : p;
-                            }));
+                        try {
+                            const stockChangeRes = await window.StockLogic.applyBillStockChange({
+                                oldBill: null,
+                                newBill: newRecord,
+                                productsList: products || [],
+                                actor: newRecord.recordedBy || (currentUser ? (currentUser.name || currentUser.username) : 'SYSTEM'),
+                                billId: newRecord.id,
+                                billDate: newRecord.date
+                            });
+                            if (stockChangeRes && stockChangeRes.details && setProducts) {
+                                setProducts(prev => (prev || []).map(p => {
+                                    const matched = stockChangeRes.details.find(d => d.productId === p.id);
+                                    return matched ? { ...p, stock: matched.newStock } : p;
+                                }));
+                            }
+                        } catch (stockDeductErr) {
+                            console.error('❌ ตัดสต็อกล้มเหลว! กำลัง Rollback ลบบิลที่เพิ่งเปิดออกจาก stk_sales:', stockDeductErr);
+                            // Rollback ทันที: ลบบิลออกจาก stk_sales เพื่อไม่ให้เกิดบิลผีค้าง
+                            if (typeof supabaseDelete === 'function') {
+                                await supabaseDelete('stk_sales', currentSaleId, 'order_id').catch(e => console.warn('Rollback delete failed:', e));
+                            }
+                            throw new Error(`การตัดสต็อกสินค้าล้มเหลว ระบบได้ยกเลิกบิล ${currentSaleId} อัตโนมัติเพื่อป้องกันสต็อกคลาดเคลื่อน (${stockDeductErr.message || stockDeductErr})`);
                         }
                     }
                     if (false && !isHistoryBypass) {
@@ -3618,6 +3806,7 @@
                     console.error("Save Error:", err);
                     showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
                     setIsSubmitting(false);
+                    if (isSubmittingRef) isSubmittingRef.current = false;
                 }
             };
 
@@ -4882,7 +5071,20 @@
                 const totalDebtAmount = debtCart.reduce((sum, item) => sum + ((parseFloat(item.price) || 0) * (parseInt(item.qty) || 0)), 0);
                 const exRate = Number(systemSettings?.exchange_rate || 700);
 
-                const filteredDebtorList = [
+                // คำนวณยอดรวมหนี้ค้างชำระทั้งหมดในระบบ
+                const totalLedgerDebt = (unpaidDebtBills || []).reduce((acc, b) => acc + (parseFloat(b.totalAmount || b.total_amount || 0)), 0);
+                const staffDebtCount = (unpaidDebtBills || []).filter(b => b.memberId || b.memberName).length;
+                const custDebtCount = (unpaidDebtBills || []).filter(b => (b.customerId || b.customerName) && !b.memberId).length;
+
+                // กรองรายการบิลตามแท็บ
+                const displayedLedgerBills = (unpaidDebtBills || []).filter(bill => {
+                    if (ledgerTypeFilter === 'MEMBER') return Boolean(bill.memberId || bill.memberName);
+                    if (ledgerTypeFilter === 'CUSTOMER') return Boolean(bill.customerId || bill.customerName) && !bill.memberId;
+                    return true;
+                });
+
+                // รายชื่อผู้ติดหนี้ทั้งหมดพร้อมแท็บตัวกรอง
+                const allDebtors = [
                     ...(members || []).map(m => ({
                         id: m.id || m.user_id,
                         name: m.name,
@@ -4897,7 +5099,13 @@
                         role: 'ลูกค้า',
                         type: 'CUSTOMER'
                     }))
-                ].filter(p => {
+                ];
+
+                const memberCount = allDebtors.filter(d => d.type === 'MEMBER').length;
+                const customerCount = allDebtors.filter(d => d.type === 'CUSTOMER').length;
+
+                const filteredDebtorList = allDebtors.filter(p => {
+                    if (debtorTypeFilter !== 'ALL' && p.type !== debtorTypeFilter) return false;
                     if (!debtorSearch) return true;
                     const q = debtorSearch.trim().toLowerCase();
                     return String(p.name || '').toLowerCase().includes(q) ||
@@ -4905,76 +5113,121 @@
                         String(p.phone || '').includes(q);
                 });
 
+                const handleAddProductToDebt = (p) => {
+                    const defaultPType = debtForm.defaultPriceType || 'ราคาสมาชิก';
+                    let uPrice = Number(p.priceMember || p.price_member || 0);
+                    if (defaultPType === 'ราคาเต็ม') uPrice = Number(p.priceFull || p.price_full || 0);
+                    else if (defaultPType === 'ราคาโปร') uPrice = Number(p.pricePromo || p.price_promo || 0);
+
+                    const prodImg = p.image || p.imageUrl || p.image_url || p.img || p.photo || '';
+
+                    setDebtCart(prev => {
+                        const existing = prev.find(it => it.productId === p.id || it.productName === p.name);
+                        if (existing) {
+                            return prev.map(it => (it.productId === p.id || it.productName === p.name) ? { ...it, qty: it.qty + 1 } : it);
+                        }
+                        return [...prev, {
+                            productId: p.id,
+                            productName: p.name,
+                            imageUrl: prodImg,
+                            stock: Number(p.stock ?? p.current_stock ?? 0),
+                            priceType: defaultPType,
+                            price: uPrice,
+                            qty: 1
+                        }];
+                    });
+                    setDebtSearch('');
+                    showToast(`เพิ่ม ${p.name} ลงรายการเบิกแล้ว`, 'success');
+                };
+
+                const handleDebtBarcodeScan = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (debtFilteredProducts.length > 0) {
+                            handleAddProductToDebt(debtFilteredProducts[0]);
+                        }
+                    }
+                };
+
+                const quickReasonTags = [
+                    'หักเงินเดือนสิ้นเดือน',
+                    'เคลียร์เงินสดวันพรุ่งนี้',
+                    'เบิกใช้ในคลินิก/แผนก',
+                    'ลูกค้านำเงินมาเคลียร์ภายหลัง',
+                    'ยืมทดลอง/ตัวอย่าง'
+                ];
+
                 return (
-                    <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[calc(100vh-120px)] xl:min-h-[640px] mb-0 relative">
-                        {/* ซ้าย (52%): ฟอร์มบันทึกเบิกสินค้าค้างชำระ */}
-                        <div className="w-full xl:w-[52%] flex flex-col gap-3 xl:h-full relative">
-                            <div className="bg-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col gap-3.5 flex-1">
-                                <div className="flex items-center justify-between border-b border-amber-100 pb-3">
-                                    <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-                                        <FileText size={18} className="text-amber-600" /> บันทึกเบิกสินค้าค้างชำระ (ติดหนี้)
-                                    </h4>
-                                    <span className="text-[11px] font-black text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 flex items-center gap-1 shadow-sm">
-                                        ⚡ ตัดสต็อกหน้าร้านทันที (รอเคลียร์เงิน)
+                    <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[calc(100vh-130px)] xl:min-h-[660px] mb-0 relative">
+                        {/* ซ้าย (52%): ฟอร์มบันทึกเบิกสินค้าค้างชำระ (Modern POS Credit Form) */}
+                        <div className="w-full xl:w-[53%] flex flex-col xl:h-full relative min-w-0">
+                            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col gap-3 flex-1 overflow-hidden">
+                                
+                                {/* Header ของฟอร์มเบิกหนี้ */}
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-sm shadow-orange-500/20">
+                                            <FileText size={18} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-sm text-slate-800 leading-tight">
+                                                บันทึกเบิกสินค้าค้างชำระ (ติดหนี้)
+                                            </h4>
+                                            <p className="text-[11px] font-bold text-slate-400">สร้างบิลค้างชำระ ตัดสต็อกทันที รอเคลียร์เงิน</p>
+                                        </div>
+                                    </div>
+                                    <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                        ตัดสต็อกหน้าร้านทันที
                                     </span>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {/* วันที่เบิก */}
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-600 block mb-1">วันที่ทำรายการ</label>
-                                        <input
-                                            type="date"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-amber-500 outline-none transition-all shadow-sm"
-                                            value={debtForm.date}
-                                            onChange={(e) => setDebtForm({ ...debtForm, date: e.target.value })}
-                                        />
+                                {/* แถวที่ 1: เลือกผู้ขอเบิก / ผู้ติดหนี้ */}
+                                <div className="relative shrink-0" ref={debtorDropdownRef}>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                            <UserCircle size={14} className="text-amber-600" /> 1. ผู้ขอเบิก / ผู้ติดหนี้
+                                        </label>
+                                        {currentUser && !debtForm.debtorName && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setDebtForm(prev => ({
+                                                        ...prev,
+                                                        debtorId: currentUser.id || 'STAFF',
+                                                        debtorName: currentUser.name || currentUser.username || 'เจ้าหน้าที่',
+                                                        debtorPhone: currentUser.phone || '',
+                                                        debtorType: 'MEMBER'
+                                                    }));
+                                                    setDebtorSearch('');
+                                                    setIsDebtorDropdownOpen(false);
+                                                }}
+                                                className="text-[10px] font-black text-amber-700 hover:text-white bg-amber-50 hover:bg-amber-600 border border-amber-200 px-2 py-0.5 rounded-md transition-all shadow-xs flex items-center gap-1 active:scale-95"
+                                                title="คลิกเดียวเพื่อเลือกตัวคุณเองเป็นผู้เบิก"
+                                            >
+                                                <SvgUser size={12} className="text-amber-700 hover:text-white" />
+                                                <span>ตัวฉันเอง ({currentUser.name || currentUser.username})</span>
+                                            </button>
+                                        )}
                                     </div>
 
-                                    {/* ระดับราคาตั้งต้น */}
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-600 block mb-1">ระดับราคาที่คิดหนี้</label>
-                                        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                                            {['ราคาสมาชิก', 'ราคาเต็ม', 'ราคาโปร'].map(pType => (
-                                                <button
-                                                    key={pType}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setDebtForm(prev => ({ ...prev, defaultPriceType: pType }));
-                                                        // อัปเดตราคาสินค้าในตะกร้าตามระดับราคาใหม่
-                                                        setDebtCart(prev => prev.map(item => {
-                                                            const pObj = (products || []).find(p => p && (p.id === item.productId || p.name === item.productName)) || {};
-                                                            let newP = Number(pObj.priceMember || pObj.price_member || 0);
-                                                            if (pType === 'ราคาเต็ม') newP = Number(pObj.priceFull || pObj.price_full || 0);
-                                                            else if (pType === 'ราคาโปร') newP = Number(pObj.pricePromo || pObj.price_promo || 0);
-                                                            return { ...item, priceType: pType, price: newP };
-                                                        }));
-                                                    }}
-                                                    className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
-                                                        debtForm.defaultPriceType === pType
-                                                            ? 'bg-amber-500 text-white shadow-sm'
-                                                            : 'text-slate-600 hover:text-slate-900'
-                                                    }`}
-                                                >
-                                                    {pType}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* ผู้ขอเบิก / ผู้ติดหนี้ */}
-                                <div className="relative" ref={debtorDropdownRef}>
-                                    <label className="text-xs font-bold text-slate-600 block mb-1">ผู้ขอเบิก / ผู้ติดหนี้ (พนักงาน / สมาชิก / ลูกค้า)</label>
                                     {debtForm.debtorName ? (
-                                        <div className="flex items-center justify-between p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl transition-all">
-                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-orange-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+                                        <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-amber-50/90 to-orange-50/50 border border-amber-300 rounded-xl transition-all shadow-xs">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-sm shadow-orange-500/20">
                                                     {debtForm.debtorName ? debtForm.debtorName.charAt(0) : 'U'}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <div className="text-xs font-black text-amber-950 truncate">{debtForm.debtorName}</div>
-                                                    <div className="text-[10px] font-bold text-amber-700">รหัส: {debtForm.debtorId || 'ทั่วไป'} {debtForm.debtorPhone ? `| โทร ${debtForm.debtorPhone}` : ''}</div>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="text-xs font-black text-slate-900 truncate">{debtForm.debtorName}</span>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-200/70 text-amber-900 border border-amber-300/60">
+                                                            {debtForm.debtorType === 'CUSTOMER' ? 'ลูกค้า' : 'พนักงาน/สมาชิก'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[11px] font-bold text-slate-500 flex items-center gap-2 mt-0.5">
+                                                        <span>รหัส: <strong className="text-amber-800">{debtForm.debtorId || 'ทั่วไป'}</strong></span>
+                                                        {debtForm.debtorPhone && <span>โทร: {debtForm.debtorPhone}</span>}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <button
@@ -4984,18 +5237,18 @@
                                                     setDebtorSearch('');
                                                     setIsDebtorDropdownOpen(true);
                                                 }}
-                                                className="text-[11px] font-bold text-amber-800 hover:text-white hover:bg-amber-600 px-2.5 py-1 bg-white rounded-lg border border-amber-200 transition-colors shadow-sm shrink-0"
+                                                className="text-[11px] font-black text-amber-800 hover:text-white hover:bg-amber-600 px-3 py-1.5 bg-white rounded-lg border border-amber-300 transition-all shadow-xs shrink-0 active:scale-95"
                                             >
                                                 เปลี่ยน
                                             </button>
                                         </div>
                                     ) : (
                                         <div>
-                                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:bg-white focus-within:border-amber-500 transition-all shadow-sm">
+                                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:bg-white focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs">
                                                 <SearchIcon size={16} className="text-slate-400 mr-2 shrink-0" />
                                                 <input
                                                     type="text"
-                                                    placeholder="พิมพ์ชื่อ, รหัส หรือเบอร์โทร เพื่อเลือกผู้เบิกติดหนี้..."
+                                                    placeholder="ค้นหาชื่อ, รหัสสมาชิก หรือเบอร์โทรศัพท์ เพื่อเลือกผู้เบิก..."
                                                     className="w-full bg-transparent border-none outline-none text-xs font-bold text-slate-800 placeholder-slate-400"
                                                     value={debtorSearch}
                                                     onFocus={() => setIsDebtorDropdownOpen(true)}
@@ -5011,201 +5264,313 @@
                                                 )}
                                             </div>
 
-                                            {/* Dropdown ผู้ติดหนี้ */}
+                                            {/* Dropdown ค้นหาผู้ติดหนี้พร้อมแท็บกรอง */}
                                             {isDebtorDropdownOpen && (
-                                                <div className="absolute top-[100%] left-0 w-full mt-1 bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[220px] overflow-y-auto py-1 z-50 custom-scrollbar divide-y divide-slate-100">
-                                                    {currentUser && (
-                                                        <div
-                                                            onClick={() => {
-                                                                setDebtForm(prev => ({
-                                                                    ...prev,
-                                                                    debtorId: currentUser.id || 'STAFF',
-                                                                    debtorName: currentUser.name || currentUser.username || 'เจ้าหน้าที่'
-                                                                }));
-                                                                setDebtorSearch('');
-                                                                setIsDebtorDropdownOpen(false);
-                                                            }}
-                                                            className="px-3 py-2 hover:bg-amber-50 cursor-pointer flex items-center justify-between transition-colors bg-amber-50/40"
+                                                <div className="absolute top-[102%] left-0 w-full bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden z-50">
+                                                    {/* Tabs กรองพนักงาน/ลูกค้า */}
+                                                    <div className="p-1.5 bg-slate-50 border-b border-slate-200 flex gap-1 text-[11px] font-black">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDebtorTypeFilter('ALL')}
+                                                            className={`flex-1 py-1 px-2 rounded-lg transition-all ${debtorTypeFilter === 'ALL' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'}`}
                                                         >
-                                                            <div className="flex items-center gap-2 min-w-0">
-                                                                <span className="text-amber-700 font-bold text-xs">👤 ตัวฉันเอง:</span>
-                                                                <span className="text-xs font-bold text-slate-800 truncate">{currentUser.name || currentUser.username}</span>
-                                                            </div>
-                                                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">เข้าสู่ระบบอยู่</span>
-                                                        </div>
-                                                    )}
-                                                    {filteredDebtorList.length > 0 ? (
-                                                        filteredDebtorList.slice(0, 30).map(p => (
-                                                            <div
-                                                                key={`${p.type}-${p.id}`}
-                                                                onClick={() => {
-                                                                    setDebtForm(prev => ({
-                                                                        ...prev,
-                                                                        debtorId: p.id,
-                                                                        debtorName: p.name,
-                                                                        debtorPhone: p.phone,
-                                                                        debtorType: p.type
-                                                                    }));
-                                                                    setDebtorSearch('');
-                                                                    setIsDebtorDropdownOpen(false);
-                                                                }}
-                                                                className="px-3 py-2 hover:bg-amber-50 cursor-pointer flex items-center justify-between transition-colors"
-                                                            >
-                                                                <div className="flex items-center gap-2 min-w-0">
-                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold flex items-center justify-center shrink-0">
-                                                                        {p.name ? p.name.charAt(0) : 'U'}
-                                                                    </div>
-                                                                    <div className="min-w-0 truncate">
-                                                                        <span className="text-xs font-bold text-slate-800 truncate">{p.name}</span>
-                                                                        {p.phone && <span className="text-[10px] text-slate-400 ml-1.5">({p.phone})</span>}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{p.role}</span>
-                                                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">#{p.id}</span>
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="p-3 text-center text-xs text-slate-400 font-bold">
-                                                            ไม่พบรายชื่อ
-                                                            {debtorSearch && (
-                                                                <button
-                                                                    type="button"
+                                                            ทั้งหมด ({allDebtors.length})
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDebtorTypeFilter('MEMBER')}
+                                                            className={`flex-1 py-1 px-2 rounded-lg transition-all ${debtorTypeFilter === 'MEMBER' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'}`}
+                                                        >
+                                                            พนักงาน/สมาชิก ({memberCount})
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDebtorTypeFilter('CUSTOMER')}
+                                                            className={`flex-1 py-1 px-2 rounded-lg transition-all ${debtorTypeFilter === 'CUSTOMER' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'}`}
+                                                        >
+                                                            ลูกค้า ({customerCount})
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="max-h-[220px] overflow-y-auto py-1 custom-scrollbar divide-y divide-slate-100">
+                                                        {filteredDebtorList.length > 0 ? (
+                                                            filteredDebtorList.slice(0, 30).map(p => (
+                                                                <div
+                                                                    key={`${p.type}-${p.id}`}
                                                                     onClick={() => {
-                                                                        setDebtForm(prev => ({ ...prev, debtorId: 'CUSTOM', debtorName: debtorSearch }));
+                                                                        setDebtForm(prev => ({
+                                                                            ...prev,
+                                                                            debtorId: p.id,
+                                                                            debtorName: p.name,
+                                                                            debtorPhone: p.phone,
+                                                                            debtorType: p.type
+                                                                        }));
                                                                         setDebtorSearch('');
                                                                         setIsDebtorDropdownOpen(false);
                                                                     }}
-                                                                    className="block mx-auto mt-1.5 text-amber-700 underline font-black"
+                                                                    className="px-3 py-2 hover:bg-amber-50/80 cursor-pointer flex items-center justify-between transition-colors"
                                                                 >
-                                                                    + ใช้ชื่อ "{debtorSearch}" เป็นผู้ติดหนี้
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                                        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-slate-200 to-slate-100 text-slate-700 text-xs font-black flex items-center justify-center shrink-0 border border-slate-200">
+                                                                            {p.name ? p.name.charAt(0) : 'U'}
+                                                                        </div>
+                                                                        <div className="min-w-0 truncate">
+                                                                            <span className="text-xs font-black text-slate-800 truncate">{p.name}</span>
+                                                                            {p.phone && <span className="text-[10px] text-slate-500 ml-1.5 font-bold">({p.phone})</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${p.type === 'MEMBER' ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-blue-50 text-blue-800 border border-blue-200'}`}>
+                                                                            {p.role}
+                                                                        </span>
+                                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">#{p.id}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                                                                ไม่พบรายชื่อในระบบ
+                                                                {debtorSearch && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setDebtForm(prev => ({ ...prev, debtorId: 'CUSTOM', debtorName: debtorSearch }));
+                                                                            setDebtorSearch('');
+                                                                            setIsDebtorDropdownOpen(false);
+                                                                        }}
+                                                                        className="block mx-auto mt-2 text-amber-700 hover:text-amber-800 font-black bg-amber-50 px-3 py-1 rounded-lg border border-amber-200"
+                                                                    >
+                                                                        + ใช้ชื่อ "{debtorSearch}" เป็นผู้ติดหนี้
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     )}
                                 </div>
 
-                                {/* ช่องค้นหาสินค้า / ยิงบาร์โค้ด */}
-                                <div className="relative z-30">
-                                    <label className="text-xs font-bold text-slate-600 block mb-1">เลือกสินค้าที่จะเบิกค้างชำระ</label>
-                                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:bg-white focus-within:border-amber-500 transition-all shadow-sm">
+                                {/* แถวที่ 2: วันที่ทำรายการ & ระดับราคาที่คิดหนี้ */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                                            <SvgCalendar size={13} className="text-slate-500" />
+                                            <span>วันที่ทำรายการ</span>
+                                        </label>
+                                        <input
+                                            type="date"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all shadow-xs"
+                                            value={debtForm.date}
+                                            onChange={(e) => setDebtForm({ ...debtForm, date: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                                            <SvgTag size={13} className="text-slate-500" />
+                                            <span>ระดับราคาที่คิดหนี้</span>
+                                        </label>
+                                        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                                            {[
+                                                { id: 'ราคาสมาชิก', label: 'ราคาสมาชิก', icon: <SvgTag size={12} /> },
+                                                { id: 'ราคาเต็ม', label: 'ราคาเต็ม', icon: <SvgShoppingBag size={12} /> },
+                                                { id: 'ราคาโปร', label: 'ราคาโปร', icon: <SvgFlame size={12} /> }
+                                            ].map(item => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDebtForm(prev => ({ ...prev, defaultPriceType: item.id }));
+                                                        // อัปเดตราคาสินค้าในตะกร้าตามระดับราคาใหม่ทันที
+                                                        setDebtCart(prev => prev.map(cItem => {
+                                                            const pObj = (products || []).find(p => p && (p.id === cItem.productId || p.name === cItem.productName)) || {};
+                                                            let newP = Number(pObj.priceMember || pObj.price_member || 0);
+                                                            if (item.id === 'ราคาเต็ม') newP = Number(pObj.priceFull || pObj.price_full || 0);
+                                                            else if (item.id === 'ราคาโปร') newP = Number(pObj.pricePromo || pObj.price_promo || 0);
+                                                            return { ...cItem, priceType: item.id, price: newP };
+                                                        }));
+                                                    }}
+                                                    className={`flex-1 py-1.5 text-[11px] font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                                                        debtForm.defaultPriceType === item.id
+                                                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs shadow-orange-500/20'
+                                                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                                    }`}
+                                                >
+                                                    {item.icon}
+                                                    <span>{item.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* แถวที่ 3: ช่องค้นหา / บาร์โค้ดสินค้า (พร้อมแสดงรูปภาพชัดเจน) */}
+                                <div className="relative shrink-0 z-30">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                            <PackageIcon size={14} className="text-amber-600" /> 2. ค้นหาและเลือกสินค้าที่จะเบิก
+                                        </label>
+                                        <span className="text-[10px] font-bold text-slate-400">กด Enter เพื่อเพิ่มรายการแรกได้ทันที</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus-within:bg-white focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs">
                                         <SearchIcon size={18} className="text-slate-400 shrink-0" />
                                         <input
                                             type="text"
                                             className="w-full bg-transparent border-none outline-none text-xs sm:text-sm font-bold text-slate-800 placeholder-slate-400"
-                                            placeholder="ค้นหาสินค้า (พิมพ์ชื่อ, รหัส หรือ ยิงบาร์โค้ด แล้วกด Enter)..."
+                                            placeholder="พิมพ์ชื่อสินค้า, รหัส หรือยิงบาร์โค้ดเพื่อค้นหา..."
                                             value={debtSearch}
                                             onChange={(e) => setDebtSearch(e.target.value)}
                                             onKeyDown={handleDebtBarcodeScan}
                                         />
                                         {debtSearch && (
-                                            <button type="button" onClick={() => setDebtSearch('')} className="text-slate-400 hover:text-red-500 p-1">
+                                            <button type="button" onClick={() => setDebtSearch('')} className="text-slate-400 hover:text-red-500 p-1 transition-colors">
                                                 <X size={16} />
                                             </button>
                                         )}
                                     </div>
 
-                                    {/* Dropdown ผลค้นหาสินค้า */}
+                                    {/* Dropdown ผลค้นหาสินค้าพร้อมแสดงรูปภาพสินค้าขนาดใหญ่ชัดเจน */}
                                     {debtSearch.trim() !== '' && (
-                                        <div className="absolute top-[105%] left-0 w-full bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[260px] overflow-y-auto py-1.5 z-50 custom-scrollbar divide-y divide-slate-100">
+                                        <div className="absolute top-[105%] left-0 w-full bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[300px] overflow-y-auto py-1 z-50 custom-scrollbar divide-y divide-slate-100">
                                             {debtFilteredProducts.length > 0 ? (
                                                 debtFilteredProducts.map(p => {
                                                     const inCart = debtCart.find(it => it.productId === p.id || it.productName === p.name);
-                                                    const isOutOfStock = p.stock <= 0;
+                                                    const stockNum = Number(p.stock ?? p.current_stock ?? 0);
+                                                    const isOutOfStock = stockNum <= 0;
                                                     const defaultPType = debtForm.defaultPriceType || 'ราคาสมาชิก';
                                                     let uPrice = Number(p.priceMember || p.price_member || 0);
                                                     if (defaultPType === 'ราคาเต็ม') uPrice = Number(p.priceFull || p.price_full || 0);
                                                     else if (defaultPType === 'ราคาโปร') uPrice = Number(p.pricePromo || p.price_promo || 0);
+                                                    const prodImg = p.image || p.imageUrl || p.image_url || p.img || p.photo || '';
 
                                                     return (
                                                         <div
                                                             key={p.id}
-                                                            className={`flex items-center justify-between p-2.5 transition-all ${inCart ? 'bg-amber-50/70' : 'hover:bg-slate-50'}`}
+                                                            onClick={() => handleAddProductToDebt(p)}
+                                                            className={`flex items-center justify-between p-2.5 hover:bg-amber-50/80 cursor-pointer transition-all ${inCart ? 'bg-amber-50/50' : ''}`}
                                                         >
-                                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                                <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
-                                                                    {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover" /> : <PackageIcon size={18} className="text-amber-500" />}
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                {/* รูปภาพสินค้า */}
+                                                                <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+                                                                    {prodImg ? (
+                                                                        <img
+                                                                            src={prodImg}
+                                                                            alt={p.name}
+                                                                            className="w-full h-full object-cover"
+                                                                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                                        />
+                                                                    ) : (
+                                                                        <PackageIcon size={20} className="text-amber-500/70" />
+                                                                    )}
                                                                 </div>
                                                                 <div className="min-w-0 truncate">
-                                                                    <div className="font-bold text-xs text-slate-800 truncate">{p.name}</div>
-                                                                    <div className="text-[11px] font-bold text-amber-700">
-                                                                        ฿{uPrice.toLocaleString()} ({defaultPType}) • <span className={isOutOfStock ? 'text-red-500' : 'text-emerald-600'}>เหลือ {p.stock} ชิ้น</span>
+                                                                    <div className="font-bold text-xs sm:text-sm text-slate-800 truncate">{p.name}</div>
+                                                                    <div className="text-[11px] font-bold text-amber-700 flex items-center gap-2 mt-0.5">
+                                                                        <span>฿{uPrice.toLocaleString()} ({defaultPType})</span>
+                                                                        <span className="text-slate-300">•</span>
+                                                                        <span className={isOutOfStock ? 'text-red-500' : 'text-emerald-600'}>
+                                                                            สต็อก: {stockNum} ชิ้น
+                                                                        </span>
+                                                                        {p.id && (
+                                                                            <>
+                                                                                <span className="text-slate-300">•</span>
+                                                                                <span className="text-slate-400 font-mono text-[10px]">#{p.id}</span>
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setDebtCart(prev => {
-                                                                        const existing = prev.find(it => it.productId === p.id || it.productName === p.name);
-                                                                        if (existing) {
-                                                                            return prev.map(it => (it.productId === p.id || it.productName === p.name) ? { ...it, qty: it.qty + 1 } : it);
-                                                                        }
-                                                                        return [...prev, {
-                                                                            productId: p.id,
-                                                                            productName: p.name,
-                                                                            stock: p.stock,
-                                                                            priceType: defaultPType,
-                                                                            price: uPrice,
-                                                                            qty: 1
-                                                                        }];
-                                                                    });
-                                                                    setDebtSearch('');
-                                                                    showToast(`เพิ่ม ${p.name} แล้ว`, 'success');
-                                                                }}
-                                                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all shrink-0 flex items-center gap-1 active:scale-95"
-                                                            >
-                                                                <Plus size={14} /> เพิ่ม ฿{uPrice.toLocaleString()}
-                                                            </button>
+                                                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleAddProductToDebt(p);
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1 active:scale-95"
+                                                                >
+                                                                    <Plus size={14} /> เพิ่ม ฿{uPrice.toLocaleString()}
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     );
                                                 })
                                             ) : (
-                                                <div className="text-center py-5 text-xs text-slate-400 font-bold">ไม่พบสินค้าที่ค้นหา</div>
+                                                <div className="text-center py-6 text-xs text-slate-400 font-bold flex flex-col items-center gap-1.5">
+                                                    <PackageIcon size={24} className="text-slate-300" />
+                                                    <span>ไม่พบสินค้าที่ตรงกับคำค้นหา</span>
+                                                </div>
                                             )}
                                         </div>
                                     )}
                                 </div>
 
-                                {/* ตะกร้าสินค้าค้างชำระ */}
-                                <div className="border border-slate-200 rounded-xl overflow-hidden flex flex-col flex-1 min-h-[160px] max-h-[260px] bg-slate-50/50">
-                                    <div className="px-3 py-2 bg-slate-100/80 border-b border-slate-200 flex justify-between items-center shrink-0">
-                                        <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
-                                            <ShoppingCart size={14} className="text-amber-600" /> สินค้าในรายการเบิก ({debtCart.length})
+                                {/* แถวที่ 4: ตะกร้าสินค้าในรายการเบิก (แสดงรูปภาพสินค้าในตาราง) */}
+                                <div className="border border-slate-200 rounded-xl overflow-hidden flex flex-col flex-1 min-h-[160px] bg-slate-50/50">
+                                    <div className="px-3.5 py-2 bg-gradient-to-r from-slate-100 to-amber-50/40 border-b border-slate-200 flex justify-between items-center shrink-0">
+                                        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                            <ShoppingCart size={15} className="text-amber-600" /> สินค้าในรายการเบิก
+                                            <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white ml-1">
+                                                {debtCart.length}
+                                            </span>
                                         </span>
                                         {debtCart.length > 0 && (
                                             <button
                                                 type="button"
                                                 onClick={() => setDebtCart([])}
-                                                className="text-[10px] font-bold text-red-500 hover:underline"
+                                                className="text-[10px] font-bold text-red-500 hover:text-red-700 transition-colors flex items-center gap-1"
                                             >
-                                                ล้างทั้งหมด
+                                                <Trash2 size={12} /> ล้างทั้งหมด
                                             </button>
                                         )}
                                     </div>
-                                    <div className="overflow-y-auto p-2 flex flex-col gap-1.5 flex-1 divide-y divide-slate-100">
+
+                                    <div className="overflow-y-auto p-2 flex flex-col gap-1.5 flex-1 divide-y divide-slate-100 custom-scrollbar">
                                         {debtCart.length === 0 ? (
-                                            <div className="h-full flex items-center justify-center text-xs text-slate-400 font-bold py-6">
-                                                ยังไม่มีสินค้าในรายการเบิกค้างชำระ
+                                            <div className="h-full flex flex-col items-center justify-center text-center py-6 text-slate-400 gap-2">
+                                                <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center">
+                                                    <PackageIcon size={20} />
+                                                </div>
+                                                <div className="text-xs font-black text-slate-600">ยังไม่มีสินค้าในรายการเบิก</div>
+                                                <div className="text-[11px] text-slate-400">พิมพ์ค้นหาชื่อ รหัส หรือยิงบาร์โค้ดด้านบนเพื่อเลือกสินค้า</div>
                                             </div>
                                         ) : (
                                             debtCart.map((item, idx) => {
                                                 const lineTotal = (parseFloat(item.price) || 0) * (parseInt(item.qty) || 0);
                                                 return (
-                                                    <div key={idx} className="flex items-center justify-between pt-1.5 first:pt-0">
-                                                        <div className="min-w-0 pr-2">
-                                                            <div className="text-xs font-bold text-slate-800 truncate">{item.productName}</div>
-                                                            <div className="text-[10px] text-amber-700 font-semibold">
-                                                                ฿{Number(item.price).toLocaleString()} / {item.priceType || 'ชิ้น'}
+                                                    <div key={idx} className="flex items-center justify-between pt-1.5 first:pt-0 gap-2">
+                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                            <div className="w-6 h-6 rounded-md bg-white border border-slate-200 text-amber-600 flex items-center justify-center shrink-0 text-xs font-black shadow-2xs">
+                                                                {idx + 1}
+                                                            </div>
+                                                            {/* รูปสินค้าในตะกร้า */}
+                                                            <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+                                                                {item.imageUrl ? (
+                                                                    <img
+                                                                        src={item.imageUrl}
+                                                                        alt={item.productName}
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                                    />
+                                                                ) : (
+                                                                    <PackageIcon size={16} className="text-amber-500" />
+                                                                )}
+                                                            </div>
+                                                            <div className="min-w-0 pr-1">
+                                                                <div className="text-xs font-black text-slate-800 truncate">{item.productName}</div>
+                                                                <div className="text-[10px] text-amber-700 font-bold flex items-center gap-1">
+                                                                    <span>฿{Number(item.price).toLocaleString()}</span>
+                                                                    <span className="text-slate-400 font-normal">({item.priceType || 'ชิ้น'})</span>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            <div className="flex items-center border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden">
+
+                                                        {/* ตัวปรับจำนวน + ราคา + ปุ่มลบ */}
+                                                        <div className="flex items-center gap-2.5 shrink-0">
+                                                            <div className="flex items-center border border-slate-200 rounded-lg bg-white shadow-2xs overflow-hidden">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
@@ -5215,7 +5580,7 @@
                                                                             setDebtCart(prev => prev.filter((_, i) => i !== idx));
                                                                         }
                                                                     }}
-                                                                    className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-black text-xs"
+                                                                    className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-black text-xs transition-colors"
                                                                 >
                                                                     -
                                                                 </button>
@@ -5227,27 +5592,30 @@
                                                                         const val = Math.max(1, parseInt(e.target.value) || 1);
                                                                         setDebtCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: val } : it));
                                                                     }}
-                                                                    className="w-8 text-center font-bold text-xs text-slate-800 border-none outline-none"
+                                                                    className="w-9 text-center font-black text-xs text-slate-800 border-none outline-none py-1"
                                                                 />
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
                                                                         setDebtCart(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it));
                                                                     }}
-                                                                    className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-black text-xs"
+                                                                    className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-black text-xs transition-colors"
                                                                 >
                                                                     +
                                                                 </button>
                                                             </div>
-                                                            <div className="text-xs font-black text-slate-800 w-16 text-right">
+
+                                                            <div className="text-xs font-black text-slate-900 w-20 text-right">
                                                                 ฿{lineTotal.toLocaleString()}
                                                             </div>
+
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setDebtCart(prev => prev.filter((_, i) => i !== idx))}
-                                                                className="text-slate-400 hover:text-red-500 p-1"
+                                                                className="text-slate-400 hover:text-red-500 p-1 transition-colors"
+                                                                title="ลบรายการนี้"
                                                             >
-                                                                <Trash2 size={14} />
+                                                                <Trash2 size={15} />
                                                             </button>
                                                         </div>
                                                     </div>
@@ -5257,37 +5625,69 @@
                                     </div>
                                 </div>
 
-                                {/* หมายเหตุ / กำหนดชำระ */}
-                                <div>
-                                    <label className="text-xs font-bold text-slate-600 block mb-1">หมายเหตุ / เงื่อนไขการเคลียร์เงิน</label>
-                                    <textarea
-                                        rows="2"
-                                        placeholder="เช่น หักเงินเดือนสิ้นเดือน, นำเงินมาเคลียร์วันพรุ่งนี้..."
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-amber-500 outline-none transition-all shadow-sm resize-none"
+                                {/* แถวที่ 5: เงื่อนไขการเคลียร์เงิน พร้อมแท็กด่วน (Quick Reason Tags) */}
+                                <div className="shrink-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block flex items-center gap-1.5">
+                                            <FileText size={13} className="text-slate-500" />
+                                            <span>เงื่อนไขการเคลียร์เงิน / หมายเหตุ</span>
+                                        </label>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mb-1.5">
+                                        {quickReasonTags.map((tag, tIdx) => (
+                                            <button
+                                                key={tIdx}
+                                                type="button"
+                                                onClick={() => {
+                                                    setDebtForm(prev => {
+                                                        const current = (prev.notes || '').trim();
+                                                        if (!current) return { ...prev, notes: tag };
+                                                        if (current.includes(tag)) return prev;
+                                                        return { ...prev, notes: `${current}, ${tag}` };
+                                                    });
+                                                }}
+                                                className="text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md transition-all active:scale-95"
+                                            >
+                                                + {tag}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="ระบุเงื่อนไข เช่น หักเงินเดือน, นำเงินมาเคลียร์วันพรุ่งนี้..."
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all shadow-xs"
                                         value={debtForm.notes}
                                         onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })}
                                     />
                                 </div>
 
-                                {/* สรุปยอดและปุ่มบันทึก */}
-                                <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl flex flex-col gap-2 shrink-0">
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="font-bold text-slate-600">รวมเบิก: <strong className="text-amber-800 text-sm">{totalDebtBottles}</strong> กล่อง</span>
-                                        <span className="font-black text-amber-900 text-base">
-                                            ยอดหนี้รวม: ฿{totalDebtAmount.toLocaleString()}
-                                            <span className="text-[11px] font-normal text-slate-500 ml-1.5">
-                                                (~{Math.round(totalDebtAmount * exRate).toLocaleString()} ₭)
+                                {/* แถวที่ 6: สรุปยอดและปุ่มยืนยันบันทึก (POS Total Bar) */}
+                                <div className="p-3 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-200 rounded-2xl flex flex-col gap-2.5 shrink-0 shadow-xs">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-600">รวมเบิก:</span>
+                                            <span className="font-black text-amber-900 bg-white px-2 py-0.5 rounded-lg border border-amber-200 text-sm shadow-2xs">
+                                                {totalDebtBottles} กล่อง
                                             </span>
-                                        </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[11px] font-bold text-slate-500">ยอดหนี้รวมสุทธิ</div>
+                                            <div className="font-black text-amber-950 text-lg leading-tight flex items-baseline justify-end gap-1.5">
+                                                <span>฿{totalDebtAmount.toLocaleString()}</span>
+                                                <span className="text-[11px] font-bold text-amber-700/80">
+                                                    (~{Math.round(totalDebtAmount * exRate).toLocaleString()} ₭)
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                     <button
                                         type="button"
                                         disabled={debtCart.length === 0 || isSubmittingDebt}
                                         onClick={handleDebtSubmit}
-                                        className={`w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md flex items-center justify-center gap-2 transition-all ${
+                                        className={`w-full py-3 px-4 rounded-xl font-black text-xs sm:text-sm text-white shadow-md flex items-center justify-center gap-2 transition-all ${
                                             debtCart.length === 0 || isSubmittingDebt
-                                                ? 'bg-slate-300 shadow-none cursor-not-allowed'
-                                                : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-98'
+                                                ? 'bg-slate-300 shadow-none cursor-not-allowed opacity-70'
+                                                : 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 hover:from-amber-700 hover:to-orange-700 shadow-amber-500/25 active:scale-98'
                                         }`}
                                     >
                                         {isSubmittingDebt ? (
@@ -5297,7 +5697,7 @@
                                             </>
                                         ) : (
                                             <>
-                                                <CheckCircle size={16} /> ยืนยันบันทึกเบิกสินค้าค้างชำระ (ตัดสต็อกทันที)
+                                                <CheckCircle size={17} /> ยืนยันบันทึกเบิกสินค้าค้างชำระ (ตัดสต็อกทันที)
                                             </>
                                         )}
                                     </button>
@@ -5305,52 +5705,88 @@
                             </div>
                         </div>
 
-                        {/* ขวา (48%): รายการบิลค้างชำระรอเคลียร์เงิน (Active Debts Ledger) */}
-                        <div className="w-full xl:w-[48%] flex flex-col gap-3 xl:h-full relative">
-                            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col gap-3 flex-1 min-h-[400px]">
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-black">
-                                            <Coins size={16} />
+                        {/* ขวา (47%): รายการบิลค้างชำระรอเคลียร์เงิน (Active Debt Ledger) */}
+                        <div className="w-full xl:w-[47%] flex flex-col xl:h-full relative min-w-0">
+                            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col gap-3 flex-1 overflow-hidden min-h-[420px]">
+                                
+                                {/* Header บิลค้างชำระพร้อมยอดรวม */}
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center shadow-sm shadow-rose-500/20">
+                                            <Coins size={18} />
                                         </div>
-                                        <h4 className="font-extrabold text-sm text-slate-800">
-                                            บิลค้างชำระรอเคลียร์เงิน
-                                        </h4>
+                                        <div>
+                                            <h4 className="font-black text-sm text-slate-800 leading-tight">
+                                                บิลค้างชำระรอเคลียร์เงิน
+                                            </h4>
+                                            <p className="text-[11px] font-bold text-slate-400">
+                                                ยอดหนี้รอเคลียร์ทั้งหมด: <strong className="text-amber-800 font-black">฿{totalLedgerDebt.toLocaleString()}</strong>
+                                            </p>
+                                        </div>
                                     </div>
-                                    <span className="text-[11px] font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
-                                        รอชำระ {unpaidDebtBills.length} รายการ
+                                    <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 shrink-0">
+                                        รอชำระ {displayedLedgerBills.length} รายการ
                                     </span>
                                 </div>
 
-                                {/* ช่องค้นหาบิลค้างชำระ */}
-                                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:bg-white focus-within:border-amber-500 transition-all shadow-sm">
-                                    <SearchIcon size={16} className="text-slate-400 mr-2 shrink-0" />
-                                    <input
-                                        type="text"
-                                        placeholder="ค้นหาชื่อผู้ติดหนี้ หรือ เลขที่บิล..."
-                                        className="w-full bg-transparent border-none outline-none text-xs font-bold text-slate-800 placeholder-slate-400"
-                                        value={debtFilterSearch}
-                                        onChange={(e) => setDebtFilterSearch(e.target.value)}
-                                    />
-                                    {debtFilterSearch && (
-                                        <button type="button" onClick={() => setDebtFilterSearch('')} className="text-slate-400 hover:text-slate-600 p-0.5">
-                                            <X size={14} />
+                                {/* ช่องค้นหา & ตัวกรองสถานะบิล */}
+                                <div className="flex flex-col gap-2 shrink-0">
+                                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:bg-white focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs">
+                                        <SearchIcon size={16} className="text-slate-400 mr-2 shrink-0" />
+                                        <input
+                                            type="text"
+                                            placeholder="ค้นหาชื่อผู้ติดหนี้ หรือ เลขที่บิล..."
+                                            className="w-full bg-transparent border-none outline-none text-xs font-bold text-slate-800 placeholder-slate-400"
+                                            value={debtFilterSearch}
+                                            onChange={(e) => setDebtFilterSearch(e.target.value)}
+                                        />
+                                        {debtFilterSearch && (
+                                            <button type="button" onClick={() => setDebtFilterSearch('')} className="text-slate-400 hover:text-slate-600 p-0.5">
+                                                <X size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Filter Tabs สำหรับทะเบียนบิล */}
+                                    <div className="flex gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-black border border-slate-200/80">
+                                        <button
+                                            type="button"
+                                            onClick={() => setLedgerTypeFilter('ALL')}
+                                            className={`flex-1 py-1 px-2 rounded-lg transition-all ${ledgerTypeFilter === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                                        >
+                                            ทั้งหมด ({unpaidDebtBills.length})
                                         </button>
-                                    )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setLedgerTypeFilter('MEMBER')}
+                                            className={`flex-1 py-1 px-2 rounded-lg transition-all ${ledgerTypeFilter === 'MEMBER' ? 'bg-white text-amber-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                                        >
+                                            พนักงาน/สมาชิก ({staffDebtCount})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setLedgerTypeFilter('CUSTOMER')}
+                                            className={`flex-1 py-1 px-2 rounded-lg transition-all ${ledgerTypeFilter === 'CUSTOMER' ? 'bg-white text-blue-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                                        >
+                                            ลูกค้าทั่วไป ({custDebtCount})
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {/* รายการบิลค้างชำระ */}
+                                {/* รายการบิลค้างชำระ (Scrollable Cards) */}
                                 <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5 custom-scrollbar min-h-0">
-                                    {unpaidDebtBills.length === 0 ? (
-                                        <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400 gap-2">
-                                            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                                                <CheckCircle size={28} />
+                                    {displayedLedgerBills.length === 0 ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400 gap-2.5 my-auto">
+                                            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs border border-emerald-100">
+                                                <CheckCircle size={30} />
                                             </div>
-                                            <div className="text-sm font-bold text-slate-700">ไม่มีรายการบิลค้างชำระ</div>
-                                            <div className="text-xs text-slate-400">ทุกรายการเคลียร์เงินครบถ้วนสมบูรณ์แล้ว</div>
+                                            <div className="text-sm font-black text-slate-700">ไม่มีรายการบิลค้างชำระ</div>
+                                            <div className="text-xs text-slate-400 font-bold max-w-[240px]">
+                                                {debtFilterSearch ? 'ไม่พบบิลที่ตรงกับคำค้นหา' : 'ทุกรายการเคลียร์เงินครบถ้วนสมบูรณ์แล้ว'}
+                                            </div>
                                         </div>
                                     ) : (
-                                        unpaidDebtBills.map(bill => {
+                                        displayedLedgerBills.map(bill => {
                                             const billId = bill.id || bill.order_id;
                                             const totalAmt = parseFloat(bill.totalAmount || bill.total_amount || 0);
                                             let itemsSummary = [];
@@ -5367,44 +5803,54 @@
                                             }
 
                                             return (
-                                                <div key={billId} className="border border-amber-200/90 hover:border-amber-400 rounded-xl p-3 bg-gradient-to-r from-amber-50/40 to-white shadow-sm transition-all flex flex-col gap-2">
+                                                <div key={billId} className="border border-amber-200/90 hover:border-amber-400 rounded-xl p-3 bg-gradient-to-r from-amber-50/40 via-white to-white shadow-xs hover:shadow-sm transition-all flex flex-col gap-2">
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200">
+                                                            <span className="text-xs font-black text-amber-950 bg-amber-100/80 px-2.5 py-0.5 rounded-lg border border-amber-300/80 shadow-2xs">
                                                                 #{billId}
                                                             </span>
                                                             <span className="text-[11px] font-bold text-slate-500">
                                                                 {bill.date || formatDbDateForFilter(bill.date)}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 animate-pulse">
-                                                            🔴 ค้างชำระ
+                                                        <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 animate-pulse flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                                                            ค้างชำระ
                                                         </span>
                                                     </div>
 
                                                     <div className="flex justify-between items-start gap-2">
-                                                        <div>
-                                                            <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                                <span>👤 {bill.memberName || bill.customerName || bill.memberId || 'ไม่ระบุผู้เบิก'}</span>
-                                                                <span className="text-[10px] text-slate-400 font-bold">({bill.memberId || bill.customerId})</span>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="text-xs font-black text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                                                <span className="inline-flex items-center gap-1.5">
+                                                                    <SvgUser size={13} className="text-slate-500 shrink-0" />
+                                                                    <span>{bill.memberName || bill.customerName || bill.memberId || 'ไม่ระบุผู้เบิก'}</span>
+                                                                </span>
+                                                                {(bill.memberId || bill.customerId) && (
+                                                                    <span className="text-[10px] text-slate-400 font-bold">({bill.memberId || bill.customerId})</span>
+                                                                )}
                                                             </div>
                                                             <div className="text-[11px] text-slate-600 mt-1 flex flex-wrap gap-1">
                                                                 {itemsSummary.map((str, sIdx) => (
-                                                                    <span key={sIdx} className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-700">
+                                                                    <span key={sIdx} className="bg-slate-100 px-2 py-0.5 rounded-md text-[10px] font-bold text-slate-700 border border-slate-200/60">
                                                                         {str}
                                                                     </span>
                                                                 ))}
                                                             </div>
                                                             {bill.paymentNote && (
-                                                                <div className="text-[10px] text-amber-800/80 italic mt-1 truncate max-w-[280px]">
-                                                                    📝 {bill.paymentNote}
+                                                                <div className="text-[10px] text-amber-800/90 font-medium italic mt-1 truncate max-w-[280px] flex items-center gap-1">
+                                                                    <FileText size={11} className="text-amber-800 shrink-0" />
+                                                                    <span>{bill.paymentNote}</span>
                                                                 </div>
                                                             )}
                                                         </div>
                                                         <div className="text-right shrink-0">
-                                                            <div className="text-xs text-slate-400 font-bold">ยอดค้างชำระ</div>
+                                                            <div className="text-[11px] text-slate-400 font-bold">ยอดค้างชำระ</div>
                                                             <div className="text-sm font-black text-amber-950">
                                                                 ฿{totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                            </div>
+                                                            <div className="text-[10px] font-bold text-slate-400">
+                                                                (~{Math.round(totalAmt * exRate).toLocaleString()} ₭)
                                                             </div>
                                                         </div>
                                                     </div>
@@ -5413,7 +5859,7 @@
                                                         <button
                                                             type="button"
                                                             onClick={() => setConfirmDelete({ show: true, id: billId, title: billId })}
-                                                            className="text-[11px] font-bold text-slate-400 hover:text-red-600 px-2 py-1 rounded transition-colors"
+                                                            className="text-[11px] font-bold text-slate-400 hover:text-red-600 px-2.5 py-1 rounded-lg transition-colors"
                                                             title="ยกเลิกบิลและคืนสต๊อก"
                                                         >
                                                             ยกเลิก
@@ -5421,16 +5867,16 @@
                                                         <button
                                                             type="button"
                                                             onClick={() => handlePrintReceiptPopup(bill)}
-                                                            className="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 shadow-sm"
+                                                            className="text-[11px] font-black text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 shadow-2xs"
                                                         >
-                                                            <PrinterIcon size={12} /> ใบเบิก
+                                                            <PrinterIcon size={13} /> ใบเบิก
                                                         </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleOpenSettleModal(bill)}
-                                                            className="text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                                                            className="text-[11px] font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-3.5 py-1 rounded-lg transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-500/20 active:scale-95"
                                                         >
-                                                            <Coins size={12} /> รับชำระเงิน
+                                                            <Coins size={13} /> รับชำระเงิน
                                                         </button>
                                                     </div>
                                                 </div>
@@ -5499,9 +5945,13 @@
                                     <div className="flex gap-2">
                                         <div className="flex-[1.5] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                             <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ประเภทลูกค้า</label>
-                                            <select className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custMode} onChange={(e) => {
-                                                const newMode = e.target.value;
-                                                setCustMode(newMode);
+                                            <select 
+                                                className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" 
+                                                value={getMatchedCustomerType(custMode)?.name || custMode || ''} 
+                                                onChange={(e) => {
+                                                    const newMode = e.target.value;
+                                                    setCustMode(newMode);
+                                                    setCustData(prev => ({ ...prev, type: newMode }));
                                                 const norm = (typeof window.normalizeCustomerType === 'function')
                                                     ? window.normalizeCustomerType(newMode)
                                                     : { isOld: newMode.includes('เก่า') || newMode.includes('ເກົ່າ') };
@@ -6127,6 +6577,17 @@
                                         <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">พนักงานผู้ทำรายการ</span>
                                         <span className="block text-sm font-bold text-slate-600">{viewBillDetail.recordedBy || '-'}</span>
                                     </div>
+                                    {(() => {
+                                        const cObj = (customers || []).find(c => c && (c.id === viewBillDetail.customerId || c.customer_id === viewBillDetail.customerId || (viewBillDetail.customerId && String(c.id || '').replace(/^HN[-:\s]*/i, '') === String(viewBillDetail.customerId).replace(/^HN[-:\s]*/i, '')))) || {};
+                                        const sym = viewBillDetail.symptom || cObj.symptom || cObj.symptom_disease || '';
+                                        if (!sym || sym === '-' || sym === '--') return null;
+                                        return (
+                                            <div className="col-span-full bg-rose-50/70 border border-rose-200/60 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                                                <span className="font-bold text-slate-600">โรค/อาการ:</span>
+                                                <span className="font-black text-rose-700">{sym}</span>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">

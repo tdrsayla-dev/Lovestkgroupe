@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.classList.remove('dark');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
+  <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รายงานสถิติลูกค้า (Customer Analytics) - LOVE STK GROUPE</title>
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.24.03">
+  <script>
+    (function(){
+      var w = console.warn;
+      console.warn = function(){
+        var m = arguments[0] ? String(arguments[0]) : '';
+        if (m.includes('cdn.tailwindcss.com') || m.includes('in-browser Babel transformer') || m.includes('deoptimised')) return;
+        w.apply(console, arguments);
+      };
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="config.js?v=2026.10.24.05"></script>
+  <script src="companySettings.js?v=2026.10.24.05"></script>
+  <script src="dictionary.js?v=2026.10.24.05"></script>
+  <script src="CommonComponents.js?v=2026.10.24.05"></script>
+
+  <style>
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+      .no-print, nav, aside, button:not(.allow-print), .filter-panel, #initial-loader {
+        display: none !important;
+      }
+      main {
+        margin-left: 0 !important;
+        padding: 0 !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      .print-shadow-none {
+        box-shadow: none !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+      table {
+        font-size: 10px !important;
+        width: 100% !important;
+      }
+      th, td {
+        padding: 4px 6px !important;
+        border-color: #cbd5e1 !important;
+      }
+    }
+    .print-only {
+      display: none;
+    }
+  </style>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 50px; height: 50px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 20px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.5rem; font-weight: 800; color: #1e40af; margin: 0;">STK<span style="color: #475569;">System</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; margin-top: 8px;">กำลังโหลดรายงานสถิติลูกค้า...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+  (function () {
+    const { useState, useMemo, useEffect, useRef, useCallback } = React;
+    const {
+      Sidebar, LoginModal, Toast,
+      BarChart3, FileText, Coins, X, SearchIcon,
+      Contact, Users, Eye, Trophy, Target, UserCircle
+    } = window;
+
+    // Helper functions
+    const translate = (key, fallback) => (typeof window.t === 'function') ? window.t(key, fallback) : (fallback || key);
+    const safeUp = (val) => String(val || '').trim().toUpperCase();
+    const fmtNum = (val) => Number(val || 0).toLocaleString();
+
+    const getLocalISODate = (d = new Date()) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const getWeekStartDate = () => {
+      const d = new Date();
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      return getLocalISODate(new Date(d.setDate(diff)));
+    };
+
+    const getMonthStartDate = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    };
+
+    const getYearStartDate = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-01-01`;
+    };
+
+    // Customer Type Badge Styling
+    const getCustomerTypeBadge = (type) => {
+      const tStr = String(type || '').trim();
+      if (!tStr || tStr === '-' || tStr.toLowerCase() === 'null') {
+        return { label: 'ทั่วไป', bg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
+      }
+      if (tStr.includes('ลูกค้าใหม่')) {
+        return { label: tStr, bg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' };
+      }
+      if (tStr.includes('ลูกค้าเก่า')) {
+        return { label: tStr, bg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
+      }
+      if (tStr.includes('โทร') || tStr.includes('เทเล') || tStr.includes('tele')) {
+        return { label: tStr, bg: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+      }
+      if (tStr.includes('VIP') || tStr.includes('vip')) {
+        return { label: tStr, bg: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' };
+      }
+      return { label: tStr, bg: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
+    };
+
+    const cleanAvatar = (url, name) => {
+      let cleanUrl = String(url || '').trim();
+      if (!cleanUrl || cleanUrl === 'undefined' || cleanUrl === 'null' || cleanUrl === '-') {
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Customer')}&background=0284c7&color=ffffff&rounded=true&bold=true`;
+      }
+      if (cleanUrl.startsWith('/9j/')) cleanUrl = 'data:image/jpeg;base64,' + cleanUrl;
+      else if (cleanUrl.startsWith('iVBORw0KGgo')) cleanUrl = 'data:image/png;base64,' + cleanUrl;
+      return cleanUrl;
+    };
+
+    function App() {
+      // Auth states
+      const [currentUser, setCurrentUser] = useState(() => {
+        try {
+          const saved = localStorage.getItem('stk_current_user');
+          return saved ? JSON.parse(saved) : null;
+        } catch(e) { return null; }
+      });
+      const [isLoggedIn, setIsLoggedIn] = useState(!!currentUser);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
+      });
+
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'reports') : 'full';
+      const isAdmin = currentUser && (
+        String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+        String(currentUser.role).trim().toLowerCase().includes('admin') || 
+        String(currentUser.role).trim().includes('แอดมิน') ||
+        pagePerm === 'full'
+      );
+
+      // Raw Data States
+      const [sales, setSales] = useState([]);
+      const [customersMaster, setCustomersMaster] = useState([]);
+      const [patientsMap, setPatientsMap] = useState({});
+      const [membersMap, setMembersMap] = useState({});
+      const [closersMap, setClosersMap] = useState({});
+      const [nutrientOrdersMap, setNutrientOrdersMap] = useState({});
+      const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 });
+      const [isLoading, setIsLoading] = useState(true);
+
+      // Filter States
+      const todayStr = getLocalISODate();
+      const [datePreset, setDatePreset] = useState('all'); // 'today' | 'week' | 'month' | 'year' | 'all' | 'custom'
+      const [startDate, setStartDate] = useState(getMonthStartDate());
+      const [endDate, setEndDate] = useState(todayStr);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [selectedTypeFilter, setSelectedTypeFilter] = useState('all');
+      const [frequencyTierFilter, setFrequencyTierFilter] = useState('all'); // 'all' | 'repeat' | 'frequent' | 'onetime'
+      const [sortBy, setSortBy] = useState('total_spent_desc'); // 'total_spent_desc' | 'max_bill_desc' | 'visits_desc' | 'latest_desc' | 'name_asc'
+      const [currencyMode, setCurrencyMode] = useState('LAK'); // 'LAK' | 'THB'
+      const exchangeRate = Number(systemSettings?.exchange_rate || 700);
+
+      // Modal State
+      const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState(null);
+
+      const showToastMsg = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+      };
+
+      const handleLogout = () => {
+        try {
+          localStorage.removeItem('stk_current_user');
+          localStorage.removeItem('stk_app_cache_data');
+          localStorage.removeItem('stk_last_activity');
+          sessionStorage.clear();
+          localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+        } catch(e) {}
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+      };
+
+      // 1. Initial Load of Master Data & Sales
+      const loadAllData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+          // Fetch completed sales
+          const salesPromise = window.supabaseSelect 
+            ? window.supabaseSelect('stk_sales', 'select=order_id,date,customer_id,seller_id,recorded_by,sale_type,total_amount,total_bottles,status,items_json,payments_json,payment_note,created_at&order=date.desc&limit=10000').catch(() => [])
+            : Promise.resolve([]);
+
+          // Fetch customers master
+          const custPromise = window.supabaseSelect
+            ? window.supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease&limit=10000').catch(() => [])
+            : Promise.resolve([]);
+
+          // Fetch clinic patients (if available)
+          const patientsPromise = (typeof window.clinicSupabaseSelectAll === 'function')
+            ? window.clinicSupabaseSelectAll('patients', 'select=hn,patient_name,phone,customer_type,referred_by', { maxPages: 10 }).catch(() => [])
+            : (window.clinicSupabaseSelect
+                ? window.clinicSupabaseSelect('patients', 'select=hn,patient_name,phone,customer_type,referred_by&limit=5000').catch(() => [])
+                : Promise.resolve([]));
+
+          // Fetch members (sellers)
+          const membersPromise = window.supabaseSelect
+            ? window.supabaseSelect('stk_members', 'select=id,name,nickname,avatar_url&limit=2000').catch(() => [])
+            : Promise.resolve([]);
+
+          // Fetch closers
+          const closersPromise = window.supabaseSelect
+            ? window.supabaseSelect('stk_closers', 'select=id,name,phone&limit=1000').catch(() => [])
+            : Promise.resolve([]);
+
+          // Fetch recent nutrient orders
+          const nutrientOrdersPromise = window.supabaseSelect
+            ? window.supabaseSelect('stk_nutrient_orders', 'select=order_id,visit_id,hn,customer_name,customer_type,closer_dr&order=created_at.desc&limit=5000').catch(() => [])
+            : Promise.resolve([]);
+
+          // Fetch settings
+          const settingsPromise = window.supabaseSelect
+            ? window.supabaseSelect('stk_company_settings', 'select=exchange_rate&limit=1').catch(() => [])
+            : Promise.resolve([]);
+
+          const [salesRes, custRes, patRes, memRes, cloRes, nutRes, setRes] = await Promise.all([
+            salesPromise, custPromise, patientsPromise, membersPromise, closersPromise, nutrientOrdersPromise, settingsPromise
+          ]);
+
+          // Set Sales
+          if (Array.isArray(salesRes)) {
+            setSales(salesRes.filter(s => s && String(s.status || '').trim() !== 'บิลถูกยกเลิก'));
+          }
+
+          // Set Customers Master
+          if (Array.isArray(custRes)) {
+            setCustomersMaster(custRes);
+          }
+
+          // Build Patients Map
+          const pMap = {};
+          if (Array.isArray(patRes)) {
+            patRes.forEach(p => {
+              if (p && p.hn) {
+                const hnKey = safeUp(p.hn);
+                const cleanHn = hnKey.replace(/^HN-?/i, '');
+                const fullName = (p.patient_name || '').trim() || hnKey;
+                const pObj = {
+                  hn: p.hn,
+                  name: fullName,
+                  phone: p.phone || '',
+                  customer_type: p.customer_type || '',
+                  referred_by: p.referred_by || ''
+                };
+                pMap[hnKey] = pObj;
+                if (cleanHn) {
+                  pMap[cleanHn] = pObj;
+                  pMap[`HN-${cleanHn}`] = pObj;
+                }
+              }
+            });
+          }
+          setPatientsMap(pMap);
+
+          // Build Members Map
+          const mMap = {};
+          if (Array.isArray(memRes)) {
+            memRes.forEach(m => {
+              if (m && m.id) {
+                mMap[safeUp(m.id)] = m.nickname ? `${m.name} (${m.nickname})` : m.name;
+              }
+            });
+          }
+          setMembersMap(mMap);
+
+          // Build Closers Map
+          const cMap = {};
+          if (Array.isArray(cloRes)) {
+            cloRes.forEach(c => {
+              if (c && c.id) {
+                cMap[safeUp(c.id)] = c.name;
+              }
+            });
+          }
+          setClosersMap(cMap);
+
+          // Build Nutrient Orders Map
+          const nMap = {};
+          if (Array.isArray(nutRes)) {
+            nutRes.forEach(n => {
+              if (!n) return;
+              if (n.order_id) {
+                nMap[safeUp(n.order_id)] = n;
+              }
+              if (n.visit_id) {
+                nMap[safeUp(n.visit_id)] = n;
+              }
+              if (n.hn) {
+                const hnUp = safeUp(n.hn);
+                const cleanHn = hnUp.replace(/^HN-?/i, '');
+                nMap[hnUp] = n;
+                if (cleanHn) {
+                  nMap[cleanHn] = n;
+                  nMap[`HN-${cleanHn}`] = n;
+                }
+              }
+            });
+          }
+          setNutrientOrdersMap(nMap);
+
+          // Set Exchange Rate
+          if (Array.isArray(setRes) && setRes[0]?.exchange_rate) {
+            setSystemSettings({ exchange_rate: Number(setRes[0].exchange_rate) });
+          }
+
+        } catch (err) {
+          console.error('[ReportCustomers] Data load error:', err);
+          showToastMsg('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
+        } finally {
+          setIsLoading(false);
+          const loader = document.getElementById('initial-loader');
+          if (loader) loader.style.display = 'none';
+        }
+      }, []);
+
+      useEffect(() => {
+        loadAllData();
+      }, [loadAllData]);
+
+      // Quick Date Preset handler
+      const handlePresetChange = (preset) => {
+        setDatePreset(preset);
+        const today = getLocalISODate();
+        if (preset === 'today') {
+          setStartDate(today);
+          setEndDate(today);
+        } else if (preset === 'week') {
+          setStartDate(getWeekStartDate());
+          setEndDate(today);
+        } else if (preset === 'month') {
+          setStartDate(getMonthStartDate());
+          setEndDate(today);
+        } else if (preset === 'year') {
+          setStartDate(getYearStartDate());
+          setEndDate(today);
+        } else if (preset === 'all') {
+          setStartDate('2020-01-01');
+          setEndDate(today);
+        }
+      };
+
+      // Customer Master Lookup Map
+      const customersMasterMap = useMemo(() => {
+        const map = {};
+        customersMaster.forEach(c => {
+          if (c && c.customer_id) {
+            const cKey = safeUp(c.customer_id);
+            const cleanC = cKey.replace(/^HN-?/i, '');
+            map[cKey] = c;
+            if (cleanC) {
+              map[cleanC] = c;
+              map[`HN-${cleanC}`] = c;
+            }
+          }
+        });
+        return map;
+      }, [customersMaster]);
+
+      // 2. Aggregate Sales per Customer
+      const customerAnalytics = useMemo(() => {
+        if (!sales || sales.length === 0) return [];
+
+        const customerMap = {};
+
+        sales.forEach(sale => {
+          const rawCustId = String(sale.customer_id || '').trim();
+          if (rawCustId === 'INTERNAL') return;
+
+          const saleDate = String(sale.date || '').split('T')[0];
+          if (datePreset !== 'all') {
+            if (saleDate < startDate || saleDate > endDate) return;
+          }
+
+          const key = rawCustId ? safeUp(rawCustId) : `UNKNOWN-${sale.order_id}`;
+
+          if (!customerMap[key]) {
+            let resolvedName = '';
+            let resolvedPhone = '';
+            let resolvedType = '';
+            let resolvedCloser = '';
+
+            const cleanKey = key.replace(/^HN-?/i, '');
+            const p = patientsMap[key] || (cleanKey ? patientsMap[cleanKey] : null) || (cleanKey ? patientsMap[`HN-${cleanKey}`] : null);
+            if (p) {
+              resolvedName = p.name;
+              resolvedPhone = p.phone;
+              resolvedType = p.customer_type;
+              resolvedCloser = p.referred_by;
+            } else {
+              const c = customersMasterMap[key] || (cleanKey ? customersMasterMap[cleanKey] : null) || (cleanKey ? customersMasterMap[`HN-${cleanKey}`] : null);
+              if (c) {
+                resolvedName = c.name;
+                resolvedPhone = c.phone;
+                resolvedType = c.customer_type;
+                resolvedCloser = c.closer_id;
+              }
+            }
+
+            const noteMatch = String(sale.payment_note || '').match(/VIS-(?:ORD-)?\d+/i);
+            const nutOrder = (noteMatch && nutrientOrdersMap[safeUp(noteMatch[0])])
+              || nutrientOrdersMap[key]
+              || (cleanKey ? nutrientOrdersMap[cleanKey] : null)
+              || (cleanKey ? nutrientOrdersMap[`HN-${cleanKey}`] : null);
+
+            if (nutOrder) {
+              if (!resolvedName && nutOrder.customer_name) resolvedName = nutOrder.customer_name;
+              if (!resolvedType && nutOrder.customer_type) resolvedType = nutOrder.customer_type;
+              if (!resolvedCloser && nutOrder.closer_dr) resolvedCloser = nutOrder.closer_dr;
+            }
+
+            customerMap[key] = {
+              id: rawCustId || '-',
+              key: key,
+              name: resolvedName || (rawCustId ? `ลูกค้า (${rawCustId})` : 'ลูกค้าทั่วไป'),
+              phone: resolvedPhone || '-',
+              customerType: resolvedType || 'ทั่วไป',
+              closer: resolvedCloser || '-',
+              bills: [],
+              totalSpentTHB: 0,
+              totalSpentLAK: 0,
+              maxBillTHB: 0,
+              maxBillLAK: 0,
+              firstVisitDate: saleDate,
+              latestVisitDate: saleDate,
+              visitCount: 0
+            };
+          }
+
+          const cust = customerMap[key];
+          const rawAmount = Number(sale.total_amount || 0);
+          const amountTHB = rawAmount;
+          const amountLAK = rawAmount * exchangeRate;
+
+          cust.visitCount += 1;
+          cust.totalSpentTHB += amountTHB;
+          cust.totalSpentLAK += amountLAK;
+
+          if (amountTHB > cust.maxBillTHB) {
+            cust.maxBillTHB = amountTHB;
+            cust.maxBillLAK = amountLAK;
+          }
+
+          if (saleDate < cust.firstVisitDate) cust.firstVisitDate = saleDate;
+          if (saleDate > cust.latestVisitDate) cust.latestVisitDate = saleDate;
+
+          cust.bills.push({
+            order_id: sale.order_id,
+            date: saleDate,
+            amountTHB: amountTHB,
+            amountLAK: amountLAK,
+            total_amount: rawAmount,
+            seller_id: sale.seller_id,
+            seller_name: membersMap[safeUp(sale.seller_id)] || sale.recorded_by || sale.seller_id || '-',
+            items: Array.isArray(sale.items_json) ? sale.items_json : [],
+            payment_note: sale.payment_note || '-',
+            sale_type: sale.sale_type || '-'
+          });
+        });
+
+        return Object.values(customerMap).map(cust => {
+          cust.bills.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+          cust.avgBillTHB = cust.visitCount > 0 ? (cust.totalSpentTHB / cust.visitCount) : 0;
+          cust.avgBillLAK = cust.visitCount > 0 ? (cust.totalSpentLAK / cust.visitCount) : 0;
+          return cust;
+        });
+      }, [sales, startDate, endDate, datePreset, patientsMap, customersMasterMap, nutrientOrdersMap, membersMap, exchangeRate]);
+
+      // 3. Filter and Sort
+      const filteredAndSortedCustomers = useMemo(() => {
+        let list = [...customerAnalytics];
+
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          list = list.filter(c => 
+            String(c.id).toLowerCase().includes(q) ||
+            String(c.name).toLowerCase().includes(q) ||
+            String(c.phone).toLowerCase().includes(q)
+          );
+        }
+
+        if (selectedTypeFilter !== 'all') {
+          list = list.filter(c => String(c.customerType).trim() === selectedTypeFilter);
+        }
+
+        if (frequencyTierFilter === 'repeat') {
+          list = list.filter(c => c.visitCount >= 2);
+        } else if (frequencyTierFilter === 'frequent') {
+          list = list.filter(c => c.visitCount >= 4);
+        } else if (frequencyTierFilter === 'onetime') {
+          list = list.filter(c => c.visitCount === 1);
+        }
+
+        list.sort((a, b) => {
+          if (sortBy === 'total_spent_desc') {
+            return b.totalSpentTHB - a.totalSpentTHB;
+          }
+          if (sortBy === 'max_bill_desc') {
+            return b.maxBillTHB - a.maxBillTHB;
+          }
+          if (sortBy === 'visits_desc') {
+            return b.visitCount !== a.visitCount ? (b.visitCount - a.visitCount) : (b.totalSpentTHB - a.totalSpentTHB);
+          }
+          if (sortBy === 'latest_desc') {
+            return String(b.latestVisitDate || '').localeCompare(String(a.latestVisitDate || ''));
+          }
+          if (sortBy === 'name_asc') {
+            return a.name.localeCompare(b.name, 'th');
+          }
+          return 0;
+        });
+
+        return list;
+      }, [customerAnalytics, searchQuery, selectedTypeFilter, frequencyTierFilter, sortBy]);
+
+      // 4. Overall KPI Summary Statistics
+      const kpis = useMemo(() => {
+        const totalCustomers = filteredAndSortedCustomers.length;
+        const totalVisits = filteredAndSortedCustomers.reduce((sum, c) => sum + c.visitCount, 0);
+        const totalRevenueTHB = filteredAndSortedCustomers.reduce((sum, c) => sum + c.totalSpentTHB, 0);
+        const totalRevenueLAK = totalRevenueTHB * exchangeRate;
+        
+        let maxSingleBillTHB = 0;
+        let maxBillCustomer = '-';
+        filteredAndSortedCustomers.forEach(c => {
+          if (c.maxBillTHB > maxSingleBillTHB) {
+            maxSingleBillTHB = c.maxBillTHB;
+            maxBillCustomer = c.name;
+          }
+        });
+        const maxSingleBillLAK = maxSingleBillTHB * exchangeRate;
+
+        const repeatCustomers = filteredAndSortedCustomers.filter(c => c.visitCount >= 2).length;
+        const repeatRate = totalCustomers > 0 ? ((repeatCustomers / totalCustomers) * 100).toFixed(1) : '0';
+        const avgSpentPerVisitTHB = totalVisits > 0 ? (totalRevenueTHB / totalVisits) : 0;
+        const avgSpentPerVisitLAK = avgSpentPerVisitTHB * exchangeRate;
+
+        return {
+          totalCustomers,
+          totalVisits,
+          totalRevenueTHB,
+          totalRevenueLAK,
+          maxSingleBillTHB,
+          maxSingleBillLAK,
+          maxBillCustomer,
+          repeatCustomers,
+          repeatRate,
+          avgSpentPerVisitTHB,
+          avgSpentPerVisitLAK
+        };
+      }, [filteredAndSortedCustomers, exchangeRate]);
+
+      // Unique Customer Types for Filter Dropdown
+      const availableCustomerTypes = useMemo(() => {
+        const set = new Set();
+        customerAnalytics.forEach(c => {
+          if (c.customerType && c.customerType !== '-') set.add(c.customerType);
+        });
+        return Array.from(set).sort();
+      }, [customerAnalytics]);
+
+      // 5. Excel Export Function
+      const handleExportExcel = () => {
+        if (!window.XLSX) {
+          showToastMsg('กำลังโหลดโมดูล Excel...', 'info');
+          return;
+        }
+
+        const rows = filteredAndSortedCustomers.map((c, idx) => ({
+          'อันดับ': idx + 1,
+          'รหัส HN / ID': c.id,
+          'ชื่อลูกค้า': c.name,
+          'เบอร์โทรศัพท์': c.phone,
+          'ประเภทลูกค้า': c.customerType,
+          'จำนวนครั้งที่ซื้อ (ครั้ง)': c.visitCount,
+          'ยอดบิลสูงสุด (THB)': Math.round(c.maxBillTHB),
+          'ยอดบิลสูงสุด (LAK)': Math.round(c.maxBillLAK),
+          'ยอดซื้อเฉลี่ย/บิล (THB)': Math.round(c.avgBillTHB),
+          'ยอดซื้อรวม (THB)': Math.round(c.totalSpentTHB),
+          'ยอดซื้อรวม (LAK)': Math.round(c.totalSpentLAK),
+          'วันที่มาครั้งแรก': c.firstVisitDate,
+          'วันที่มาล่าสุด': c.latestVisitDate
+        }));
+
+        const ws = window.XLSX.utils.json_to_sheet(rows);
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, ws, "CustomerAnalytics");
+        const filename = `Customer_Analytics_${startDate}_to_${endDate}.xlsx`;
+        window.XLSX.writeFile(wb, filename);
+        showToastMsg('ส่งออกไฟล์ Excel สำเร็จ', 'success');
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
+          
+          {/* Main Sidebar */}
+          <Sidebar 
+            activePage="report_customers" 
+            isLoggedIn={isLoggedIn} 
+            currentUser={currentUser} 
+            isAdmin={isAdmin} 
+            onLogout={handleLogout} 
+            showLoginModal={showLoginModal} 
+            setShowLoginModal={setShowLoginModal} 
+            SCRIPT_URL=""
+            isSidebarCollapsed={isSidebarCollapsed}
+            setIsSidebarCollapsed={setIsSidebarCollapsed}
+          />
+
+          {/* Main Content Workspace with margin offset matching sidebar */}
+          <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+            
+            <div className="p-4 sm:p-6 lg:p-8 flex-1 w-full space-y-6">
+
+              {/* Print Only Header Banner */}
+              <div className="print-only mb-6 border-b pb-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h1 className="text-xl font-bold">รายงานสถิติลูกค้า (Customer Analytics Report)</h1>
+                    <p className="text-xs text-slate-500">ช่วงวันที่: {datePreset === 'all' ? 'ข้อมูลทั้งหมดตั้งแต่เริ่ม' : `${startDate} ถึง ${endDate}`}</p>
+                  </div>
+                  <div className="text-right text-xs">
+                    <p>พิมพ์เมื่อ: {new Date().toLocaleString('th-TH')}</p>
+                    <p>อัตราแลกเปลี่ยน: 1 ฿ = {exchangeRate.toLocaleString()} ₭</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 🏷️ Top Header matching Reports.html style */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 no-print">
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+                    <span className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
+                      <Contact size={24} />
+                    </span>
+                    {translate('menu_reports_customer', 'สถิติลูกค้า')}
+                  </h1>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Customer Analytics Report • วิเคราะห์พฤติกรรม ยอดบิลสูงสุด และยอดซื้อสะสมรายคน
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold">
+                    <span>💱 เรท:</span>
+                    <span className="font-mono font-black">1 ฿ = {fmtNum(exchangeRate)} ₭</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={loadAllData}
+                    disabled={isLoading}
+                    className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+                  >
+                    🔄 {isLoading ? 'กำลังโหลด...' : 'รีเฟรช'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 🎛️ Filter Panel */}
+              <div className="filter-panel bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 md:p-5 shadow-sm space-y-4">
+                
+                {/* Row 1: Preset Buttons + Currency Switcher */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 mr-1">ช่วงเวลา:</span>
+                    {[
+                      { id: 'today', label: '📅 วันนี้' },
+                      { id: 'week', label: 'สัปดาห์นี้' },
+                      { id: 'month', label: 'เดือนนี้' },
+                      { id: 'year', label: 'ปีนี้' },
+                      { id: 'all', label: '🌐 ทั้งหมดตั้งแต่เริ่ม' },
+                      { id: 'custom', label: '⚙️ กำหนดเอง' }
+                    ].map(btn => (
+                      <button
+                        key={btn.id}
+                        type="button"
+                        onClick={() => handlePresetChange(btn.id)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                          datePreset === btn.id
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Currency Switcher + Actions */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">สกุลเงิน:</span>
+                    <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setCurrencyMode('LAK')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                          currencyMode === 'LAK'
+                            ? 'bg-amber-600 text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        ₭ กีบ (LAK)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrencyMode('THB')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                          currencyMode === 'THB'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        ฿ บาท (THB)
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-sm flex items-center gap-1.5 transition-all"
+                    >
+                      <FileText size={14} /> ส่งออก Excel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white rounded-xl shadow-sm flex items-center gap-1.5 transition-all"
+                    >
+                      🖨️ พิมพ์ / PDF
+                    </button>
+                  </div>
+                </div>
+
+                {/* Custom Date Pickers */}
+                {datePreset === 'custom' && (
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-slate-500">ตั้งแต่วันที่:</label>
+                      <input 
+                        type="date" 
+                        value={startDate} 
+                        onChange={e => setStartDate(e.target.value)}
+                        className="px-3 py-1.5 text-xs font-bold border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-slate-500">ถึงวันที่:</label>
+                      <input 
+                        type="date" 
+                        value={endDate} 
+                        onChange={e => setEndDate(e.target.value)}
+                        className="px-3 py-1.5 text-xs font-bold border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Row 2: Search Box & Dropdown Filters */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                  <div className="relative">
+                    <SearchIcon size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาชื่อลูกค้า, HN, เบอร์โทร..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all"
+                    />
+                    {searchQuery && (
+                      <button 
+                        type="button" 
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <select
+                      value={selectedTypeFilter}
+                      onChange={e => setSelectedTypeFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="all">🏷️ ประเภทลูกค้าทั้งหมด</option>
+                      {availableCustomerTypes.map(tItem => (
+                        <option key={tItem} value={tItem}>{tItem}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <select
+                      value={frequencyTierFilter}
+                      onChange={e => setFrequencyTierFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="all">🔄 ความถี่: ทั้งหมด</option>
+                      <option value="repeat">🔁 ลูกค้าซื้อซ้ำ (≥ 2 ครั้ง)</option>
+                      <option value="frequent">⭐ ลูกค้าประจำ / VIP (≥ 4 ครั้ง)</option>
+                      <option value="onetime">👤 ซื้อครั้งเดียว (1 ครั้ง)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <select
+                      value={sortBy}
+                      onChange={e => setSortBy(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-blue-600 dark:text-blue-400 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="total_spent_desc">💰 ยอดซื้อรวมสูงสุด (มาก ➔ น้อย)</option>
+                      <option value="max_bill_desc">🏆 ยอดบิลเดี่ยวสูงสุด (Max Ticket)</option>
+                      <option value="visits_desc">🔢 จำนวนครั้งที่ซื้อมากสุด (บ่อยสุด)</option>
+                      <option value="latest_desc">🕒 วันที่มาซื้อล่าสุด (ล่าสุด ➔ เก่าสุด)</option>
+                      <option value="name_asc">🔤 ชื่อลูกค้า (ก - ฮ)</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* 📊 KPI Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+                
+                {/* 1. Total Customers */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ลูกค้าทั้งหมด</span>
+                    <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
+                      <Users size={16} />
+                    </div>
+                  </div>
+                  <div className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
+                    {fmtNum(kpis.totalCustomers)}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">คนที่มีประวัติซื้อ</div>
+                </div>
+
+                {/* 2. Total Bills / Visits */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">จำนวนบิลรวม</span>
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                      <FileText size={16} />
+                    </div>
+                  </div>
+                  <div className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
+                    {fmtNum(kpis.totalVisits)}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">ครั้งที่เปิดบิลสำเร็จ</div>
+                </div>
+
+                {/* 3. Total Spent */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ยอดขายรวม</span>
+                    <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                      <Coins size={16} />
+                    </div>
+                  </div>
+                  <div className="text-lg md:text-xl font-black text-emerald-600 dark:text-emerald-400 truncate">
+                    {currencyMode === 'THB' ? `฿${fmtNum(Math.round(kpis.totalRevenueTHB))}` : `₭${fmtNum(Math.round(kpis.totalRevenueLAK))}`}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">ยอดรวมตามเงื่อนไข</div>
+                </div>
+
+                {/* 4. Max Single Bill */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">บิลสูงสุด (Max)</span>
+                    <div className="p-2 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl">
+                      <Trophy size={16} />
+                    </div>
+                  </div>
+                  <div className="text-lg md:text-xl font-black text-amber-600 dark:text-amber-400 truncate">
+                    {currencyMode === 'THB' ? `฿${fmtNum(Math.round(kpis.maxSingleBillTHB))}` : `₭${fmtNum(Math.round(kpis.maxSingleBillLAK))}`}
+                  </div>
+                  <div className="text-[10px] text-slate-400 truncate mt-1">{kpis.maxBillCustomer}</div>
+                </div>
+
+                {/* 5. Repeat Customers */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ลูกค้าซื้อซ้ำ</span>
+                    <div className="p-2 bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400 rounded-xl">
+                      <Target size={16} />
+                    </div>
+                  </div>
+                  <div className="text-xl md:text-2xl font-black text-cyan-600 dark:text-cyan-400">
+                    {fmtNum(kpis.repeatCustomers)} <span className="text-xs font-bold text-slate-500">({kpis.repeatRate}%)</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">ซื้อตั้งแต่ 2 ครั้งขึ้นไป</div>
+                </div>
+
+                {/* 6. Avg Spent / Visit */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">เฉลี่ยต่อบิล</span>
+                    <div className="p-2 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-xl">
+                      <BarChart3 size={16} />
+                    </div>
+                  </div>
+                  <div className="text-lg md:text-xl font-black text-purple-600 dark:text-purple-400 truncate">
+                    {currencyMode === 'THB' ? `฿${fmtNum(Math.round(kpis.avgSpentPerVisitTHB))}` : `₭${fmtNum(Math.round(kpis.avgSpentPerVisitLAK))}`}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">Average Ticket Size</div>
+                </div>
+
+              </div>
+
+              {/* 📋 Main Data Table Container */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden print-shadow-none">
+                
+                {/* Table Header Info */}
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-800/30">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-xl">
+                      <Contact size={18} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                        ตารางสรุปสถิติลูกค้า ({fmtNum(filteredAndSortedCustomers.length)} รายการ)
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        จัดเรียงตาม: {sortBy.includes('total_spent') ? 'ยอดซื้อรวมสูงสุด' : sortBy.includes('max_bill') ? 'ยอดบิลเดี่ยวสูงสุด' : sortBy.includes('visits') ? 'ความถี่ที่มาซื้อ' : 'วันที่มาล่าสุด'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    อัตราแลกเปลี่ยน: <span className="font-mono text-amber-600 dark:text-amber-400">1 ฿ = {fmtNum(exchangeRate)} ₭</span>
+                  </div>
+                </div>
+
+                {/* Table Body */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                        <th className="py-3 px-3 text-center w-12">#</th>
+                        <th className="py-3 px-3 w-28">รหัส HN / ID</th>
+                        <th className="py-3 px-4">ชื่อลูกค้า</th>
+                        <th className="py-3 px-3">ประเภทลูกค้า</th>
+                        <th className="py-3 px-3 text-center">มาซื้อ (ครั้ง)</th>
+                        <th className="py-3 px-3 text-right">ยอดบิลสูงสุด (Max)</th>
+                        <th className="py-3 px-3 text-right">เฉลี่ย/บิล</th>
+                        <th className="py-3 px-4 text-right">ยอดซื้อรวมสะสม</th>
+                        <th className="py-3 px-3 text-center">ซื้อล่าสุด</th>
+                        <th className="py-3 px-3 text-center no-print">ประวัติ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredAndSortedCustomers.length === 0 ? (
+                        <tr>
+                          <td colSpan="10" className="py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <span className="text-3xl">🔍</span>
+                              <span className="font-bold">ไม่พบข้อมูลลูกค้าตามเงื่อนไขที่เลือก</span>
+                              <span className="text-xs text-slate-500">ลองปรับช่วงวันที่ หรือค้นหาด้วยคำอื่น</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredAndSortedCustomers.map((cust, idx) => {
+                          const typeBadge = getCustomerTypeBadge(cust.customerType);
+                          const maxAmount = currencyMode === 'THB' ? cust.maxBillTHB : cust.maxBillLAK;
+                          const avgAmount = currencyMode === 'THB' ? cust.avgBillTHB : cust.avgBillLAK;
+                          const totalAmount = currencyMode === 'THB' ? cust.totalSpentTHB : cust.totalSpentLAK;
+                          const curSymbol = currencyMode === 'THB' ? '฿' : '₭';
+
+                          return (
+                            <tr 
+                              key={cust.key} 
+                              className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40 transition-colors"
+                            >
+                              {/* Rank */}
+                              <td className="py-3 px-3 text-center font-bold">
+                                {idx === 0 ? (
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-black text-xs">🥇</span>
+                                ) : idx === 1 ? (
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-black text-xs">🥈</span>
+                                ) : idx === 2 ? (
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-800/20 text-amber-900 dark:text-amber-300 font-black text-xs">🥉</span>
+                                ) : (
+                                  <span className="text-slate-400 font-mono text-[11px]">{idx + 1}</span>
+                                )}
+                              </td>
+
+                              {/* HN / ID */}
+                              <td className="py-3 px-3 font-mono font-bold text-slate-700 dark:text-slate-300">
+                                <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] border border-slate-200 dark:border-slate-700">
+                                  {cust.id}
+                                </span>
+                              </td>
+
+                              {/* Customer Name */}
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2.5">
+                                  <img 
+                                    src={cleanAvatar('', cust.name)} 
+                                    alt={cust.name} 
+                                    className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover shrink-0" 
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-slate-900 dark:text-white truncate">
+                                      {cust.name}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Customer Type */}
+                              <td className="py-3 px-3">
+                                <span className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-bold border ${typeBadge.bg}`}>
+                                  {typeBadge.label}
+                                </span>
+                              </td>
+
+                              {/* Visit Count */}
+                              <td className="py-3 px-3 text-center">
+                                <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full font-bold text-xs ${
+                                  cust.visitCount >= 4 
+                                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 font-black' 
+                                    : cust.visitCount >= 2 
+                                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' 
+                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                }`}>
+                                  {fmtNum(cust.visitCount)}
+                                </span>
+                              </td>
+
+                              {/* Max Bill */}
+                              <td className="py-3 px-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                                {curSymbol}{fmtNum(Math.round(maxAmount))}
+                              </td>
+
+                              {/* Average Spend */}
+                              <td className="py-3 px-3 text-right font-mono text-slate-500 dark:text-slate-400">
+                                {curSymbol}{fmtNum(Math.round(avgAmount))}
+                              </td>
+
+                              {/* Total Spent */}
+                              <td className="py-3 px-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                {curSymbol}{fmtNum(Math.round(totalAmount))}
+                              </td>
+
+                              {/* Latest Visit */}
+                              <td className="py-3 px-3 text-center text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                                {cust.latestVisitDate || '-'}
+                              </td>
+
+                              {/* Action */}
+                              <td className="py-3 px-3 text-center no-print">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedCustomerForHistory(cust)}
+                                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-600 rounded-lg text-xs font-bold transition-all shadow-sm border border-blue-200 dark:border-slate-700"
+                                >
+                                  ดูประวัติ ({cust.visitCount})
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+              </div>
+
+            </div>
+          </main>
+
+          {/* 🔍 Customer Purchase History Modal (Drill-Down) */}
+          {selectedCustomerForHistory && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+              <div 
+                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-slideUp"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-slate-50/60 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={cleanAvatar('', selectedCustomerForHistory.name)} 
+                      alt="" 
+                      className="w-12 h-12 rounded-2xl border border-slate-200 dark:border-slate-700 object-cover" 
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-slate-900 dark:text-white">
+                          {selectedCustomerForHistory.name}
+                        </h3>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getCustomerTypeBadge(selectedCustomerForHistory.customerType).bg}`}>
+                          {selectedCustomerForHistory.customerType}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <span className="font-mono">HN: {selectedCustomerForHistory.id}</span>
+                        <span>•</span>
+                        <span>📞 {selectedCustomerForHistory.phone || '-'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setSelectedCustomerForHistory(null)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Modal Stats Bar */}
+                <div className="grid grid-cols-4 gap-2 p-4 bg-blue-50/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800 text-center text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold block">มาซื้อทั้งหมด</span>
+                    <span className="text-sm font-black text-blue-600 dark:text-blue-400">{selectedCustomerForHistory.visitCount} ครั้ง</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold block">บิลสูงสุด (Max)</span>
+                    <span className="text-sm font-black text-amber-600 font-mono">
+                      {currencyMode === 'THB' ? `฿${fmtNum(Math.round(selectedCustomerForHistory.maxBillTHB))}` : `₭${fmtNum(Math.round(selectedCustomerForHistory.maxBillLAK))}`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold block">เฉลี่ย/บิล</span>
+                    <span className="text-sm font-black text-purple-600 font-mono">
+                      {currencyMode === 'THB' ? `฿${fmtNum(Math.round(selectedCustomerForHistory.avgBillTHB))}` : `₭${fmtNum(Math.round(selectedCustomerForHistory.avgBillLAK))}`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold block">ยอดซื้อรวม</span>
+                    <span className="text-sm font-black text-emerald-600 font-mono">
+                      {currencyMode === 'THB' ? `฿${fmtNum(Math.round(selectedCustomerForHistory.totalSpentTHB))}` : `₭${fmtNum(Math.round(selectedCustomerForHistory.totalSpentLAK))}`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Modal Bill List */}
+                <div className="p-5 overflow-y-auto space-y-4 flex-1">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    ประวัติบิลทั้งหมด เรียงตามวันที่ล่าสุด ({selectedCustomerForHistory.bills.length} บิล)
+                  </h4>
+
+                  <div className="space-y-3">
+                    {selectedCustomerForHistory.bills.map((bill, bIdx) => (
+                      <div 
+                        key={bill.order_id || bIdx}
+                        className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 hover:border-blue-400 transition-all space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
+                              #{bill.order_id}
+                            </span>
+                            <span className="text-[11px] font-mono text-slate-400">
+                              📅 {bill.date}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-mono font-black text-sm text-emerald-600 dark:text-emerald-400">
+                              {currencyMode === 'THB' ? `฿${fmtNum(Math.round(bill.amountTHB))}` : `₭${fmtNum(Math.round(bill.amountLAK))}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Items Purchased List */}
+                        {bill.items && bill.items.length > 0 && (
+                          <div className="bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 space-y-1">
+                            <div className="text-[10px] font-bold text-slate-400">รายการสินค้า:</div>
+                            <div className="space-y-1 text-xs">
+                              {bill.items.map((it, itIdx) => {
+                                const pName = it.name || it.prod || it.productName || it.id || 'สินค้า';
+                                const qty = it.qty || 1;
+                                const price = it.price || it.unitPrice || 0;
+                                return (
+                                  <div key={itIdx} className="flex justify-between items-center text-[11px] text-slate-600 dark:text-slate-300">
+                                    <span>• {pName} <span className="font-bold text-blue-600">x{qty}</span></span>
+                                    <span className="font-mono text-slate-500">
+                                      {price > 0 ? (currencyMode === 'THB' ? `฿${fmtNum(price * qty)}` : `₭${fmtNum(price * qty * exchangeRate)}`) : 'ราคาศูนย์'}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                          <span>👤 ผู้บันทึก/ขาย: <strong className="text-slate-600 dark:text-slate-300">{bill.seller_name}</strong></span>
+                          <span>💳 {bill.sale_type || bill.payment_note || '-'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCustomerForHistory(null)}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all"
+                  >
+                    ปิดหน้าต่าง
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Toast Notification */}
+          <Toast toast={toast} setToast={setToast} />
+
+          {/* Login Modal */}
+          {showLoginModal && (
+            <LoginModal 
+              isOpen={showLoginModal}
+              onClose={() => setShowLoginModal(false)}
+              onLoginSuccess={(user) => {
+                localStorage.setItem('stk_current_user', JSON.stringify(user));
+                setCurrentUser(user);
+                setIsLoggedIn(true);
+                setShowLoginModal(false);
+              }}
+            />
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  })();
+  </script>
+</body>
+</html>

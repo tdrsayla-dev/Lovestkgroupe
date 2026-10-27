@@ -519,9 +519,65 @@
         const targetWH = preferredWarehouse || (bill && bill.warehouse_id) || (isB2B ? 'MAIN_WH' : 'FRONT_STORE');
         const results = [];
 
+        // 🛡️ GUARD 1: ป้องกันการคืนสต็อกซ้ำซ้อน (Double-Return Guard)
+        // ตรวจสอบว่าบิลนี้เคยมีประวัติ MOV-IN คืนสต็อกไปแล้วหรือไม่
+        if (orderId && typeof window.supabaseSelect === 'function') {
+            try {
+                const existingReturnMoves = await window.supabaseSelect(
+                    'stk_stock_movements',
+                    `type=eq.IN&notes=ilike.*${encodeURIComponent(orderId)}*&select=movement_id,quantity,product_id`
+                );
+                if (Array.isArray(existingReturnMoves) && existingReturnMoves.length > 0) {
+                    console.warn(`⚠️ [StockLogic] บิล ${orderId} เคยมีประวัติคืนสต็อก (MOV-IN) ไปแล้ว ${existingReturnMoves.length} รายการ ระบบจะข้ามเพื่อป้องกันสต็อกงอกซ้ำซ้อน`);
+                    return { success: true, returned: 0, skipped: true, reason: 'Already returned' };
+                }
+            } catch (chkErr) {
+                console.warn('⚠️ Double-return check failed, proceeding cautiously:', chkErr);
+            }
+        }
+
+        // 🛡️ GUARD 2: ป้องกันบิลผี/บิล error ที่ไม่เคยถูกตัดสต็อกจริง (Phantom Bill Guard)
+        // บิลที่เกิดจาก error ตอนเปิดบิล จะไม่เคยมีประวัติการตัดสต็อก MOV-OUT ใน stk_stock_movements
+        // หากไม่มี MOV-OUT เด็ดขาด ห้ามบวกสต็อกคืนเด็ดขาด มิฉะนั้นสต็อกจะปูดเกินความจริง
+        let deductedMovesMap = {};
+        let hasAnyDeductedMove = false;
+        if (orderId && typeof window.supabaseSelect === 'function') {
+            try {
+                const deductedMoves = await window.supabaseSelect(
+                    'stk_stock_movements',
+                    `type=eq.OUT&notes=ilike.*${encodeURIComponent(orderId)}*&select=movement_id,quantity,product_id`
+                );
+                if (Array.isArray(deductedMoves) && deductedMoves.length > 0) {
+                    hasAnyDeductedMove = true;
+                    deductedMoves.forEach(m => {
+                        const pidKey = String(m.product_id || '').trim();
+                        const q = Number(m.quantity || 0);
+                        if (pidKey && q > 0) {
+                            deductedMovesMap[pidKey] = (deductedMovesMap[pidKey] || 0) + q;
+                        }
+                    });
+                } else {
+                    console.warn(`⚠️ [StockLogic] บิล ${orderId} ไม่พบประวัติการตัดสต็อก (MOV-OUT) ในระบบ ถือเป็นบิลที่ยังไม่เคยตัดสต็อก จะไม่ทำการบวกสต็อกปลอมคืนเด็ดขาด`);
+                    return { success: true, returned: 0, skipped: true, reason: 'No OUT movement found for this bill' };
+                }
+            } catch (deductChkErr) {
+                console.warn('⚠️ Deducted moves check failed:', deductChkErr);
+            }
+        }
+
         for (const pid of pids) {
-            const qtyToReturn = stockMap[pid];
+            let qtyToReturn = stockMap[pid];
             if (qtyToReturn <= 0) continue;
+
+            // หากมีบันทึกประวัติการตัดจริง ให้คืนได้ไม่เกินยอดที่เคยตัดจริงสำหรับสินค้านี้
+            if (hasAnyDeductedMove) {
+                const maxDeducted = deductedMovesMap[pid] !== undefined ? deductedMovesMap[pid] : 0;
+                if (maxDeducted <= 0) {
+                    console.warn(`⚠️ [StockLogic] สินค้า ${pid} ในบิล ${orderId} ไม่มียอดตัดสต็อกจริง (MOV-OUT) ข้ามการคืนสต็อกสินค้านี้`);
+                    continue;
+                }
+                qtyToReturn = Math.min(qtyToReturn, maxDeducted);
+            }
 
             // ดึงสต๊อกสดจาก Supabase ก่อนบวกคืนเสมอ (ป้องกัน Stale Overwrite)
             const liveStock = await fetchLiveProductStock(pid);

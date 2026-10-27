@@ -11,6 +11,7 @@ window.stkDict = {
     "menu_reports_stock": { th: "สต๊อกสินค้า", lo: "ສະຕ໋ອກສິນຄ້າ", en: "Stock" },
     "menu_reports_referral": { th: "ค่าแนะนำ", lo: "ຄ່າແນະນຳ", en: "Referral" },
     "menu_reports_campaign": { th: "แคมเปญ", lo: "ແຄມເປນ", en: "Campaigns" },
+    "menu_reports_customer": { th: "สถิติลูกค้า", lo: "ສະຖິຕິລູກຄ້າ", en: "Customer Analytics" },
     "menu_org_chart": { th: "ผังองค์กรสายงาน", lo: "ຜັງອົງກອນສາຍງານ", en: "Organization Chart" },
     "menu_daily_transactions": { th: "ธุรกรรมประจำวัน", lo: "ທຸລະກຳປະຈຳວັນ", en: "Daily Transactions" },
     "menu_sales": { th: "ป้อนข้อมูลขาย", lo: "ປ້ອນຂໍ້ມູນຂາຍ", en: "Sales Entry" },
@@ -68,8 +69,8 @@ window.stkDict = {
     // ตัวกรองและค้นหา (Filters & Search)
     "wh_search_placeholder": { th: "ค้นหาชื่อสินค้า, รหัสสินค้า, หรือบาร์โค้ด...", lo: "ຄົ້ນຫາຊື່ສິນຄ້າ, ລະຫັດສິນຄ້າ, ຫຼື ບາໂຄ້ດ...", en: "Search product name, SKU, or barcode..." },
     "wh_filter_all": { th: "ทั้งหมด", lo: "ທັງໝົດ", en: "All" },
-    "wh_filter_physical": { th: "📦 สินค้าหลัก", lo: "📦 ສິນຄ້າຫຼັກ", en: "📦 Main Products" },
-    "wh_filter_bundle": { th: "🎁 เซ็ตโปรโมชั่น", lo: "🎁 ເຊັດໂປຣໂມຊັ່ນ", en: "🎁 Promo Bundles" },
+    "wh_filter_physical": { th: "สินค้าหลัก", lo: "ສິນຄ້າຫຼັກ", en: "Main Products" },
+    "wh_filter_bundle": { th: "เซ็ตโปรโมชั่น", lo: "ເຊັດໂປຣໂມຊັ່ນ", en: "Promo Bundles" },
     "wh_label_status": { th: "สถานะสต๊อก:", lo: "ສະຖານະສະຕ໋ອກ:", en: "Stock Status:" },
     "wh_status_all": { th: "ทั้งหมด", lo: "ທັງໝົດ", en: "All" },
     "wh_status_expiring": { th: "ใกล้หมดอายุ (≤90 วัน)", lo: "ໃກ້ໝົດອາຍຸ (≤90 ວັນ)", en: "Expiring Soon (≤90 Days)" },
@@ -485,50 +486,11 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
     );
 
     // 🛡️ กฎเหล็ก: หากมีการระบุประเภทลูกค้า (explicitType) มาจากระบบคลินิกหรือผู้ใช้คีย์มาอย่างชัดเจน
-    // ให้เคารพและแปลงตาม explicitType เป็นหลักเสมอ! ห้ามเดาเปลี่ยนประเภทเป็นอย่างอื่นเด็ดขาด
+    // ให้เคารพและแปลงตาม explicitType เป็นหลักเสมอ 100%! ห้ามเดาเปลี่ยนประเภทเป็นอย่างอื่นเด็ดขาด
     if (!isMissingExplicit) {
         if (typeof window.normalizeCustomerType === 'function') {
             const norm = window.normalizeCustomerType(cleanExplicit, curLang, context);
             if (norm && norm.id) {
-                const isManualOverride = context && (context.manuallySelected === true || context.isManual === true);
-                if (!isManualOverride) {
-                    const isOrd = vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-');
-                    // 🛡️ หากลูกค้ารายนี้ยังไม่มีประวัติในระบบ (isExistingCustomer === false) แต่ประเภทถูกระบุเป็นลูกค้าเก่า (T002, T006, isOld)
-                    if (isExistingCustomer === false && (norm.id === 'T002' || norm.id === 'T006' || norm.isOld)) {
-                        const targetId = isOrd ? 'T004' : 'T001';
-                        const fallbackItem = list.find(t => t.id === targetId) || {
-                            id: targetId,
-                            name: isOrd ? 'โทรปิดการขายลูกค้าใหม่' : 'ลูกค้าใหม่มาตรวจ',
-                            th: isOrd ? 'โทรปิดการขายลูกค้าใหม่' : 'ลูกค้าใหม่มาตรวจ',
-                            lo: isOrd ? 'ໂທປິດການຂາຍລູກຄ້າໃໝ່' : 'ລູກຄ້າໃໝ່ມາກວດ',
-                            en: isOrd ? 'Telesales - New Customer' : 'New Customer - Clinic Visit',
-                            isOld: false
-                        };
-                        return {
-                            ...fallbackItem,
-                            label: fallbackItem[curLang] || fallbackItem.th,
-                            display: fallbackItem[curLang] || fallbackItem.th
-                        };
-                    }
-
-                    // 🛡️ หากลูกค้ารายนี้มีประวัติการซื้อหรือเคยตรวจในระบบแล้ว (isExistingCustomer === true) แต่ประเภทถูกระบุเป็นลูกค้าใหม่ (T001, T004, !isOld)
-                    if (isExistingCustomer === true && (norm.id === 'T001' || norm.id === 'T004' || norm.isOld === false)) {
-                        const targetId = isOrd ? 'T006' : 'T002';
-                        const fallbackItem = list.find(t => t.id === targetId) || {
-                            id: targetId,
-                            name: isOrd ? 'โทรปิดการขายลูกค้าเก่า' : 'ลูกค้าเก่ากลับมาต่อยา',
-                            th: isOrd ? 'โทรปิดการขายลูกค้าเก่า' : 'ลูกค้าเก่ากลับมาต่อยา',
-                            lo: isOrd ? 'ໂທປິດการขวดເກົ່າ' : 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ',
-                            en: isOrd ? 'Telesales - Returning Customer' : 'Returning Customer - Medicine Refill',
-                            isOld: true
-                        };
-                        return {
-                            ...fallbackItem,
-                            label: fallbackItem[curLang] || fallbackItem.th,
-                            display: fallbackItem[curLang] || fallbackItem.th
-                        };
-                    }
-                }
                 return norm;
             }
         }

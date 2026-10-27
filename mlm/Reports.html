@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -387,6 +387,10 @@
                 }
                 if (currentGroup === 'referral') {
                     window.location.replace('ReportReferral.html' + (window.location.search ? window.location.search.replace(/&?group=referral/, '') : ''));
+                    return;
+                }
+                if (currentGroup === 'customer' || currentGroup === 'customers') {
+                    window.location.replace('ReportCustomers.html' + (window.location.search ? window.location.search.replace(/&?group=customers?/, '') : ''));
                     return;
                 }
                 setActiveGroup(currentGroup);

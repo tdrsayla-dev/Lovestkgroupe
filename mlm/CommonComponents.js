@@ -241,6 +241,16 @@
     React.createElement('path', { d: "M22 11.08V12a10 10 0 1 1-5.93-9.14" }),
     React.createElement('polyline', { points: "22 4 12 14.01 9 11.01" })
   );
+  const AlertTriangle = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('path', { d: "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" }),
+    React.createElement('line', { x1: "12", y1: "9", x2: "12", y2: "13" }),
+    React.createElement('line', { x1: "12", y1: "17", x2: "12.01", y2: "17" })
+  );
+  const AlertCircle = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
+    React.createElement('line', { x1: "12", y1: "8", x2: "12", y2: "12" }),
+    React.createElement('line', { x1: "12", y1: "16", x2: "12.01", y2: "16" })
+  );
   const GitBranch = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
     React.createElement('line', { x1: "6", x2: "6", y1: "3", y2: "15" }),
     React.createElement('circle', { cx: "18", cy: "6", r: "3" }),
@@ -652,6 +662,7 @@
         'notification_settings': 'NotificationSettings.html',
         'company_settings': 'CompanySettings.html',
         'campaign_settings': 'CampaignSettings.html',
+        'report_customers': 'ReportCustomers.html',
         'b2b': 'B2B.html',
         'wholesale': 'B2B.html'
       };
@@ -670,6 +681,8 @@
                 targetFile = 'ReportReferral.html';
               } else if (matchGroup[1] === 'campaign') {
                 targetFile = 'ReportCampaign.html';
+              } else if (matchGroup[1] === 'customer' || matchGroup[1] === 'customers') {
+                targetFile = 'ReportCustomers.html';
               } else {
                 targetFile = `Reports.html?group=${matchGroup[1]}`;
               }
@@ -704,6 +717,7 @@
       'notification_settings': hasHtmlExt ? 'NotificationSettings.html' : 'NotificationSettings',
       'company_settings': hasHtmlExt ? 'CompanySettings.html' : 'CompanySettings',
       'campaign_settings': hasHtmlExt ? 'CampaignSettings.html' : 'CampaignSettings',
+      'report_customers': hasHtmlExt ? 'ReportCustomers.html' : 'ReportCustomers',
       'b2b': hasHtmlExt ? 'B2B.html' : 'B2B',
       'wholesale': hasHtmlExt ? 'B2B.html' : 'B2B'
     };
@@ -724,6 +738,9 @@
             }
             if (matchGroup[1] === 'campaign') {
               return hasHtmlExt ? 'ReportCampaign.html' : 'ReportCampaign';
+            }
+            if (matchGroup[1] === 'customer' || matchGroup[1] === 'customers') {
+              return hasHtmlExt ? 'ReportCustomers.html' : 'ReportCustomers';
             }
             return `${file}?group=${matchGroup[1]}`;
           }
@@ -777,12 +794,13 @@
     const perm = getUserPagePermission(currentUser, 'reports');
     if (perm === 'none') return null;
 
-    const isPageInReports = activeTab === 'reports' || activeTab === 'report_finance' || activeTab === 'report_stock' || activeTab === 'report_referral' || activeTab === 'report_campaign' || activeTab === 'campaign' ||
+    const isPageInReports = activeTab === 'reports' || activeTab === 'report_finance' || activeTab === 'report_stock' || activeTab === 'report_referral' || activeTab === 'report_campaign' || activeTab === 'campaign' || activeTab === 'report_customers' || activeTab === 'report_customer' ||
                             (typeof window !== 'undefined' && (
                               window.location.pathname.toLowerCase().includes('reportstock') || 
                               window.location.pathname.toLowerCase().includes('reportfinance') ||
                               window.location.pathname.toLowerCase().includes('reportreferral') ||
-                              window.location.pathname.toLowerCase().includes('reportcampaign')
+                              window.location.pathname.toLowerCase().includes('reportcampaign') ||
+                              window.location.pathname.toLowerCase().includes('reportcustomer')
                             ));
     const [isOpen, setIsOpen] = React.useState(isPageInReports);
 
@@ -801,12 +819,14 @@
       if (activeTab === 'report_stock' || activeTab === 'stock') return 'stock';
       if (activeTab === 'report_referral' || activeTab === 'referral') return 'referral';
       if (activeTab === 'report_campaign' || activeTab === 'campaign') return 'campaign';
+      if (activeTab === 'report_customer' || activeTab === 'report_customers' || activeTab === 'customer') return 'customer';
       try {
         const path = (window.location.pathname || '').toLowerCase();
         if (path.includes('reportfinance')) return 'finance';
         if (path.includes('reportstock')) return 'stock';
         if (path.includes('reportreferral')) return 'referral';
         if (path.includes('reportcampaign')) return 'campaign';
+        if (path.includes('reportcustomer')) return 'customer';
         const params = new URLSearchParams(window.location.search);
         return params.get('group') || 'sales';
       } catch(e) { return 'sales'; }
@@ -832,6 +852,7 @@
       ),
       isOpen ? React.createElement('div', { className: "pl-4 ml-5 border-l border-slate-800 space-y-1 relative animation-slide-down", style: { animationDuration: '0.2s' } },
         React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: getLinkClass('sales') }, React.createElement(BarChart3, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_sales', 'ยอดขาย & พนักงาน')),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=customer'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=customer'); }, className: getLinkClass('customer') }, React.createElement(Contact, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_customer', 'สถิติลูกค้า')),
         React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: getLinkClass('finance') }, React.createElement(Coins, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_finance', 'การเงิน & รายรับ')),
         React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: getLinkClass('stock') }, React.createElement(PackageIcon, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_stock', 'สต๊อก & สินค้าตัดศูนย์')),
         React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: getLinkClass('referral') }, React.createElement(Gift, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_referral', 'ค่าแนะนำ & ปันผล')),
@@ -1164,7 +1185,7 @@
       window.location.href = targetUrl;
     };
 
-    const setIsSidebarCollapsed = (val) => {
+    const handleToggleSidebarCollapse = (val) => {
       const next = typeof val === 'function' ? val(isSidebarCollapsed) : val;
       try { localStorage.setItem('stk_sidebar_collapsed', String(next)); } catch (e) { }
       if (propSetCollapsed) {
@@ -1304,7 +1325,7 @@
             }) : null
           ),
           React.createElement('button', { 
-            onClick: () => setIsSidebarCollapsed(!isSidebarCollapsed), 
+            onClick: () => handleToggleSidebarCollapse(!isSidebarCollapsed), 
             className: "p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors border border-transparent shrink-0",
             title: isSidebarCollapsed ? "ขยายเมนู" : "ย่อเมนู"
           },
@@ -1374,6 +1395,7 @@
             isMobileReportsOpen ? React.createElement('div', { className: "absolute left-0 bottom-14 w-60 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animation-slide-up" },
               React.createElement('div', { className: "px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/80 mb-1 text-left" }, t('msg_select_report', 'เลือกหัวข้อรายงาน')),
               React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(BarChart3, { size: 16, className: "shrink-0" }), t('menu_reports_sales', 'ยอดขาย & พนักงาน')),
+              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=customer'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=customer'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Contact, { size: 16, className: "shrink-0" }), t('menu_reports_customer', 'สถิติลูกค้า')),
               React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Coins, { size: 16, className: "shrink-0" }), t('menu_reports_finance', 'การเงิน & รายรับ')),
               React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(PackageIcon, { size: 16, className: "shrink-0" }), t('menu_reports_stock', 'สต๊อก & สินค้าตัดศูนย์')),
               React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Gift, { size: 16, className: "shrink-0" }), t('menu_reports_referral', 'ค่าแนะนำ & ปันผล')),
@@ -1552,7 +1574,16 @@
         if (typeof window.resetSessionInactivityTimer === 'function') {
           window.resetSessionInactivityTimer();
         }
-        onLoginSuccess(user);
+        try {
+          onLoginSuccess(user);
+        } catch (succErr) {
+          console.warn("onLoginSuccess caught warning:", succErr);
+          try {
+            localStorage.setItem('stk_current_user', JSON.stringify(user));
+          } catch(e) {
+            try { sessionStorage.setItem('stk_current_user', JSON.stringify(user)); } catch(_) {}
+          }
+        }
       };
 
       try {
@@ -1916,6 +1947,9 @@
   window.Save = Save;
   window.Info = Info;
   window.PackageIcon = PackageIcon;
+  window.Package = PackageIcon;
+  window.AlertTriangle = AlertTriangle;
+  window.AlertCircle = AlertCircle;
   window.Eye = Eye;
   window.EyeOff = EyeOff;
   window.Lock = Lock;
@@ -2282,7 +2316,10 @@
 
     const saveCache = (cache) => {
       try {
-        sessionStorage.setItem('stkDbCache', JSON.stringify(cache));
+        const str = JSON.stringify(cache);
+        if (str && str.length < 200000) {
+          sessionStorage.setItem('stkDbCache', str);
+        }
       } catch (e) {}
     };
 

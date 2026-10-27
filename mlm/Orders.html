@@ -4,18 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบจัดการบิล (Orders Management) - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.27.01">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=2026.10.17.02"></script>
-  <script src="dictionary.js?v=2026.10.17.02"></script>
-  <script src="companySettings.js?v=2026.10.17.02"></script>
-  <script src="CommonComponents.js?v=2026.10.17.02"></script>
-  <script src="stockLogic.js?v=2026.10.17.02"></script>
+  <script src="config.js?v=2026.10.27.01"></script>
+  <script src="dictionary.js?v=2026.10.27.01"></script>
+  <script src="companySettings.js?v=2026.10.27.01"></script>
+  <script src="CommonComponents.js?v=2026.10.27.01"></script>
+  <script src="stockLogic.js?v=2026.10.27.01"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -350,7 +350,7 @@
                     const stillMissing = remainingMissing.filter(id => !foundHnSet.has(id));
                     if (stillMissing.length > 0 && typeof window.clinicSupabaseSelect === 'function') {
                         try {
-                            const pRes = await window.clinicSupabaseSelect('patients', `hn=in.(${stillMissing.join(',')})&select=hn,patient_name,phone,referred_by&limit=50`).catch(() => []);
+                            const pRes = await window.clinicSupabaseSelect('patients', `hn=in.(${stillMissing.join(',')})&select=hn,patient_name,phone,referred_by,past_history&limit=50`).catch(() => []);
                             if (Array.isArray(pRes) && pRes.length > 0) {
                                 pRes.forEach(p => {
                                     const pHn = String(p.hn || '').trim().toUpperCase();
@@ -361,6 +361,7 @@
                                             id: pHn,
                                             name: p.patient_name || '',
                                             phone: p.phone || '',
+                                            symptom: p.past_history || '',
                                             closer_id: '',
                                             closer: ''
                                         });
@@ -754,7 +755,7 @@
             return filteredSalesHistory.slice((salesPage - 1) * SALES_PER_PAGE, salesPage * SALES_PER_PAGE);
         }, [filteredSalesHistory, salesPage]);
 
-        const handlePrintReceiptPopup = (saleRecord) => {
+        const handlePrintReceiptPopup = async (saleRecord) => {
             if (!saleRecord) return;
             const printWindow = window.open('', '_blank');
             if (!printWindow) {
@@ -776,6 +777,7 @@
             const mPhone = memberObj.phone || memberObj.phone_number || memberObj.phoneNumber || saleRecord.memberPhone || saleRecord.member_phone || saleRecord.sellerPhone || saleRecord.seller_phone || '';
             const mDisplay = mPhone ? `<div>${mName}</div><div style="font-size: 10px; color: #475569; margin-top: 1px;">(โทร: ${mPhone})</div>` : mName;
             const targetSaleCustId = String(saleRecord.customerId || saleRecord.customer_id || '').trim().toUpperCase();
+            const targetCleanHn = targetSaleCustId.replace(/^HN[-:\s]*/i, '');
             const pNoteReceipt = String(saleRecord.paymentNote || saleRecord.payment_note || '').trim().toUpperCase();
             const vMatchReceipt = pNoteReceipt.match(/VISIT:\s*([^\)\s]+)/);
             const visitIdReceipt = vMatchReceipt ? vMatchReceipt[1] : '';
@@ -783,11 +785,50 @@
             const custObj = (customers || []).find(c => {
                 if (!c) return false;
                 const cid = String(c.id || c.customer_id || '').trim().toUpperCase();
-                return cid && cid === targetSaleCustId;
+                const cCleanHn = cid.replace(/^HN[-:\s]*/i, '');
+                return (cid && cid === targetSaleCustId) || (targetCleanHn && cCleanHn && cCleanHn === targetCleanHn);
             }) || {};
 
             const nutrientOrderReceipt = (saleRecord.id && nutrientOrdersMap.get(String(saleRecord.id).toUpperCase())) ||
                                          (visitIdReceipt && nutrientOrdersMap.get(visitIdReceipt)) || null;
+
+            let custDiseaseSymptom = String(
+                nutrientOrderReceipt?.symptom ||
+                nutrientOrderReceipt?.disease ||
+                saleRecord.symptom ||
+                saleRecord.disease ||
+                saleRecord.symptom_disease ||
+                custObj.symptom_disease ||
+                custObj.symptom ||
+                custObj.disease ||
+                custObj.past_history ||
+                ''
+            ).trim();
+            if (custDiseaseSymptom === '-' || custDiseaseSymptom === '--') custDiseaseSymptom = '';
+
+            if (!custDiseaseSymptom) {
+                try {
+                    if (visitIdReceipt && typeof window.supabaseSelect === 'function') {
+                        const nRes = await window.supabaseSelect('stk_nutrient_orders', `visit_id=eq.${encodeURIComponent(visitIdReceipt)}&select=symptom&limit=1`).catch(() => []);
+                        if (nRes && nRes[0] && nRes[0].symptom) {
+                            custDiseaseSymptom = String(nRes[0].symptom).trim();
+                        }
+                    }
+                    if (!custDiseaseSymptom && targetSaleCustId && typeof window.supabaseSelect === 'function') {
+                        const cRes = await window.supabaseSelect('stk_customers', `customer_id=eq.${encodeURIComponent(targetSaleCustId)}&select=symptom_disease&limit=1`).catch(() => []);
+                        if (cRes && cRes[0] && cRes[0].symptom_disease) {
+                            custDiseaseSymptom = String(cRes[0].symptom_disease).trim();
+                        }
+                    }
+                    if (!custDiseaseSymptom && targetCleanHn && typeof window.clinicSupabaseSelect === 'function') {
+                        const pRes = await window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(targetCleanHn)}&select=past_history&limit=1`).catch(() => []);
+                        if (pRes && pRes[0] && pRes[0].past_history) {
+                            custDiseaseSymptom = String(pRes[0].past_history).trim();
+                        }
+                    }
+                } catch (_) {}
+            }
+            if (custDiseaseSymptom === '-' || custDiseaseSymptom === '--') custDiseaseSymptom = '';
 
             const isCleanReceiptName = (n) => Boolean(n && String(n).trim() !== '' && !/^[\?\s]+$/.test(String(n).trim()));
             const custName = (isCleanReceiptName(custObj.name) ? custObj.name : null) || 
@@ -1189,6 +1230,7 @@
                     <tr><td class="bold">เลขที่บิล:</td><td style="font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
                     <tr><td class="bold">วันที่/เวลา:</td><td>${formatDbDateForFilter(saleRecord.date)}${formatOrderTime(saleRecord) ? ` <span style="color:#2563eb; font-weight:700; margin-left:4px;">(${formatOrderTime(saleRecord)})</span>` : ""}</td></tr>
                     <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
+                    <tr><td class="bold">โรค/อาการ:</td><td style="color: #0f172a; font-weight: 600;">${custDiseaseSymptom || '-'}</td></tr>
                     <tr><td class="bold">ผู้ดูแล:</td><td>${mDisplay}</td></tr>
                     <tr><td class="bold">หมอสั่งจ่ายยา:</td><td>${cleanCloserName}</td></tr>
                     <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
@@ -1536,7 +1578,7 @@
             }
         };
 
-        const renderRecordCells = (record) => {
+        const renderRecordCells = (record, nutrientOrder = null) => {
             let fullItems = []; let memberItems = []; let proItems = []; let zeroItems = [];
             
             let itemsList = [];
@@ -1638,6 +1680,25 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                     <div className="font-black text-xl text-blue-700 leading-tight">
                         {totalQtyInRow.toLocaleString()} <span className="text-[11px] font-bold text-blue-500">กล่อง</span>
                     </div>
+                    {(() => {
+                        let prescribedBottles = 0;
+                        if (nutrientOrder && nutrientOrder.items_json) {
+                            try {
+                                const pItems = typeof nutrientOrder.items_json === 'string' ? JSON.parse(nutrientOrder.items_json) : nutrientOrder.items_json;
+                                if (Array.isArray(pItems)) {
+                                    prescribedBottles = pItems.reduce((sum, it) => sum + (parseInt(it.qty) || 1), 0);
+                                }
+                            } catch(e) {}
+                        }
+                        if (prescribedBottles > 0 && totalQtyInRow > 0 && prescribedBottles !== totalQtyInRow) {
+                            return (
+                                <div className="text-[9px] font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded-md py-0.5 px-1 mt-1 shadow-2xs" title={`ในใบสั่งยาระบุ ${prescribedBottles} กล่อง แต่ในบิลขายบันทึก ${totalQtyInRow} กล่อง`}>
+                                    ⚠️ สั่ง {prescribedBottles} / บิล {totalQtyInRow}
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
                     {!isMarketing && (
                         <div className="text-[10px] font-black text-emerald-700 mt-1 bg-white py-0.5 px-1.5 rounded-lg border border-emerald-200/80 shadow-2xs whitespace-nowrap inline-block">
                             {formattedVal}
@@ -1886,7 +1947,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                             <React.Fragment>
                                                 <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{nOrdModal?.customer_phone || cObj?.phone || '-'}</span></div>
                                                 {cObj?.lineId && <div className="flex justify-between"><span className="text-slate-500">LINE ID:</span> <span className="font-bold text-slate-800">{cObj.lineId}</span></div>}
-                                                {(nOrdModal?.symptom || cObj?.symptom) && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{nOrdModal?.symptom || cObj?.symptom}</span></div>}
+                                                {(nOrdModal?.symptom || cObj?.symptom || cObj?.symptom_disease) && <div className="flex justify-between"><span className="text-slate-500">โรค/อาการ:</span> <span className="font-bold text-rose-600">{nOrdModal?.symptom || cObj?.symptom || cObj?.symptom_disease}</span></div>}
                                             </React.Fragment>
                                         )}
                                     </React.Fragment>
@@ -2234,6 +2295,27 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                      </div>
                                  )}
 
+                                 {(() => {
+                                     let prescribedBottles = 0;
+                                     if (nutrientOrderRow && nutrientOrderRow.items_json) {
+                                         try {
+                                             const pItems = typeof nutrientOrderRow.items_json === 'string' ? JSON.parse(nutrientOrderRow.items_json) : nutrientOrderRow.items_json;
+                                             if (Array.isArray(pItems)) {
+                                                 prescribedBottles = pItems.reduce((sum, it) => sum + (parseInt(it.qty) || 1), 0);
+                                             }
+                                         } catch(e) {}
+                                     }
+                                     const rowTotalBottles = parseInt(rs.total_bottles || rs.totalBottles) || 0;
+                                     if (prescribedBottles > 0 && rowTotalBottles > 0 && prescribedBottles !== rowTotalBottles) {
+                                         return (
+                                             <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-300 rounded-lg p-1.5 mt-2 font-bold flex items-center gap-1 shadow-2xs" title={`ในใบสั่งยาระบุ ${prescribedBottles} กล่อง แต่ในบิลขายบันทึก ${rowTotalBottles} กล่อง`}>
+                                                 <span>⚠️ จำนวนต่างจากใบสั่งยา: สั่งจ่าย {prescribedBottles} กล่อง (บิลนี้ {rowTotalBottles} กล่อง)</span>
+                                             </div>
+                                         );
+                                     }
+                                     return null;
+                                 })()}
+
                                 <div className="mt-2.5 border-t border-slate-100 pt-2 flex flex-wrap gap-1.5">
                                      <button 
                                         type="button"
@@ -2261,7 +2343,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                    )}
                                  </div>
                               </td>
-                              {renderRecordCells(rs)}
+                              {renderRecordCells(rs, nutrientOrderRow)}
                            </tr>
                          )
                        })}
@@ -2478,7 +2560,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                 // ⚡ ดึงเฉพาะบิลขายที่มีการอัปเดต และดึงใบสั่งจ่ายยาเพื่อชื่อลูกค้า/ผู้ปิดการขาย
                 const [saleRes, nutrientRes] = await Promise.all([
                     supabaseSelect('stk_sales', query).catch(() => []),
-                    supabaseSelect('stk_nutrient_orders', 'select=order_id,visit_id,hn,customer_name,customer_type,customer_phone,closer_dr,closer_team,sale_order_id&order=created_at.desc&limit=500').catch(() => [])
+                    supabaseSelect('stk_nutrient_orders', 'select=order_id,visit_id,hn,customer_name,customer_type,customer_phone,closer_dr,closer_team,sale_order_id,symptom,items_json,total_amount&order=created_at.desc&limit=500').catch(() => [])
                 ]);
 
                 if (Array.isArray(nutrientRes) && nutrientRes.length > 0) {
@@ -2582,7 +2664,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
           supabaseSelect('stk_system_settings').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
           supabaseSelect('stk_sales', salesQuery).catch(() => []),
-          supabaseSelect('stk_nutrient_orders', 'select=order_id,visit_id,hn,customer_name,customer_type,customer_phone,closer_dr,closer_team,sale_order_id&order=created_at.desc&limit=500').catch(() => [])
+          supabaseSelect('stk_nutrient_orders', 'select=order_id,visit_id,hn,customer_name,customer_type,customer_phone,closer_dr,closer_team,sale_order_id,symptom,items_json,total_amount&order=created_at.desc&limit=500').catch(() => [])
         ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes, nutrientRes]) => {
            lastSalesRefreshTime = Date.now();
            setIsAppLoading(false); // ⚡ ปลด Loading ทันที

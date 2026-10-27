@@ -18,17 +18,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>สั่งจ่ายยา - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
-  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.24.03">
+  <script>(function () {
+    ['warn', 'info', 'error', 'log'].forEach(function(fn) {
+      var orig = console[fn];
+      if (!orig) return;
+      console[fn] = function () {
+        var m = arguments[0] ? String(arguments[0]) : '';
+        if (
+          m.includes('cdn.tailwindcss.com') ||
+          m.includes('in-browser Babel transformer') ||
+          m.includes('[BABEL]') ||
+          m.includes('code generator has deoptimised')
+        ) return;
+        orig.apply(console, arguments);
+      };
+    });
+  })();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="config.js?v=2026.10.20.01"></script>
-  <script src="dictionary.js?v=2026.10.20.01"></script>
-  <script src="CommonComponents.js?v=2026.10.20.01"></script>
+  <script src="config.js?v=2026.10.24.03"></script>
+  <script src="dictionary.js?v=2026.10.24.03"></script>
+  <script src="CommonComponents.js?v=2026.10.24.03"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
 
@@ -337,7 +352,7 @@
             // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย + แพทย์คลินิก + ข้อมูลการตรวจคลินิก
             const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes, clinicDocsRes, clinicVisitsRes] = await Promise.all([
               window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
-              window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
+              window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id,total_bottles,total_amount&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=1000').catch(() => []),
               window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status&order=user_id.asc').catch(() => []),
               (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone,customer_type&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
@@ -384,17 +399,25 @@
             window.clinicVisitsDoctorMap = clinicVisitsDoctorMap;
             window.clinicVisitsCountByHn = clinicVisitsCountByHn;
 
-            // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales
+            // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales และจำนวนขวดที่ขายจริง
             const salesVisitMap = new Map();
+            const salesOrderBottlesMap = new Map();
             if (Array.isArray(salesRes)) {
               salesRes.forEach(s => {
                 const note = String(s.payment_note || s.paymentNote || '');
                 const m = note.match(/VISIT:\s*([^\)\s]+)/);
+                const sBottles = parseInt(s.total_bottles) || 0;
+                if (s.order_id) {
+                  salesOrderBottlesMap.set(String(s.order_id).trim().toUpperCase(), sBottles);
+                }
                 if (m && m[1]) {
-                  salesVisitMap.set(m[1].trim().toUpperCase(), s.order_id);
+                  const vKey = m[1].trim().toUpperCase();
+                  salesVisitMap.set(vKey, s.order_id);
+                  salesOrderBottlesMap.set(vKey, sBottles);
                 }
               });
             }
+            window.salesOrderBottlesMap = salesOrderBottlesMap;
 
             // ⚡ สร้าง Set ของลูกค้าเดิมในระบบเพื่อตรวจสอบความมีอยู่จริง (รองรับ HN ทุกรูปแบบ)
             const hnSet = new Set();
@@ -477,10 +500,22 @@
               });
             }
 
-            // 3. จากประวัติการขายเดิมใน stk_sales
+            // 3. จากประวัติการขายเดิมใน stk_sales (เฉพาะบิลที่ขายสำเร็จจริง)
+            const salesHnSet = new Set();
+            const salesPhoneSet = new Set();
             if (Array.isArray(salesRes)) {
               salesRes.forEach(s => {
-                if (s && s.customer_id) registerHnCandidates(s.customer_id);
+                if (s && s.status !== 'บิลถูกยกเลิก') {
+                  if (s.customer_id) {
+                    registerHnCandidates(s.customer_id);
+                    const cands = (typeof window.normalizeHnCandidates === 'function')
+                      ? window.normalizeHnCandidates(s.customer_id)
+                      : [String(s.customer_id).trim().toUpperCase()];
+                    cands.forEach(c => { if (c) salesHnSet.add(c); });
+                  }
+                  const sPhone = String(s.customer_phone || s.phone || '').replace(/[^0-9]/g, '');
+                  if (sPhone.length >= 7) salesPhoneSet.add(sPhone);
+                }
               });
             }
 
@@ -490,14 +525,9 @@
               const hCandidates = (typeof window.normalizeHnCandidates === 'function')
                 ? window.normalizeHnCandidates(hn)
                 : [String(hn || '').trim().toUpperCase()].filter(Boolean);
-              const hasHn = hCandidates.some(c => c && c !== '-' && hnSet.has(c));
+              const hasHn = hCandidates.some(c => c && c !== '-' && salesHnSet.has(c));
               const p = String(phone || '').replace(/[^0-9]/g, '');
-              const n = String(name || '').trim().toLowerCase();
-              return Boolean(
-                hasHn ||
-                (p && p.length >= 7 && phoneSet.has(p)) ||
-                (n && n !== '-' && nameSet.has(n))
-              );
+              return Boolean(hasHn || (p && p.length >= 7 && salesPhoneSet.has(p)));
             };
 
             // 🛡️ Helper: ค้นหาและแปลงรหัสผู้แนะนำ/พนักงานการตลาดให้ตรงกับฐานข้อมูล stk_members
@@ -568,21 +598,21 @@
                   ? window.normalizeHnCandidates(item.hn || item.customer_id)
                   : [String(item.hn || item.customer_id || '').trim().toUpperCase()].filter(Boolean);
                 const pClean = String(item.phone || item.customer_phone || '').replace(/[^0-9]/g, '');
-                const visitCount = hCandidates.map(c => clinicVisitsCountByHn.get(c) || 0).reduce((max, cnt) => Math.max(max, cnt), 0);
-                const isExisting = checkCustomerExists(item.hn || item.customer_id, item.phone || item.customer_phone, item.customer_name || item.customerName) || (visitCount > 1);
+                // 🛡️ ลูกค้าเก่าตัดสินจากประวัติการซื้อจริงใน stk_sales เท่านั้น (ยกเลิกการเดาจาก visitCount > 1 อย่างถาวร)
+                const isExisting = checkCustomerExists(item.hn || item.customer_id, item.phone || item.customer_phone, item.customer_name || item.customerName);
 
                 const clinicSourceType = hCandidates.map(c => clinicCustTypeByHn.get(c)).find(Boolean) || (pClean.length >= 7 ? clinicCustTypeByPhone.get(pClean) : '') || '';
                 const rawExplicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
-                let explicit = (rawExplicit && rawExplicit !== '-' && rawExplicit !== '--') ? rawExplicit : clinicSourceType;
-                // 🛡️ หากในระบบคลินิกมี customer_type ระบุไว้ชัดเจน (เช่น 'ลูกค้าใหม่มาตรวจ')
-                // และออเดอร์ถูกระบุเป็น 'โทรปิดการขายลูกค้าใหม่' หรือ 'ลูกค้าเก่ากลับมาต่อยา' (ทั้งที่เป็นคนไข้ใหม่จริง)
-                // ให้ใช้ประเภทที่แท้จริงจากระบบคลินิกเป็นหลักเสมอ
-                if (clinicSourceType) {
-                  if (!rawExplicit || rawExplicit === '-' || rawExplicit === '--') {
-                    explicit = clinicSourceType;
-                  } else if (!isExisting && (rawExplicit === 'ลูกค้าเก่ากลับมาต่อยา' || rawExplicit === 'T002' || rawExplicit === 'โทรปิดการขายลูกค้าเก่า' || rawExplicit === 'T006')) {
-                    explicit = clinicSourceType;
-                  }
+                
+                // 🛡️ ลำดับความสำคัญที่ถูกต้อง 100%:
+                // 1. หากในระบบคลินิก (ตาราง patients) ระบุ customer_type มาชัดเจน -> ยึดตามคลินิกเป็นอันดับ 1 เสมอ
+                // 2. หากใน stk_nutrient_orders มี customer_type ระบุอยู่แล้ว -> ยึดตามนั้น 100%
+                // 3. หากไม่มีทั้งคู่ -> ใช้ค่าเริ่มต้นตามประเภทบิลและประวัติการซื้อจริง
+                let explicit = '';
+                if (clinicSourceType && clinicSourceType !== '-' && clinicSourceType !== '--') {
+                  explicit = clinicSourceType;
+                } else if (rawExplicit && rawExplicit !== '-' && rawExplicit !== '--') {
+                  explicit = rawExplicit;
                 }
 
                 const resolvedCustType = (typeof window.resolveVisitCustomerType === 'function')
@@ -592,7 +622,7 @@
                       customer_name: item.customer_name || item.customerName || '',
                       hn: item.hn || item.customer_id || ''
                     }).name
-                  : (explicit || 'ลูกค้าใหม่มาตรวจ');
+                  : (explicit || (vUpper.startsWith('VIS-ORD-') ? (isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
 
                 // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง ชื่อแพทย์อาจไปตกอยู่ใน recorded_by
                 let itemCloser = item.closer_dr;
@@ -653,8 +683,10 @@
                     syncUpdates.status = 'ขายสำเร็จแล้ว';
                     syncUpdates.sale_order_id = matchingSaleId;
                   }
-                  if (resolvedCustType && resolvedCustType !== item.customer_type) {
-                    syncUpdates.customer_type = resolvedCustType;
+                  // 🛡️ ห้ามเขียนทับ customer_type ที่มีอยู่แล้วใน Supabase โดยเด็ดขาด!
+                  // จะอัปเดตเฉพาะเมื่อในตาราง stk_nutrient_orders ยังเป็นค่าว่าง แล้วระบบคลินิกมี clinicSourceType ระบุมาชัดเจนเท่านั้น
+                  if ((!item.customer_type || item.customer_type === '-' || item.customer_type === '--') && clinicSourceType) {
+                    syncUpdates.customer_type = clinicSourceType;
                   }
 
                   if (isClinicVisit && matchedClinicDocStr && item.closer_dr !== matchedClinicDocStr) {
@@ -755,24 +787,16 @@
               ? window.normalizeHnCandidates(item.hn)
               : [String(item.hn || '').trim().toUpperCase()];
             const pCleanLocal = String(item.phone || '').replace(/[^0-9]/g, '');
-            const visitCountLocal = (window.clinicVisitsCountByHn ? hCandidatesLocal.map(c => window.clinicVisitsCountByHn.get(c) || 0).reduce((max, cnt) => Math.max(max, cnt), 0) : 0);
-
-            const isExistingLocal = (() => {
-              if (visitCountLocal > 1) return true;
-              if (existingCustomersData && existingCustomersData.hns) {
-                if (hCandidatesLocal.some(c => c && c !== '-' && existingCustomersData.hns.has(c))) return true;
-                if (pCleanLocal && pCleanLocal.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pCleanLocal)) return true;
-                const n = String(item.customer_name || '').trim().toLowerCase();
-                if (n && n !== '-' && existingCustomersData.names && existingCustomersData.names.has(n)) return true;
-              }
-              return false;
-            })();
+            const isExistingLocal = hCandidatesLocal.some(c => c && c !== '-' && salesHnSet.has(c)) ||
+                                    Boolean(pCleanLocal && pCleanLocal.length >= 7 && salesPhoneSet.has(pCleanLocal));
 
             const clinicSourceTypeLocal = (window.clinicCustTypeByHn ? hCandidatesLocal.map(c => window.clinicCustTypeByHn.get(c)).find(Boolean) : '') || (pCleanLocal.length >= 7 && window.clinicCustTypeByPhone ? window.clinicCustTypeByPhone.get(pCleanLocal) : '') || '';
             const rawExplicitLocal = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
-            let explicitLocal = (rawExplicitLocal && rawExplicitLocal !== '-' && rawExplicitLocal !== '--') ? rawExplicitLocal : clinicSourceTypeLocal;
-            if (!isExistingLocal && clinicSourceTypeLocal && (explicitLocal === 'ลูกค้าเก่ากลับมาต่อยา' || explicitLocal === 'T002' || explicitLocal === 'โทรปิดการขายลูกค้าเก่า' || explicitLocal === 'T006')) {
+            let explicitLocal = '';
+            if (clinicSourceTypeLocal && clinicSourceTypeLocal !== '-' && clinicSourceTypeLocal !== '--') {
               explicitLocal = clinicSourceTypeLocal;
+            } else if (rawExplicitLocal && rawExplicitLocal !== '-' && rawExplicitLocal !== '--') {
+              explicitLocal = rawExplicitLocal;
             }
 
             const resolvedLocalCustType = (typeof window.resolveVisitCustomerType === 'function')
@@ -782,7 +806,7 @@
                   customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
                   hn: item.hn || item.customer_id || ''
                 }).name
-              : (explicitLocal || 'ลูกค้าใหม่มาตรวจ');
+              : (explicitLocal || (vUpper.startsWith('VIS-ORD-') ? (isExistingLocal ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExistingLocal ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
 
             // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง
             let localCloser = item.closer_dr || '';
@@ -1423,7 +1447,19 @@
       // 🗑️ ฟังก์ชันลบ / ยกเลิกรายการสั่งจ่ายยา (ตอบสนองเร็ว 0ms + ลบแบบขนานหลังบ้าน)
       const handleDeleteOrder = (order) => {
         if (typeof Swal === 'undefined') return;
-        
+
+        // 🛡️ ระบบป้องกัน: ห้ามลบใบสั่งยาที่ขายสำเร็จหรือเปิดบิลไปแล้วเด็ดขาด
+        if (order.status === 'ขายสำเร็จแล้ว' || order.sale_order_id) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'ไม่สามารถลบรายการนี้ได้',
+            text: `รายการสั่งจ่ายยานี้ได้เปิดบิลขายสำเร็จแล้ว (บิลเลขที่: ${order.sale_order_id || '-'}) หากต้องการยกเลิก กรุณาไปยกเลิกที่หน้าระบบจัดการบิล (Orders)`,
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'รับทราบ'
+          });
+          return;
+        }
+
         Swal.fire({
           title: 'ยืนยันการลบรายการสั่งจ่ายยา',
           html: `
@@ -1713,27 +1749,14 @@
                             <div className="flex items-center gap-1 mt-1 flex-wrap">
                               {(() => {
                                 const currentEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
-                                const hnCandidates = (typeof window.normalizeHnCandidates === 'function')
-                                  ? window.normalizeHnCandidates(ord.hn)
-                                  : [String(ord.hn || '').trim().toUpperCase()];
-                                const visitCountRender = (window.clinicVisitsCountByHn ? hnCandidates.map(c => window.clinicVisitsCountByHn.get(c) || 0).reduce((max, cnt) => Math.max(max, cnt), 0) : 0);
-                                const isHnInDb = hnCandidates.some(c => c && c !== '-' && existingCustomersData.hns && existingCustomersData.hns.has(c));
-                                const pClean = String(ord.phone || '').replace(/[^0-9]/g, '');
-                                const nClean = String(ord.customer_name || '').trim().toLowerCase();
-                                const isExisting = Boolean(
-                                  visitCountRender > 1 ||
-                                  isHnInDb ||
-                                  (pClean && pClean.length >= 7 && existingCustomersData.phones && existingCustomersData.phones.has(pClean)) ||
-                                  (nClean && nClean !== '-' && existingCustomersData.names && existingCustomersData.names.has(nClean))
-                                );
-                                const normType = (typeof window.resolveVisitCustomerType === 'function')
-                                  ? window.resolveVisitCustomerType(ord.visit_id, isExisting, currentEffectiveType, currentLang, {
+                                const normType = (typeof window.normalizeCustomerType === 'function' && currentEffectiveType)
+                                  ? window.normalizeCustomerType(currentEffectiveType, currentLang, {
                                       disease: ord.disease,
                                       symptom: ord.disease,
                                       customer_name: ord.customer_name,
                                       hn: ord.hn
                                     })
-                                  : { name: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', display: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', isOld: isExisting };
+                                  : { name: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', display: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', isOld: false };
                                 
                                 return (
                                   <button
@@ -1828,6 +1851,21 @@
                               <span className="inline-flex flex-col items-center gap-1.5">
                                 {ord.status === 'บิลถูกยกเลิก' ? <span className="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-xl text-[11px] border border-rose-200 shadow-xs">บิลถูกยกเลิก</span> : <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-[11px] border border-emerald-200 shadow-xs">ขายสำเร็จแล้ว</span>}
                                 {ord.sale_order_id && <a href={window.resolvePageUrl ? window.resolvePageUrl(`Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`) : `Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`} className="text-[10px] text-blue-600 font-bold hover:underline" title="กดเพื่อดูประวัติการขายบิลนี้">บิลเลขที่: {ord.sale_order_id}</a>}
+                                {(() => {
+                                  if (!window.salesOrderBottlesMap) return null;
+                                  const prescribedBottles = (ord.items || []).reduce((sum, it) => sum + (parseInt(it.qty) || 1), 0);
+                                  const vK = ord.visit_id ? String(ord.visit_id).trim().toUpperCase() : '';
+                                  const sK = ord.sale_order_id ? String(ord.sale_order_id).trim().toUpperCase() : '';
+                                  const soldBottles = (sK && window.salesOrderBottlesMap.has(sK)) ? window.salesOrderBottlesMap.get(sK) : (vK && window.salesOrderBottlesMap.has(vK) ? window.salesOrderBottlesMap.get(vK) : null);
+                                  if (soldBottles !== null && soldBottles > 0 && prescribedBottles > 0 && soldBottles !== prescribedBottles) {
+                                    return (
+                                      <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 font-bold rounded-md text-[9px] shadow-2xs mt-0.5 text-center" title={`สั่งจ่าย: ${prescribedBottles} กล่อง / บิลขาย: ${soldBottles} กล่อง`}>
+                                        ⚠️ จำนวนต่างกัน (บิล {soldBottles} / สั่ง {prescribedBottles} กล่อง)
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </span>
                             )}
                           </td>

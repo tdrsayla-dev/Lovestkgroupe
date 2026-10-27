@@ -7,8 +7,108 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.10.21.01';
+  const APP_VERSION = '2026.10.27.03';
   window.APP_VERSION = APP_VERSION;
+
+  // 🛡️ Global QuotaExceeded Protection for localStorage & sessionStorage
+  (function installStorageGuard() {
+    try {
+      if (typeof Storage === 'undefined' || !Storage.prototype || Storage.prototype._guarded) return;
+      const originalSetItem = Storage.prototype.setItem;
+
+      const purgeTemporaryCaches = () => {
+        const disposableKeys = [
+          'stk_app_cache_data',
+          'stk_reports_cache_data',
+          'stk_reports_cache_time',
+          'stk_app_cache_movements',
+          'stk_payout_history',
+          'stk_transfer_history',
+          'stk_grn_history',
+          'stk_clinic_doctors_cache'
+        ];
+        disposableKeys.forEach(k => {
+          try { localStorage.removeItem(k); } catch (_) {}
+          try { sessionStorage.removeItem(k); } catch (_) {}
+        });
+        const isDisposable = (k) => {
+          if (!k) return false;
+          return (
+            k.includes('cache') ||
+            k.startsWith('stk_qc_') ||
+            k.startsWith('stk_warehouse_') ||
+            k.startsWith('stk_campaign_eval_') ||
+            k.startsWith('stk_clinic_logs_') ||
+            k === 'stk_admin_products_full' ||
+            k === 'stkDbCache'
+          );
+        };
+        try {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (isDisposable(k)) localStorage.removeItem(k);
+          }
+        } catch (_) {}
+        try {
+          for (let i = sessionStorage.length - 1; i >= 0; i--) {
+            const k = sessionStorage.key(i);
+            if (isDisposable(k)) sessionStorage.removeItem(k);
+          }
+        } catch (_) {}
+      };
+
+      Storage.prototype.setItem = function (key, value) {
+        try {
+          originalSetItem.call(this, key, value);
+        } catch (e) {
+          const isQuota = (
+            e && (
+              e.name === 'QuotaExceededError' ||
+              e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+              e.code === 22 ||
+              e.code === 1014 ||
+              String(e).toLowerCase().includes('quota')
+            )
+          );
+          if (isQuota) {
+            purgeTemporaryCaches();
+            try {
+              originalSetItem.call(this, key, value);
+              return;
+            } catch (retryErr) {
+              const isDisposable = (
+                key.startsWith('stk_qc_') ||
+                key.includes('cache') ||
+                key.startsWith('stk_warehouse_') ||
+                key.startsWith('stk_campaign_eval_')
+              );
+              if (isDisposable) {
+                return; // Gracefully keep in RAM only
+              }
+              if (this === localStorage) {
+                try {
+                  sessionStorage.setItem(key, value);
+                  return;
+                } catch (_) {}
+              } else if (this === sessionStorage) {
+                try {
+                  localStorage.setItem(key, value);
+                  return;
+                } catch (_) {}
+              }
+            }
+          }
+          if (key && (key.startsWith('stk_qc_') || key.includes('cache'))) {
+            return;
+          }
+          throw e;
+        }
+      };
+      Storage.prototype._guarded = true;
+    } catch (guardErr) {
+      console.warn('[Storage Guard] Init error:', guardErr);
+    }
+  })();
 
   // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
   try {
@@ -153,23 +253,45 @@
     return null;
   }
 
+  const MAX_SESSION_CACHE_KEYS = 10;
+  const MAX_ITEM_BYTES = 150000;
+
   function setToCache(key, data, ttl) {
     if (ttl <= 0) return;
     const entry = { timestamp: Date.now(), data: data };
+    // 1. เก็บใน RAM (Map) เสมอ - ทำงานเร็วมากและไม่มีข้อจำกัด 5MB
     queryCache.set(key, entry);
+
+    // 2. ถ้าขนาดเล็กพอ เก็บลง sessionStorage เพื่อแชร์ข้ามหน้าต่างแบบจำกัดจำนวน (LRU)
     try {
       const str = JSON.stringify(entry);
-      // จำกัดขนาดไม่เกิน 1.5MB ต่อรายการเพื่อความปลอดภัยของโควต้าพื้นที่
-      if (str.length < 1500000) {
-        sessionStorage.setItem(SESSION_CACHE_PREFIX + key, str);
+      // ข้อมูลขนาดใหญ่เกิน 150KB (เช่น ตารางยอดขายทั้งระบบ) ให้อยู่เฉพาะใน RAM
+      if (str.length > MAX_ITEM_BYTES) return;
+
+      // ตรวจนับคีย์แคชใน sessionStorage หากเกินโควต้าจำนวน ให้ลบคีย์เก่าออกก่อน
+      const existingQcKeys = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(SESSION_CACHE_PREFIX)) {
+          existingQcKeys.push(k);
+        }
       }
+      if (existingQcKeys.length >= MAX_SESSION_CACHE_KEYS) {
+        const pruneCount = existingQcKeys.length - MAX_SESSION_CACHE_KEYS + 1;
+        for (let i = 0; i < pruneCount; i++) {
+          try { sessionStorage.removeItem(existingQcKeys[i]); } catch (_) {}
+        }
+      }
+
+      sessionStorage.setItem(SESSION_CACHE_PREFIX + key, str);
     } catch (e) {
+      // หากเกิดปัญหาพื้นที่จัดเก็บ ให้ล้างแคช query ใน sessionStorage ทั้งหมด
       try {
         for (let i = sessionStorage.length - 1; i >= 0; i--) {
           const k = sessionStorage.key(i);
           if (k && k.startsWith(SESSION_CACHE_PREFIX)) sessionStorage.removeItem(k);
         }
-      } catch (ex) {}
+      } catch (_) {}
     }
   }
 
