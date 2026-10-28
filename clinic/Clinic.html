@@ -513,7 +513,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=3.9.80" title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=3.9.84" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -3101,7 +3101,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" data-src="report.html?v=5.9" src=""
+            <iframe id="doctorReportFrame" data-src="report.html?v=6.1" src=""
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -3794,7 +3794,7 @@
                         <i class="bi bi-file-medical text-primary me-2 fs-4"></i>
                         <span>อ่านผลแล็บและสั่งจ่ายยา</span>
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" tabindex="-1" onpointerdown="this.blur()" onclick="this.blur()"></button>
                 </div>
                 <div class="modal-body p-3 p-xl-4 bg-light">
                     <input type="hidden" id="rxVisitId">
@@ -3878,7 +3878,7 @@
                                         <div class="col-12 col-sm-4">
                                             <label class="fw-bold text-dark d-flex align-items-center gap-1.5 mb-0" style="font-size: 0.88rem;">
                                                 <i class="bi bi-clipboard2-pulse-fill text-primary fs-5"></i>
-                                                <span>ການວິນິດໄສ (ICD-10):</span>
+                                                <span>ການວິນິດໄສ (ICD-10): <span class="text-danger fw-bold fs-6">*</span></span>
                                             </label>
                                         </div>
                                         <div class="col-12 col-sm-8 position-relative">
@@ -4376,193 +4376,243 @@
 
     <!-- Modal: ดูรายละเอียดประวัติผู้ป่วย -->
 
-    <div class="modal fade" id="historyDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content" style="border-radius: 16px; border: none;">
-                <div class="modal-header bg-white">
-                    <h4 class="modal-title fw-bold text-dark" id="histModalTitle"><i
-                            class="bi bi-clock-history text-primary me-2"></i>รายละเอียดการตรวจรักษา</h4>
+        <div class="modal fade" id="historyDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1240px; width: 95vw;">
+            <div class="modal-content shadow-lg border-0" style="border-radius: 18px; overflow: hidden;">
+                <!-- Modal Header -->
+                <div class="modal-header bg-white border-bottom px-4 py-3">
+                    <h4 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0" id="histModalTitle">
+                        <i class="bi bi-clock-history text-primary"></i>
+                        <span>รายละเอียดการตรวจรักษา</span>
+                    </h4>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4 bg-white">
-                    <div class="d-flex justify-content-between align-items-center mb-3 p-3 rounded border bg-light">
-                        <div class="small text-muted">รหัส VISIT: <strong id="histVisitId"
-                                class="text-dark ms-1">-</strong> | วันที่ตรวจ: <strong id="histDate"
-                                class="text-dark ms-1">-</strong></div>
+
+                <!-- Modal Body -->
+                <div class="modal-body p-4 bg-white" style="max-height: calc(90vh - 130px); overflow-y: auto;">
+                    <!-- Visit ID & Date Top Bar -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-2.5 px-3 rounded-3 border bg-light shadow-2xs flex-wrap gap-2">
+                        <div class="small text-muted d-flex align-items-center gap-2 flex-wrap">
+                            <span><i class="bi bi-qr-code text-primary me-1"></i>ລະຫັດ VISIT: <strong id="histVisitId" class="text-dark font-monospace fw-bold">-</strong></span>
+                            <span class="text-muted d-none d-sm-inline">|</span>
+                            <span><i class="bi bi-calendar3 text-primary me-1"></i>ວັນທີກວດ: <strong id="histDate" class="text-dark fw-bold">-</strong></span>
+                        </div>
                     </div>
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6" id="histPatientCol">
-                            <div class="p-3 border rounded h-100" style="background: #fafafa;">
-                                <h6 class="fw-bold mb-3 text-primary"><i
-                                        class="bi bi-person-fill me-1"></i>ข้อมูลผู้ป่วย</h6>
-                                <p class="mb-1 text-muted">ชื่อ-นามสกุล: <strong id="histPatientName"
-                                        class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted">HN (รหัสผู้ป่วย): <strong id="histHN"
-                                        class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted">ອາຍຸ / อายุ: <strong id="histAge"
-                                        class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted">ບ້ານ / บ้าน: <strong id="histVillage"
-                                        class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted">ເມືອງ / เมือง: <strong id="histDistrict"
-                                        class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted">ແຂວງ / แขวง: <strong id="histProvince"
-                                        class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted">เบอร์โทรศัพท์: <strong id="histPhone"
-                                        class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted" id="histDiseaseContainer">ອາການ / ພະຍາດ: <strong
-                                        id="histDisease" class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted" id="histReferrerContainer" style="display: none;">ผู้แนะนำ:
-                                    <strong id="histReferrer" class="text-primary">-</strong>
-                                </p>
-                                <p class="mb-1 text-muted" id="histDoctorContainer" style="display: none;">แพทย์ผู้ตรวจ:
-                                    <strong id="histDoctorName" style="color: #0d6efd;">-</strong>
-                                </p>
-                                <p class="mb-1 text-muted" id="histAssistantContainer" style="display: none;">ผู้ช่วย /
-                                    ผู้จัดยา:
-                                    <strong id="histAssistantName" class="text-success fw-semibold">-</strong>
-                                </p>
+                    <!-- 🌟 TOP ROW (2 COLUMNS DASHBOARD) -->
+                    <div class="row g-3 mb-3 align-items-stretch" id="histDashboardTopRow">
+                        <!-- 👈 LEFT COLUMN: Patient Info, Vital Signs, Initial Symptoms, ICD-10 -->
+                        <div class="col-lg-6 col-12 d-flex flex-column gap-2.5" id="histDashboardLeftCol">
+                            <!-- ข้อมูลผู้ป่วย (Patient Info) -->
+                            <div class="p-3 border rounded-3 bg-white shadow-2xs" id="histPatientCol">
+                                <h6 class="fw-bold mb-2.5 text-primary d-flex align-items-center gap-1.5" style="font-size: 0.95rem;">
+                                    <i class="bi bi-person-circle fs-5"></i> ຂໍ້ມູນຜູ້ປ່ວຍ (Patient Info)
+                                </h6>
+                                <div class="row g-3 text-muted small">
+                                    <!-- ฝั่งซ้าย: ข้อมูลตัวตน (HN, ชื่อ, อายุ, เบอร์, ที่อยู่) -->
+                                    <div class="col-md-7 col-12 d-flex flex-column gap-2 pe-md-3 border-end-md">
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <span>ລະຫັດ HN: <strong id="histHN" class="text-dark font-monospace fw-bold">-</strong></span>
+                                            <span class="text-secondary opacity-50 d-none d-sm-inline">|</span>
+                                            <span>ຊື່ ແລະ ນາມສະກຸນ: <strong id="histPatientName" class="text-dark fw-bold">-</strong></span>
+                                        </div>
+                                        <div class="d-flex flex-wrap align-items-center gap-3">
+                                            <span>ອາຍຸ: <strong id="histAge" class="text-dark">-</strong></span>
+                                            <span>ເບີໂທລະສັບ: <strong id="histPhone" class="text-dark fw-bold font-monospace">-</strong></span>
+                                        </div>
+                                        <div class="text-break">
+                                            ທີ່ຢູ່: <strong class="text-dark"><span id="histVillage">-</span>, <span id="histDistrict">-</span>, <span id="histProvince">-</span></strong>
+                                        </div>
+                                    </div>
+                                    <!-- ฝั่งขวา: ข้อมูลทางการแพทย์ / การสั่งซื้อ (อาการ/โรค, ผู้แนะนำ, ผู้สั่งจ่าย/แพทย์) -->
+                                    <div class="col-md-5 col-12 d-flex flex-column gap-2 ps-md-2">
+                                        <div id="histDiseaseContainer">
+                                            ອາການ / ພະຍາດ: <strong id="histDisease" class="text-primary fw-medium">-</strong>
+                                        </div>
+                                        <div id="histReferrerContainer" style="display: none;">
+                                            ຜູ້ແນະນຳ: <strong id="histReferrer" class="text-primary">-</strong>
+                                        </div>
+                                        <div id="histDoctorContainer" style="display: none;">
+                                            ແພດຜູ້ກວດ: <strong id="histDoctorName" class="text-primary">-</strong>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-md-6" id="histVitalCol">
-                            <div class="p-3 border rounded h-100" style="background: #fafafa;">
-                                <h6 class="fw-bold mb-3 text-primary"><i
-                                        class="bi bi-heart-pulse-fill me-1"></i>สัญญาณชีพ (Vital Signs)</h6>
+
+                            <!-- สัญญาณชีพ (Vital Signs) -->
+                            <div id="histVitalCol" class="p-3 border rounded-3 bg-light-subtle shadow-2xs">
+                                <h6 class="fw-bold mb-2 text-primary d-flex align-items-center gap-1.5" style="font-size: 0.95rem;">
+                                    <i class="bi bi-heart-pulse-fill text-danger fs-5"></i> ສັນຍານຊີບ (Vital Signs)
+                                </h6>
                                 <div class="row g-2 text-muted small">
-                                    <div class="col-6">อุณหภูมิ: <strong id="histTemp" class="text-dark">-</strong> °C
+                                    <div class="col-sm-4 col-6">ອຸນຫະພູມ: <strong id="histTemp" class="text-dark">-</strong> °C</div>
+                                    <div class="col-sm-4 col-6">ຄວາມດັນ (BP): <strong id="histBP" class="text-dark fw-bold">-</strong> mmHg</div>
+                                    <div class="col-sm-4 col-6">ກຳມະຈອນ: <strong id="histPulse" class="text-dark">-</strong> ຄັ້ງ/ນາທີ</div>
+                                    <div class="col-sm-4 col-6">SpO2: <strong id="histSpo2" class="text-dark fw-bold text-success">-</strong> %</div>
+                                    <div class="col-sm-4 col-6">ນ້ຳໜັກ: <strong id="histWeight" class="text-dark">-</strong> ກກ.</div>
+                                    <div class="col-sm-4 col-6">ສ່ວນສູງ: <strong id="histHeight" class="text-dark">-</strong> ຊມ.</div>
+                                    <div class="col-12 border-top pt-1 mt-1">BMI: <strong id="histBMI" class="text-dark">-</strong></div>
+                                </div>
+                            </div>
+
+                            <!-- อาการแรกรับ / อาการสำคัญ -->
+                            <div id="histSymptomCard" class="p-2.5 px-3 border rounded-3 bg-light-subtle shadow-2xs">
+                                <div class="d-flex align-items-center gap-1.5 fw-bold text-primary small mb-1">
+                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i> ອາການແຮກຮັບ / ອາການສຳຄັນ:
+                                </div>
+                                <p class="mb-0 text-dark small fw-medium" id="histSymptom">-</p>
+                            </div>
+
+                            <!-- การวินิจฉัยโรคทางการแพทย์ (ICD-10) -->
+                            <div id="histDiagnosisContainer" class="p-2.5 px-3 border rounded-3 shadow-2xs" style="display: none; background: #fff5f5; border-color: #fecdd3 !important;">
+                                <div class="d-flex align-items-center justify-content-between mb-1.5 flex-wrap gap-2">
+                                    <h6 class="fw-bold mb-0 text-danger small d-flex align-items-center gap-1.5">
+                                        <i class="bi bi-heart-pulse-fill"></i>
+                                        <span>ການບົ່ງມະຕິພະຍາດ / การวินิจฉัยโรค (ICD-10)</span>
+                                    </h6>
+                                    <span id="histIcd10CodeBadge" class="badge bg-danger text-white font-monospace px-2.5 py-0.5 rounded-pill shadow-xs" style="font-size: 0.78rem;">-</span>
+                                </div>
+                                <div id="histDiagnosisName" class="fw-bold text-dark small">-</div>
+                                <div id="histDiagnosisNoteBox" class="mt-1.5 pt-1.5 border-top border-danger-subtle small" style="display: none;">
+                                    <i class="bi bi-chat-left-text me-1 text-danger"></i><span class="text-secondary">ໝາຍເຫດແພດ / หมายเหตุแพทย์: </span><span id="histDiagnosisNote" class="text-dark fw-medium"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 👉 RIGHT COLUMN: Lab Results & Medical Reports -->
+                        <div class="col-lg-6 col-12 d-flex flex-column" id="histDashboardRightCol" style="display: none;">
+                            <div id="histLabContainer" class="p-3 border rounded-3 h-100 shadow-2xs d-flex flex-column justify-content-between" style="display: none; background: #f8fafc;">
+                                <div>
+                                    <h6 class="fw-bold mb-2.5 text-primary d-flex align-items-center gap-1.5" style="font-size: 0.95rem;">
+                                        <i class="bi bi-flask-fill fs-5 text-info"></i> ຜົນການກວດທາງຫ້ອງແລັບ & ເອກະສານ (Lab & Reports)
+                                    </h6>
+                                    <div id="histLabTestsContent" class="mb-2">
+                                        <span class="text-muted small fw-semibold">ລາຍການສົ່ງກວດ: </span>
+                                        <span class="text-dark small fw-medium" id="histLabTests">-</span>
                                     </div>
-                                    <div class="col-6">ความดัน (BP): <strong id="histBP" class="text-dark">-</strong>
-                                        mmHg</div>
-                                    <div class="col-6">การเต้นของหัวใจ: <strong id="histPulse"
-                                            class="text-dark">-</strong> ครั้ง/นาที</div>
-                                    <div class="col-6">SpO2: <strong id="histSpo2" class="text-dark">-</strong> %</div>
-                                    <div class="col-6">น้ำหนัก: <strong id="histWeight" class="text-dark">-</strong> กก.
+
+                                    <div id="histLabNoteContent" class="mt-2 pt-2 border-top" style="display: none;">
+                                        <small class="fw-bold text-muted d-block mb-1">
+                                            <i class="bi bi-file-earmark-text me-1"></i>ຜົນກວດ / ໝາຍເຫດແພດ:
+                                        </small>
+                                        <div id="histLabNoteText" class="p-2.5 rounded-3 bg-white border text-dark text-break small" style="white-space: pre-wrap; max-height: 130px; overflow-y: auto;">
+                                        </div>
                                     </div>
-                                    <div class="col-6">ส่วนสูง: <strong id="histHeight" class="text-dark">-</strong> ซม.
+
+                                    <div id="histLabFilesContent" class="mt-3 p-3 bg-white border rounded-3 shadow-xs" style="display: none;">
+                                        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-1">
+                                            <span class="fw-bold text-dark small">
+                                                <i class="bi bi-file-earmark-medical-fill text-primary me-1"></i>ເອກະສານຜົນກວດ (Medical Reports)
+                                            </span>
+                                            <span class="badge bg-light text-secondary border small fw-normal">
+                                                <i class="bi bi-eye me-1"></i>ຄລິກເພື່ອເປີດອ່ານ / ພິມ
+                                            </span>
+                                        </div>
+                                        <div id="histLabFilesButtons" class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                        </div>
                                     </div>
-                                    <div class="col-12">BMI: <strong id="histBMI" class="text-dark">-</strong></div>
+                                </div>
+
+                                <div class="pt-2.5 mt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <span class="text-muted small" style="font-size: 0.8rem;">
+                                        <i class="bi bi-gear-wide-connected me-1"></i>ເຄື່ອງມືຜົນກວດ:
+                                    </span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold shadow-xs" id="btnHistRecoverLab" onclick="runRecoverLabFromHistory()">
+                                            <i class="bi bi-patch-check me-1"></i> ແປງຜົນໃສ່ Frame (Recover Lab)
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs text-white" id="btnHistAddLabResult" onclick="openLabUploadFromHistory()">
+                                            <i class="bi bi-plus-circle me-1"></i> ເພີ່ມຜົນກວດ
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="p-3 border rounded mb-4" style="background: #fafafa;">
-                        <h6 class="fw-bold mb-2 text-primary"><i
-                                class="bi bi-exclamation-triangle-fill me-1"></i>อาการแรกรับ / อาการสำคัญ</h6>
-                        <p class="mb-0 text-dark" id="histSymptom">-</p>
-                    </div>
-
-                    <!-- 🌟 การวินิจฉัยโรคทางการแพทย์ (ICD-10 Diagnosis) -->
-                    <div id="histDiagnosisContainer" class="p-3 border rounded mb-4" style="display: none; background: #fff5f5; border-color: #fecdd3 !important;">
-                        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-                            <h6 class="fw-bold mb-0 text-danger d-flex align-items-center gap-2">
-                                <i class="bi bi-heart-pulse-fill"></i>
-                                <span>ການບົ່ງມະຕິພະຍາດ / การวินิจฉัยโรค (ICD-10)</span>
+                    <!-- 🌟 BOTTOM SECTION: Full Width Meds Table & Order Summary -->
+                    <div class="mt-3 pt-3 border-top w-100">
+                        <!-- Header with Batch Selector -->
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2 w-100">
+                            <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-1.5" style="font-size: 0.95rem;">
+                                <i class="bi bi-capsule-indicator text-primary fs-5"></i> ລາຍການສັ່ງຈ່າຍຢາ / ອາຫານເສີມ
                             </h6>
-                            <span id="histIcd10CodeBadge" class="badge bg-danger text-white font-monospace px-2.5 py-1 rounded-pill shadow-xs" style="font-size: 0.82rem; letter-spacing: 0.5px;">-</span>
+                            <div id="histBatchSelectorContainer" class="d-flex align-items-center gap-1.5 flex-wrap ms-auto"></div>
                         </div>
-                        <div id="histDiagnosisName" class="fw-bold text-dark fs-6">-</div>
-                        <div id="histDiagnosisNoteBox" class="mt-2 pt-2 border-top border-danger-subtle small" style="display: none;">
-                            <i class="bi bi-chat-left-text me-1 text-danger"></i><span class="fw-semibold text-secondary">ໝາຍເຫດແພດ / หมายเหตุแพทย์: </span><span id="histDiagnosisNote" class="text-dark fw-medium"></span>
-                        </div>
-                    </div>
 
-                    <div id="histLabContainer" class="p-3 border rounded mb-4"
-                        style="display: none; background: #fafafa;">
-                        <h6 class="fw-bold mb-2 text-primary"><i class="bi bi-flask me-1"></i>ผลการตรวจทางห้องแล็บ &
-                            เอกซเรย์ / เอโก</h6>
-                        <div id="histLabTestsContent">
-                            <p class="mb-0 text-dark" id="histLabTests">-</p>
-                        </div>
-                        <div id="histLabNoteContent" class="mt-2 pt-2 border-top" style="display: none;">
-                            <small class="fw-bold text-muted d-block mb-1"><i
-                                    class="bi bi-file-earmark-text me-1"></i>ผลตรวจ / หมายเหตุแพทย์:</small>
-                            <div id="histLabNoteText" class="p-2 rounded bg-white border text-dark text-break small" style="white-space: pre-wrap;">
-                            </div>
-                        </div>
-                        <div id="histLabFilesContent" class="mt-3 p-3 bg-white border rounded-3 shadow-xs" style="display: none;">
-                            <div class="mb-3">
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <span class="fw-bold text-dark small">
-                                        <i class="bi bi-file-earmark-medical-fill text-primary me-1"></i>เอกสารผลตรวจทางการแพทย์ (Medical Reports)
-                                    </span>
-                                    <span class="badge bg-light text-secondary border small fw-normal">
-                                        <i class="bi bi-eye me-1"></i>คลิกเพื่อเปิดอ่าน / พิมพ์
-                                    </span>
-                                </div>
-                                <div id="histLabFilesButtons" class="d-flex flex-wrap align-items-center gap-2">
+                        <div class="row g-3 align-items-start mt-0.5">
+                            <!-- Meds Table Column -->
+                            <div class="col-lg-8 col-12" id="histMedsTableCol">
+                                <div class="table-responsive border rounded-3 shadow-2xs" style="max-height: 250px; overflow-y: auto;">
+                                    <table class="table table-sm table-hover align-middle mb-0" id="histMedsTable" style="font-size: 0.88rem;">
+                                        <thead class="table-light text-muted">
+                                            <tr>
+                                                <th class="ps-3">ຊື່ຢາ / ອາຫານເສີມ</th>
+                                                <th class="text-center" style="width: 130px;">ປະເພດລາຄາ</th>
+                                                <th class="text-end" style="width: 100px;">ລາຄາ</th>
+                                                <th class="text-center" style="width: 70px;">ຈຳນວນ</th>
+                                                <th class="text-end pe-3" style="width: 110px;">ລວມ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-3">ບໍ່ມີລາຍການຢາ/ອາຫານເສີມສັ່ງຈ່າຍ</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                            <div class="pt-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                <span class="text-muted" style="font-size: 0.8rem;">
-                                    <i class="bi bi-gear-wide-connected me-1"></i>เครื่องมือจัดการผลตรวจ
-                                </span>
-                                <div class="d-flex align-items-center gap-2">
-                                    <button type="button"
-                                        class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold shadow-xs"
-                                        id="btnHistRecoverLab" onclick="runRecoverLabFromHistory()">
-                                        <i class="bi bi-patch-check me-1"></i> ແປງຜົນໃສ່ Frame (Recover Lab)
-                                    </button>
-                                    <button type="button"
-                                        class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs text-white"
-                                        id="btnHistAddLabResult" onclick="openLabUploadFromHistory()">
-                                        <i class="bi bi-plus-circle me-1"></i> ເພີ່ມຜົນກວດ
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <h6 class="fw-bold mb-2 text-dark"><i
-                            class="bi bi-capsule-indicator text-primary me-2"></i>รายการสั่งจ่ายยา/อาหารเสริม</h6>
-                    <div class="table-responsive border rounded" style="max-height: 200px;">
-                        <table class="table table-hover mb-0" id="histMedsTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="ps-3">ชื่อยา/อาหารเสริม</th>
-                                    <th class="text-center" width="115">ประเภทราคา</th>
-                                    <th class="text-end" width="95">ราคา</th>
-                                    <th class="text-center" width="70">จำนวน</th>
-                                    <th class="text-end pe-3" width="105">รวม</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- กล่องสรุปยอดเงินสำหรับออเดอร์ยา/อาหารเสริม -->
-                    <div id="histOrderSummaryBox" class="mt-3 p-3 rounded-3 border bg-light" style="display: none;">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-md-6 col-12">
-                                <span class="text-muted small">ໝາຍເຫດ / คำแนะนำ: </span>
-                                <strong id="histOrderNoteText" class="text-dark small">-</strong>
-                            </div>
-                            <div class="col-md-6 col-12 text-md-end">
-                                <div class="small text-muted mb-1">
-                                    ຍອດລວມ: <strong id="histOrderSubtotal" class="text-dark">0 ฿</strong>
-                                    <span class="ms-2">ສ່ວນຫຼຸດ: <strong id="histOrderDiscount" class="text-danger">0
-                                            ฿</strong></span>
-                                </div>
-                                <div class="fs-6 fw-bold text-primary">
-                                    ຍອດຊຳລະສຸດທິ: <span id="histOrderGrandTotal" class="text-success fw-bold">0 ฿</span>
+                            <!-- Summary & Notes Column -->
+                            <div class="col-lg-4 col-12" id="histSummaryCol">
+                                <div id="histOrderSummaryBox" class="p-3 rounded-3 border bg-light-subtle shadow-2xs h-100 d-flex flex-column justify-content-between">
+                                    <div>
+                                        <div class="fw-bold text-dark small mb-2 d-flex align-items-center gap-1">
+                                            <i class="bi bi-receipt text-primary"></i> ສະຫຼຸບຍອດຄ່າໃຊ້ຈ່າຍ
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center text-muted small mb-1.5">
+                                            <span>ຍອດລວມ:</span>
+                                            <strong id="histOrderSubtotal" class="text-dark font-monospace">0 ฿</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center text-muted small mb-1.5">
+                                            <span>ສ່ວນຫຼຸດ:</span>
+                                            <strong id="histOrderDiscount" class="text-danger font-monospace">0 ฿</strong>
+                                        </div>
+                                        <div class="border-top pt-2 mt-2 d-flex justify-content-between align-items-center">
+                                            <span class="fw-bold text-dark">ຍອດຊຳລະສຸດທິ:</span>
+                                            <span id="histOrderGrandTotal" class="fw-bold fs-5 text-success font-monospace">0 ฿</span>
+                                        </div>
+                                    </div>
+                                    <div class="border-top pt-2 mt-2.5">
+                                        <span class="text-muted small fw-semibold d-block mb-1">
+                                            <i class="bi bi-chat-square-text me-1"></i>ໝາຍເຫດ / ຄຳແນະນຳ:
+                                        </span>
+                                        <div id="histOrderNoteText" class="p-2 rounded bg-white border text-dark text-break small" style="white-space: pre-wrap; max-height: 80px; overflow-y: auto;">
+                                            -
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="d-flex justify-content-end gap-2 mt-4">
-                        <button type="button" class="btn px-4 fw-bold text-white shadow-sm" id="btnRepeatPrescription"
-                            onclick="repeatPrescriptionFromHistory()"
-                            style="background-color: #004b93; border-color: #004b93; border-radius: 8px;">
-                            <i class="bi bi-capsule-pill me-1"></i> ต่อยา / สั่งยา
+                <!-- Modal Footer -->
+                <div class="modal-footer bg-light border-top d-flex justify-content-between align-items-center p-3">
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 fw-semibold" onclick="window.print()">
+                            <i class="bi bi-printer me-1"></i> ພິມລາຍການ
                         </button>
-                        <button type="button" class="btn btn-primary px-4 fw-bold" data-bs-dismiss="modal"
-                            style="border-radius: 8px;">ปิดหน้าต่าง</button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-primary rounded-pill px-4 py-1.5 fw-bold text-white shadow-xs" id="btnRepeatPrescription"
+                            onclick="repeatPrescriptionFromHistory()"
+                            style="background-color: #004b93; border-color: #004b93;">
+                            <i class="bi bi-capsule-pill me-1"></i> ຕໍ່ຢາ / ສັ່ງຢາ
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary rounded-pill px-4 py-1.5 fw-semibold" data-bs-dismiss="modal">
+                            ປິດໜ້າຕ່າງ
+                        </button>
                     </div>
                 </div>
             </div>
@@ -5310,7 +5360,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=6.6"></script>
+    <script src="function.js?v=8.1"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.8"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->

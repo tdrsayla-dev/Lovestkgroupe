@@ -3982,6 +3982,17 @@
                 const displayVisitId = (visitId && String(visitId).startsWith('VIS-ORD-') && String(visitId).replace('VIS-ORD-', '').length > 5)
                     ? ('VIS-ORD-' + String(visitId).replace('VIS-ORD-', '').slice(-5))
                     : visitId;
+
+                // 🌟 ກວດສອບ ແລະ ສະແດງເລກຊຸດຢາ (Batch No)
+                let rowBatchNo = p.batch_no || (p.order_data && p.order_data.batch_no) || 0;
+                if (!rowBatchNo) {
+                    const matchBatch = (p.latest_symptom || p.symptom || (p.order_data && (p.order_data.notes || p.order_data.symptom)) || '').match(/(?:ຊຸດທີ|ชุดที่|batch)\s*(\d+)/i);
+                    if (matchBatch) rowBatchNo = parseInt(matchBatch[1], 10);
+                }
+                const batchBadge = (rowBatchNo && rowBatchNo > 1)
+                    ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning ms-1.5" style="font-size: 10.5px; font-weight: 700; padding: 2.5px 6.5px; border-radius: 6px;" title="ຕໍ່ຢາ ຊຸດທີ ${rowBatchNo}"><i class="ph-bold ph-arrows-clockwise me-0.5"></i>ຊຸດທີ ${rowBatchNo}</span>`
+                    : '';
+
                 const visitDate = p.latest_visit_date || dateStr;
                 const symptom = p.latest_symptom || '-';
                 const stepNum = mapStatusToStep(p.visit_status || p.status || p.status_id);
@@ -4006,7 +4017,7 @@
                 return `
                     <tr>
                         <td class="text-center fw-semibold text-muted">${autoIndex}</td>
-                        <td class="fw-bold text-primary font-monospace">${displayVisitId}</td>
+                        <td class="fw-bold text-primary font-monospace">${displayVisitId}${batchBadge}</td>
                         <td class="fw-semibold font-monospace">${p.hn || '-'}</td>
                         <td class="fw-bold text-dark">
                             <span>${p.patient_name || '-'}</span>
@@ -5180,6 +5191,7 @@
 
         function showOrderDetailPopup(order) {
             if (!order) return;
+            window.currentOpenedOrderDetail = order;
             const modal = document.getElementById('orderDetailModalBackdrop');
             if (!modal) return;
 
@@ -5205,7 +5217,18 @@
             const dateStr = new Date(rawDate).toLocaleString('lo-LA');
 
             // Header info
-            document.getElementById('odmHeaderSubtitle').innerText = `ລະຫັດ VISIT: ${visitId} | ວັນທີ: ${dateStr}`;
+            let orderBatchNo = order.batch_no || (order.order_data && order.order_data.batch_no) || 0;
+            if (!orderBatchNo) {
+                const matchBatch = (order.symptom || order.latest_symptom || order.notes || (order.order_data && (order.order_data.notes || order.order_data.symptom)) || '').match(/(?:ຊຸດທີ|ชุดที่|batch)\s*(\d+)/i);
+                if (matchBatch) orderBatchNo = parseInt(matchBatch[1], 10);
+            }
+            let batchBadgeHtml = '';
+            if (orderBatchNo > 1) {
+                batchBadgeHtml = ` <span class="badge bg-warning-subtle text-warning-emphasis border border-warning px-2 py-0.5 ms-1.5" style="font-size:11px; font-weight:700;"><i class="ph-bold ph-arrows-clockwise me-1"></i>ຕໍ່ຢາ ຊຸດທີ ${orderBatchNo}</span>`;
+            } else if (orderBatchNo === 1) {
+                batchBadgeHtml = ` <span class="badge bg-light text-secondary border px-2 py-0.5 ms-1.5" style="font-size:11px; font-weight:600;"><i class="ph-bold ph-pill me-1"></i>ຊຸດທີ 1</span>`;
+            }
+            document.getElementById('odmHeaderSubtitle').innerHTML = `ລະຫັດ VISIT: <strong>${visitId}</strong> | ວັນທີ: ${dateStr}${batchBadgeHtml}`;
             const custType = order.customer_type || order.customerType || 'ລູກຄ້າທົ່ວໄປ';
             const typeBadgeHtml = custType === 'VIP'
                 ? ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5 ms-1" style="font-size:11px;">VIP</span>'
@@ -5346,10 +5369,244 @@
             document.getElementById('odmDiscount').innerText = formatMoney(discount) + ' ฿';
             document.getElementById('odmGrandTotal').innerText = formatMoney(grandTotal) + ' ฿';
 
+            // 🌟 ລະບົບສະຫຼັບເບິ່ງລາຍການຢາຕາມແຕ່ລະຊຸດ (Batch Selector: ຊຸດທີ 1, ຊຸດທີ 2, ...)
+            try {
+                renderOdmBatchSelector(order);
+            } catch (err) {
+                console.warn('ODM batch selector error:', err);
+            }
+
             document.body.classList.add('has-modal-open');
             modal.classList.add('show');
             modal.style.display = 'flex';
         }
+
+        // -------------------------------------------------------------
+        // 🌟 ຟັງຊັນສຳລັບຈັດການ ແລະ ສະຫຼັບເບິ່ງປະຫວັດຢາຕາມແຕ່ລະຊຸດໃນ Order Detail Modal
+        // -------------------------------------------------------------
+        function renderOdmBatchSelector(currentOrder) {
+            const container = document.getElementById('odmBatchSelectorContainer');
+            if (!container) return;
+
+            const curVid = String(currentOrder.visitId || currentOrder.visit_id || currentOrder.orderId || currentOrder.order_id || '').trim();
+            const custName = String(currentOrder.patient_name || currentOrder.customer_name || '').trim().toLowerCase();
+            const hn = String(currentOrder.hn || '').trim();
+
+            const isMatch = (o) => {
+                if (!o) return false;
+                const oHn = String(o.hn || '').trim();
+                const oName = String(o.patient_name || o.customer_name || '').trim().toLowerCase();
+                if (hn && hn !== '-' && oHn && (oHn === hn || oHn.replace(/\D/g, '') === hn.replace(/\D/g, ''))) return true;
+                if (custName && oName && (oName === custName || oName.includes(custName) || custName.includes(oName))) return true;
+                return false;
+            };
+
+            const extractItems = (o) => {
+                let raw = o.items || o.items_json || o.meds || (o.order_data && (o.order_data.items || o.order_data.items_json));
+                if (typeof raw === 'string') {
+                    try { raw = JSON.parse(raw); } catch (e) {
+                        if (typeof raw === 'string' && raw.includes(',')) {
+                            raw = raw.split(',').map(s => {
+                                const m = s.trim().match(/^(.*?)(?:\s+[xX*](\d+))?$/);
+                                return { name: m ? m[1].trim() : s.trim(), qty: m && m[2] ? parseInt(m[2], 10) : 1, tierName: 'ປົກກະຕິ', price: 0, total: 0 };
+                            });
+                        } else {
+                            raw = [];
+                        }
+                    }
+                }
+                return Array.isArray(raw) ? raw : [];
+            };
+
+            const list = [];
+            const seenVids = new Set();
+            if (curVid) seenVids.add(curVid);
+
+            ((allPatientsData || []).concat(rawAllPatients || []).concat(allOrdersData || [])).forEach(p => {
+                if (isMatch(p)) {
+                    const vid = String(p.latest_visit_id || p.visit_id || p.order_id || '').trim();
+                    if (vid && !seenVids.has(vid)) {
+                        seenVids.add(vid);
+                        list.push(p);
+                    }
+                }
+            });
+
+            try {
+                const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
+                const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+                localOrders.concat(localStk).forEach(o => {
+                    if (isMatch(o)) {
+                        const vid = String(o.visit_id || o.visitId || o.order_id || o.orderId || '').trim();
+                        if (vid && !seenVids.has(vid)) {
+                            seenVids.add(vid);
+                            list.push(o);
+                        }
+                    }
+                });
+            } catch (e) { }
+
+            list.push(currentOrder);
+
+            list.sort((a, b) => {
+                const tA = new Date(a.created_at || a.order_date || a.date || 0).getTime();
+                const tB = new Date(b.created_at || b.order_date || b.date || 0).getTime();
+                return tA - tB;
+            });
+
+            const batches = list.map((o, idx) => {
+                const vid = String(o.visitId || o.visit_id || o.orderId || o.order_id || `ORD-${idx + 1}`).trim();
+                let bNo = o.batch_no || (o.order_data && o.order_data.batch_no) || 0;
+                if (!bNo) {
+                    const m = (o.symptom || o.disease || o.notes || (o.order_data && (o.order_data.notes || o.order_data.symptom)) || '').match(/(?:ຊຸດທີ|ชุดที่|batch)\s*(\d+)/i);
+                    if (m) bNo = parseInt(m[1], 10);
+                }
+                if (!bNo) bNo = idx + 1;
+
+                const items = extractItems(o);
+                let subtotal = Number(o.subtotal || (o.order_data && o.order_data.subtotal) || 0);
+                let discount = Number(o.discount || (o.order_data && o.order_data.discount) || 0);
+                let grandTotal = Number(o.grandTotal || o.total_amount || (o.order_data && (o.order_data.grandTotal || o.order_data.total_amount)) || 0);
+                if (items.length > 0 && !grandTotal) {
+                    grandTotal = items.reduce((s, it) => s + (Number(it.total) || (Number(it.price || 0) * Number(it.qty || 1))), 0);
+                    subtotal = grandTotal;
+                }
+
+                const rawD = o.created_at || o.order_date || o.date || new Date().toISOString();
+                let dateStr = rawD;
+                try { dateStr = new Date(rawD).toLocaleString('lo-LA'); } catch (e) { }
+
+                return {
+                    batchNo: bNo,
+                    visitId: vid,
+                    dateStr: dateStr,
+                    symptom: o.disease || o.symptom || '-',
+                    notes: o.notes || (o.order_data && o.order_data.notes) || '-',
+                    subtotal: subtotal,
+                    discount: discount,
+                    grandTotal: grandTotal,
+                    items: items,
+                    isCurrent: vid === curVid || (curVid && vid && (vid.includes(curVid) || curVid.includes(vid))),
+                    rawOrder: o
+                };
+            });
+
+            const uniqueBatches = [];
+            batches.forEach(b => {
+                const exist = uniqueBatches.find(x => x.batchNo === b.batchNo);
+                if (!exist) {
+                    uniqueBatches.push(b);
+                } else if (b.isCurrent || (b.items.length > 0 && exist.items.length === 0)) {
+                    const i = uniqueBatches.indexOf(exist);
+                    uniqueBatches[i] = b;
+                }
+            });
+
+            uniqueBatches.sort((a, b) => a.batchNo - b.batchNo);
+            window._currentOdmBatches = uniqueBatches;
+
+            if (uniqueBatches.length <= 1) {
+                const b = uniqueBatches[0] ? uniqueBatches[0].batchNo : 1;
+                container.innerHTML = `<span class="badge bg-light text-secondary border px-2 py-1" style="font-size: 11px; font-weight: 600;"><i class="ph-bold ph-pill me-1 text-primary"></i>ຊຸດທີ ${b}</span>`;
+                return;
+            }
+
+            let btnHtml = `
+                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                    <span class="text-muted fw-semibold me-1 d-none d-sm-inline" style="font-size: 11.5px;">
+                        <i class="ph-bold ph-clock-counter-clockwise text-primary me-0.5"></i>ເລືອກເບິ່ງຕາມຊຸດ:
+                    </span>
+                    <div class="btn-group btn-group-sm" role="group" style="box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+            `;
+
+            uniqueBatches.forEach((b, idx) => {
+                const isActive = b.isCurrent;
+                const btnCls = isActive ? 'btn-primary active fw-bold text-white' : 'btn-outline-secondary text-dark bg-white';
+                const tagText = `ຊຸດທີ ${b.batchNo}${isActive ? ' (ປັດຈຸບັນ)' : ''}`;
+                btnHtml += `
+                    <button type="button" class="btn btn-sm ${btnCls} odm-batch-btn" id="btnOdmBatch-${idx}"
+                            style="font-size: 11.5px; padding: 3px 9px; cursor: pointer;"
+                            onclick="window.switchOdmBatchTab(${idx})" title="ຄລິກເພື່ອເບິ່ງລາຍການຢາ ຊຸດທີ ${b.batchNo}">
+                        <i class="ph-bold ${isActive ? 'ph-check-circle' : 'ph-pill'} me-1"></i>${tagText}
+                    </button>
+                `;
+            });
+
+            btnHtml += `</div></div>`;
+            container.innerHTML = btnHtml;
+        }
+
+        window.switchOdmBatchTab = function (idx) {
+            const batches = window._currentOdmBatches;
+            if (!batches || !batches[idx]) return;
+            const b = batches[idx];
+
+            document.querySelectorAll('.odm-batch-btn').forEach((btn, i) => {
+                const icon = btn.querySelector('i');
+                if (i === idx) {
+                    btn.className = 'btn btn-sm btn-primary active fw-bold text-white odm-batch-btn';
+                    if (icon) icon.className = 'ph-bold ph-check-circle me-1';
+                } else {
+                    btn.className = 'btn btn-sm btn-outline-secondary text-dark bg-white odm-batch-btn';
+                    if (icon) icon.className = 'ph-bold ph-pill me-1';
+                }
+            });
+
+            const formatMoney = (n) => Number(n || 0).toLocaleString('th-TH');
+            const tbody = document.getElementById('odmItemsTableBody');
+            if (tbody) {
+                if (Array.isArray(b.items) && b.items.length > 0) {
+                    tbody.innerHTML = b.items.map((it, i) => {
+                        const itName = it.name || it.product_name || '-';
+                        const itQty = Number(it.qty || 1);
+                        const itPrice = Number(it.price || 0);
+                        const itTotal = Number(it.total || (itPrice * itQty));
+
+                        let tierText = it.tierName || it.priceType || 'ປົກກະຕິ';
+                        let badgeClass = 'bg-secondary-subtle text-dark border';
+                        if (it.tier === 'promo' || tierText.includes('ໂປຣ') || tierText.includes('โปร')) {
+                            tierText = 'ໂປຣໂມຊັ່ນ';
+                            badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
+                        } else if (it.tier === 'high' || tierText.includes('ສະມາຊິກ') || tierText.includes('สมาชิก')) {
+                            tierText = 'ສະມາຊິກ/ສົ່ງ';
+                            badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
+                        } else if (it.tier === 'free' || tierText.includes('ແຖມ') || tierText.includes('ฟรี')) {
+                            tierText = 'ແຖມຟຣີ';
+                            badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
+                        }
+
+                        return `
+                            <tr>
+                                <td class="ps-3 text-muted">${i + 1}</td>
+                                <td class="fw-semibold text-dark">${itName}</td>
+                                <td class="text-center"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
+                                <td class="text-center fw-bold text-primary">${itQty}</td>
+                                <td class="text-end font-monospace text-secondary">${formatMoney(itPrice)} ฿</td>
+                                <td class="text-end pe-3 font-monospace fw-bold text-dark">${formatMoney(itTotal)} ฿</td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">ບໍ່ມີລາຍລະອຽດສິນຄ້າໃນ ຊຸດທີ ${b.batchNo}</td></tr>`;
+                }
+            }
+
+            document.getElementById('odmSubtotal').innerText = formatMoney(b.subtotal || b.grandTotal) + ' ฿';
+            document.getElementById('odmDiscount').innerText = formatMoney(b.discount) + ' ฿';
+            document.getElementById('odmGrandTotal').innerText = formatMoney(b.grandTotal) + ' ฿';
+
+            const subEl = document.getElementById('odmHeaderSubtitle');
+            if (subEl) {
+                let badge = (b.batchNo > 1)
+                    ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning ms-1" style="font-weight:700;"><i class="ph-bold ph-arrows-clockwise me-1"></i>ຕໍ່ຢາ ຊຸດທີ ${b.batchNo}</span>`
+                    : `<span class="badge bg-light text-secondary border ms-1" style="font-weight:600;"><i class="ph-bold ph-pill me-1"></i>ຊຸດທີ 1</span>`;
+                subEl.innerHTML = `ລະຫັດ VISIT: <strong>${b.visitId}</strong> | ວັນທີສັ່ງ: ${b.dateStr} ${badge}`;
+            }
+
+            document.getElementById('odmSymptom').innerText = b.symptom;
+            document.getElementById('odmNotes').innerText = b.notes;
+            window.currentOpenedOrderDetail = b.rawOrder;
+        };
 
         function closeOrderDetailModal(e) {
             if (e && e.target && e.target.id !== 'orderDetailModalBackdrop') return;
@@ -5360,6 +5617,305 @@
                 document.body.classList.remove('has-modal-open');
             }
         }
+
+        // 🌟 ຟັງຊັນສຳລັບ "ຕໍ່ຢາ / ສັ່ງຢາ" (Repeat / Refill Order) ຈາກໜ້າຕ່າງ Order
+        window.openOrderModalForRefill = async function (refillData) {
+            if (!refillData) return;
+            const backdrop = document.getElementById('orderModalBackdrop');
+            if (!backdrop) return;
+
+            // 1. ໂຫຼດ Catalogs ໃຫ້ຄົບຖ້ວນ
+            try {
+                if (!orderAvailableMedicines || orderAvailableMedicines.length === 0) {
+                    await loadOrderMedicinesCatalog();
+                }
+                loadStkMembersCatalog();
+                loadDoctorsCatalog();
+                loadCustomerTypes();
+            } catch (e) { }
+
+            const batchNum = refillData.batch_num || 2;
+            const batchTag = `ຕໍ່ຢາ - ຊຸດທີ ${batchNum}`;
+            window.currentOrderRefillContext = {
+                batch_num: batchNum,
+                previous_visit_id: refillData.previous_visit_id || refillData.visit_id || ''
+            };
+
+            // 2. ອັບເດດ Header Title ໃຫ້ສະແດງ Badge ຕໍ່ຢາ
+            const titleEl = document.querySelector('.order-modal-title');
+            if (titleEl) {
+                titleEl.innerHTML = `ລາຍການສັ່ງ Order <span class="badge bg-warning-subtle text-warning-emphasis border border-warning ms-2" style="font-size: 13px; font-weight: 700;"><i class="ph-bold ph-arrows-clockwise me-1"></i>${batchTag}</span>`;
+            }
+
+            // 🌟 ກຳນົດລະຫັດ HN ຕົ້ນສະບັບ ແລະ ສະແດງ Badge
+            const refillHn = (refillData.hn && refillData.hn !== '-') ? refillData.hn : '';
+            const hnInput = document.getElementById('orderCustHn');
+            if (hnInput) hnInput.value = refillHn;
+            const hnBadge = document.getElementById('orderCustHnBadge');
+            if (hnBadge) {
+                if (refillHn) {
+                    hnBadge.textContent = refillHn;
+                    hnBadge.style.display = 'inline-block';
+                } else {
+                    hnBadge.style.display = 'none';
+                }
+            }
+
+            // 3. ແຍກ ແລະ ຕື່ມຂໍ້ມູນລູກຄ້າ
+            let rawFullName = (refillData.patient_name || refillData.customer_name || '').trim();
+            let prefix = refillData.prefix || '';
+            let cleanCustName = rawFullName;
+
+            if (!prefix && cleanCustName) {
+                const prefixes = ['ທ້າວ', 'ນາງ', 'ດ.ຊ.', 'ດ.ຍ.', 'ທ່ານ', 'นาย', 'นางสาว', 'นาง', 'ด.ช.', 'ด.ญ.'];
+                for (const pfx of prefixes) {
+                    if (cleanCustName.startsWith(pfx + ' ') || cleanCustName.startsWith(pfx)) {
+                        prefix = (pfx === 'นาย' || pfx === 'ท้าว') ? 'ທ້າວ' : ((pfx === 'นาง' || pfx === 'นางสาว') ? 'ນາງ' : pfx);
+                        cleanCustName = cleanCustName.slice(pfx.length).trim();
+                        break;
+                    }
+                }
+            }
+
+            const prefixEl = document.getElementById('orderCustPrefix');
+            if (prefixEl) prefixEl.value = prefix;
+
+            const nameEl = document.getElementById('orderCustName');
+            if (nameEl) nameEl.value = cleanCustName || rawFullName;
+
+            const phoneEl = document.getElementById('orderCustPhone');
+            if (phoneEl) {
+                let p = (refillData.phone || refillData.customer_phone || '').trim();
+                phoneEl.value = (p !== '-' && p !== '00000000000') ? p : '';
+            }
+
+            const ageEl = document.getElementById('orderCustAge');
+            if (ageEl) {
+                const a = String(refillData.age || '').replace(/\D/g, '');
+                ageEl.value = a || '';
+            }
+
+            const genderEl = document.getElementById('orderCustGender');
+            if (genderEl) {
+                let g = refillData.gender || '';
+                if (g === 'ชาย' || g === 'Male' || g === 'ຊາຍ') g = 'ຊາຍ';
+                else if (g === 'หญิง' || g === 'Female' || g === 'ຍິງ') g = 'ຍິງ';
+                genderEl.value = g;
+            }
+
+            const provEl = document.getElementById('orderCustProvince');
+            if (provEl) provEl.value = (refillData.province && refillData.province !== '-') ? refillData.province : '';
+
+            const distEl = document.getElementById('orderCustDistrict');
+            if (distEl) distEl.value = (refillData.district && refillData.district !== '-') ? refillData.district : '';
+
+            const villEl = document.getElementById('orderCustVillage');
+            if (villEl) villEl.value = (refillData.village && refillData.village !== '-') ? refillData.village : '';
+
+            const diseaseEl = document.getElementById('orderCustDisease');
+            if (diseaseEl) {
+                let d = refillData.disease || refillData.symptom || '';
+                if (d.startsWith('ສັ່ງຊື້') || d.startsWith('สั่งซื้อ') || d.startsWith('Order')) d = '';
+                diseaseEl.value = (d && d !== '-') ? d : '';
+            }
+
+            const dateEl = document.getElementById('orderCustDate');
+            if (dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+
+            // 4. ເລືອກປະເພດລູກຄ້າ: "ลูกค้าเก่ากลับมาต่อยา"
+            const typeEl = document.getElementById('orderCustomerType');
+            if (typeEl) {
+                let optExists = false;
+                for (let i = 0; i < typeEl.options.length; i++) {
+                    if (typeEl.options[i].value === 'ลูกค้าเก่ากลับมาต่อยา') {
+                        optExists = true;
+                        break;
+                    }
+                }
+                if (!optExists) {
+                    const opt = document.createElement('option');
+                    opt.value = 'ลูกค้าเก่ากลับมาต่อยา';
+                    opt.innerText = 'ลูกค้าเก่ากลับมาต่อยา';
+                    typeEl.appendChild(opt);
+                }
+                typeEl.value = 'ลูกค้าเก่ากลับมาต่อยา';
+            }
+
+            // 5. ແນະນຳຜ່ານໝໍ ແລະ ຜູ້ຊ່ວຍ
+            const chkDoc = document.getElementById('checkDoctorPrescribe');
+            const chkSelf = document.getElementById('checkSelfPrescribe');
+            const docInput = document.getElementById('orderDocAdvice');
+            const assistantInput = document.getElementById('orderAssistantAdvice');
+
+            const docAdvice = refillData.doctor_advice || '';
+            const asstAdvice = refillData.assistant_advice || '';
+
+            if (docAdvice && docAdvice !== '-' && docAdvice !== 'null' && docAdvice !== 'undefined' && docAdvice !== 'ແພດປະຈຳຄລີນິກ' && docAdvice !== 'ສັ່ງຢາດ້ວຍຕົນເອງ') {
+                if (chkDoc) chkDoc.checked = true;
+                if (chkSelf) chkSelf.checked = false;
+                if (docInput) docInput.value = docAdvice;
+            } else {
+                if (chkDoc) chkDoc.checked = false;
+                if (chkSelf) chkSelf.checked = true;
+                if (docInput) docInput.value = asstAdvice || 'ສັ່ງຢາດ້ວຍຕົນເອງ';
+            }
+            if (assistantInput) assistantInput.value = (asstAdvice && asstAdvice !== '-' && asstAdvice !== 'null') ? asstAdvice : '';
+            updatePrescribeInputStates();
+
+            // 6. ໝາຍເຫດ (Notes)
+            const notesEl = document.getElementById('orderNotes');
+            if (notesEl) {
+                const prevId = refillData.previous_visit_id || '';
+                notesEl.value = refillData.notes || `ຕໍ່ຢາ ຊຸດທີ ${batchNum}${prevId ? ` (ຈາກ ${prevId})` : ''}`;
+            }
+
+            // 7. ດຶງ ແລະ ຕື່ມລາຍການສິນຄ້າ / ຢາ ເດີມລົງໃນ Cart
+            currentOrderItems = [];
+            const rawItems = refillData.items || [];
+            if (Array.isArray(rawItems) && rawItems.length > 0) {
+                rawItems.forEach(rawItem => {
+                    if (!rawItem) return;
+                    const rawName = String(rawItem.name || rawItem.product_name || rawItem.prod || '').trim();
+                    if (!rawName) return;
+
+                    // ຄົ້ນຫາໃນ Catalog ສິນຄ້າ stk_products
+                    const matchedMed = (orderAvailableMedicines || []).find(m => {
+                        if (!m) return false;
+                        if (rawItem.id && m.id && m.id === rawItem.id) return true;
+                        if (rawItem.code && m.code && m.code === rawItem.code) return true;
+                        const mName = (m.name || '').toLowerCase();
+                        const rName = rawName.toLowerCase();
+                        return mName === rName || mName.includes(rName) || rName.includes(mName);
+                    });
+
+                    let tier = rawItem.tier || 'normal';
+                    let tierName = rawItem.tierName || rawItem.priceType || 'ລາຄາປົກກະຕິ';
+                    const tStr = String(tier + ' ' + tierName).toLowerCase();
+                    if (tStr.includes('ສະມາຊິກ') || tStr.includes('สมาชิก') || tStr.includes('high') || tStr.includes('member') || tStr.includes('ສົ່ງ') || tStr.includes('ส่ง')) {
+                        tier = 'member';
+                        tierName = 'ລາຄາສະມາຊິກ';
+                    } else if (tStr.includes('ໂປຣ') || tStr.includes('โปร') || tStr.includes('promo')) {
+                        tier = 'promo';
+                        tierName = 'ລາຄາໂປຣ';
+                    } else if (tStr.includes('ແຖມ') || tStr.includes('ฟรี') || tStr.includes('ຟຣີ') || tStr.includes('free')) {
+                        tier = 'free';
+                        tierName = 'ແຖມຟຣີ';
+                    } else {
+                        tier = 'normal';
+                        tierName = 'ລາຄາປົກກະຕິ';
+                    }
+
+                    let price = Number(rawItem.price || 0);
+                    if (!price && matchedMed) {
+                        if (tier === 'member') price = matchedMed.price_member || Math.round((matchedMed.price_normal || 0) * 0.85);
+                        else if (tier === 'promo') price = matchedMed.price_promo || Math.round((matchedMed.price_normal || 0) * 0.8);
+                        else if (tier === 'free') price = 0;
+                        else price = matchedMed.price_normal || matchedMed.price || 0;
+                    }
+
+                    const qty = parseInt(rawItem.qty || 1, 10) || 1;
+
+                    currentOrderItems.push({
+                        id: matchedMed ? matchedMed.id : (rawItem.id || ('MED-' + Math.random().toString(36).substr(2, 6))),
+                        code: matchedMed ? matchedMed.code : (rawItem.code || ''),
+                        name: matchedMed ? matchedMed.name : rawName,
+                        category: matchedMed ? matchedMed.category : (rawItem.category || 'ອາຫານເສີມ'),
+                        tier: tier,
+                        tierName: tierName,
+                        price: price,
+                        qty: qty,
+                        stock: matchedMed ? matchedMed.stock : 999,
+                        unit: matchedMed ? matchedMed.unit : 'ກ່ອງ',
+                        image_url: matchedMed ? (matchedMed.image_url || '') : '',
+                        total: price * qty
+                    });
+                });
+            }
+
+            renderOrderTable();
+            calculateOrderTotals();
+
+            // 8. ປິດ Pop-up ອື່ນໆ
+            const detailModal = document.getElementById('orderDetailModalBackdrop');
+            if (detailModal) {
+                detailModal.classList.remove('show');
+                detailModal.style.display = 'none';
+            }
+
+            // 9. ເປີດ Modal Order
+            document.body.classList.add('has-modal-open');
+            backdrop.style.display = 'flex';
+            requestAnimationFrame(() => {
+                backdrop.classList.add('show');
+            });
+
+            // 10. ແຈ້ງເຕືອນ Toast ຄວາມສຳເລັດ
+            if (typeof Swal !== 'undefined') {
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2500,
+                    timerProgressBar: true
+                });
+                Toast.fire({
+                    icon: 'success',
+                    title: `ເປີດໜ້າຕ່າງສັ່ງ Order (${batchTag}) ຮຽບຮ້ອຍ`
+                });
+            }
+        };
+
+        // ຟັງຊັນສຳລັບກົດ "ຕໍ່ຢາ / ສັ່ງຢາ" ຈາກ Pop-up ລາຍລະອຽດອໍເດີ
+        window.repeatOrderFromDetail = function () {
+            const order = window.currentOpenedOrderDetail;
+            if (!order) {
+                if (typeof Swal !== 'undefined') Swal.fire('ແຈ້ງເຕືອນ', 'ບໍ່ພົບຂໍ້ມູນອໍເດີສຳລັບຕໍ່ຢາ', 'warning');
+                return;
+            }
+            closeOrderDetailModal();
+
+            const allVisits = allPatientsData || [];
+            const samePat = allVisits.filter(p => (order.hn && p.hn === order.hn) || (order.patient_name && p.patient_name === order.patient_name));
+            
+            let lastBatch = order.batch_no || (order.order_data && order.order_data.batch_no) || 0;
+            if (!lastBatch) {
+                const matchBatch = (order.symptom || order.latest_symptom || order.notes || (order.order_data && (order.order_data.notes || order.order_data.symptom)) || '').match(/(?:ຊຸດທີ|ชุดที่|batch)\s*(\d+)/i);
+                if (matchBatch) lastBatch = parseInt(matchBatch[1], 10);
+            }
+            const nextBatchNum = lastBatch ? (lastBatch + 1) : Math.max(2, samePat.length + 1);
+
+            let rawItems = order.items || order.items_json || [];
+            if (typeof rawItems === 'string') {
+                try { rawItems = JSON.parse(rawItems); } catch (e) { }
+            }
+
+            const refillData = {
+                patient_name: order.patient_name || order.customer_name || '',
+                hn: order.hn || '',
+                phone: order.phone || order.customer_phone || '',
+                age: order.age || '',
+                gender: order.gender || '',
+                province: order.province || '',
+                district: order.district || '',
+                village: order.village || '',
+                disease: order.disease || order.symptom || '',
+                doctor_advice: order.doctor_advice || order.closer_dr || '',
+                assistant_advice: order.assistant_advice || order.recorded_by || '',
+                items: rawItems,
+                batch_num: nextBatchNum,
+                previous_visit_id: order.visitId || order.visit_id || '',
+                notes: `ຕໍ່ຢາ ຊຸດທີ ${nextBatchNum} (ຈາກ ${order.visitId || order.visit_id || '-'})`
+            };
+
+            window.openOrderModalForRefill(refillData);
+        };
+
+        // 🌟 ດັກຈັບ Message ຈາກ Parent (Clinic.html) ເມື່ອກົດ "ຕໍ່ຢາ / ສັ່ງຢາ" ໃນ Modal
+        window.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'OPEN_ORDER_REFILL') {
+                window.openOrderModalForRefill(event.data.refillData);
+            }
+        });
 
         // ==========================================================
         // 🇱🇦 Laos Province & District Pop-up Picker Data & Logic
@@ -6026,9 +6582,100 @@
         }
         window.onOrderPrefixChange = onOrderPrefixChange;
 
+        window.currentOrderSelectedPatientObj = null;
+
+        function switchToRefillModeForPatient(pt) {
+            if (!pt) return;
+            window.currentOrderSelectedPatientObj = pt;
+
+            const allVisits = allPatientsData || [];
+            const samePat = allVisits.filter(p => (pt.hn && p.hn === pt.hn) || (pt.patient_name && p.patient_name === pt.patient_name));
+            let lastBatch = pt.batch_no || (pt.order_data && pt.order_data.batch_no) || 0;
+            if (!lastBatch) {
+                const matchBatch = (pt.symptom || pt.latest_symptom || pt.notes || (pt.order_data && (pt.order_data.notes || pt.order_data.symptom)) || '').match(/(?:ຊຸດທີ|ชุดที่|batch)\s*(\d+)/i);
+                if (matchBatch) lastBatch = parseInt(matchBatch[1], 10);
+            }
+            const nextBatchNum = lastBatch ? (lastBatch + 1) : Math.max(2, samePat.length + 1);
+            const prevVid = pt.latest_visit_id || pt.visit_id || (pt.order_data && pt.order_data.visit_id) || '';
+
+            window.currentOrderRefillContext = {
+                batch_num: nextBatchNum,
+                previous_visit_id: prevVid
+            };
+
+            const titleEl = document.querySelector('.order-modal-title');
+            if (titleEl) {
+                titleEl.innerHTML = `ລາຍການສັ່ງ Order <span class="badge bg-warning-subtle text-warning-emphasis border border-warning ms-2" style="font-size: 13px; font-weight: 700;"><i class="ph-bold ph-arrows-clockwise me-1"></i>ຕໍ່ຢາ - ຊຸດທີ ${nextBatchNum}</span>`;
+            }
+
+            const typeEl = document.getElementById('orderCustomerType');
+            if (typeEl) {
+                let optExists = false;
+                for (let i = 0; i < typeEl.options.length; i++) {
+                    if (typeEl.options[i].value === 'ลูกค้าเก่ากลับมาต่อยา') {
+                        optExists = true;
+                        break;
+                    }
+                }
+                if (!optExists) {
+                    const opt = document.createElement('option');
+                    opt.value = 'ลูกค้าเก่ากลับมาต่อยา';
+                    opt.innerText = 'ลูกค้าเก่ากลับมาต่อยา';
+                    typeEl.appendChild(opt);
+                }
+                typeEl.value = 'ลูกค้าเก่ากลับมาต่อยา';
+            }
+
+            const notesEl = document.getElementById('orderNotes');
+            if (notesEl && (!notesEl.value || notesEl.value.includes('ຕໍ່ຢາ'))) {
+                notesEl.value = `ຕໍ່ຢາ ຊຸດທີ ${nextBatchNum}${prevVid ? ` (ຈາກ ${prevVid})` : ''}`;
+            }
+
+            const warnBox = document.getElementById('orderExistingPatientWarning');
+            if (warnBox) {
+                warnBox.className = 'alert alert-success py-1.5 px-3 mb-2 small d-flex align-items-center justify-content-between';
+                warnBox.style.borderLeft = '4px solid #10b981';
+                warnBox.style.background = '#f0fdf4';
+                warnBox.innerHTML = `
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="ph-bold ph-check-circle text-success fs-5"></i>
+                        <span><strong class="text-success">ປ່ຽນເປັນຮູບແບບ "ຕໍ່ຢາ ຊຸດທີ ${nextBatchNum}" ຮຽບຮ້ອຍ</strong> <span class="text-muted ms-1">(ລະຫັດເດີມ: ${prevVid || pt.hn})</span></span>
+                    </div>
+                    <span class="badge bg-success-subtle text-success border border-success">ພ້ອມສັ່ງຊື້</span>
+                `;
+            }
+
+            if (typeof Swal !== 'undefined') {
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2500,
+                    timerProgressBar: true
+                });
+                Toast.fire({
+                    icon: 'success',
+                    title: `ປ່ຽນເປັນ "ຕໍ່ຢາ ຊຸດທີ ${nextBatchNum}" ສຳເລັດ!`
+                });
+            }
+        }
+
+        window.switchToRefillModeFromBanner = function() {
+            if (window.currentOrderSelectedPatientObj) {
+                switchToRefillModeForPatient(window.currentOrderSelectedPatientObj);
+            }
+        };
+
         function selectCustPatient(hn) {
             const pt = (allPatientsData || []).find(p => p.hn === hn);
             if (!pt) return;
+            const hnInput = document.getElementById('orderCustHn');
+            if (hnInput) hnInput.value = hn;
+            const hnBadge = document.getElementById('orderCustHnBadge');
+            if (hnBadge) {
+                hnBadge.textContent = hn;
+                hnBadge.style.display = 'inline-block';
+            }
             const prefixEl = document.getElementById('orderCustPrefix');
             const nameEl = document.getElementById('orderCustName');
             const ageEl = document.getElementById('orderCustAge');
@@ -6082,6 +6729,46 @@
 
             const dropdown = document.getElementById('orderCustDropdown');
             if (dropdown) dropdown.style.display = 'none';
+
+            // 🌟 ກວດສອບວ່າຄົນເຈັບມີປະຫວັດການກວດ ຫຼື ສັ່ງຊື້ແລ້ວຫຼືບໍ່ -> ແຈ້ງເຕືອນ "ມີຂໍ້ມູນຢູ່ແລ້ວ ກະລຸນາ ກົດຕໍ່ຢາ"
+            window.currentOrderSelectedPatientObj = pt;
+            const existingVid = pt.latest_visit_id || pt.visit_id || (pt.order_data && pt.order_data.visit_id) || '';
+            const hasHistory = !!(existingVid || (pt.hn && pt.hn !== '-'));
+
+            const warnBox = document.getElementById('orderExistingPatientWarning');
+            const warnDetail = document.getElementById('orderExistingPatientWarningDetail');
+            if (hasHistory && warnBox) {
+                if (warnDetail) {
+                    warnDetail.textContent = `(ຄົນເຈັບມີປະຫວັດການກວດ/ສັ່ງຊື້ແລ້ວ: ${existingVid || pt.hn})`;
+                }
+                warnBox.className = 'alert alert-warning py-2 px-3 mb-2 small d-flex align-items-center justify-content-between';
+                warnBox.style.borderLeft = '4px solid #f59e0b';
+                warnBox.style.background = '#fffbeb';
+                warnBox.classList.remove('d-none');
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ມີຂໍ້ມູນຢູ່ແລ້ວ ກະລຸນາ ກົດຕໍ່ຢາ',
+                        html: `
+                            <div class="text-start" style="font-size: 13.5px; line-height: 1.6;">
+                                ຄົນເຈັບ <strong>"${fullName || pt.patient_name}"</strong> (${pt.hn}) <strong>ມີປະຫວັດການກວດແລ້ວ</strong> ${existingVid ? `(ລະຫັດ: <span class="badge bg-light text-dark border font-monospace">${existingVid}</span>)` : ''}
+                                <div class="alert alert-warning border border-warning mt-2 mb-1 p-2.5 small" style="background: #fffbeb; border-radius: 8px;">
+                                    <i class="ph-bold ph-warning text-warning fs-5 align-middle me-1"></i>
+                                    <strong>ແຈ້ງເຕືອນ:</strong> ບໍ່ຄວນສັ່ງຊື້ເປັນ <strong>"ລູກຄ້າໃໝ່"</strong> ເພາະຈະເຮັດໃຫ້ຂໍ້ມູນຊ້ຳຊ້ອນ. ກະລຸນາກົດ <strong>"ຕໍ່ຢາ"</strong> ເພື່ອເຊື່ອມໂຍງປະຫວັດການກວດ
+                                </div>
+                            </div>
+                        `,
+                        showCancelButton: false,
+                        confirmButtonText: '<i class="ph-bold ph-arrows-clockwise me-1"></i> ກົດຕໍ່ຢາ (ແນະນຳ)',
+                        confirmButtonColor: '#0b3c73'
+                    }).then(() => {
+                        switchToRefillModeForPatient(pt);
+                    });
+                }
+            } else if (warnBox) {
+                warnBox.classList.add('d-none');
+            }
         }
 
         // ປິດ Pop-up Dropdowns ທັງໝົດເມື່ອຄລິກບ່ອນອື່ນນອກ Dropdown (Click Outside Handler)
@@ -6127,11 +6814,21 @@
 
         function getMlmSupabaseClient() {
             if (mlmSupabaseOrderClient) return mlmSupabaseOrderClient;
+            if (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) {
+                mlmSupabaseOrderClient = _mlmSupabase;
+                return mlmSupabaseOrderClient;
+            }
+            if (typeof window !== 'undefined' && window.parent && window.parent !== window && window.parent._mlmSupabase) {
+                mlmSupabaseOrderClient = window.parent._mlmSupabase;
+                return mlmSupabaseOrderClient;
+            }
             try {
                 const url = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
                 const key = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
                 if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-                    mlmSupabaseOrderClient = supabase.createClient(url, key);
+                    mlmSupabaseOrderClient = supabase.createClient(url, key, {
+                        auth: { persistSession: false, autoRefreshToken: false }
+                    });
                 }
             } catch (err) {
                 console.warn('Init MLM client error:', err);
@@ -7110,6 +7807,12 @@
         function openOrderModal() {
             const backdrop = document.getElementById('orderModalBackdrop');
             if (!backdrop) return;
+            window.currentOrderRefillContext = null;
+
+            const titleEl = document.querySelector('.order-modal-title');
+            if (titleEl) {
+                titleEl.innerHTML = `ລາຍການສັ່ງ Order`;
+            }
 
             const chkDoc = document.getElementById('checkDoctorPrescribe');
             const chkSelf = document.getElementById('checkSelfPrescribe');
@@ -7146,6 +7849,16 @@
             if (distEl) distEl.value = '';
             if (villEl) villEl.value = '';
             if (phoneEl) phoneEl.value = '';
+            const hnInput = document.getElementById('orderCustHn');
+            if (hnInput) hnInput.value = '';
+            const hnBadge = document.getElementById('orderCustHnBadge');
+            if (hnBadge) hnBadge.style.display = 'none';
+            window.currentOrderSelectedPatientObj = null;
+            const warnBox = document.getElementById('orderExistingPatientWarning');
+            if (warnBox) {
+                warnBox.classList.add('d-none');
+                warnBox.className = 'alert alert-warning py-2 px-3 mb-2 small d-none align-items-center justify-content-between';
+            }
             const typeEl = document.getElementById('orderCustomerType');
             if (typeEl && orderCustomerTypesList.length > 0) typeEl.value = orderCustomerTypesList[0].name;
 
@@ -7222,12 +7935,25 @@
             }
         }
 
+        let clinicSupabaseOrderClient = null;
         function getClinicSupabaseClient() {
+            if (clinicSupabaseOrderClient) return clinicSupabaseOrderClient;
+            if (typeof _supabase !== 'undefined' && _supabase) {
+                clinicSupabaseOrderClient = _supabase;
+                return clinicSupabaseOrderClient;
+            }
+            if (typeof window !== 'undefined' && window.parent && window.parent !== window && window.parent._supabase) {
+                clinicSupabaseOrderClient = window.parent._supabase;
+                return clinicSupabaseOrderClient;
+            }
             try {
                 const url = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co';
                 const key = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
                 if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-                    return supabase.createClient(url, key);
+                    clinicSupabaseOrderClient = supabase.createClient(url, key, {
+                        auth: { persistSession: false, autoRefreshToken: false }
+                    });
+                    return clinicSupabaseOrderClient;
                 }
             } catch (err) {
                 console.warn('Init Clinic client error:', err);
@@ -7392,13 +8118,13 @@
                 const custName = orderData.patient_name || orderData.customer_name;
                 const grandTotal = Number(orderData.grandTotal || orderData.total_amount || 0);
 
-                // 1. Visit Payload ທີ່ຖືກຕ້ອງຕາມ Schema ຂອງຕາຕະລາງ visits 100%
+                // 1. Visit Payload ທີ່ຖືກຕ້ອງຕາມ Schema ຂອງຕາຕະລາງ visits 100% (visits ບໍ່ມີ batch_no ຫຼື previous_visit_id)
                 const cleanVisitPayload = {
                     visit_id: visitId,
                     hn: hn,
                     patient_name: custName,
                     doctor_name: orderData.doctor_advice || orderData.closer_dr || 'ແພດປະຈຳຄລີນິກ',
-                    symptom: orderData.disease || orderData.symptom || ('ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (orderData.notes ? ` (${orderData.notes})` : '')),
+                    symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (orderData.disease ? ` [${orderData.disease}]` : '') + (orderData.notes ? ` (${orderData.notes})` : ''),
                     status: 'ສັ່ງຊື້ສິນຄ້າ',
                     created_at: orderData.created_at || new Date().toISOString(),
                     meds: (cleanItems && cleanItems.length > 0) ? JSON.stringify(cleanItems) : null
@@ -7417,7 +8143,6 @@
                     village: orderData.village || '',
                     past_history: orderData.disease || orderData.symptom || '',
                     referred_by: orderData.assistant_advice || orderData.recorded_by || '',
-                    customer_type: orderData.customer_type || 'ລູກຄ້າທົ່ວໄປ',
                     created_at: orderData.created_at || new Date().toISOString()
                 };
 
@@ -7554,10 +8279,51 @@
 
             // 7. 🌟 ກວດສອບ ປະເພດລູກຄ້າ
             const typeEl = document.getElementById('orderCustomerType');
-            const custTypeVal = typeEl ? typeEl.value.trim() : '';
+            let custTypeVal = typeEl ? typeEl.value.trim() : '';
             if (!custTypeVal || custTypeVal === '-- ເລືອກປະເພດລູກຄ້າ --') {
                 showOrderValidationAlert('ກວດສອບຂໍ້ມູນໃຫ້ຖືກຕ້ອງ ກ່ອນສັ່ງຊື້', typeEl);
                 return;
+            }
+
+            // 🌟 ຖ້າຄົນເຈັບມີປະຫວັດການກວດແລ້ວ ແຕ່ຍັງເລືອກເປັນ "ລູກຄ້າໃໝ່" ໃຫ້ເຕືອນກົດຕໍ່ຢາ
+            const isNewCustomerType = custTypeVal.includes('ໃໝ່') || custTypeVal.includes('ใหม่');
+            const ptHasHistory = !!(window.currentOrderSelectedPatientObj || (document.getElementById('orderCustHn')?.value) || (allPatientsData || []).some(p => {
+                const cleanPh = phoneVal.replace(/\D/g, '');
+                const pPh = String(p.phone || p.customer_phone || '').replace(/\D/g, '');
+                return cleanPh && cleanPh.length >= 7 && pPh === cleanPh;
+            }));
+
+            if (isNewCustomerType && ptHasHistory && !window.currentOrderRefillContext) {
+                if (typeof Swal !== 'undefined') {
+                    const confirmRefill = await Swal.fire({
+                        icon: 'warning',
+                        title: 'ມີຂໍ້ມູນຢູ່ແລ້ວ ກະລຸນາ ກົດຕໍ່ຢາ',
+                        html: `
+                            <div class="text-start" style="font-size: 13.5px; line-height: 1.6;">
+                                ຄົນເຈັບ <strong>"${custName}"</strong> ມີຂໍ້ມູນປະຫວັດໃນລະບົບແລ້ວ!<br>
+                                ທ່ານກຳລັງເລືອກປະເພດເປັນ: <span class="badge bg-danger-subtle text-danger border border-danger">${custTypeVal}</span> ເຊິ່ງຈະເຮັດໃຫ້ລະບົບບັນທຶກເປັນ <strong>"ຄົນເຈັບໃໝ່ຊ້ຳຊ້ອນ"</strong><br><br>
+                                <span class="text-primary fw-bold">ຕ້ອງການປ່ຽນເປັນ "ຕໍ່ຢາ (ລູກຄ້າເກົ່າ)" ຫຼືບໍ່?</span>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: '<i class="ph-bold ph-arrows-clockwise me-1"></i> ປ່ຽນເປັນຕໍ່ຢາ ແລະ ສັ່ງຊື້',
+                        cancelButtonText: 'ຍົກເລີກເພື່ອກວດສອບ',
+                        confirmButtonColor: '#0b3c73',
+                        cancelButtonColor: '#ef4444'
+                    });
+
+                    if (confirmRefill.isConfirmed) {
+                        typeEl.value = 'ลูกค้าเก่ากลับมาต่อยา';
+                        custTypeVal = 'ลูกค้าเก่ากลับมาต่อยา';
+                        if (window.currentOrderSelectedPatientObj) {
+                            switchToRefillModeForPatient(window.currentOrderSelectedPatientObj);
+                        } else {
+                            window.currentOrderRefillContext = { batch_num: 2, previous_visit_id: '' };
+                        }
+                    } else {
+                        return;
+                    }
+                }
             }
 
             // 8. 🌟 ກວດສອບ ລາຍການສິນຄ້າ
@@ -7626,16 +8392,72 @@
                 const discount = parseInt(document.getElementById('orderDiscountInput')?.value || 0, 10) || 0;
                 const grandTotal = Math.max(0, subtotal - discount);
 
-                // ກວດສອບຜູ້ປ່ວຍວ່າເຄີຍມີໃນລະບົບຫຼືບໍ່ (Match ຈາກ HN ຫຼື ຊື່)
-                const matchedPt = (allPatientsData || []).find(p =>
-                    (p.patient_name && p.patient_name.trim().toLowerCase() === custName.toLowerCase()) ||
-                    (currentSelectedPatient && currentSelectedPatient.patient_name && currentSelectedPatient.patient_name.trim().toLowerCase() === custName.toLowerCase())
-                );
+                // ກວດສອບຜູ້ປ່ວຍວ່າເຄີຍມີໃນລະບົບຫຼືບໍ່ (ລຳດັບ: 1. HN ທີ່ເລືອກ -> 2. ເບີໂທ -> 3. ຊື່)
+                const explicitHn = document.getElementById('orderCustHn')?.value?.trim();
+                let hn = explicitHn && explicitHn !== '-' ? explicitHn : '';
 
-                const hn = matchedPt && matchedPt.hn && matchedPt.hn !== '-' ? matchedPt.hn : ('HN-' + Math.floor(100000 + Math.random() * 900000));
+                // 2. ຖ້າບໍ່ມີ HN ໂດຍກົງ ໃຫ້ກວດສອບຈາກ ເບີໂທລະສັບ (Phone Match) ເພາະເບີໂທຊັດເຈນທີ່ສຸດ
+                const cleanPhone = (phone || '').replace(/\D/g, '');
+                if (!hn && cleanPhone && cleanPhone.length >= 7 && cleanPhone !== '00000000000') {
+                    const ptByPhone = (allPatientsData || []).find(p => {
+                        const pPh = String(p.phone || p.customer_phone || '').replace(/\D/g, '');
+                        return pPh && pPh === cleanPhone && p.hn && p.hn !== '-';
+                    });
+                    if (ptByPhone) {
+                        hn = ptByPhone.hn;
+                    }
+                }
+
+                // 3. ຖ້າຍັງບໍ່ພົບ ໃຫ້ກວດສອບຈາກ ຊື່ (ຕັດຄຳນຳໜ້າອອກກ່ອນທຽບ)
+                if (!hn) {
+                    const cleanCust = custName.replace(/^(ທ້າວ|ນາງ|ດ\.ຊ\.|ດ\.ຍ\.|ທ່ານ|นาย|นางสาว|นาง|ด\.ช\.|ด\.ญ\.)\s*/i, '').trim().toLowerCase();
+                    const ptByName = (allPatientsData || []).find(p => {
+                        const pName = (p.patient_name || '').replace(/^(ທ້າວ|ນາງ|ດ\.ຊ\.|ດ\.ຍ\.|ທ່ານ|นาย|นางสาว|นาง|ด\.ช\.|ด\.ญ\.)\s*/i, '').trim().toLowerCase();
+                        return (pName && pName === cleanCust && p.hn && p.hn !== '-') ||
+                               (p.patient_name && p.patient_name.trim().toLowerCase() === custName.toLowerCase() && p.hn && p.hn !== '-');
+                    });
+                    if (ptByName) {
+                        hn = ptByName.hn;
+                    }
+                }
+
+                // 4. ຖ້າບໍ່ພົບຂໍ້ມູນເດີມແທ້ໆ ຈຶ່ງສ້າງ HN ໃໝ່
+                if (!hn) {
+                    hn = 'HN-' + Math.floor(100000 + Math.random() * 900000);
+                }
                 const randOrderNum = Math.floor(10000 + Math.random() * 90000); // 5 หลักพอดี
                 const visit_id = 'VIS-ORD-' + randOrderNum;
                 const order_id = 'ORD-' + randOrderNum;
+
+                // 🌟 ກຳນົດເລກຊຸດຢາ (Batch No) & ລະຫັດຕໍ່ຢາເດີມ (Previous Visit ID)
+                let currentBatchNo = 1;
+                let prevRefId = null;
+                if (window.currentOrderRefillContext && window.currentOrderRefillContext.batch_num) {
+                    currentBatchNo = Number(window.currentOrderRefillContext.batch_num) || 2;
+                    prevRefId = window.currentOrderRefillContext.previous_visit_id || null;
+                } else {
+                    const matchingPast = (allPatientsData || []).filter(p =>
+                        (p.patient_name && p.patient_name.trim().toLowerCase() === custName.toLowerCase()) ||
+                        (hn && hn !== '-' && p.hn === hn)
+                    );
+                    if (custType === 'ลูกค้าเก่ากลับมาต่อยา' || matchingPast.length > 0) {
+                        let maxB = 0;
+                        matchingPast.forEach(p => {
+                            let b = p.batch_no || (p.order_data && p.order_data.batch_no) || 0;
+                            if (!b) {
+                                const m = (p.latest_symptom || p.symptom || (p.order_data && (p.order_data.notes || p.order_data.symptom)) || '').match(/(?:ຊຸດທີ|ชุดที่|batch)\s*(\d+)/i);
+                                if (m) b = parseInt(m[1], 10);
+                            }
+                            if (b > maxB) maxB = b;
+                        });
+                        currentBatchNo = maxB ? (maxB + 1) : Math.max(1, matchingPast.length + 1);
+                        if (matchingPast[0]) {
+                            prevRefId = matchingPast[0].latest_visit_id || matchingPast[0].visit_id || null;
+                        }
+                    } else {
+                        currentBatchNo = 1;
+                    }
+                }
 
                 // 1. 🌟 Payload ບັນທຶກລົງຕາຕະລາງ `stk_nutrient_orders` ໃນ Supabase MLM
                 const cleanItems = currentOrderItems.map(item => ({
@@ -7648,7 +8470,9 @@
                     qty: Number(item.qty || 1),
                     price: Number(item.price || 0),
                     total: Number(item.total || 0),
-                    unit: item.unit || 'ຊິ້ນ'
+                    unit: item.unit || 'ຊິ້ນ',
+                    batch_no: currentBatchNo,
+                    batch_tag: `ຊຸດທີ ${currentBatchNo}`
                 }));
 
                 // ລວມອາການ/ພະຍາດ ແລະ ໝາຍເຫດເຂົ້າດ້ວຍກັນ ເພື່ອບໍ່ໃຫ້ຕົກຫຼົ່ນ
@@ -7676,6 +8500,8 @@
                     order_id: String(order_id),
                     visit_id: String(visit_id),
                     hn: String(hn),
+                    batch_no: currentBatchNo,
+                    previous_order_id: prevRefId,
                     customer_name: custName,
                     customer_type: custType,
                     customer_phone: phone || null,
@@ -7704,6 +8530,9 @@
                     orderId: order_id,
                     visitId: visit_id,
                     hn: hn,
+                    batch_no: currentBatchNo,
+                    previous_visit_id: prevRefId,
+                    previous_order_id: prevRefId,
                     patient_name: custName,
                     customer_type: custType,
                     customerType: custType,
@@ -7768,6 +8597,8 @@
                         village: village || allPatientsData[existingPtIndex].village || '',
                         customer_type: custType,
                         prescribe_type: prescribeType,
+                        batch_no: currentBatchNo,
+                        previous_visit_id: prevRefId,
                         has_order: true,
                         order_data: orderPayload
                     };
@@ -7779,6 +8610,8 @@
                         patient_name: custName,
                         customer_type: custType,
                         prescribe_type: prescribeType,
+                        batch_no: currentBatchNo,
+                        previous_visit_id: prevRefId,
                         age: age || '-',
                         gender: gender || '-',
                         disease: custDisease,
@@ -7846,6 +8679,7 @@
                 } catch (e) { }
 
                 closeOrderModal();
+                window.currentOrderRefillContext = null;
 
                 // ສະຫຼັບໄປແທັບ ປະຫວັດຜູ້ປ່ວຍ (Tab 2) ທັນທີເພື່ອໃຫ້ເຫັນລາຍການທີ່ຫາກໍ່ສັ່ງຊື້ຢູ່ເທິງສຸດ
                 switchTab('history');
@@ -7860,7 +8694,7 @@
                             <div class="mb-2 text-primary fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ສະແດງລາຍການໃນ <strong>ໜ້າປະຫວັດຜູ້ປ່ວຍ</strong> ແລ້ວ</div>
                             <div class="p-2.5 rounded-3 bg-light border text-secondary" style="font-size: 12.5px;">
                                 <div>• ລູກຄ້າ: <strong>${custName}</strong> (${hn})</div>
-                                <div>• ລະຫັດ Visit: <span class="badge bg-primary-subtle text-primary font-monospace">${visit_id}</span></div>
+                                <div>• ລະຫັດ Visit: <span class="badge bg-primary-subtle text-primary font-monospace">${visit_id}</span> <span class="badge bg-warning-subtle text-warning-emphasis border border-warning ms-1" style="font-weight:700;">ຊຸດທີ ${currentBatchNo}</span></div>
                                 <div>• ຍອດລວມສຸດທິ: <strong class="text-dark">${grandTotal.toLocaleString()} ฿</strong></div>
                             </div>
                         </div>
@@ -7962,8 +8796,23 @@
 
             <!-- 1. ຂໍ້ມູນລູກຄ້າ -->
             <div class="order-customer-box">
-                <div class="order-customer-box-title">
-                    <i class="ph-bold ph-user-circle"></i> ຂໍ້ມູນລູກຄ້າ
+                <div class="order-customer-box-title d-flex align-items-center justify-content-between">
+                    <div>
+                        <i class="ph-bold ph-user-circle"></i> ຂໍ້ມູນລູກຄ້າ
+                        <span id="orderCustHnBadge" class="badge bg-primary-subtle text-primary border border-primary ms-2 font-monospace" style="display: none; font-size: 11.5px; font-weight: 700;"></span>
+                    </div>
+                    <input type="hidden" id="orderCustHn" value="">
+                </div>
+
+                <!-- 🌟 ແຈ້ງເຕືອນຄົນເຈັບມີຂໍ້ມູນແລ້ວ / ແນະນຳກົດຕໍ່ຢາ -->
+                <div id="orderExistingPatientWarning" class="alert alert-warning py-2 px-3 mb-2 small d-none align-items-center justify-content-between" style="border-radius: 8px; border-left: 4px solid #f59e0b; background: #fffbeb;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="ph-bold ph-warning-circle text-warning fs-5"></i>
+                        <span><strong>ມີຂໍ້ມູນຢູ່ແລ້ວ ກະລຸນາ ກົດຕໍ່ຢາ</strong> <span id="orderExistingPatientWarningDetail" class="text-muted ms-1"></span></span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-warning text-dark fw-bold px-2.5 py-1" onclick="switchToRefillModeFromBanner()" style="font-size: 11.5px; border-radius: 6px;">
+                        <i class="ph-bold ph-arrows-clockwise me-1"></i>ກົດຕໍ່ຢາທັນທີ
+                    </button>
                 </div>
                 <!-- Row 1 -->
                 <div class="row g-2 mb-2">
@@ -8320,8 +9169,11 @@
             </div>
 
             <!-- Meds / Nutrient Items Table -->
-            <div class="fw-bold text-dark mb-2 small d-flex align-items-center gap-1">
-                <i class="ph-bold ph-pill text-primary fs-5"></i> ລາຍການຢາ / ອາຫານເສີມທີ່ສັ່ງຊື້
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <div class="fw-bold text-dark small d-flex align-items-center gap-1">
+                    <i class="ph-bold ph-pill text-primary fs-5"></i> ລາຍການຢາ / ອາຫານເສີມທີ່ສັ່ງຊື້
+                </div>
+                <div id="odmBatchSelectorContainer" class="d-flex align-items-center gap-1.5 flex-wrap ms-auto"></div>
             </div>
             <div class="table-responsive border rounded-3 mb-3" style="max-height: 220px; overflow-y: auto;">
                 <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.88rem;">
@@ -8349,6 +9201,11 @@
                     <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5 fw-semibold"
                         onclick="window.print()">
                         <i class="ph ph-printer me-1"></i> ພິມລາຍການ
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3.5 py-1.5 fw-bold text-white shadow-xs"
+                        id="btnRepeatOrderFromDetail" onclick="repeatOrderFromDetail()"
+                        style="background-color: #004b93; border-color: #004b93;">
+                        <i class="ph-bold ph-arrows-clockwise me-1"></i> ຕໍ່ຢາ / ສັ່ງຢາ
                     </button>
                 </div>
                 <div class="d-flex align-items-center gap-4">

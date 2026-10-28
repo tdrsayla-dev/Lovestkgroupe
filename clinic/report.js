@@ -437,6 +437,8 @@ async function loadReportData() {
         .select('id, emp_code, full_name, email, role, is_active'))
     ]);
 
+    state.nutrientOrdersRaw = rawNutrientOrders || [];
+
     // 👨‍⚕️ Filter ONLY users from staff_users where role is Doctor (doctor, แพทย์, หมอ, ທ່ານໝໍ)
     let staffList = resStaffUsers?.data || [];
     if (!Array.isArray(staffList) || staffList.length === 0) {
@@ -816,36 +818,7 @@ function resolveDoctorForRecord(record, visitsList, ordersList, billsList) {
     }
   }
 
-  // 5. Match by same patient HN on the same date (handles app orders or visit without doctor)
-  const recHn = (record.hn && record.hn !== '-') ? String(record.hn).trim() : '';
-  const recDate = toLocalDateStr(record.date || record.created_at);
-  if (recHn) {
-    // Check visits for same HN and date
-    const vSameHn = currentVisits.find(v => {
-      if (!v || String(v.hn).trim() !== recHn) return false;
-      if (recDate && toLocalDateStr(v.created_at) !== recDate) return false;
-      const vDoc = matchDoctorFromStaff(v.doctor || v.doctor_name || v.closer_dr);
-      return !!vDoc;
-    });
-    if (vSameHn) {
-      doc = matchDoctorFromStaff(vSameHn.doctor || vSameHn.doctor_name || vSameHn.closer_dr);
-      if (doc) return doc;
-    }
-
-    // Check orders for same HN and date
-    const oSameHn = currentOrders.find(o => {
-      if (!o || String(o.hn).trim() !== recHn) return false;
-      if (recDate && toLocalDateStr(o.date || o.created_at) !== recDate) return false;
-      const oDoc = matchDoctorFromStaff(o.doctor || o.closer_dr || o.doctor_name);
-      return !!oDoc;
-    });
-    if (oSameHn) {
-      doc = matchDoctorFromStaff(oSameHn.doctor || oSameHn.closer_dr || oSameHn.doctor_name);
-      if (doc) return doc;
-    }
-  }
-
-  // 6. Check recorded_by if it's a doctor
+  // 5. Check recorded_by if it's a doctor
   if (record.recorded_by) {
     doc = matchDoctorFromStaff(record.recorded_by);
     if (doc) return doc;
@@ -891,7 +864,7 @@ async function fetchRawNutrientOrders(startUtcISO, endUtcISO) {
   const mlmOrders = (resMlm.status === 'fulfilled' && Array.isArray(resMlm.value)) ? resMlm.value : [];
   const clinicOrders = (resClinic.status === 'fulfilled' && Array.isArray(resClinic.value)) ? resClinic.value : [];
 
-  // Merge and deduplicate by order_id or id
+  // Merge: MLM is the primary authority for payment status and inventory
   const orderMap = new Map();
   clinicOrders.forEach(o => {
     const k = o.order_id || o.id;
@@ -899,7 +872,10 @@ async function fetchRawNutrientOrders(startUtcISO, endUtcISO) {
   });
   mlmOrders.forEach(o => {
     const k = o.order_id || o.id;
-    if (k && !orderMap.has(k)) orderMap.set(k, o);
+    if (k) {
+      const existing = orderMap.get(k);
+      orderMap.set(k, existing ? { ...existing, ...o } : o);
+    }
   });
 
   let rawOrders = Array.from(orderMap.values());
@@ -954,26 +930,34 @@ function processNutrientOrders(rawOrders, visitsList) {
     }
 
     // 🌟 เงื่อนไขยืนยันรับเงินฝั่ง MLM:
-    // หากเป็นออเดอร์ฝั่ง MLM / สั่งอาหารเสริมแยก (ที่ไม่ได้ผูกกับ Visit ตรวจของคลินิกโดยตรง)
-    // จะต้องเป็นรายการที่ได้รับการยืนยันการรับเงิน/ขายสำเร็จแล้วเท่านั้น (เช่น 'ขายสำเร็จแล้ว', 'ชำระเงินแล้ว', 'paid', 'completed')
-    // รายการที่ยังรอดำเนินการ/แบบร่าง จะไม่ถูกนำเข้ามาในรายงาน
-    const hasLinkedVisit = vid && vid !== '-' && currentVisits && currentVisits.some(x => {
-      const xVid = normalizeIdStr(x.visit_id);
-      return xVid && xVid === normalizeIdStr(vid);
-    });
+    // รายการออเดอร์ที่ยังไม่ได้กดยืนยัน หรือยังไม่ได้ชำระเงิน (เช่น 'รอดำเนินการ', 'ร่างใบสั่งซื้อ', 'draft', 'pending', 'unpaid', 'ຍັງບໍ່ຊຳລະ')
+    // จะต้องไม่ถูกนำเข้ามาในรายงานเด็ดขาด! ต้องเป็นรายการที่ได้รับการยืนยันการรับเงิน/ขายสำเร็จแล้วเท่านั้น
+    const isPendingOrUnpaid = 
+      st === 'รอดำเนินการ' || 
+      st.includes('รอดำเนินการ') || 
+      st.includes('ລໍດຳເນີນການ') || 
+      st.includes('ร่าง') || 
+      st.includes('draft') || 
+      st.includes('pending') || 
+      st.includes('unpaid') || 
+      st.includes('ຍັງບໍ່');
 
-    if (!hasLinkedVisit) {
-      const isPaidOrCompleted = 
-        st.includes('ขายสำเร็จแล้ว') || 
-        st.includes('ชำระเงินแล้ว') || 
-        st.includes('ชำระแล้ว') || 
-        st.includes('ຊຳລະແລ້ວ') || 
-        st.includes('สำเร็จ') || 
-        st.includes('completed') || 
-        st.includes('paid');
-      if (!isPaidOrCompleted) {
-        return false;
-      }
+    if (isPendingOrUnpaid) {
+      return false;
+    }
+
+    const isPaidOrCompleted = 
+      st.includes('ขายสำเร็จแล้ว') || 
+      st.includes('ชำระเงินแล้ว') || 
+      st.includes('ชำระแล้ว') || 
+      st.includes('ຊຳລະແລ້ວ') || 
+      st.includes('สำเร็จ') || 
+      st.includes('เสร็จสิ้น') || 
+      st.includes('completed') || 
+      st.includes('paid');
+
+    if (!isPaidOrCompleted) {
+      return false;
     }
 
     let dStr = toLocalDateStr(o.created_at);
@@ -1096,13 +1080,44 @@ function processNutrientOrders(rawOrders, visitsList) {
 
     if (v.status) {
       const vSt = String(v.status).toLowerCase();
+      // 1. ยกเลิก หรือ ลบ
       if (vSt.includes('cancel') || vSt.includes('ຍົກເລີກ') || vSt.includes('ยกเลิก') || vSt.includes('deleted')) {
+        return;
+      }
+      // 2. สถานะที่ยังรอชำระเงิน หรือรอดำเนินการ หรือยังค้างขั้นตอนก่อนพบแพทย์/ก่อนจ่ายเงิน
+      if (
+        vSt.includes('รอชำระเงิน') || vSt.includes('ລໍຖ້າຊຳລະ') || vSt.includes('ລໍຊຳລະ') ||
+        vSt.includes('รอดำเนินการ') || vSt.includes('ລໍດຳເນີນການ') ||
+        vSt.includes('ร่าง') || vSt.includes('draft') || vSt.includes('unpaid') || vSt.includes('pending') ||
+        vSt.includes('รอคัดกรอง') || vSt.includes('ລໍຖ້າຄັດກອງ') || vSt.includes('ລໍຄັດກອງ') ||
+        vSt.includes('รอตรวจ') || vSt.includes('ລໍຖ້າກວດ') || vSt.includes('ລໍກວດ') ||
+        vSt.includes('รอจัดคิว') || vSt.includes('ລໍຖ້າຈັດຄິວ') || vSt.includes('ລໍຈັດຄິວ') ||
+        vSt.includes('รอผลแล็บ') || vSt.includes('ລໍຖ້າຜົນແລັບ') || vSt.includes('ລໍຜົນແລັບ')
+      ) {
         return;
       }
     }
     const vid = String(v.visit_id || '').trim();
     if (vid && (deletedBillsSet.has(vid) || deletedNutrientsSet.has(vid))) return;
     if (!v.meds) return;
+
+    // 🌟 หากเป็นเคสสั่งซื้อยา (Order) ต้องตรวจสอบว่าได้รับการยืนยันการขายแล้วหรือไม่
+    if (isOrderVisit(v)) {
+      const matchedOrder = (rawOrders || []).find(o => {
+        const oVid = normalizeIdStr(o.visit_id);
+        const oOid = normalizeIdStr(o.order_id || o.id);
+        return (vVid && (oVid === vVid || oOid === vVid)) || (vOid && (oVid === vOid || oOid === vOid));
+      });
+      if (matchedOrder) {
+        const mst = (matchedOrder.status || '').toLowerCase();
+        const isConfirmed = mst.includes('ขายสำเร็จแล้ว') || mst.includes('ชำระเงินแล้ว') || mst.includes('ชำระแล้ว') || mst.includes('ຊຳລະແລ້ວ') || mst.includes('สำเร็จ') || mst.includes('เสร็จสิ้น') || mst.includes('completed') || mst.includes('paid');
+        if (!isConfirmed) return;
+      } else {
+        const vst = (v.status || '').toLowerCase();
+        const isConfirmed = vst.includes('ขายสำเร็จแล้ว') || vst.includes('ชำระเงินแล้ว') || vst.includes('ชำระแล้ว') || vst.includes('ຊຳລະແລ້ວ') || vst.includes('สำเร็จ') || vst.includes('เสร็จสิ้น') || vst.includes('completed') || vst.includes('paid');
+        if (!isConfirmed) return;
+      }
+    }
 
     let items = [];
     if (typeof v.meds === 'string' && v.meds.trim() !== '') {
@@ -1977,18 +1992,40 @@ function isConsultedVisit(v) {
     return false;
   }
 
-  // 2. ตัดสถานะที่ยังไม่ได้จัดคิวตรวจ หรือ ผลแล็บยังไม่ออก
+  // 2. ตัดสถานะที่ยังไม่ได้จัดคิวตรวจ หรือ ผลแล็บยังไม่ออก หรือยังรอชำระเงิน/รอดำเนินการ
   const pendingStatuses = [
     'รอคัดกรอง', 'ລໍຖ້າຄັດກອງ', 'ລໍຄັດກອງ',
     'รอตรวจ', 'ລໍຖ້າກວດ', 'ລໍກວດ',
     'รอชำระเงิน', 'ລໍຖ້າຊຳລະ', 'ລໍຊຳລະ',
     'รอผลแล็บ', 'รอผลตรวจ lab', 'รอผลตรวจแล็บ', 'รอผลแล็บเพิ่มเติม', 'ผลออกบางส่วน',
     'ລໍຖ້າຜົນແລັບ', 'ລໍຜົນແລັບ', 'ລໍຖ້າຜົນກວດ',
-    'รอจัดคิว', 'ລໍຖ້າຈັດຄິວ', 'ລໍຈັດຄິວ'
+    'รอจัดคิว', 'ລໍຖ້າຈັດຄິວ', 'ລໍຈັດຄິວ',
+    'รอดำเนินการ', 'ລໍດຳເນີນການ', 'ร่าง', 'draft', 'unpaid', 'pending'
   ];
 
   if (pendingStatuses.some(p => st === p || st.includes(p))) {
     return false;
+  }
+
+  // 🌟 3. ถ้าเป็นเคสสั่งซื้อยา/อาหารเสริม (Order) ที่ยังไม่ได้กดยืนยัน หรือยังไม่ได้ชำระเงิน (เช่น 'รอดำเนินการ', 'ร่างใบสั่งซื้อ', 'draft', 'pending', 'unpaid')
+  // ห้ามนำมาขึ้นในรายงานแพทย์เด็ดขาด!
+  if (isOrderVisit(v)) {
+    const vVid = normalizeIdStr(v.visit_id);
+    const vOid = normalizeIdStr(v.order_id);
+    const rawOrders = state.nutrientOrdersRaw || [];
+    const matchedOrder = rawOrders.find(o => {
+      const oVid = normalizeIdStr(o.visit_id);
+      const oOid = normalizeIdStr(o.order_id || o.id);
+      return (vVid && (oVid === vVid || oOid === vVid)) || (vOid && (oVid === vOid || oOid === vOid));
+    });
+    if (matchedOrder) {
+      const mst = (matchedOrder.status || '').toLowerCase();
+      const isConfirmed = mst.includes('ขายสำเร็จแล้ว') || mst.includes('ชำระเงินแล้ว') || mst.includes('ชำระแล้ว') || mst.includes('ຊຳລະແລ້ວ') || mst.includes('สำเร็จ') || mst.includes('เสร็จสิ้น') || mst.includes('completed') || mst.includes('paid');
+      if (!isConfirmed) return false;
+    } else {
+      const isConfirmed = st.includes('ขายสำเร็จแล้ว') || st.includes('ชำระเงินแล้ว') || st.includes('ชำระแล้ว') || st.includes('ຊຳລະແລ້ວ') || st.includes('สำเร็จ') || st.includes('เสร็จสิ้น') || st.includes('completed') || st.includes('paid');
+      if (!isConfirmed) return false;
+    }
   }
 
   return true;
@@ -2038,9 +2075,13 @@ function parseLabTestPackages(rawLabTests) {
 function isOrderVisit(v) {
   if (!v) return false;
   const vId = String(v.visit_id || '');
-  if (vId.startsWith('ORD-') || vId.startsWith('ord_') || vId.startsWith('ORD')) return true;
-  const s = String(v.symptoms || v.symptom || v.initial_symptom || v.diagnosis || '').toLowerCase();
-  return s.includes('ສັ່ງຊື້') || s.includes('สั่งซื้อ') || s.includes('order');
+  if (vId.startsWith('ORD-') || vId.startsWith('ord_') || vId.startsWith('ORD') || vId.startsWith('VIS-ORD-') || vId.includes('-ORD-')) return true;
+  const oId = String(v.order_id || '');
+  if (oId && oId !== '-' && oId !== 'null' && oId !== 'undefined') return true;
+  const st = String(v.status || '').toLowerCase();
+  if (st === 'ສັ່ງຊື້ສິນຄ້າ' || st.includes('ສັ່ງຊື້') || st.includes('สั่งซื้อ')) return true;
+  const s = String(v.symptoms || v.symptom || v.initial_symptom || v.diagnosis || v.notes || '').toLowerCase();
+  return s.includes('ສັ່ງຊື້') || s.includes('สั่งซื้อ') || s.includes('order') || s.includes('ຕໍ່ຢາ') || s.includes('ต่อยา');
 }
 
 function renderPatientsTab() {
