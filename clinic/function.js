@@ -591,6 +591,13 @@ function showPage(pageId, element) {
         console.warn('Error loading section data for ' + pageId, e);
     }
 }
+window.showPage = showPage;
+window._realShowPage = showPage;
+if (window._pendingShowPage) {
+    const p = window._pendingShowPage;
+    window._pendingShowPage = null;
+    showPage(p.pageId, p.element);
+}
 
 // =====================================
 // Supabase Database Connection (Fallback Check)
@@ -12547,8 +12554,7 @@ async function submitPrescription() {
             if (existingVisit) {
                 const updatePayload = {
                     meds: medsStr,
-                    status: 'รอจ่ายยา',
-                    created_at: nowIso
+                    status: 'รอจ่ายยา'
                 };
                 if (existingVisit.symptom && existingVisit.symptom !== 'สั่งจ่ายยา') {
                     // ไม่ต้องเขียนทับ symptom เดิม
@@ -14361,6 +14367,15 @@ window.setHistoryDateFilter = function (mode) {
     const endInput = document.getElementById('historyEndDate');
     const now = new Date();
 
+    // ไฮไลต์ปุ่ม preset ที่เลือกแบบ seamless
+    ['today', 'month', 'year', 'all'].forEach(m => {
+        const btn = document.getElementById('btnHistDate_' + m);
+        if (btn) {
+            if (m === mode) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    });
+
     if (mode === 'today') {
         const todayStr = now.toLocaleDateString('en-CA');
         if (startInput) startInput.value = todayStr;
@@ -14757,18 +14772,44 @@ window.setHistoryTypeFilter = function (type) {
 
     [btnAll, btnVisit, btnOrder].forEach(b => {
         if (!b) return;
-        b.className = 'btn btn-light bg-white border fw-semibold text-secondary px-3';
+        b.className = 'modern-seg-btn';
     });
 
     if (window.historyTypeFilter === 'all' && btnAll) {
-        btnAll.className = 'btn btn-primary fw-semibold px-3';
+        btnAll.className = 'modern-seg-btn active seg-all';
     } else if (window.historyTypeFilter === 'visit' && btnVisit) {
-        btnVisit.className = 'btn btn-primary fw-semibold px-3';
+        btnVisit.className = 'modern-seg-btn active seg-visit';
     } else if (window.historyTypeFilter === 'order' && btnOrder) {
-        btnOrder.className = 'btn btn-success fw-semibold text-white px-3';
+        btnOrder.className = 'modern-seg-btn active seg-order';
     }
 
     if (typeof searchPatientHistory === 'function') searchPatientHistory();
+};
+
+// 🌟 ฟังก์ชันแยกแยะประเภทรายการในหน้าประวัติผู้ป่วย: VIS- (ตรวจรักษา) vs VIS-ORD- (สั่งซื้อยาเดิม/ต่อยา)
+window.isPatientHistoryOrder = function (row) {
+    if (!row) return false;
+    const vId = String(row.visit_id || '');
+
+    // 1. ถ้าขึ้นต้นด้วย VIS-ORD- หรือมีคำว่า -ORD- ชัดเจน -> เป็นเคสสั่งซื้อยาเดิม / ต่อยา 100%
+    if (vId.startsWith('VIS-ORD-') || vId.includes('-ORD-')) return true;
+
+    // 2. ถ้าขึ้นต้นด้วย VIS- ทั่วไป (เช่น VIS-421977) ที่ไม่มีคำว่า ORD -> เป็นเคสคนไข้มาตรวจรักษาที่คลินิก 100% (แม้หมอจะสั่งยาให้ก็ตาม)
+    if (vId.startsWith('VIS-') && !vId.startsWith('VIS-ORD-')) return false;
+
+    // 3. ถ้าเป็นออเดอร์จาก MLM ที่ไม่มี visit_id หรือขึ้นต้นด้วย ORD- (ที่ไม่ใช่ ORD-CLINIC- ที่หมอสั่งในคลินิก)
+    const oId = String(row.order_id || '');
+    if (oId.startsWith('ORD-') && !oId.startsWith('ORD-CLINIC-')) return true;
+
+    // 4. สถานะเป็นสั่งซื้อสินค้า
+    const st = String(row.status || '').trim();
+    if (st === 'ສັ່ງຊື້ສິນຄ້າ' || st === 'สั่งซื้อสินค้า') return true;
+
+    // 5. อาการระบุสั่งซื้อ/ต่อยา (กรณีไม่มี visit_id ชัดเจน)
+    const sym = String(row.symptom || '').toLowerCase();
+    if (sym.includes('ສັ່ງຊື້') || sym.includes('สั่งซื้อ') || sym.includes('ຕໍ່ຢາ')) return true;
+
+    return false;
 };
 
 window.searchPatientHistory = function () {
@@ -14790,10 +14831,7 @@ window.searchPatientHistory = function () {
         // กรองตามประเภทรายการ (Type Filter: all | visit | order)
         const histType = window.historyTypeFilter || 'all';
         if (histType !== 'all') {
-            const isOrder = String(row.visit_id || '').startsWith('VIS-ORD-') ||
-                Boolean(row.order_id) ||
-                row.status === 'ສັ່ງຊື້ສິນຄ້າ' ||
-                (row.symptom && (row.symptom.includes('ສັ່ງຊື້') || row.symptom.includes('สั่งซื้อ') || row.symptom.includes('Order') || row.symptom.includes('ຕໍ່ຢາ')));
+            const isOrder = window.isPatientHistoryOrder(row);
             if (histType === 'visit' && isOrder) return false;
             if (histType === 'order' && !isOrder) return false;
         }
@@ -14869,15 +14907,12 @@ window.renderHistoryTable = function (page = window.historyCurrentPage) {
             ? ('VIS-ORD-' + String(row.visit_id).replace('VIS-ORD-', '').slice(-5))
             : (row.visit_id || '-');
 
-        const isOrder = String(row.visit_id || '').startsWith('VIS-ORD-') ||
-            Boolean(row.order_id) ||
-            row.status === 'ສັ່ງຊື້ສິນຄ້າ' ||
-            (row.symptom && (row.symptom.includes('ສັ່ງຊື້') || row.symptom.includes('สั่งซื้อ') || row.symptom.includes('Order') || row.symptom.includes('ຕໍ່ຢາ')));
+        const isOrder = window.isPatientHistoryOrder(row);
         const currentLang = (typeof getCurrentLanguage === 'function') ? getCurrentLanguage() : (localStorage.getItem('clinic_lang') || 'la');
         const isLao = currentLang === 'la';
 
         const typeBadge = isOrder
-            ? `<span class="badge bg-success-subtle text-success border border-success-subtle d-inline-flex align-items-center gap-1 px-2 py-0.5 rounded-pill mt-1" style="font-size: 0.72rem; font-weight: 600;"><i class="ph ph-package"></i> <span>${isLao ? 'ສັ່ງຊື້ຢາ' : 'สั่งซื้อยาเดิม'}</span></span>`
+            ? `<span class="badge bg-success-subtle text-success border border-success-subtle d-inline-flex align-items-center gap-1 px-2 py-0.5 rounded-pill mt-1" style="font-size: 0.72rem; font-weight: 600;"><i class="ph ph-package"></i> <span>${isLao ? 'ສັ່ງຊື້ຢາເດີມ' : 'สั่งซื้อยาเดิม'}</span></span>`
             : `<span class="badge bg-primary-subtle text-primary border border-primary-subtle d-inline-flex align-items-center gap-1 px-2 py-0.5 rounded-pill mt-1" style="font-size: 0.72rem; font-weight: 600;"><i class="ph ph-stethoscope"></i> <span>${isLao ? 'ກວດຮັກສາ' : 'ตรวจรักษา'}</span></span>`;
 
         tbody.innerHTML += `

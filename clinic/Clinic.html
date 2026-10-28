@@ -19,7 +19,7 @@
 
 
     <!-- เชื่อมโยงไฟล์ CSS -->
-    <link rel="stylesheet" href="style.css?v=2.7.7">
+    <link rel="stylesheet" href="style.css?v=2.7.8">
     <link rel="stylesheet" href="dashboard.css?v=1.2">
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -90,6 +90,16 @@
                     }
                 }, 500);
             });
+        }
+
+        // 🛡️ ป้องกัน ReferenceError: showPage is not defined เมื่อคลิกเมนูก่อน function.js โหลดเสร็จ
+        if (typeof window.showPage !== 'function') {
+            window.showPage = function (pageId, element) {
+                if (typeof window._realShowPage === 'function') {
+                    return window._realShowPage(pageId, element);
+                }
+                window._pendingShowPage = { pageId, element };
+            };
         }
 
         document.addEventListener("DOMContentLoaded", function () {
@@ -1555,7 +1565,8 @@
         </div>
         <!-- 11. ประวัติผู้ป่วย (Patient History) -->
         <div id="history" class="page-section">
-            <div class="d-flex justify-content-between align-items-end mb-4">
+            <!-- แถวที่ 1: หัวข้อหน้า และ ปุ่มจัดการ (รีเฟรช / ลบทั้งหมด) -->
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
                             class="bi bi-clock-history text-primary me-2"></i><span
@@ -1564,71 +1575,72 @@
                         ค้นหาและดูประวัติการเข้าตรวจ อาการ ผลแล็บ
                         และการจัดสั่งจ่ายยาที่เสร็จสิ้นแล้ว</p>
                 </div>
-                <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
-                    <!-- ปุ่มเลือกช่วงเวลาด่วน (วันนี้ / เดือนนี้ / ปีนี้ / ทั้งหมด) -->
-                    <div class="btn-group shadow-xs" role="group" style="height: 38px;">
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
-                            onclick="setHistoryDateFilter('today')">วันนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="font-size: 0.85rem;" onclick="setHistoryDateFilter('month')">เดือนนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="font-size: 0.85rem;" onclick="setHistoryDateFilter('year')">ปีนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
-                            onclick="setHistoryDateFilter('all')">ทั้งหมด</button>
-                    </div>
-
-                    <!-- แคปซูลเลือกช่วงวันที่ -->
-                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-xs gap-2"
-                        style="height: 38px;">
-                        <i class="bi bi-calendar-event text-primary" style="font-size: 0.95rem;"></i>
-                        <input type="date" id="historyStartDate"
-                            class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
-                            style="width: 115px; font-size: 0.85rem; cursor: pointer; outline: none;"
-                            onchange="loadPatientHistory()">
-                        <span class="text-muted small fw-bold" style="opacity: 0.3;">|</span>
-                        <input type="date" id="historyEndDate"
-                            class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
-                            style="width: 115px; font-size: 0.85rem; cursor: pointer; outline: none;"
-                            onchange="loadPatientHistory()">
-                    </div>
-
-                    <!-- ตัวกรองประเภทรายการ (ทั้งหมด / 🩺 ตรวจรักษา / 📦 สั่งซื้อยาเดิม) -->
-                    <div class="btn-group shadow-xs" role="group" id="historyTypeFilterGroup" style="height: 38px;">
-                        <button type="button" class="btn btn-primary fw-semibold px-3" id="btnHistTypeAll"
-                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
-                            onclick="setHistoryTypeFilter('all')">
-                            <span>ทั้งหมด</span>
-                        </button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" id="btnHistTypeVisit"
-                            style="font-size: 0.85rem;" onclick="setHistoryTypeFilter('visit')">
-                            <i class="ph ph-stethoscope text-primary me-1"></i> <span>ตรวจรักษา</span>
-                        </button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" id="btnHistTypeOrder"
-                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
-                            onclick="setHistoryTypeFilter('order')">
-                            <i class="ph ph-package text-success me-1"></i> <span>สั่งซื้อยาเดิม</span>
-                        </button>
-                    </div>
-
-                    <!-- ช่องค้นหา Text -->
-                    <input type="text" id="searchHistoryInput"
-                        class="form-control custom-input py-2 rounded-pill shadow-xs"
-                        placeholder="ค้นหา HN, ชื่อ, เบอร์โทร หรือ Visit ID..."
-                        data-i18n-placeholder="history_search_placeholder"
-                        style="width: 260px; height: 38px; font-size: 0.88rem;" onkeyup="searchPatientHistory()">
-
+                <div class="d-flex gap-2 align-items-center">
                     <!-- ปุ่มรีเฟรช -->
                     <button class="btn btn-outline-primary rounded-pill py-2 px-3 fw-semibold shadow-xs"
                         style="height: 38px; font-size: 0.88rem;" onclick="loadPatientHistory()"><i
-                            class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span></button>
+                            class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรชข้อมูล</span></button>
 
                     <!-- ปุ่มลบทั้งหมด -->
                     <button class="btn btn-danger rounded-pill py-2 px-3 fw-bold shadow-xs"
                         style="height: 38px; font-size: 0.88rem;" onclick="deleteAllHistoryVisits()"><i
                             class="bi bi-trash3-fill me-1"></i> <span
                             data-i18n="history_btn_delete_all">ลบทั้งหมด</span></button>
+                </div>
+            </div>
+
+            <!-- แถวที่ 2: แถบเครื่องมือค้นหาและตัวกรอง (ดีไซน์โมเดิร์น ไร้ขอบตัดแข็ง) -->
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2.5">
+                <div class="d-flex align-items-center gap-2.5 flex-wrap">
+                    <!-- ปุ่มเลือกช่วงเวลาด่วน (วันนี้ / เดือนนี้ / ปีนี้ / ทั้งหมด) -->
+                    <div class="modern-seg-track" id="historyDateFilterGroup" style="height: 38px;">
+                        <button type="button" class="modern-seg-btn active" id="btnHistDate_today"
+                            onclick="setHistoryDateFilter('today')">วันนี้</button>
+                        <button type="button" class="modern-seg-btn" id="btnHistDate_month"
+                            onclick="setHistoryDateFilter('month')">เดือนนี้</button>
+                        <button type="button" class="modern-seg-btn" id="btnHistDate_year"
+                            onclick="setHistoryDateFilter('year')">ปีนี้</button>
+                        <button type="button" class="modern-seg-btn" id="btnHistDate_all"
+                            onclick="setHistoryDateFilter('all')">ทั้งหมด</button>
+                    </div>
+
+                    <!-- แคปซูลเลือกช่วงวันที่ -->
+                    <div class="modern-date-capsule shadow-xs">
+                        <i class="bi bi-calendar-event text-primary" style="font-size: 0.95rem;"></i>
+                        <input type="date" id="historyStartDate" class="modern-date-input"
+                            onchange="loadPatientHistory()">
+                        <span class="text-muted small fw-bold" style="opacity: 0.25;">|</span>
+                        <input type="date" id="historyEndDate" class="modern-date-input"
+                            onchange="loadPatientHistory()">
+                    </div>
+
+                    <!-- ตัวกรองประเภทรายการ (ทั้งหมด / 🩺 ตรวจรักษา / 📦 สั่งซื้อยาเดิม) -->
+                    <div class="modern-seg-track" id="historyTypeFilterGroup" style="height: 38px;">
+                        <button type="button" class="modern-seg-btn active seg-all" id="btnHistTypeAll"
+                            onclick="setHistoryTypeFilter('all')">
+                            <span>ทั้งหมด</span>
+                        </button>
+                        <button type="button" class="modern-seg-btn" id="btnHistTypeVisit"
+                            onclick="setHistoryTypeFilter('visit')">
+                            <i class="ph ph-stethoscope me-1"></i> <span>ตรวจรักษา</span>
+                        </button>
+                        <button type="button" class="modern-seg-btn" id="btnHistTypeOrder"
+                            onclick="setHistoryTypeFilter('order')">
+                            <i class="ph ph-package me-1"></i> <span>สั่งซื้อยาเดิม</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <!-- ช่องค้นหา Text แบบโมเดิร์นพร้อมไอคอนในตัว -->
+                    <div class="modern-search-wrap shadow-xs">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="searchHistoryInput"
+                            class="modern-search-input"
+                            placeholder="ค้นหา HN, ชื่อ, เบอร์โทร หรือ Visit ID..."
+                            data-i18n-placeholder="history_search_placeholder"
+                            onkeyup="searchPatientHistory()">
+                    </div>
                 </div>
             </div>
 
@@ -5360,7 +5372,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=8.1"></script>
+    <script src="function.js?v=8.4"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.8"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->

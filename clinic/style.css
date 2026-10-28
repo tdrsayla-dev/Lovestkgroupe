@@ -3908,3 +3908,142 @@ body.login-page {
         border-bottom: 3px solid #003f88 !important;
     }
 }
+
+/* 🌟 Modern Seamless Segmented Control & Filter Bar (ไม่ตัดขอบแข็ง สไตล์โมเดิร์น) */
+.modern-filter-bar {
+    background: #ffffff;
+    border: 1px solid #eef2f6;
+    border-radius: 18px;
+    padding: 8px 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.modern-seg-track {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 50rem;
+    padding: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.modern-seg-btn {
+    border: none !important;
+    outline: none !important;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.84rem;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 50rem !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.35;
+    text-decoration: none !important;
+}
+
+.modern-seg-btn:hover:not(.active) {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.modern-seg-btn.active {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.modern-seg-btn.active.seg-order {
+    background: #10b981 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.32) !important;
+}
+
+.modern-seg-btn.active.seg-visit {
+    background: #0284c7 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.32) !important;
+}
+
+.modern-seg-btn.active.seg-all {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28) !important;
+}
+
+.modern-date-capsule {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 50rem;
+    padding: 0 14px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.modern-date-capsule:focus-within,
+.modern-date-capsule:hover {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.modern-date-input {
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+    font-size: 0.84rem;
+    color: #334155;
+    font-weight: 500;
+    width: 110px;
+    cursor: pointer;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+.modern-search-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.modern-search-wrap i {
+    position: absolute;
+    left: 14px;
+    color: #94a3b8;
+    font-size: 0.88rem;
+    pointer-events: none;
+    transition: color 0.2s;
+}
+
+.modern-search-input {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 50rem;
+    height: 38px;
+    padding-left: 38px;
+    padding-right: 14px;
+    font-size: 0.86rem;
+    color: #1e293b;
+    outline: none !important;
+    transition: all 0.2s;
+    width: 300px;
+}
+
+.modern-search-wrap:focus-within i {
+    color: #0284c7;
+}
+
+.modern-search-input:focus {
+    background: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
