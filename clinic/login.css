@@ -55,16 +55,23 @@ body.default-animated-bg {
 
 /* 4. สไตล์สำหรับไอคอนหน้า Login */
 .login-icon {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     margin: 0 auto 1rem auto;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #0356C5, #0ea5e9) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.85rem;
-    box-shadow: 0 8px 20px rgba(3, 86, 197, 0.35);
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+
+.login-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
 }
 
 .login-icon i,
