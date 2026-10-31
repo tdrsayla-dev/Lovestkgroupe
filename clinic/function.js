@@ -4733,11 +4733,6 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                     <!-- ປຸ່ມດຳເນີນການດ້ານລຸ່ມ -->
                     <div class="mt-3 pt-2.5 border-top d-flex flex-column gap-2">
                         <div id="clinicPayInlineAlert" style="display: none;"></div>
-                        <div class="d-flex gap-2">
-                            <button type="button" id="btnSaveDiscountAndClose" class="btn btn-light border w-100 py-2 fw-semibold text-secondary rounded-3" onclick="saveLabDiscountAndClose('${visitId}')">
-                                ບັນທຶກສ່ວນຫຼຸດ & ປິດ
-                            </button>
-                        </div>
                         <button type="button" id="btnReturnVisitToDoctor" class="btn btn-outline-warning text-dark border-warning w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-2" style="background-color: #fffbeb;" onclick="returnVisitToDoctor('${visitId}', '${safeName}')">
                             <i class="bi bi-arrow-return-left text-warning fs-5"></i> ສົ່ງກັບຫ້ອງກວດແພດ (ຄົນເຈັບຂໍປ່ຽນລາຍການກວດ)
                         </button>
