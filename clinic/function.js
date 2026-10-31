@@ -4732,18 +4732,16 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
                     <!-- ປຸ່ມດຳເນີນການດ້ານລຸ່ມ -->
                     <div class="mt-3 pt-2.5 border-top d-flex flex-column gap-2">
+                        <div id="clinicPayInlineAlert" style="display: none;"></div>
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-secondary w-50 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-1.5" onclick="printPaymentInvoice('${visitId}', '${hn}', '${safeName}', (window.currentPaymentBillTests || '${safeTests}'), (document.getElementById('labDiscountInput')?.value || '').replace(/,/g, '') || ${discount})">
-                                <i class="bi bi-printer"></i> ພິມໃບບິນ
-                            </button>
-                            <button type="button" class="btn btn-light border w-50 py-2 fw-semibold text-secondary rounded-3" onclick="saveLabDiscountAndClose('${visitId}')">
+                            <button type="button" id="btnSaveDiscountAndClose" class="btn btn-light border w-100 py-2 fw-semibold text-secondary rounded-3" onclick="saveLabDiscountAndClose('${visitId}')">
                                 ບັນທຶກສ່ວນຫຼຸດ & ປິດ
                             </button>
                         </div>
-                        <button type="button" class="btn btn-outline-warning text-dark border-warning w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-2" style="background-color: #fffbeb;" onclick="returnVisitToDoctor('${visitId}', '${safeName}')">
+                        <button type="button" id="btnReturnVisitToDoctor" class="btn btn-outline-warning text-dark border-warning w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-2" style="background-color: #fffbeb;" onclick="returnVisitToDoctor('${visitId}', '${safeName}')">
                             <i class="bi bi-arrow-return-left text-warning fs-5"></i> ສົ່ງກັບຫ້ອງກວດແພດ (ຄົນເຈັບຂໍປ່ຽນລາຍການກວດ)
                         </button>
-                        <button type="button" class="btn btn-success w-100 py-2.5 fw-bold rounded-3 shadow-sm d-flex align-items-center justify-content-center gap-2 fs-6" onclick="confirmAndSubmitClinicPayment('${visitId}', '${hn}', '${safeName}', (window.currentPaymentBillTests || '${safeTests}'), ${effectiveTotal})">
+                        <button type="button" id="btnConfirmClinicPayment" class="btn btn-success w-100 py-2.5 fw-bold rounded-3 shadow-sm d-flex align-items-center justify-content-center gap-2 fs-6" onclick="confirmAndSubmitClinicPayment('${visitId}', '${hn}', '${safeName}', (window.currentPaymentBillTests || '${safeTests}'), ${effectiveTotal})">
                             <i class="bi bi-check2-circle fs-5"></i> ຢືນຢັນຮັບເງິນ & ສົ່ງ Lab
                         </button>
                     </div>
@@ -5674,40 +5672,37 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
     const remainingLAK = Math.round(netPayable - totalPaidLAK);
     const remainingTHB = Math.round((remainingLAK / exRate) * 100) / 100;
 
+    // Helper แสดงข้อความแจ้งเตือนภายใน Modal โดยไม่ปิดหน้าต่างชำระเงิน
+    const showInlinePayAlert = (type, htmlMsg) => {
+        const alertBox = document.getElementById('clinicPayInlineAlert');
+        if (alertBox) {
+            const cls = type === 'success' ? 'alert-success border-success' : (type === 'error' ? 'alert-danger border-danger' : 'alert-warning border-warning');
+            alertBox.className = `alert ${cls} py-2 px-3 mb-1 rounded-3 small`;
+            alertBox.style.display = 'block';
+            alertBox.innerHTML = htmlMsg;
+            alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    };
+
     // 🛑 ตรวจสอบเงื่อนไข: ต้องป้อนจำนวนเงิน และยอดเงินต้องครบตามจำนวนที่ต้องชำระ
     if (netPayable > 0 && totalPaidTHB <= 0 && totalPaidLAK <= 0) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'กรุณาป้อนจำนวนเงินที่รับชำระ',
-            html: `
-                <div class="p-3 bg-light rounded-3 text-start mb-2" style="font-size: 0.95rem;">
-                    <div>• ยอดที่ต้องชำระ: <strong class="text-primary">${netPayable.toLocaleString()} LAK</strong> (≈ ฿${Math.round(netPriceTHB).toLocaleString()})</div>
-                </div>
-                <p class="text-muted small mb-0">กรุณากรอกจำนวนเงิน (บาท หรือ กีบ) ในช่องรับเงิน หรือกดปุ่ม <strong>"ครบพอดี"</strong> ก่อนกดยืนยัน</p>
-            `,
-            confirmButtonText: 'รับทราบ',
-            confirmButtonColor: '#0b3c73'
-        });
+        showInlinePayAlert('warning', `
+            <div class="fw-bold text-dark mb-1"><i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>ກະລຸນາປ້ອນຈຳນວນເງິນທີ່ຮັບຊຳລະ</div>
+            <div>ຍອດທີ່ຕ້ອງຊຳລະ: <strong class="text-primary">${netPayable.toLocaleString()} LAK</strong> (≈ ฿${Math.round(netPriceTHB).toLocaleString()}) — ກະລຸນາປ້ອນຈຳນວນເງິນ ຫຼື ກົດປຸ່ມ <strong>"ຄົບພໍດີ"</strong> ກ່ອນຢືນຢັນ</div>
+        `);
         return;
     }
 
     if (remainingLAK > 50 && remainingTHB > 0.05) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'ยอดเงินยังไม่ครบตามจำนวน',
-            html: `
-                <div class="text-start p-3 bg-light rounded-3 my-2" style="font-size: 0.95rem;">
-                    <div>• ยอดที่ต้องชำระ: <strong>${netPayable.toLocaleString()} LAK</strong> (≈ ฿${netPriceTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
-                    <div>• ยอดที่ป้อนรับเงินแล้ว: <strong class="text-success">${Math.round(totalPaidLAK).toLocaleString()} LAK</strong> (≈ ฿${totalPaidTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
-                    <div class="mt-2 text-danger fw-bold">• ยอดค้างชำระ: ฿${remainingTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (≈ ${Math.round(remainingLAK).toLocaleString()} ₭)</div>
-                </div>
-                <p class="text-muted small mb-0">กรุณาป้อนจำนวนเงินให้ตรงหรือครบตามยอดที่ต้องชำระก่อนยืนยันรับเงิน</p>
-            `,
-            confirmButtonText: 'รับทราบ',
-            confirmButtonColor: '#0b3c73'
-        });
+        showInlinePayAlert('warning', `
+            <div class="fw-bold text-danger mb-1"><i class="bi bi-exclamation-circle-fill me-1"></i>ຍອດເງິນຍັງບໍ່ຄົບຕາມຈຳນວນ</div>
+            <div>ຍັງຄ້າງຊຳລະອີກ: <strong class="text-danger">฿${remainingTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (≈ ${Math.round(remainingLAK).toLocaleString()} ₭)</strong> — ກະລຸນາປ້ອນຈຳນວນເງິນໃຫ້ຄົບກ່ອນຢືນຢັນຮັບເງິນ</div>
+        `);
         return;
     }
+
+    const alertBox = document.getElementById('clinicPayInlineAlert');
+    if (alertBox) alertBox.style.display = 'none';
 
     // คำนวณยอดเงินที่รับมาจริง (Received) และเงินทอน (Change)
     const rawReceivedCashLAK = showCash ? Math.round(paidCashLAK) : 0;
@@ -5766,11 +5761,12 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
         note: billNote
     };
 
-    Swal.fire({
-        title: 'กำลังบันทึกการชำระเงิน...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
+    const btnConfirm = document.getElementById('btnConfirmClinicPayment');
+    const origConfirmHtml = btnConfirm ? btnConfirm.innerHTML : '';
+    if (btnConfirm) {
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> ກຳລັງບັນທຶກການຊຳລະເງິນ & ສົ່ງ Lab...';
+    }
 
     try {
         // 1. บันทึกลงตาราง bills ใน Supabase (พร้อมระบบป้องกันและลองใหม่หากรหัสบิลซ้ำ Collision-Safe Retry)
@@ -5830,23 +5826,23 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
 
             if (!billInserted) {
                 console.error('Critical: Failed to insert bill into Supabase after retries:', lastInsertError);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'ບໍ່ສາມາດບັນທຶກໃບບິນໄດ້',
-                    text: 'ເກີດຂໍ້ຜິດພາດໃນການບັນທຶກໃບບິນລົງຖານຂໍ້ມູນ: ' + (lastInsertError?.message || 'DB Error') + ' ກະລຸນາກົດລອງໃໝ່ອີກຄັ້ງ'
-                });
+                if (btnConfirm) {
+                    btnConfirm.disabled = false;
+                    btnConfirm.innerHTML = origConfirmHtml;
+                }
+                showInlinePayAlert('error', `<strong>ບໍ່ສາມາດບັນທຶກໃບບິນໄດ້:</strong> ${lastInsertError?.message || 'DB Error'} ກະລຸນາກົດລອງໃໝ່ອີກຄັ້ງ`);
                 return;
             }
         }
 
-        // 🌟 บันทึกลง LocalStorage และลดจำนวนแคชจาก 50 เหลือ 20 รายการ เพื่อป้องกันความจำเต็ม (QuotaExceededError)
+        // 🌟 บันทึกลง LocalStorage
         window.clinicBills = window.clinicBills || [];
         window.clinicBills.unshift(billPayload);
         window.allBillsData = window.allBillsData || [];
         window.allBillsData.unshift(billPayload);
 
         try {
-            const safeBillsCache = (window.clinicBills || []).slice(0, 300); // เก็บ 300 บิลล่าสุด
+            const safeBillsCache = (window.clinicBills || []).slice(0, 300);
             if (typeof window.safeSetLocalStorage === 'function') {
                 window.safeSetLocalStorage('clinic_bills_cache', safeBillsCache);
             } else {
@@ -5872,7 +5868,7 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             }
         }
 
-        // 2. อัปเดตสถานะในตาราง visits ให้เป็น "รอผลแล็บ" เพื่อให้แสดงในห้อง Lab ทันที (อัปเดตเฉพาะคอลัมน์ status ที่มีจริงใน DB เพื่อไม่ให้เกิด Error 400)
+        // 2. อัปเดตสถานะในตาราง visits ให้เป็น "รอผลแล็บ" เพื่อให้แสดงในห้อง Lab ทันที
         try {
             await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
         } catch (vErr) {
@@ -5904,7 +5900,6 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
                 visitRecord = data;
             }
 
-            // ค้นหารหัสผู้แนะนำจากข้อมูลคนไข้หากใน Visit ยังไม่มี
             let resolvedReferrer = (visitRecord && (visitRecord.referrer || visitRecord.ref_code || visitRecord.doctor_ref || visitRecord.referred_by)) || '';
             if (!resolvedReferrer && hn && hn !== '-') {
                 if (Array.isArray(window.allPatients)) {
@@ -5937,29 +5932,53 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             console.warn('Commission calculation warning:', commErr);
         }
 
-        // 4. แจ้งเตือนสำเร็จ พร้อมตัวเลือกพิมพ์ใบเสร็จ
+        // 4. 🌟 แสดง Pop-up สำหรับกดพิมพ์ใบบิล (Print) ทันทีหลังชำระเงินสำเร็จ
         Swal.fire({
             icon: 'success',
-            title: 'ชำระเงินสำเร็จ & ส่งห้อง Lab แล้ว!',
+            title: '<span class="fw-bold text-success">ຊຳລະເງິນສຳເລັດ & ສົ່ງ Lab ແລ້ວ!</span>',
             html: `
-                <div class="text-start p-3 bg-light rounded-3 my-2" style="font-size: 0.95rem;">
-                    <div><strong>รหัสใบเสร็จ (Bill ID):</strong> <span class="text-primary fw-bold">${billId}</span></div>
-                    <div><strong>ผู้ป่วย:</strong> ${patientName} (${hn})</div>
-                    <div><strong>ยอดชำระสุทธิ:</strong> <span class="text-success fw-bold">${netPayable.toLocaleString()} LAK</span></div>
-                    <div><strong>ช่องทาง:</strong> ${paymentMethodSummary}</div>
-                    <div class="mt-2.5 pt-2 border-top text-success fw-semibold" style="font-size: 0.9rem;">
-                        <i class="bi bi-arrow-right-circle-fill me-1"></i>ส่งรายการไปยัง <strong>ห้อง Lab</strong> เรียบร้อยแล้ว
+                <div class="text-start p-3 bg-light rounded-4 border my-2" style="font-size: 0.95rem;">
+                    <div class="d-flex justify-content-between mb-1.5">
+                        <span class="text-muted">ລະຫັດໃບບິນ (Bill ID):</span>
+                        <span class="text-primary fw-bold">${billId}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1.5">
+                        <span class="text-muted">ຊື່ຄົນເຈັບ:</span>
+                        <span class="fw-bold text-dark">${patientName} (${hn})</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1.5">
+                        <span class="text-muted">ຍອດຊຳລະສຸດທິ:</span>
+                        <span class="text-success fw-bold fs-6">${netPayable.toLocaleString()} LAK</span>
+                    </div>
+                    ${changeLAK > 0 ? `
+                    <div class="d-flex justify-content-between mb-1.5">
+                        <span class="text-muted">ເງິນທອນ:</span>
+                        <span class="text-danger fw-bold">${changeLAK.toLocaleString()} LAK (≈ ฿${changeTHB.toLocaleString()})</span>
+                    </div>
+                    ` : ''}
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">ຊ່ອງທາງຊຳລະ:</span>
+                        <span class="fw-semibold text-secondary">${paymentMethodSummary}</span>
+                    </div>
+                    <div class="mt-2.5 pt-2 border-top text-success fw-semibold text-center" style="font-size: 0.88rem;">
+                        <i class="bi bi-check-circle-fill me-1"></i>ສົ່ງລາຍການໄປຍັງ <strong>ຫ້ອງ Lab</strong> ຮຽບຮ້ອຍແລ້ວ
                     </div>
                 </div>
             `,
             showCancelButton: true,
-            confirmButtonText: '<i class="bi bi-printer me-1"></i> พิมพ์ใบเสร็จ',
-            cancelButtonText: 'ปิดหน้าต่าง',
+            confirmButtonText: '<i class="bi bi-printer-fill me-1 fs-5"></i> ພິມໃບບິນ (Print)',
+            cancelButtonText: 'ປິດໜ້າຕ່າງ',
             confirmButtonColor: '#0b3c73',
-            cancelButtonColor: '#64748b'
+            cancelButtonColor: '#64748b',
+            allowOutsideClick: false,
+            customClass: {
+                popup: 'rounded-4 p-4 shadow-lg',
+                confirmButton: 'px-4 py-2.5 fw-bold fs-6 rounded-3',
+                cancelButton: 'px-4 py-2.5 fw-semibold rounded-3'
+            }
         }).then((res) => {
             if (res.isConfirmed) {
-                printPaymentInvoice(visitId, hn, patientName, testsString, discountVal);
+                printPaymentInvoice(visitId, hn, patientName, effectiveBillTests, discountVal);
             }
         });
 
@@ -5971,11 +5990,11 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
 
     } catch (err) {
         console.error('Payment Error:', err);
-        Swal.fire({
-            icon: 'error',
-            title: 'เกิดข้อผิดพลาด',
-            text: err.message || 'ไม่สามารถบันทึกการชำระเงินได้'
-        });
+        if (btnConfirm) {
+            btnConfirm.disabled = false;
+            btnConfirm.innerHTML = origConfirmHtml;
+        }
+        showInlinePayAlert('error', `<strong>ເກີດຂໍ້ຜິດພາດ:</strong> ${err.message || 'ບໍ່ສາມາດບັນທຶກການຊຳລະເງິນໄດ້'}`);
     }
 }
 window.confirmAndSubmitClinicPayment = confirmAndSubmitClinicPayment;
@@ -7574,6 +7593,72 @@ async function openTriageModal(visitId) {
             form.querySelectorAll('input').forEach(inp => {
                 inp.addEventListener('input', () => inp.classList.remove('is-invalid'));
             });
+
+            // 🌟 รองรับการกดปุ่มลูกศร ขึ้น / ลง / ซ้าย / ขวา เพื่อเลื่อนช่องกรอกข้อมูลในหน้าจุดคัดกรอง
+            const navGrid = [
+                ['temp', 'bp', 'pulse'],
+                ['weight', 'height', 'height'],
+                ['spo2', 'symptom', 'symptom']
+            ];
+            const linearOrder = ['temp', 'bp', 'pulse', 'weight', 'height', 'spo2', 'symptom'];
+
+            const focusFieldByName = (fieldName) => {
+                const target = form.querySelector(`input[name="${fieldName}"]`);
+                if (target) {
+                    target.focus();
+                    try {
+                        if (typeof target.select === 'function') target.select();
+                    } catch (e) { }
+                }
+            };
+
+            form.addEventListener('keydown', (e) => {
+                const key = e.key;
+                if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return;
+
+                const active = document.activeElement;
+                if (!active || active.tagName !== 'INPUT' || !active.name) return;
+                const currentName = active.name;
+                const linearIdx = linearOrder.indexOf(currentName);
+                if (linearIdx === -1) return;
+
+                if (key === 'ArrowRight') {
+                    e.preventDefault();
+                    const nextIdx = (linearIdx + 1) % linearOrder.length;
+                    focusFieldByName(linearOrder[nextIdx]);
+                } else if (key === 'ArrowLeft') {
+                    e.preventDefault();
+                    const prevIdx = (linearIdx - 1 + linearOrder.length) % linearOrder.length;
+                    focusFieldByName(linearOrder[prevIdx]);
+                } else if (key === 'ArrowDown' || key === 'ArrowUp') {
+                    e.preventDefault(); // ป้องกัน input[type=number] เปลี่ยนค่าตัวเลขเมื่อกดขึ้น/ลง
+                    let curRow = -1;
+                    let curCol = -1;
+                    for (let r = 0; r < navGrid.length; r++) {
+                        const c = navGrid[r].indexOf(currentName);
+                        if (c !== -1) {
+                            curRow = r;
+                            curCol = c;
+                            break;
+                        }
+                    }
+                    if (curRow !== -1) {
+                        const nextRow = key === 'ArrowDown'
+                            ? Math.min(navGrid.length - 1, curRow + 1)
+                            : Math.max(0, curRow - 1);
+                        const targetField = navGrid[nextRow][curCol];
+                        if (targetField && targetField !== currentName) {
+                            focusFieldByName(targetField);
+                        } else if (key === 'ArrowDown' && nextRow === curRow) {
+                            const nextIdx = (linearIdx + 1) % linearOrder.length;
+                            focusFieldByName(linearOrder[nextIdx]);
+                        } else if (key === 'ArrowUp' && nextRow === curRow) {
+                            const prevIdx = (linearIdx - 1 + linearOrder.length) % linearOrder.length;
+                            focusFieldByName(linearOrder[prevIdx]);
+                        }
+                    }
+                }
+            });
         }
     }
     const vInput = document.getElementById('triageVisitId');
@@ -7598,7 +7683,17 @@ async function openTriageModal(visitId) {
         }
     }
 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('triageModal')).show();
+    const triageModalEl = document.getElementById('triageModal');
+    if (triageModalEl) {
+        triageModalEl.addEventListener('shown.bs.modal', function onShown() {
+            triageModalEl.removeEventListener('shown.bs.modal', onShown);
+            if (form && form.temp) {
+                form.temp.focus();
+                try { form.temp.select(); } catch (e) { }
+            }
+        });
+        bootstrap.Modal.getOrCreateInstance(triageModalEl).show();
+    }
 }
 
 async function submitTriage() {
@@ -8742,8 +8837,18 @@ async function submitLabOrder() {
     }
 
     // 🌟 ดึงข้อความจากช่องหมายเหตุที่เราเพิ่งเพิ่มเข้ามา
-    const labNoteInput = document.getElementById('labOrderNoteInput');
+        const labNoteInput = document.getElementById('labOrderNoteInput');
     const labNoteVal = labNoteInput ? labNoteInput.value.trim() : '';
+
+    // ปิดและปลดโฟกัสของ #labOrderModal ก่อนเปิด Swal เพื่อไม่ให้เกิด Blocked aria-hidden warning
+    const preModalEl = document.getElementById('labOrderModal');
+    if (preModalEl) {
+        if (document.activeElement && preModalEl.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
+        const preInst = typeof bootstrap !== 'undefined' ? bootstrap.Modal.getInstance(preModalEl) : null;
+        if (preInst) preInst.hide();
+    }
 
     Swal.fire({ title: 'กำลังบันทึกส่งแล็บ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
@@ -11162,6 +11267,19 @@ function initMlmRealtimeSubscription() {
             })
             .subscribe();
 
+        // 1.5 ดักจับ Realtime ของตาราง stk_nutrient_orders (เมื่อฝั่ง LOVE STK GROUPE กด "จ่ายยาเสร็จสิ้น" ให้ปิดงานฝั่งคลินิกอัตโนมัติ)
+        _mlmSupabase.channel('realtime_stk_nutrient_orders')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_nutrient_orders' }, async (payload) => {
+                console.log('⚡ [Real-time] ตาราง stk_nutrient_orders มีการเปลี่ยนแปลง:', payload.eventType, payload.new);
+                const ord = payload.new;
+                if (ord && typeof window.checkAndAutoCompleteFromStkOrder === 'function') {
+                    await window.checkAndAutoCompleteFromStkOrder(ord);
+                }
+                if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
+                if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+            })
+            .subscribe();
+
         // 2. ดักจับ Realtime ของตาราง stk_members (สำหรับช่อง Referrer)
         _mlmSupabase.channel('realtime_stk_members')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_members' }, (payload) => {
@@ -13318,6 +13436,78 @@ async function deleteMedicine(medId) {
 // =====================================
 // ห้องจ่ายยา (Dispensing Room / Pharmacy)
 // =====================================
+// ฟังก์ชันตรวจสอบสถานะว่าออเดอร์อาหารเสริมในระบบ LOVE STK GROUPE ยืนยันจ่ายยาเสร็จสิ้นแล้วหรือไม่
+window.isStkOrderConfirmedStatus = function (statusStr) {
+    const st = String(statusStr || '').trim().toLowerCase();
+    if (!st) return false;
+    if (st.includes('รอ') || st.includes('pending') || st.includes('ยกเลิก') || st.includes('cancel')) return false;
+    return (
+        st.includes('สำเร็จ') ||
+        st.includes('เสร็จสิ้น') ||
+        st.includes('จ่ายยาแล้ว') ||
+        st.includes('ขายสำเร็จแล้ว') ||
+        st.includes('ชำระเงินแล้ว') ||
+        st.includes('ชำระแล้ว') ||
+        st.includes('completed') ||
+        st.includes('paid') ||
+        st.includes('done')
+    );
+};
+
+// ฟังก์ชันปิดงานจ่ายยาฝั่งคลินิกอัตโนมัติเมื่อฝั่ง LOVE STK GROUPE กดปุ่ม "จ่ายยาเสร็จสิ้น" (หมายเลข 2)
+window.checkAndAutoCompleteFromStkOrder = async function (orderObj) {
+    if (!orderObj || !window.isStkOrderConfirmedStatus(orderObj.status)) return false;
+
+    let visitId = String(orderObj.visit_id || '').trim();
+    if (!visitId && orderObj.order_id && String(orderObj.order_id).startsWith('ORD-CLINIC-')) {
+        visitId = String(orderObj.order_id).replace('ORD-CLINIC-', '').trim();
+    }
+    if (!visitId || visitId === '-') return false;
+
+    try {
+        // อัปเดต LocalStorage queue
+        try {
+            let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+            if (Array.isArray(cachedVisits)) {
+                const vIdx = cachedVisits.findIndex(v => v && v.visit_id === visitId);
+                if (vIdx !== -1 && cachedVisits[vIdx].status !== 'เสร็จสิ้น') {
+                    cachedVisits[vIdx].status = 'เสร็จสิ้น';
+                    cachedVisits[vIdx].dispensed_at = new Date().toISOString();
+                    if (typeof window.safeSetLocalStorage === 'function') {
+                        window.safeSetLocalStorage('clinic_visits_queue', cachedVisits);
+                    } else {
+                        localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
+                    }
+                }
+            }
+        } catch (lsErr) { }
+
+        // อัปเดตสถานะในตาราง visits ของคลินิกเป็น "เสร็จสิ้น"
+        if (typeof _supabase !== 'undefined' && _supabase) {
+            const { data: vCheck } = await _supabase
+                .from('visits')
+                .select('visit_id, status')
+                .eq('visit_id', visitId)
+                .maybeSingle();
+
+            if (vCheck && vCheck.status === 'รอจ่ายยา') {
+                await _supabase
+                    .from('visits')
+                    .update({ status: 'เสร็จสิ้น' })
+                    .eq('visit_id', visitId);
+
+                if (typeof processPaymentCommission === 'function') {
+                    await processPaymentCommission(visitId);
+                }
+                return true;
+            }
+        }
+    } catch (err) {
+        console.warn('Auto-complete visit from STK order warning:', err);
+    }
+    return false;
+};
+
 async function loadPharmacyQueue() {
     const tbody = document.querySelector('#pharmacyTable tbody');
     if (!tbody) return;
@@ -13353,11 +13543,54 @@ async function loadPharmacyQueue() {
         }
     } catch (e) { }
 
+    // 🌟 ดึงสถานะออเดอร์จากตาราง stk_nutrient_orders เพื่อเช็กว่าฝั่ง LOVE STK GROUPE กด "จ่ายยาเสร็จสิ้น" (หมายเลข 2) แล้วหรือยัง
+    const stkOrdersByVisit = new Map();
+    if (data && data.length > 0) {
+        const visitIds = data.map(v => v.visit_id).filter(Boolean);
+        const clients = [];
+        if (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) clients.push(_mlmSupabase);
+        if (typeof _supabase !== 'undefined' && _supabase && _supabase !== _mlmSupabase) clients.push(_supabase);
+
+        for (const client of clients) {
+            try {
+                const { data: ordRows } = await client
+                    .from('stk_nutrient_orders')
+                    .select('order_id, visit_id, status, created_at')
+                    .in('visit_id', visitIds);
+                if (Array.isArray(ordRows)) {
+                    ordRows.forEach(o => {
+                        if (o && o.visit_id) {
+                            const prev = stkOrdersByVisit.get(o.visit_id);
+                            if (!prev || window.isStkOrderConfirmedStatus(o.status)) {
+                                stkOrdersByVisit.set(o.visit_id, o);
+                            }
+                        }
+                    });
+                }
+            } catch (e) { }
+        }
+
+        // หากเคสไหนที่ฝั่ง LOVE STK GROUPE กด "จ่ายยาเสร็จสิ้น" แล้ว ให้ปิดเคสฝั่งคลินิกอัตโนมัติทันที (แบบที่ 2)
+        const autoCompletedIds = new Set();
+        for (const row of data) {
+            const matchedOrd = stkOrdersByVisit.get(row.visit_id);
+            if (matchedOrd && window.isStkOrderConfirmedStatus(matchedOrd.status)) {
+                await window.checkAndAutoCompleteFromStkOrder(matchedOrd);
+                autoCompletedIds.add(row.visit_id);
+            }
+        }
+        if (autoCompletedIds.size > 0) {
+            data = data.filter(r => !autoCompletedIds.has(r.visit_id));
+        }
+    }
+
     window.allPharmacyVisits = data;
+    window.currentPharmacyStkOrdersMap = stkOrdersByVisit;
 
     tbody.innerHTML = '';
     if (!data || data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอจ่ายยา</td></tr>';
+        if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
         return;
     }
 
@@ -13379,36 +13612,6 @@ async function loadPharmacyQueue() {
                 // แยกหมวดหมู่ ยารักษาโรค vs อาหารเสริม MLM
                 clinicDrugs = medsList.filter(m => !isNutrientItem(m));
                 mlmNutrients = medsList.filter(m => isNutrientItem(m));
-
-                const renderTableRows = function (itemsList, isMlm) {
-                    return itemsList.map(m => {
-                        let tierText = 'ปกติ';
-                        let badgeClass = 'bg-secondary-subtle text-dark border';
-                        if (m.tier === 'promo') {
-                            tierText = 'โปรโมชั่น';
-                            badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
-                        } else if (m.tier === 'high') {
-                            tierText = 'ส่ง/สมาชิก';
-                            badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
-                        } else if (m.tier === 'free') {
-                            tierText = 'แถมฟรี';
-                            badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
-                        }
-
-                        let cleanName = m.name || m.product_name || 'รายการยา';
-                        cleanName = cleanName.replace(' (โปร)', '').replace(' (ส่ง/สมาชิก)', '').replace(' (แถมฟรี)', '');
-
-                        let srcBadge = isMlm
-                            ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.68rem;">STK MLM</span>'
-                            : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 0.68rem;">คลังยา</span>';
-
-                        return `<tr>
-                            <td class="ps-3 fw-medium text-dark">${cleanName} ${srcBadge}</td>
-                            <td class="text-center"><span class="badge ${badgeClass}" style="font-size: 0.72rem;">${tierText}</span></td>
-                            <td class="text-center fw-bold ${isMlm ? 'text-success' : 'text-primary'}">${m.qty || 1}</td>
-                        </tr>`;
-                    }).join('');
-                };
 
                 let cardSections = [];
 
@@ -13450,7 +13653,6 @@ async function loadPharmacyQueue() {
                                     <i class="bi bi-flower1" style="font-size: 1.35rem;"></i>
                                 </div>
                                 <div>
-                                    <!-- คงเหลือแค่หัวข้อหลัก ส่วนข้อความ STK GROUPE MLM ด้านล่างถูกลบออกแล้ว -->
                                     <div class="fw-bold text-dark" style="font-size: 0.93rem; line-height: 1.2;">ລາຍການອາຫານເສີມ</div>
                                 </div>
                             </div>
@@ -13493,30 +13695,47 @@ async function loadPharmacyQueue() {
 
         // ตรวจสอบว่าเคสนี้เคยส่งคำสั่งซื้ออาหารเสริม (MLM) แล้วหรือไม่
         const orderedNutrientVisits = JSON.parse(localStorage.getItem('clinic_nutrient_ordered_visits') || '[]');
-        const isNutrientOrdered = row.nutrient_ordered || (Array.isArray(orderedNutrientVisits) && orderedNutrientVisits.includes(row.visit_id));
+        const matchedStkOrder = stkOrdersByVisit.get(row.visit_id);
+        const isNutrientOrdered = row.nutrient_ordered || !!matchedStkOrder || (Array.isArray(orderedNutrientVisits) && orderedNutrientVisits.includes(row.visit_id));
+        const hasNutrientItems = mlmNutrients.length > 0;
 
         // 1. ตรวจสอบสถานะการสั่งอาหารเสริม
         let nutrientBtn = '';
-        if (isNutrientOrdered) {
-            nutrientBtn = `
-                <button class="btn btn-sm btn-light border w-100 fw-semibold text-muted shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px; cursor: not-allowed;" disabled title="สั่งซื้อสารอาหารเรียบร้อยแล้ว (ป้องกันการสั่งซ้ำ)">
-                    <i class="bi bi-check2-circle me-1"></i>ส่งแล้ว
+        if (hasNutrientItems) {
+            if (isNutrientOrdered) {
+                nutrientBtn = `
+                    <button class="btn btn-sm btn-light border w-100 fw-semibold text-muted shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px; cursor: not-allowed;" disabled title="สั่งซื้อสารอาหารเรียบร้อยแล้ว (ป้องกันการสั่งซ้ำ)">
+                        <i class="bi bi-check2-circle me-1"></i>ส่งแล้ว
+                    </button>
+                `;
+            } else {
+                nutrientBtn = `
+                    <button class="btn btn-sm btn-light border w-100 fw-semibold shadow-sm" style="color: #d97706; font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="sendPharmacyNutrientOrder('${row.visit_id}')">
+                        <i class="bi bi-send me-1"></i>สั่งอาหารเสริม
+                    </button>
+                `;
+            }
+        }
+
+        // 2. ปุ่ม จ่ายยาเสร็จสิ้น (ถ้ามีรายการอาหารเสริม ต้องรอการกดยืนยันจากปุ่มหมายเลข 2 ฝั่ง LOVE STK GROUPE ซึ่งจะปิดงานอัตโนมัติ)
+        let completeBtn = '';
+        if (hasNutrientItems) {
+            const waitTitle = isNutrientOrdered
+                ? 'รอกดปุ่ม "จ่ายยาเสร็จสิ้น" จากระบบ LOVE STK GROUPE (เมื่อกดยืนยันที่ระบบ STK แล้ว รายการนี้จะเสร็จสิ้นอัตโนมัติ)'
+                : 'กรุณากดปุ่ม "สั่งอาหารเสริม" และยืนยันจ่ายยาที่ระบบ LOVE STK GROUPE ก่อน';
+            const waitLabel = isNutrientOrdered ? 'รอ STK ยืนยันจ่ายยา' : 'รอสั่งอาหารเสริม';
+            completeBtn = `
+                <button class="btn btn-sm btn-light border w-100 fw-semibold text-secondary shadow-sm opacity-75" style="font-size: 0.80rem; padding: 6px 10px; border-radius: 8px; cursor: not-allowed;" onclick="completeDispensing('${row.visit_id}')" title="${waitTitle}">
+                    <i class="bi bi-hourglass-split me-1 text-warning"></i>${waitLabel}
                 </button>
             `;
         } else {
-            nutrientBtn = `
-                <button class="btn btn-sm btn-light border w-100 fw-semibold shadow-sm" style="color: #d97706; font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="sendPharmacyNutrientOrder('${row.visit_id}')">
-                    <i class="bi bi-send me-1"></i>สั่งอาหารเสริม
+            completeBtn = `
+                <button class="btn btn-sm btn-light border w-100 fw-semibold text-success shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="completeDispensing('${row.visit_id}')">
+                    <i class="bi bi-check-circle me-1"></i>จ่ายยาเสร็จสิ้น
                 </button>
             `;
         }
-
-        // 2. ปุ่ม จ่ายยาเสร็จสิ้น
-        let completeBtn = `
-            <button class="btn btn-sm btn-light border w-100 fw-semibold text-success shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="completeDispensing('${row.visit_id}')">
-                <i class="bi bi-check-circle me-1"></i>จ่ายยาเสร็จสิ้น
-            </button>
-        `;
 
         // 3. ปุ่ม แก้ไขรายการ
         let editBtn = `
@@ -14265,6 +14484,53 @@ async function printPharmacyDispenseSlip(visitId, billType) {
 
 // ฟังก์ชันสำหรับกดยืนยันการจ่ายยาเสร็จสิ้น
 window.completeDispensing = async function (visitId) {
+    // ตรวจสอบว่าเคสนี้มีรายการอาหารเสริมที่ต้องรอฝั่ง LOVE STK GROUPE กดยืนยัน (หมายเลข 2) หรือไม่
+    const targetVisit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
+    if (targetVisit && targetVisit.meds) {
+        try {
+            let mRaw = targetVisit.meds;
+            if (typeof mRaw === 'string') {
+                if (mRaw.startsWith('"[') || mRaw.startsWith('"\\"')) mRaw = JSON.parse(mRaw);
+                mRaw = typeof mRaw === 'string' ? JSON.parse(mRaw) : mRaw;
+            }
+            const mList = Array.isArray(mRaw) ? mRaw : [];
+            const hasMlm = mList.some(m => typeof isNutrientItem === 'function' ? isNutrientItem(m) : m.source === 'mlm');
+            if (hasMlm) {
+                // เช็กจากฐานข้อมูล stk_nutrient_orders ล่าสุดอีกครั้งเผื่อเพิ่งกดยืนยัน
+                let isConfirmedInStk = false;
+                const clients = [];
+                if (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) clients.push(_mlmSupabase);
+                if (typeof _supabase !== 'undefined' && _supabase && _supabase !== _mlmSupabase) clients.push(_supabase);
+                for (const c of clients) {
+                    try {
+                        const { data: oRows } = await c.from('stk_nutrient_orders').select('*').eq('visit_id', visitId);
+                        if (Array.isArray(oRows) && oRows.some(o => window.isStkOrderConfirmedStatus(o.status))) {
+                            isConfirmedInStk = true;
+                            break;
+                        }
+                    } catch (e) { }
+                }
+                if (!isConfirmedInStk) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'รอการยืนยันจากระบบ LOVE STK GROUPE',
+                        html: `
+                            <div class="text-start p-3 bg-light rounded-3 border my-2" style="font-size: 0.92rem;">
+                                <div class="mb-2">เคส <strong class="text-primary">${visitId}</strong> มีรายการอาหารเสริมที่ต้องยืนยันการจ่ายยาจากฝั่งคลังสินค้า</div>
+                                <div class="text-muted small">
+                                    1. กดปุ่ม <strong>"สั่งอาหารเสริม"</strong> เพื่อส่งรายการไปที่ระบบ LOVE STK GROUPE<br>
+                                    2. กดปุ่ม <strong>"✅ จ่ายยาเสร็จสิ้น"</strong> ที่หน้าสั่งจ่ายยาของระบบ <strong>LOVE STK GROUPE</strong> แล้วรายการนี้จะเปลี่ยนเป็นจ่ายยาแล้วโดยอัตโนมัติ
+                                </div>
+                            </div>
+                        `,
+                        confirmButtonText: 'รับทราบ',
+                        confirmButtonColor: '#0b3c73'
+                    });
+                    return;
+                }
+            }
+        } catch (e) { }
+    }
     const result = await Swal.fire({
         title: 'ยืนยันจ่ายยา?',
         text: `ต้องการยืนยันเสร็จสิ้นการจ่ายยาสำหรับเคส ${visitId} ใช่หรือไม่?`,

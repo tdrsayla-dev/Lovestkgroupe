@@ -753,6 +753,90 @@ function matchDoctorFromStaff(candidate) {
 }
 
 // Helper: Normalize ID for fuzzy comparison (handles numeric, string, VIS-, ORD- prefixes)
+// Helper: Safely parse meds / items_json whether Array, single-encoded JSON, double-encoded JSON, or plain string
+function parseMedsListSafe(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'object') return [raw];
+  if (typeof raw === 'string') {
+    let s = raw.trim();
+    if (!s || s === '-' || s === 'null' || s === 'undefined' || s === '[]') return [];
+    for (let i = 0; i < 3; i++) {
+      if (typeof s === 'string') {
+        const trimmed = s.trim();
+        if (trimmed.startsWith('[') || trimmed.startsWith('{') || trimmed.startsWith('"')) {
+          try {
+            s = JSON.parse(trimmed);
+          } catch (e) {
+            break;
+          }
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+    if (Array.isArray(s)) return s;
+    if (s && typeof s === 'object') return [s];
+  }
+  return [];
+}
+
+// Helper: Build a comprehensive lookup map for nutrient orders by visit_id, order_id, and hn
+function buildVisitNutrientLookup() {
+  const map = {};
+  let deletedSet = new Set();
+  try {
+    const dn = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+    const db = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+    [...(Array.isArray(dn) ? dn : []), ...(Array.isArray(db) ? db : [])].forEach(id => {
+      if (id) deletedSet.add(String(id).trim().toLowerCase());
+    });
+  } catch (e) {}
+
+  const indexOrder = (o) => {
+    if (!o) return;
+    const st = String(o.status || '').toLowerCase();
+    if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก') || st.includes('deleted') || String(o.notes || '').includes('[DELETED]')) {
+      return;
+    }
+    const rawOid = String(o.order_id || o.id || '').trim();
+    let rawVid = String(o.visit_id || '').trim();
+    if ((!rawVid || rawVid === '-') && rawOid.includes('VIS-')) {
+      rawVid = 'VIS-' + rawOid.split('VIS-')[1];
+    }
+    if ((rawOid && deletedSet.has(rawOid.toLowerCase())) || (rawVid && deletedSet.has(rawVid.toLowerCase()))) {
+      return;
+    }
+
+    const parsedItems = parseMedsListSafe(o.items || o.items_json || o.meds);
+    const enriched = (parsedItems.length > 0 && (!Array.isArray(o.items) || o.items.length === 0))
+      ? { ...o, items: parsedItems }
+      : o;
+
+    if (rawOid && rawOid !== '-') {
+      map[rawOid] = enriched;
+      map[normalizeIdStr(rawOid)] = enriched;
+    }
+    if (rawVid && rawVid !== '-') {
+      map[rawVid] = enriched;
+      map[normalizeIdStr(rawVid)] = enriched;
+    }
+    const hn = String(o.hn || '').trim();
+    const dStr = toLocalDateStr(o.date || o.created_at);
+    if (hn && hn !== '-') {
+      if (dStr) map[`${hn.toLowerCase()}_${dStr}`] = enriched;
+      if (!map[`hn_${hn.toLowerCase()}`]) map[`hn_${hn.toLowerCase()}`] = enriched;
+    }
+  };
+
+  // Index raw orders first, then processed nutrientOrders so confirmed orders take precedence
+  (state.nutrientOrdersRaw || []).forEach(indexOrder);
+  (state.nutrientOrders || []).forEach(indexOrder);
+  return map;
+}
+
 function normalizeIdStr(id) {
   if (id === undefined || id === null || id === '' || id === '-') return '';
   return String(id).trim().toLowerCase();
@@ -980,10 +1064,7 @@ function processNutrientOrders(rawOrders, visitsList) {
     if (vid) handledVisitIds.add(vid);
     if (oid) handledOrderIds.add(oid);
 
-    let items = o.items_json || o.items || [];
-    if (typeof items === 'string') {
-      try { items = JSON.parse(items); } catch(e) { items = []; }
-    }
+    let items = parseMedsListSafe(o.items_json || o.items);
     const cleanItems = [];
     if (Array.isArray(items)) {
       items.forEach(it => {
@@ -1016,8 +1097,7 @@ function processNutrientOrders(rawOrders, visitsList) {
         return (vid && (xVid === vid || xOid === vid)) || (oid && (xVid === oid || xOid === oid));
       });
       if (vMatch && vMatch.meds) {
-        let vParsed = [];
-        try { vParsed = typeof vMatch.meds === 'string' ? JSON.parse(vMatch.meds) : vMatch.meds; } catch (e) {}
+        let vParsed = parseMedsListSafe(vMatch.meds);
         if (Array.isArray(vParsed)) {
           vParsed.forEach(it => {
             const rawName = it.name || it.item_name || it.medicine_name || 'ຢາປິ່ນປົວ';
@@ -1120,9 +1200,10 @@ function processNutrientOrders(rawOrders, visitsList) {
     }
 
     let items = [];
-    if (typeof v.meds === 'string' && v.meds.trim() !== '') {
+    const parsedMedsArr = parseMedsListSafe(v.meds);
+    if (parsedMedsArr.length > 0 || (typeof v.meds === 'string' && v.meds.trim() !== '')) {
       try {
-        const parsed = JSON.parse(v.meds);
+        const parsed = parsedMedsArr.length > 0 ? parsedMedsArr : JSON.parse(v.meds);
         if (Array.isArray(parsed)) {
           items = parsed.map(m => {
             const rawName = m.name || m.medicine_name || m.item_name || 'ຢາປິ່ນປົວ';
@@ -1987,6 +2068,18 @@ function isConsultedVisit(v) {
   if (!v || !v.status) return false;
   const st = String(v.status).trim().toLowerCase();
 
+  // 0. ตัดเคสที่ถูกลบออกจากรายงาน
+  try {
+    const dn = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+    const db = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+    const delSet = new Set([...(Array.isArray(dn) ? dn : []), ...(Array.isArray(db) ? db : [])].map(x => String(x || '').trim().toLowerCase()).filter(Boolean));
+    const vid = String(v.visit_id || '').trim().toLowerCase();
+    const oid = String(v.order_id || '').trim().toLowerCase();
+    if ((vid && delSet.has(vid)) || (oid && delSet.has(oid))) {
+      return false;
+    }
+  } catch (e) {}
+
   // 1. ตัดเคสที่ยกเลิก หรือ ลบ ออก
   if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก') || st.includes('deleted')) {
     return false;
@@ -2324,10 +2417,7 @@ function onPatientDoctorSelectChange() {
   const patMap = {};
   (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
 
-  const visitNutrientMap = {};
-  (state.nutrientOrders || []).forEach(o => {
-    if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
-  });
+  const visitNutrientMap = buildVisitNutrientLookup();
 
   // Filter by Doctor
   let filtered = allStats;
@@ -2445,10 +2535,7 @@ function renderDoctorPatientCards(doctorList) {
   const patMap = {};
   (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
 
-  const visitNutrientMap = {};
-  (state.nutrientOrders || []).forEach(o => {
-    if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
-  });
+  const visitNutrientMap = buildVisitNutrientLookup();
 
   container.innerHTML = doctorList.map((ds) => {
     const patientRows = ds.visitsList.map((v, idx) => {
@@ -2502,22 +2589,21 @@ function renderDoctorPatientCards(doctorList) {
       let rawMeds = v.meds;
       const vVid = normalizeIdStr(v.visit_id);
       const vOid = normalizeIdStr(v.order_id);
+      const vDate = toLocalDateStr(v.created_at);
+      const vHn = String(v.hn || '').trim().toLowerCase();
       const linkedOrder = (v.visit_id && visitNutrientMap[v.visit_id]) ||
                           (v.order_id && visitNutrientMap[v.order_id]) ||
                           (vVid && visitNutrientMap[vVid]) ||
-                          (vOid && visitNutrientMap[vOid]);
+                          (vOid && visitNutrientMap[vOid]) ||
+                          (vHn && vDate && visitNutrientMap[`${vHn}_${vDate}`]) ||
+                          (vHn && visitNutrientMap[`hn_${vHn}`]);
 
-      if ((!rawMeds || rawMeds === '[]' || rawMeds === '') && linkedOrder) {
-        rawMeds = linkedOrder.items;
+      let parsed = parseMedsListSafe(rawMeds);
+      if (parsed.length === 0 && linkedOrder) {
+        parsed = parseMedsListSafe(linkedOrder.items || linkedOrder.items_json || linkedOrder.meds);
       }
 
-      if (rawMeds) {
-        let parsed = [];
-        if (typeof rawMeds === 'string') {
-          try { parsed = JSON.parse(rawMeds); } catch (e) { }
-        } else if (Array.isArray(rawMeds)) {
-          parsed = rawMeds;
-        }
+      if (parsed.length > 0) {
 
         if (Array.isArray(parsed) && parsed.length > 0) {
           parsed.forEach(m => {
@@ -2566,6 +2652,13 @@ function renderDoctorPatientCards(doctorList) {
           </td>
           <td class="text-center align-middle">${medsCellHtml}</td>
           <td class="small text-muted font-monospace align-middle">${formatDateLao(v.created_at)}</td>
+          <td class="text-center align-middle no-print">
+            <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-2 px-2 py-1"
+              title="ລົບລາຍການນີ້"
+              onclick="deleteDoctorReportRow('${String(v.visit_id || '').replace(/'/g, "\\'")}', '${String(v.order_id || '').replace(/'/g, "\\'")}', '${String(name || '').replace(/'/g, "\\'")}', ${isOrder ? 'true' : 'false'})">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </td>
         </tr>
       `;
     }).join('');
@@ -2609,6 +2702,7 @@ function renderDoctorPatientCards(doctorList) {
                   <th>ອາການເບື້ອງຕົ້ນ / ພະຍາດທີ່ເປັນ</th>
                   <th class="text-center" style="width: 205px; min-width: 175px;">ຈຳນວນຢາ / ອາຫານເສີມ</th>
                   <th style="width: 130px;">ວັນທີມາກວດ</th>
+                  <th class="text-center no-print" style="width: 60px;">ລົບ</th>
                 </tr>
               </thead>
               <tbody>
@@ -2619,7 +2713,7 @@ function renderDoctorPatientCards(doctorList) {
                   <td colspan="5" class="text-end text-dark">
                     ລວມຄົນເຈັບຂອງທ່ານໝໍ <b>${ds.doctor}</b>:
                   </td>
-                  <td colspan="6" class="text-dark">
+                  <td colspan="7" class="text-dark">
                     <span class="text-success fw-bold me-3">ຜູ້ປ່ວຍໃໝ່: ${ds.newPatientSet.size} ຄົນ</span>
                     <span class="text-primary fw-bold me-3">ຜູ້ປ່ວຍເກົ່າ: ${ds.oldPatientSet.size} ຄົນ</span>
                     <span class="text-dark fw-bold me-3">| ລວມທັງໝົດ: ${ds.patientSet.size} ຄົນ (${ds.totalVisits} ເທື່ອກວດ)</span>
@@ -2641,10 +2735,7 @@ function renderLabPackagesTab() {
   const patMap = {};
   (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
 
-  const visitNutrientMap = {};
-  (state.nutrientOrders || []).forEach(o => {
-    if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
-  });
+  const visitNutrientMap = buildVisitNutrientLookup();
 
   // Filter clinical visits for lab & health examinations
   const consultedVisits = (state.visits || []).filter(v => isConsultedVisit(v));
@@ -2924,10 +3015,7 @@ function exportCSV() {
     const patMap = {};
     (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
 
-    const visitNutrientMap = {};
-    (state.nutrientOrders || []).forEach(o => {
-      if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
-    });
+    const visitNutrientMap = buildVisitNutrientLookup();
 
     csvContent += 'ລ/ດ,ທ່ານໝໍຜູ້ກວດ,HN,ຊື່ ແລະ ນາມສະກຸນ,ຜູ້ແນະນຳ / ຜູ້ Order,ປະເພດ,ປະເພດການກວດ / ແພັກເກດ,ເພດ,ອາຍຸ,ເບີໂທ,ອາການ ແລະ ພະຍາດ,ຈຳນວນຢາ (ກ່ອງ),ລາຍການຢາ,ວັນທີກວດ\n';
     consultedVisits.forEach((v, idx) => {
@@ -3063,3 +3151,91 @@ function showEmptyExportAlert() {
     alert('ບໍ່ມີຂໍ້ມູນສຳລັບ Export');
   }
 }
+
+
+// 🌟 ຟັງຊັນລົບລາຍການອອກຈາກຕາຕະລາງລາຍງານທ່ານໝໍ
+window.deleteDoctorReportRow = async function (visitId, orderId, patientName, isOrder) {
+  const targetId = visitId || orderId || '-';
+  const pName = patientName || 'ລາຍການນີ້';
+
+  let confirmed = false;
+  if (typeof Swal !== 'undefined') {
+    const res = await Swal.fire({
+      title: 'ຢືນຢັນການລົບລາຍການ?',
+      html: `ຕ້ອງການລົບລາຍການຂອງ <b>${pName}</b> (${targetId}) ອອກຈາກລາຍງານແທ້ຫຼືບໍ່?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '<i class="bi bi-trash3 me-1"></i> ຢືນຢັນລົບ',
+      cancelButtonText: 'ຍົກເລີກ'
+    });
+    confirmed = !!res.isConfirmed;
+  } else {
+    confirmed = confirm(`ຕ້ອງການລົບລາຍການຂອງ ${pName} (${targetId}) ແທ້ຫຼືບໍ່?`);
+  }
+
+  if (!confirmed) return;
+
+  try {
+    const idsToBlacklist = [visitId, orderId]
+      .map(x => String(x || '').trim())
+      .filter(x => x && x !== '-' && x !== 'null' && x !== 'undefined');
+
+    if (visitId && !String(visitId).startsWith('ORD-CLINIC-')) {
+      idsToBlacklist.push(`ORD-CLINIC-${visitId}`);
+    }
+
+    // บันทึกลง LocalStorage เพื่อให้ซ่อนถาวรทั้งในรายงานและประวัติ
+    ['stk_deleted_nutrient_orders', 'clinic_deleted_bills'].forEach(storageKey => {
+      try {
+        const list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const arr = Array.isArray(list) ? list : [];
+        idsToBlacklist.forEach(id => {
+          if (!arr.includes(id)) arr.push(id);
+        });
+        localStorage.setItem(storageKey, JSON.stringify(arr));
+      } catch (e) {}
+    });
+
+    // ลบออกจาก state ในหน่วยความจำทันที
+    const lowerBlacklist = new Set(idsToBlacklist.map(x => x.toLowerCase()));
+    if (Array.isArray(state.visits)) {
+      state.visits = state.visits.filter(v => {
+        const vid = String(v.visit_id || '').trim().toLowerCase();
+        const oid = String(v.order_id || '').trim().toLowerCase();
+        return !((vid && lowerBlacklist.has(vid)) || (oid && lowerBlacklist.has(oid)));
+      });
+    }
+    if (Array.isArray(state.nutrientOrdersRaw)) {
+      state.nutrientOrdersRaw = state.nutrientOrdersRaw.filter(o => {
+        const vid = String(o.visit_id || '').trim().toLowerCase();
+        const oid = String(o.order_id || o.id || '').trim().toLowerCase();
+        return !((vid && lowerBlacklist.has(vid)) || (oid && lowerBlacklist.has(oid)));
+      });
+    }
+    if (Array.isArray(state.nutrientOrders)) {
+      state.nutrientOrders = state.nutrientOrders.filter(o => {
+        const vid = String(o.visit_id || '').trim().toLowerCase();
+        const oid = String(o.order_id || o.id || '').trim().toLowerCase();
+        return !((vid && lowerBlacklist.has(vid)) || (oid && lowerBlacklist.has(oid)));
+      });
+    }
+
+    // คำนวณและวาดตารางใหม่ทันที
+    if (typeof renderPatientsTab === 'function') renderPatientsTab();
+    if (typeof renderNutrientsTab === 'function') renderNutrientsTab();
+    if (typeof renderLabPackagesTab === 'function') renderLabPackagesTab();
+
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        icon: 'success',
+        title: 'ລົບລາຍການສຳເລັດ',
+        timer: 1200,
+        showConfirmButton: false
+      });
+    }
+  } catch (err) {
+    console.error('Error deleting report row:', err);
+  }
+};

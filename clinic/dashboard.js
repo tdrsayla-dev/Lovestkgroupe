@@ -664,6 +664,58 @@ window.updateDashboardStats = async function () {
         const startTimestamp = startStr + "T00:00:00";
         const endTimestamp = endStr + "T23:59:59";
 
+        // Helper ສຳລັບແປງວັນທີເປັນ YYYY-MM-DD ແບບຖືກຕ້ອງຕາມ Local Timezone
+        const parseOrderDateToIso = (rawDate) => {
+            if (!rawDate) return '';
+            if (rawDate instanceof Date) {
+                const tz = rawDate.getTimezoneOffset() * 60000;
+                return (new Date(rawDate.getTime() - tz)).toISOString().split('T')[0];
+            }
+            const s = String(rawDate).trim();
+            if (!s) return '';
+            if (s.includes('T') || s.endsWith('Z')) {
+                const dt = new Date(s);
+                if (!isNaN(dt.getTime())) {
+                    const tz = dt.getTimezoneOffset() * 60000;
+                    return (new Date(dt.getTime() - tz)).toISOString().split('T')[0];
+                }
+            }
+            const mIso = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+            if (mIso) {
+                let y = parseInt(mIso[1], 10);
+                if (y > 2400) y -= 543;
+                return `${y}-${mIso[2].padStart(2, '0')}-${mIso[3].padStart(2, '0')}`;
+            }
+            const mSlash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+            if (mSlash) {
+                let y = parseInt(mSlash[3], 10);
+                if (y > 2400) y -= 543;
+                let p1 = parseInt(mSlash[1], 10);
+                let p2 = parseInt(mSlash[2], 10);
+                let m, d;
+                if (p1 > 12) {
+                    d = p1; m = p2;
+                } else if (p2 > 12) {
+                    m = p1; d = p2;
+                } else {
+                    const dt = new Date(s);
+                    if (!isNaN(dt.getTime()) && s.includes(',')) {
+                        const tz = dt.getTimezoneOffset() * 60000;
+                        return (new Date(dt.getTime() - tz)).toISOString().split('T')[0];
+                    }
+                    d = p1; m = p2;
+                }
+                return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            }
+            const dtFallback = new Date(s);
+            if (!isNaN(dtFallback.getTime())) {
+                const tz = dtFallback.getTimezoneOffset() * 60000;
+                return (new Date(dtFallback.getTime() - tz)).toISOString().split('T')[0];
+            }
+            return '';
+        };
+        const extractDateStr = parseOrderDateToIso;
+
         if (!_supabase) {
             if (window.parent && window.parent._supabase) {
                 _supabase = window.parent._supabase;
@@ -725,8 +777,8 @@ window.updateDashboardStats = async function () {
         let ordersNotRegisteredCount = 0;
         let totalOrderItemsCount = 0;
         let totalOrderRevenue = 0;
+        let candidateOrders = [];
         try {
-            const candidateOrders = [];
 
             // 1. ດຶງຈາກ stk_nutrient_orders ໃນ MLM Supabase
             const mlm = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) || (typeof window._mlmSupabase !== 'undefined' && window._mlmSupabase);
@@ -948,7 +1000,7 @@ window.updateDashboardStats = async function () {
         }
 
         
-        // ====== ນັບຈຳນວນການສັ່ງຢາ + ຍອດເງິນຄ່າຍາ (ສະເພາະທ່ານໝໍສັ່ງກວດ - ບໍ່ລວມ Order 100%) ======
+        // ====== ນັບຈຳນວນການສັ່ງຢາ + ຍອດເງິນຄ່າຍາ (ສະເພາະທ່ານໝໍສັ່ງກວດ - ບໍ່ລວມ Marketing Order 100%) ======
         let doctorRxCount = 0;
         let doctorRxRevenue = 0;
         let doctorRxTotalItems = 0;
@@ -973,7 +1025,20 @@ window.updateDashboardStats = async function () {
                         if (endStr && cvDate && cvDate > endStr) return;
                         const existingIdx = allDocVisits.findIndex(x => x.visit_id === cv.visit_id);
                         if (existingIdx !== -1) {
+                            const existingMeds = allDocVisits[existingIdx].meds;
                             allDocVisits[existingIdx] = Object.assign({}, allDocVisits[existingIdx], cv);
+                            // ປ້ອງກັນບໍ່ໃຫ້ cv ຈາກ LocalStorage ທີ່ບໍ່ມີ meds ມາຂຽນທັບ meds ທີ່ມີຢູ່ແລ້ວ
+                            let cvMeds = cv.meds;
+                            if (typeof cvMeds === 'string') {
+                                try { cvMeds = JSON.parse(cvMeds); } catch (e) { cvMeds = []; }
+                            }
+                            let exMeds = existingMeds;
+                            if (typeof exMeds === 'string') {
+                                try { exMeds = JSON.parse(exMeds); } catch (e) { exMeds = []; }
+                            }
+                            if ((!cvMeds || cvMeds.length === 0) && (exMeds && exMeds.length > 0)) {
+                                allDocVisits[existingIdx].meds = existingMeds;
+                            }
                         } else {
                             allDocVisits.push(cv);
                         }
@@ -981,7 +1046,10 @@ window.updateDashboardStats = async function () {
                 }
             } catch (e) { }
 
-            // ກັ່ນຕອງ: ຕ້ອງບໍ່ແມ່ນ Order (ບໍ່ແມ່ນ VIS-ORD / ORD) ແລະ ມີຢາທີ່ທ່ານໝໍສັ່ງ
+            // 🎯 Map ສຳລັບເກັບລວບລວມໃບສັ່ງຢາທ່ານໝໍ (Deduplicate ດ້ວຍ visit_id / order_id)
+            const docRxMap = new Map();
+
+            // 1. ດຶງຈາກ visits ຂອງຄລີນິກ
             allDocVisits.forEach(v => {
                 if (!v) return;
                 const vid = String(v.visit_id || '').toUpperCase().trim();
@@ -997,12 +1065,80 @@ window.updateDashboardStats = async function () {
                     try { meds = (typeof meds === 'string') ? JSON.parse(meds) : meds; } catch (e) { meds = []; }
                 }
 
-                if (!Array.isArray(meds) || meds.length === 0) return;
+                if (Array.isArray(meds) && meds.length > 0) {
+                    docRxMap.set(vid, {
+                        id: vid,
+                        doctor: v.doctor_name,
+                        meds: meds,
+                        status: v.status,
+                        source: 'visits'
+                    });
+                }
+            });
 
+            // 2. ດຶງໃບສັ່ງຢາ ORD-CLINIC- / ໝໍສັ່ງຈ່າຍ ຈາກ stk_nutrient_orders (MLM) ທີ່ຂາຍສຳເລັດແລ້ວ
+            if (Array.isArray(candidateOrders) && candidateOrders.length > 0) {
+                candidateOrders.forEach(o => {
+                    if (!o) return;
+                    const st = String(o.status || '').toLowerCase();
+                    if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก') || String(o.notes || '').includes('[DELETED]')) {
+                        return;
+                    }
+                    // ນັບສະເພາະທີ່ຊຳລະແລ້ວ/ຂາຍສຳເລັດແລ້ວ (ບໍ່ເອົາ 'รอดำเนินการ')
+                    const isConfirmed = st.includes('ขายสำเร็จแล้ว') || st.includes('ชำระเงินแล้ว') || st.includes('ชำระแล้ว') || st.includes('completed') || st.includes('paid');
+                    if (!isConfirmed) return;
+
+                    const oDate = extractDateStr(o.date || o.created_at);
+                    if (startStr && oDate && oDate < startStr) return;
+                    if (endStr && oDate && oDate > endStr) return;
+
+                    const oid = String(o.order_id || o.orderId || '').trim().toUpperCase();
+                    const vid = String(o.visit_id || o.visitId || '').trim().toUpperCase();
+                    const orderByType = String(o.order_by_type || '');
+
+                    // ຕ້ອງບໍ່ແມ່ນ Marketing Order (VIS-ORD-...)
+                    if (vid.startsWith('VIS-ORD-') || (oid.startsWith('ORD-') && !oid.startsWith('ORD-CLINIC-') && orderByType !== 'หมอสั่งจ่าย')) {
+                        return;
+                    }
+
+                    const isClinicRx = oid.startsWith('ORD-CLINIC-') || (vid.startsWith('VIS-') && !vid.startsWith('VIS-ORD-')) || orderByType === 'หมอสั่งจ่าย';
+                    if (!isClinicRx) return;
+
+                    let items = o.items_json || o.items;
+                    if (typeof items === 'string') {
+                        if (items.startsWith('"[') || items.startsWith('"\\"')) {
+                            try { items = JSON.parse(items); } catch (e) { }
+                        }
+                        try { items = (typeof items === 'string') ? JSON.parse(items) : items; } catch (e) { items = []; }
+                    }
+                    if (!Array.isArray(items) || items.length === 0) return;
+
+                    const key = (vid.startsWith('VIS-') && !vid.startsWith('VIS-ORD-')) ? vid : oid;
+
+                    if (!docRxMap.has(key)) {
+                        docRxMap.set(key, {
+                            id: key,
+                            doctor: o.closer_dr,
+                            meds: items,
+                            status: o.status,
+                            source: 'mlm_stk'
+                        });
+                    } else {
+                        // ຖ້າໃນ visits ບໍ່ມີ meds ແຕ່ໃນ stk_nutrient_orders ມີ items ໃຫ້ໃຊ້ items ຈາກ stk
+                        const existing = docRxMap.get(key);
+                        if ((!existing.meds || existing.meds.length === 0) && items.length > 0) {
+                            existing.meds = items;
+                        }
+                    }
+                });
+            }
+
+            // 3. ຄຳນວນຍອດເງິນ ແລະ ຈຳນວນຢາທັງໝົດ
+            docRxMap.forEach(rx => {
                 let visitMedsTotal = 0;
                 let visitItemsCount = 0;
 
-                meds.forEach(m => {
+                (rx.meds || []).forEach(m => {
                     if (!m) return;
                     const q = parseFloat(m.qty || m.quantity || 1) || 1;
                     const p = parseFloat(String(m.price || m.unit_price || m.sale_price || 0).replace(/,/g, '')) || 0;
@@ -1015,7 +1151,7 @@ window.updateDashboardStats = async function () {
                     visitItemsCount += q;
                 });
 
-                if (meds.length > 0) {
+                if (visitMedsTotal > 0 || visitItemsCount > 0) {
                     doctorRxCount++;
                     doctorRxRevenue += visitMedsTotal;
                     doctorRxTotalItems += visitItemsCount;

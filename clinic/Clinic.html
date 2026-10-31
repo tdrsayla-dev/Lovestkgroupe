@@ -33,24 +33,74 @@
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
-        // ป้องกัน Uncaught (in promise) AbortError หรือ network change drop
+        // ป้องกัน Uncaught (in promise) AbortError หรือ network change drop และ Blocked aria-hidden
         window.addEventListener('unhandledrejection', function (e) {
             const msg = String(e.reason?.message || e.reason || '');
-            if (e.reason && (e.reason.name === 'AbortError' || msg.includes('interrupted by a call to pause') || msg.includes('NETWORK_CHANGED') || msg.includes('Failed to fetch'))) {
+            if (e.reason && (e.reason.name === 'AbortError' || e.reason.name === 'NotAllowedError' || msg.includes('interrupted by a call to pause') || msg.includes('NETWORK_CHANGED') || msg.includes('Failed to fetch'))) {
                 e.preventDefault();
+                e.stopImmediatePropagation();
             }
-        });
-        if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype && HTMLMediaElement.prototype.play) {
+        }, true);
+
+        if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype) {
             const _origPlay = HTMLMediaElement.prototype.play;
-            HTMLMediaElement.prototype.play = function () {
-                const p = _origPlay.apply(this, arguments);
-                if (p && typeof p.catch === 'function') {
-                    p.catch(err => {
-                        if (err.name === 'AbortError' || (err.message && err.message.includes('pause'))) return;
-                        console.warn('Media play intercepted:', err);
-                    });
+            const _origPause = HTMLMediaElement.prototype.pause;
+            if (_origPlay) {
+                HTMLMediaElement.prototype.play = function () {
+                    try {
+                        const p = _origPlay.apply(this, arguments);
+                        if (p && typeof p.then === 'function') {
+                            const safePromise = p.then(() => {
+                                this._pendingPlayPromise = null;
+                            }).catch(err => {
+                                this._pendingPlayPromise = null;
+                                if (!err || err.name === 'AbortError' || err.name === 'NotAllowedError' || String(err.message || '').includes('pause') || String(err.message || '').includes('interrupted')) {
+                                    return;
+                                }
+                            });
+                            this._pendingPlayPromise = safePromise;
+                            return safePromise;
+                        }
+                        return p;
+                    } catch (err) {
+                        return Promise.resolve();
+                    }
+                };
+            }
+            if (_origPause) {
+                HTMLMediaElement.prototype.pause = function () {
+                    if (this._pendingPlayPromise && typeof this._pendingPlayPromise.finally === 'function') {
+                        const self = this;
+                        const args = arguments;
+                        this._pendingPlayPromise.finally(() => {
+                            try { _origPause.apply(self, args); } catch (e) { }
+                        });
+                        return;
+                    }
+                    try {
+                        return _origPause.apply(this, arguments);
+                    } catch (e) { }
+                };
+            }
+        }
+
+        // ป้องกันคำเตือน Blocked aria-hidden on an element because its descendant retained focus 100%
+        if (typeof Element !== 'undefined' && Element.prototype && Element.prototype.setAttribute) {
+            const _origSetAttribute = Element.prototype.setAttribute;
+            Element.prototype.setAttribute = function (name, value) {
+                if (name === 'aria-hidden' && String(value) === 'true') {
+                    try {
+                        if (document.activeElement && (this === document.activeElement || this.contains(document.activeElement))) {
+                            document.activeElement.blur();
+                        }
+                        if (typeof this.querySelectorAll === 'function') {
+                            this.querySelectorAll(':focus').forEach(el => {
+                                if (typeof el.blur === 'function') el.blur();
+                            });
+                        }
+                    } catch (e) { }
                 }
-                return p;
+                return _origSetAttribute.call(this, name, value);
             };
         }
 
@@ -445,7 +495,7 @@
         <!-- 1. ภาพรวมระบบ (Dashboard) -->
         <div id="dashboard" class="page-section active"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="dashboardFrame" src="dashboard.html?v=2.4"
+            <iframe id="dashboardFrame" src="dashboard.html?v=2.6"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Clinic Dashboard"></iframe>
         </div>
@@ -3113,7 +3163,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" data-src="report.html?v=6.1" src=""
+            <iframe id="doctorReportFrame" data-src="report.html?v=6.3" src=""
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -5372,7 +5422,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=8.4"></script>
+    <script src="function.js?v=8.9"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.8"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
