@@ -2144,6 +2144,7 @@ function renderPatientsTable(page = window.patientCurrentPage) {
         let actionBtns = `
             <div class="d-flex gap-1 justify-content-center align-items-center text-nowrap">
                 ${sendBtn}
+                <button type="button" class="btn btn-sm btn-outline-info text-info-emphasis" onclick="openPatientCardModal('${row.hn}')" title="ເບິ່ງກະດານບັດຜູ້ປ່ວຍ (Patient Pass)"><i class="bi bi-person-vcard"></i></button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="editPatient('${row.hn}')" title="แก้ไขประวัติผู้ป่วย"><i class="bi bi-pencil-square"></i></button>
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="deletePatient('${row.hn}')" title="ลบประวัติผู้ป่วย"><i class="bi bi-trash"></i></button>
             </div>
@@ -2157,7 +2158,11 @@ function renderPatientsTable(page = window.patientCurrentPage) {
 
         tbody.innerHTML += `<tr>
             <td class="ps-4 text-center align-middle">${no}</td>
-            <td class="fw-bold text-nowrap align-middle">${row.hn}</td>
+            <td class="fw-bold text-nowrap align-middle">
+                <a href="javascript:void(0)" class="text-primary text-decoration-none d-inline-flex align-items-center gap-1" onclick="openPatientCardModal('${row.hn}')" title="ເບິ່ງກະດານບັດຜູ້ປ່ວຍ">
+                    <i class="bi bi-person-vcard text-primary"></i> <span>${row.hn}</span>
+                </a>
+            </td>
             <td class="fw-bold text-nowrap align-middle">${row.patient_name}</td>
             <td class="text-nowrap align-middle">${genderBadge}${row.age ? `${row.age} ປີ` : '-'}</td>
             <td class="text-nowrap align-middle">${row.phone || '-'}</td>
@@ -7317,9 +7322,25 @@ async function submitPatient() {
     // โหลดข้อมูลใหม่เพื่อให้ตารางอัปเดต
     loadPatients();
 
-    // แสดงข้อความแจ้งเตือนสำเร็จ
-    Swal.fire('สำเร็จ', editHn ? 'แก้ไขประวัติผู้ป่วยเรียบร้อยแล้ว' : 'ลงทะเบียนผู้ป่วยและประวัติใหม่เรียบร้อยแล้ว', 'success').then(() => {
-        if (typeof showPage === 'function') {
+    // แสดงข้อความแจ้งเตือนสำเร็จ พร้อมตัวเลือกเปิดกระดานบัตรคนไข้
+    Swal.fire({
+        icon: 'success',
+        title: editHn ? 'ແກ້ໄຂປະຫວັດສຳເລັດ' : 'ລົງທະບຽນສຳເລັດແລ້ວ!',
+        html: `
+            <div class="py-2">
+                <div class="text-muted small mb-1">ລະຫັດປະຈຳຕົວຜູ້ປ່ວຍ (HN Code):</div>
+                <div class="fs-2 fw-bold text-primary mb-2">${hn}</div>
+                <div class="small text-secondary">ລົງທະບຽນຜູ້ປ່ວຍ <b>${finalName}</b> ຮຽບຮ້ອຍແລ້ວ<br>ທ່ານສາມາດເປີດເບິ່ງກະດານບັດ, ຄັດລອກຂໍ້ຄວາມ ຫຼື ບັນທຶກຮູບພາບເພື່ອແຈ້ງຄົນໄຂ້ໄດ້ທັນທີ</div>
+            </div>
+        `,
+        confirmButtonText: '<i class="bi bi-person-vcard me-1"></i> ເປີດກະດານບັດຜູ້ປ່ວຍ (Patient Pass)',
+        showCancelButton: true,
+        cancelButtonText: 'ປິດ (Close)',
+        confirmButtonColor: '#0d6efd'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            openPatientCardModal(hn);
+        } else if (typeof showPage === 'function') {
             showPage('registration', document.getElementById('nav-registration'));
         }
     });
@@ -14727,10 +14748,32 @@ window.loadPatientHistory = async function (forceAll = true, opts = null) {
                 query = query.lte('created_at', endIso);
             }
 
+            // ⚡ ໃຊ້ Bills Cache ຖ້າມີຢູ່ແລ້ວ ຫຼຸດການ Query ຊ້ຳຊ້ອນ
+            let billsQueryPromise = (window.allBillsData && window.allBillsData.length > 0)
+                ? Promise.resolve({ data: window.allBillsData })
+                : _supabase.from('bills').select('bill_id, visit_id, status').limit(500);
+
             const [{ data, error }, { data: bData }] = await Promise.all([
                 query,
-                _supabase.from('bills').select('bill_id, visit_id, status')
+                billsQueryPromise
             ]);
+
+            // 🌟 ດຶງຂໍ້ມູນຜູ້ປ່ວຍທີ່ "ລົງທະບຽນລ່ວງໜ້າ" (ນັດມາກວດໃນຊ່ວງວັນທີທີ່ເລືອກ) ເພື່ອໃຫ້ສະແດງໃນແທັບປະຫວັດ Booking ດ້ວຍ
+            let preRegPatients = [];
+            try {
+                let patQuery = _supabase.from('patients').select('*');
+                if (startDate && endDate) {
+                    patQuery = patQuery.gte('next_appointment_date', startDate).lte('next_appointment_date', endDate);
+                } else if (startDate) {
+                    patQuery = patQuery.gte('next_appointment_date', startDate);
+                } else if (endDate) {
+                    patQuery = patQuery.lte('next_appointment_date', endDate);
+                }
+                const { data: pList } = await patQuery;
+                if (Array.isArray(pList)) preRegPatients = pList;
+            } catch (preErr) {
+                console.warn('preRegPatients query notice:', preErr);
+            }
 
             if (data && !error) {
                 let rows = data;
@@ -14800,7 +14843,9 @@ window.loadPatientHistory = async function (forceAll = true, opts = null) {
                             if (endDate) {
                                 nQuery = nQuery.lte('created_at', new Date(endDate + 'T23:59:59.999+07:00').toISOString());
                             }
-                            const { data: nOrders } = await nQuery;
+                            // ⚡ Timeout 2.5s ປ້ອງກັນບໍ່ໃຫ້ MLM Supabase ຄ້າງ
+                            const timeoutPromise = new Promise(res => setTimeout(() => res({ data: [] }), 2500));
+                            const { data: nOrders } = await Promise.race([nQuery, timeoutPromise]);
                             if (Array.isArray(nOrders)) {
                                 let localOrdersCache = [];
                                 try { localOrdersCache = JSON.parse(localStorage.getItem('clinic_orders') || '[]'); } catch (e) { }
@@ -14962,6 +15007,35 @@ window.loadPatientHistory = async function (forceAll = true, opts = null) {
                             }
                         });
                     }
+
+                    // 🌟 ໂຮມລາຍຊື່ຜູ້ປ່ວຍລົງທະບຽນລ່ວງໜ້າ (ທີ່ຍັງບໍ່ທັນມີ Visit) ເຂົ້າໃນລາຍການປະຫວັດ
+                    if (Array.isArray(preRegPatients)) {
+                        preRegPatients.forEach(p => {
+                            if (!p || !p.hn) return;
+                            const hasV = rows.some(r => r.hn === p.hn);
+                            if (!hasV) {
+                                const apptDate = p.next_appointment_date || '';
+                                rows.push({
+                                    visit_id: p.hn,
+                                    hn: p.hn,
+                                    patient_name: p.patient_name || '-',
+                                    doctor_name: '-',
+                                    assistant_name: '-',
+                                    symptom: apptDate ? ('ນັດມາກວດ: ' + apptDate) : 'ລົງທະບຽນລ່ວງໜ້າ (ລໍຖ້າຄັດກອງ)',
+                                    status: '01 ทะเบียนผู้ป่วย (ลงทะเบียนแล้ว รอคัดกรอง)',
+                                    created_at: apptDate ? (apptDate + 'T08:00:00+07:00') : (p.created_at || new Date().toISOString()),
+                                    phone: p.phone || '',
+                                    age: p.age || null,
+                                    gender: p.gender || null,
+                                    province: p.province || null,
+                                    district: p.district || null,
+                                    village: p.village || null,
+                                    next_appointment_date: apptDate,
+                                    is_pre_registered: true
+                                });
+                            }
+                        });
+                    }
                 } catch (lErr) { }
 
                 // เรียงลำดับจากใหม่สุดไปเก่าสุดเสมอ
@@ -15049,8 +15123,30 @@ window.addEventListener('clinic-deleted-records-synced', function () {
 });
 
 // ✅ แหล่งข้อมูลประวัติชุดเดียวสำหรับทุกหน้า (หน้าประวัติผู้ป่วย + แท็บประวัติใน Booking)
-window.fetchPatientHistoryRows = function (startDate, endDate) {
-    return window.loadPatientHistory(true, { startDate: startDate || null, endDate: endDate || null });
+window.fetchPatientHistoryRows = async function (startDate, endDate) {
+    // ⚡ 1. Fast Path: ຖ້າມີຂໍ້ມູນໃນ Memory ແລ້ວ ໃຫ້ກັ່ນຕອງ ແລະ ສົ່ງຄືນທັນທີພາຍໃນ 0.001 ວິນາທີ!
+    if (Array.isArray(window.allHistoryVisits) && window.allHistoryVisits.length > 0) {
+        const filtered = window.allHistoryVisits.filter(row => {
+            if (!startDate && !endDate) return true;
+            const rawTs = row.created_at || row.updated_at || '';
+            let rowDateStr = String(rawTs).slice(0, 10);
+            try { if (rawTs) rowDateStr = new Date(rawTs).toLocaleDateString('en-CA', { timeZone: 'Asia/Vientiane' }); } catch (e) { }
+            const apptDateStr = row.next_appointment_date || '';
+            const matchCreated = (!startDate || rowDateStr >= startDate) && (!endDate || rowDateStr <= endDate);
+            const matchAppt = apptDateStr && (!startDate || apptDateStr >= startDate) && (!endDate || apptDateStr <= endDate);
+            return matchCreated || matchAppt;
+        });
+
+        // ໂຫຼດອັບເດດຖານຂໍ້ມູນແບບ Background Sync ເງຽບໆ ບໍ່ໃຫ້ຂັດຈັງຫວະ UI
+        setTimeout(() => {
+            window.loadPatientHistory(true, { startDate: startDate || null, endDate: endDate || null }).catch(() => {});
+        }, 500);
+
+        return filtered;
+    }
+
+    // 2. ຖ້າຍັງບໍ່ທັນມີຂໍ້ມູນໃນ Memory ໃຫ້ດຶງຈາກ Database
+    return await window.loadPatientHistory(true, { startDate: startDate || null, endDate: endDate || null });
 };
 
 // 2. ฟังก์ชันค้นหาข้อมูล
@@ -32766,3 +32862,459 @@ function updateOrderCount() {
         countElement.innerText = orderItems.length;
     }
 }
+
+// ============================================================
+// 🌟 ລະບົບກະດານບັດຜູ້ປ່ວຍລົງທະບຽນລ່ວງໜ້າ (Digital Patient Pass & Card)
+// ============================================================
+window.currentViewingPatientCard = null;
+
+
+// 🌟 ฟังก์ชันสร้าง QR Code เป็น Data URL (Base64 PNG) ฝั่ง Client เพื่อให้ html2canvas บันทึกรูปติด 100% โดยไม่มีปัญหา CORS
+async function setPatientQrCodeImage(hn, qrImg) {
+    if (!qrImg || !hn) return;
+
+    // 1. ตรวจสอบและโหลดไลบรารี qrcode-generator หากยังไม่มี
+    if (typeof qrcode === 'undefined') {
+        try {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('qrcode library failed to load'));
+                document.head.appendChild(s);
+            });
+        } catch (e) {
+            console.warn('Load qrcode library error:', e);
+        }
+    }
+
+    // 2. หากมีไลบรารี qrcode: วาดลงใน Canvas เพื่อแปลงเป็น Data URL (Base64 PNG) โดยตรง
+    if (typeof qrcode !== 'undefined') {
+        try {
+            const qr = qrcode(0, 'M');
+            qr.addData(String(hn));
+            qr.make();
+            const count = qr.getModuleCount();
+            const canvas = document.createElement('canvas');
+            const cellSize = 6;
+            const margin = 8;
+            const size = count * cellSize + margin * 2;
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+            ctx.fillStyle = '#0f172a';
+            for (let r = 0; r < count; r++) {
+                for (let c = 0; c < count; c++) {
+                    if (qr.isDark(r, c)) {
+                        ctx.fillRect(margin + c * cellSize, margin + r * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+            qrImg.src = canvas.toDataURL('image/png');
+            return;
+        } catch (qrErr) {
+            console.warn('Canvas QR render error:', qrErr);
+        }
+    }
+
+    // 3. Fallback: ดึงรูปจาก Remote API แล้วแปลงเป็น Blob -> Base64 Data URL เพื่อไม่ให้ Canvas โดน Taint
+    const remoteUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&data=' + encodeURIComponent(hn);
+    try {
+        const resp = await fetch(remoteUrl);
+        if (resp.ok) {
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                qrImg.src = reader.result;
+            };
+            reader.readAsDataURL(blob);
+            return;
+        }
+    } catch (fErr) {
+        console.warn('Fetch QR blob fallback error:', fErr);
+    }
+
+    // 4. สำรองขั้นสุดท้าย
+    qrImg.src = remoteUrl;
+}
+window.setPatientQrCodeImage = setPatientQrCodeImage;
+
+async function openPatientCardModal(hn) {
+    if (!hn) return;
+
+    // 🌟 ດຶງຂໍ້ມູນ Branding / ຊື່ ແລະ ໂລໂກ້ຄລີນິກຕົວຈິງຈາກ Settings
+    try {
+        const branding = (typeof getClinicBrandingInfo === 'function') ? await getClinicBrandingInfo() : {};
+        const cSettings = window.clinicSettings || {};
+        const cNameLa = branding.clinicName || cSettings['clinic_name_la'] || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
+        const cNameEn = branding.clinicNameEn || cSettings['clinic_name_en'] || 'Love Stk Medical and Treatment Center';
+        const cLogo = branding.logoUrl || cSettings['clinic_logo_url'] || localStorage.getItem('clinic_logo_url') || '';
+
+        const nameLaEl = document.getElementById('cardClinicNameLa');
+        const nameEnEl = document.getElementById('cardClinicNameEn');
+        const logoImgEl = document.getElementById('cardClinicLogoImg');
+        const iconFallbackEl = document.getElementById('cardClinicIconFallback');
+
+        if (nameLaEl) nameLaEl.textContent = cNameLa;
+        if (nameEnEl) nameEnEl.textContent = cNameEn;
+        if (logoImgEl && iconFallbackEl) {
+            if (cLogo) {
+                logoImgEl.src = cLogo;
+                logoImgEl.style.display = 'block';
+                iconFallbackEl.style.display = 'none';
+            } else {
+                logoImgEl.style.display = 'none';
+                iconFallbackEl.style.display = 'block';
+            }
+        }
+    } catch (bErr) {
+        console.warn('Load card branding error:', bErr);
+    }
+
+    let patient = null;
+    if (window.allPatients && Array.isArray(window.allPatients)) {
+        patient = window.allPatients.find(function(p) { return p.hn === hn; });
+    }
+    if (!patient && window._supabase) {
+        try {
+            const res = await _supabase.from('patients').select('*').eq('hn', hn).maybeSingle();
+            if (res && res.data) patient = res.data;
+        } catch (e) {
+            console.warn('fetch patient card error:', e);
+        }
+    }
+    if (!patient) {
+        Swal.fire('ບໍ່ພົບຂໍ້ມູນ', 'ບໍ່ພົບຂໍ້ມູນຜູ້ປ່ວຍລະຫັດ ' + hn, 'warning');
+        return;
+    }
+
+    window.currentViewingPatientCard = patient;
+
+    // ດຶງຂໍ້ມູນຜູ້ແນະນຳ (Referrer)
+    let refId = patient.referred_by;
+    if (!refId && window.patientReferrersMap) {
+        refId = window.patientReferrersMap[hn];
+    }
+    let refDisplay = '-';
+    if (refId) {
+        const refObj = (window.referrersData || []).find(function(r) { return r.id === refId || r.code === refId; });
+        const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(function(s) { return s.emp_code === refId || s.id === refId || s.full_name === refId; });
+        if (refObj) {
+            refDisplay = refObj.name + ' (' + (refObj.code || refObj.id) + ')';
+        } else if (staffObj) {
+            refDisplay = staffObj.full_name + ' (' + (staffObj.emp_code || 'STAFF') + ')';
+        } else {
+            refDisplay = refId;
+        }
+    }
+
+    // ວັນທີລົງທະບຽນ
+    let regDateStr = '-';
+    if (patient.created_at) {
+        try {
+            const d = new Date(patient.created_at);
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            regDateStr = day + '/' + month + '/' + year;
+        } catch (e) {
+            regDateStr = patient.created_at;
+        }
+    } else {
+        const now = new Date();
+        regDateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
+    }
+
+    // ທີ່ຢູ່
+    const addrParts = [patient.village, patient.district, patient.province].filter(Boolean);
+    const addrStr = addrParts.length > 0 ? addrParts.join(', ') : '-';
+
+    // ວັນທີນັດມາກວດ
+    let apptDateStr = '-';
+    if (patient.next_appointment_date) {
+        try {
+            const ad = new Date(patient.next_appointment_date);
+            const aDay = String(ad.getDate()).padStart(2, '0');
+            const aMonth = String(ad.getMonth() + 1).padStart(2, '0');
+            const aYear = ad.getFullYear();
+            apptDateStr = aDay + '/' + aMonth + '/' + aYear;
+        } catch (e) {
+            apptDateStr = patient.next_appointment_date;
+        }
+    }
+    const cardApptEl = document.getElementById('cardApptDate');
+    const cardApptGridEl = document.getElementById('cardApptDateGrid');
+    if (cardApptEl) cardApptEl.innerHTML = '<i class="bi bi-calendar-check me-1 text-primary"></i> ວັນທີນັດມາກວດ: <span class="text-primary fw-bold">' + apptDateStr + '</span>';
+    if (cardApptGridEl) cardApptGridEl.textContent = apptDateStr !== '-' ? apptDateStr : 'ຍັງບໍ່ໄດ້ກຳນົດ';
+
+    // ອັບເດດ DOM ໃນ Modal
+    const hnEl = document.getElementById('cardHnCode');
+    const nameEl = document.getElementById('cardPatientName');
+    const genderEl = document.getElementById('cardGenderBadge');
+    const ageEl = document.getElementById('cardAgeText');
+    const phoneEl = document.getElementById('cardPhone');
+    const addrEl = document.getElementById('cardAddress');
+    const refEl = document.getElementById('cardReferrer');
+    const dateEl = document.getElementById('cardRegDate');
+    const qrImg = document.getElementById('cardQrImage');
+
+    if (hnEl) hnEl.textContent = patient.hn || hn;
+    if (nameEl) nameEl.textContent = patient.patient_name || '-';
+    if (genderEl) {
+        genderEl.textContent = patient.gender || 'ບໍ່ລະບຸ';
+        if (patient.gender === 'ຊາຍ' || patient.gender === 'ชาย') {
+            genderEl.className = 'badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1';
+        } else if (patient.gender === 'ຍິງ' || patient.gender === 'หญิง') {
+            genderEl.className = 'badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1';
+        } else {
+            genderEl.className = 'badge bg-light text-dark border px-2 py-1';
+        }
+    }
+    if (ageEl) ageEl.textContent = patient.age ? ('ອາຍຸ: ' + patient.age + ' ປີ') : 'ອາຍຸ: - ປີ';
+    if (phoneEl) phoneEl.textContent = patient.phone || '-';
+    if (addrEl) {
+        addrEl.textContent = addrStr;
+        addrEl.title = addrStr;
+    }
+    if (refEl) {
+        refEl.textContent = refDisplay;
+        refEl.title = refDisplay;
+    }
+    // 📞 ໃສ່ເບີໂທຕິດຕໍ່ຄລີນິກແທນຊ່ອງຜູ້ແນະນຳ
+    try {
+        const cSettings = window.clinicSettings || {};
+        const cPhone = cSettings['clinic_phone'] || cSettings['clinic_tel'] || '';
+        const contactBoxEl = document.getElementById('cardClinicContactBox');
+        const phoneEl2 = document.getElementById('cardClinicPhone');
+        if (contactBoxEl && phoneEl2) {
+            if (cPhone) {
+                phoneEl2.textContent = cPhone;
+                contactBoxEl.style.display = 'block';
+            } else {
+                contactBoxEl.style.display = 'none';
+            }
+        }
+    } catch (cpErr) { }
+    if (dateEl) dateEl.textContent = 'ວັນທີລົງທະບຽນ: ' + regDateStr;
+
+    // QR Code
+    if (qrImg) {
+        setPatientQrCodeImage(patient.hn || hn, qrImg);
+    }
+
+    const modalEl = document.getElementById('patientCardModal');
+    if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+}
+window.openPatientCardModal = openPatientCardModal;
+
+function copyPatientCardText() {
+    const p = window.currentViewingPatientCard;
+    if (!p) return;
+
+    let refId = p.referred_by || (window.patientReferrersMap ? window.patientReferrersMap[p.hn] : '') || '-';
+    if (refId && refId !== '-') {
+        const refObj = (window.referrersData || []).find(function(r) { return r.id === refId || r.code === refId; });
+        const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(function(s) { return s.emp_code === refId || s.id === refId || s.full_name === refId; });
+        if (refObj) refId = refObj.name + ' (' + (refObj.code || refObj.id) + ')';
+        else if (staffObj) refId = staffObj.full_name + ' (' + (staffObj.emp_code || 'STAFF') + ')';
+    }
+
+    let regDateStr = '-';
+    if (p.created_at) {
+        try {
+            const d = new Date(p.created_at);
+            regDateStr = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+        } catch (e) {
+            regDateStr = p.created_at;
+        }
+    } else {
+        const now = new Date();
+        regDateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
+    }
+
+    const addr = [p.village, p.district, p.province].filter(Boolean).join(', ') || '-';
+
+    let apptDateFormatted = '-';
+    if (p.next_appointment_date) {
+        try {
+            const ad = new Date(p.next_appointment_date);
+            apptDateFormatted = String(ad.getDate()).padStart(2, '0') + '/' + String(ad.getMonth() + 1).padStart(2, '0') + '/' + ad.getFullYear();
+        } catch (e) {
+            apptDateFormatted = p.next_appointment_date;
+        }
+    }
+
+    const textLines = [
+        (() => {
+        const cSettings = window.clinicSettings || {};
+        const la = cSettings['clinic_name_la'] || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
+        const en = cSettings['clinic_name_en'] || 'Love Stk Medical and Treatment Center';
+        return '🏥 ' + la + (en ? (' (' + en + ')') : '');
+    })(),
+        '✨ ບັດຢັ້ງຢືນການລົງທະບຽນຜູ້ປ່ວຍ (Patient Pass)',
+        '━━━━━━━━━━━━━━━━━━━━',
+        '🆔 ລະຫັດ HN: ' + (p.hn || '-'),
+        '👤 ຊື່ຜູ້ປ່ວຍ: ' + (p.patient_name || '-'),
+        '📅 ວັນທີນັດມາກວດ: ' + apptDateFormatted,
+        '🚻 ເພດ: ' + (p.gender || '-') + ' | ອາຍຸ: ' + (p.age ? (p.age + ' ປີ') : '-'),
+        '📞 ເບີໂທລະສັບ: ' + (p.phone || '-'),
+        '📍 ທີ່ຢູ່: ' + addr,
+        '📝 ວັນທີລົງທະບຽນ: ' + regDateStr,
+        '━━━━━━━━━━━━━━━━━━━━',
+        '📌 ສະຖານະ: ລົງທະບຽນລ່ວງໜ້າຮຽບຮ້ອຍ (ນັດກວດວັນທີ: ' + apptDateFormatted + ')',
+        '⚠️ ກະລຸນາສະແດງຂໍ້ຄວາມນີ້ ຫຼື ແຈ້ງລະຫັດ HN: ' + (p.hn || '') + ' ຕໍ່ເຈົ້າໜ້າທີ່ເມື່ອເດີນທາງມາຮອດຄລີນິກ',
+        '🙏 ຂໍຂອບໃຈທີ່ໄວ້ວາງໃຈໃຊ້ບໍລິການ'
+    ];
+    const textToCopy = textLines.join('\n');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(function() {
+            showCardCopiedFeedback();
+        }).catch(function() {
+            fallbackCopyText(textToCopy);
+        });
+    } else {
+        fallbackCopyText(textToCopy);
+    }
+}
+window.copyPatientCardText = copyPatientCardText;
+
+function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        showCardCopiedFeedback();
+    } catch (e) {
+        Swal.fire('คัดลอกไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง', 'error');
+    }
+    document.body.removeChild(ta);
+}
+
+function showCardCopiedFeedback() {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'ຄັດລອກຂໍ້ຄວາມແລ້ວ!',
+        text: 'ສາມາດນຳໄປວາງໃນ WhatsApp / Chat ສົ່ງໃຫ້ຜູ້ປ່ວຍໄດ້ເລີຍ',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+    });
+}
+
+async function downloadPatientCardImage() {
+    const captureArea = document.getElementById('patientCardCaptureArea');
+    if (!captureArea) return;
+
+    const p = window.currentViewingPatientCard || {};
+    const hn = p.hn || 'HN';
+
+    // 🌟 รับประกันว่า QR Code เป็น Data URL เรียบร้อยก่อนเริ่มจับภาพ (ป้องกันภาพ QR Code ขาว/ว่างเปล่า)
+    const qrImg = document.getElementById('cardQrImage');
+    if (qrImg && (!qrImg.src || !qrImg.src.startsWith('data:'))) {
+        await setPatientQrCodeImage(hn, qrImg);
+        await new Promise(r => setTimeout(r, 180));
+    }
+
+    const btn = document.getElementById('btnDownloadPatientCard');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> กำลังสร้างรูป...';
+    }
+
+    try {
+        if (typeof html2canvas === 'undefined') {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('Cannot load html2canvas library'));
+                document.head.appendChild(s);
+            });
+        }
+
+        const canvas = await html2canvas(captureArea, {
+            scale: 2.5,
+            useCORS: true,
+            allowTaint: false,
+            backgroundColor: '#ffffff'
+        });
+
+        const imageUri = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = 'Patient_Pass_' + hn + '.png';
+        link.href = imageUri;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'ດາວໂຫຼດຮູບພາບສຳເລັດ!',
+            text: 'ບັນທຶກຮູບ Patient_Pass_' + hn + '.png ຮຽບຮ້ອຍແລ້ວ',
+            showConfirmButton: false,
+            timer: 2800
+        });
+    } catch (err) {
+        console.error('download patient card image error:', err);
+        Swal.fire('ຂໍອະໄພ', 'ບໍ່ສາມາດດາວໂຫຼດຮູບພາບໄດ້: ' + err.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+}
+window.downloadPatientCardImage = downloadPatientCardImage;
+
+function printPatientCard() {
+    const captureArea = document.getElementById('patientCardCaptureArea');
+    if (!captureArea) return;
+
+    const p = window.currentViewingPatientCard || {};
+    const printWin = window.open('', '_blank', 'width=500,height=700');
+    if (!printWin) {
+        Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາອະນຸຍາດ Pop-up ເພື່ອພິມບັດ', 'warning');
+        return;
+    }
+
+    const cardHtml = captureArea.outerHTML;
+    printWin.document.write(
+        '<!DOCTYPE html>' +
+        '<html>' +
+        '<head>' +
+        '<meta charset="UTF-8">' +
+        '<title>Patient Pass - ' + (p.hn || '') + '</title>' +
+        '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">' +
+        '<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">' +
+        '<style>' +
+        'body { margin: 0; padding: 20px; background: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; justify-content: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+        '#patientCardCaptureArea { max-width: 440px; width: 100%; box-shadow: none !important; border: 1px solid #cbd5e1 !important; }' +
+        '@media print { body { padding: 0; } @page { margin: 6mm; size: auto; } }' +
+        '</style>' +
+        '</head>' +
+        '<body>' +
+        cardHtml +
+        '<script>' +
+        'window.onload = function() { window.focus(); window.print(); setTimeout(function() { window.close(); }, 500); };' +
+        '</' + 'script>' +
+        '</body>' +
+        '</html>'
+    );
+    printWin.document.close();
+}
+window.printPatientCard = printPatientCard;
