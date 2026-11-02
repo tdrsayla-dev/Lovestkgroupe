@@ -2,7 +2,7 @@
 <html lang="lo">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8"><script src="auth-guard.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Booking - Timeline</title>
     <link rel="icon" type="image/png" href="favicon.png?v=1.0">
@@ -7949,9 +7949,8 @@
                 const url = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co';
                 const key = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
                 if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-                    clinicSupabaseOrderClient = supabase.createClient(url, key, {
-                        auth: { persistSession: false, autoRefreshToken: false }
-                    });
+                    // ใช้ session ที่ล็อกอินไว้ (RLS ของคลินิกอนุญาตเฉพาะผู้ที่ล็อกอินแล้ว)
+                    clinicSupabaseOrderClient = supabase.createClient(url, key);
                     return clinicSupabaseOrderClient;
                 }
             } catch (err) {

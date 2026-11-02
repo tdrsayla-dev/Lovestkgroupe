@@ -74,7 +74,12 @@
             try { btn.remove(); } catch (e) { }
         });
 
-        const delTds = document.querySelectorAll('#bioc    // 1. ລາຍການກວດມາດຕະຖານ (Default Standard Biochemistry Tests - 16 ລາຍການຕາມເຄື່ອງວິເຄາະ)
+        // ซ่อนคอลัมน์ลบในแต่ละแถว (ยกเว้นแถวหัวหมวดที่มี td เดียว)
+        const delTds = document.querySelectorAll('#biochemTable tbody tr:not(.category-row) td:last-child');
+        delTds.forEach(td => td.style.setProperty('display', 'none', 'important'));
+    }
+
+    // 1. ລາຍການກວດມາດຕະຖານ (Default Standard Biochemistry Tests - 16 ລາຍການຕາມເຄື່ອງວິເຄາະ)
     const DEFAULT_TESTS = [
         { test: 'ALBUMIN', sample: 'SER', unit: 'g/L', ref: '30 - 50', val: '' },
         { test: 'ALP-AMP', sample: 'SER', unit: 'U/L', ref: '20 - 250', val: '' },
@@ -92,17 +97,6 @@
         { test: 'TRIGLYCERIDES', sample: 'SER', unit: 'mg/dL', ref: '35 - 160', val: '' },
         { test: 'UREA-BUN-UV', sample: 'SER', unit: 'mg/dL', ref: '5 - 38', val: '' },
         { test: 'URIC ACID', sample: 'SER', unit: 'mg/dL', ref: '2.50 - 7.50', val: '' }
-    ];��ละการเผาผลาญ (Glucose & Metabolism)
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'GLUCOSE', sample: 'SER', unit: 'mg/dL', ref: '70 - 110', val: '' },
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'HbA1c', sample: 'WB', unit: '%', ref: '4.0 - 6.0', val: '' },
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'AMYLASE DIRECT', sample: 'SER', unit: 'U/L', ref: '40 - 120', val: '' },
-        { category: 'Glucose & Metabolic (ນ້ຳຕານ ແລະ ເມຕາໂບລິກ)', test: 'CALCIUM (SERUM)', sample: 'SER', unit: 'mg/dL', ref: '8.00 - 11.00', val: '' },
-
-        // เกลือแร่ (Electrolytes)
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'SODIUM (Na)', sample: 'SER', unit: 'mmol/L', ref: '135 - 145', val: '' },
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'POTASSIUM (K)', sample: 'SER', unit: 'mmol/L', ref: '3.5 - 5.0', val: '' },
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'CHLORIDE (Cl)', sample: 'SER', unit: 'mmol/L', ref: '98 - 107', val: '' },
-        { category: 'Electrolytes (ເກືອແຮ່ໃນເລືອດ)', test: 'CO2 (BICARBONATE)', sample: 'SER', unit: 'mmol/L', ref: '22 - 29', val: '' }
     ];
 
     let currentRows = [];

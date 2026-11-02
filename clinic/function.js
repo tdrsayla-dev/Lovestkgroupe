@@ -385,6 +385,11 @@ function closeMobileSidebar() {
 function showPage(pageId, element) {
     // 🚀 1. ด่านตรวจสิทธิ์ขั้นสูงสุด: ตรวจสอบสิทธิ์ก่อนเปิดหน้าเสมอ!
     const currentUserStr = localStorage.getItem('clinicUser');
+    if (!currentUserStr) {
+        // ยังไม่ได้ล็อกอิน → ห้ามเปิดหน้าใด ๆ
+        (window.top || window).location.replace('login.html');
+        return;
+    }
     if (currentUserStr) {
         try {
             const currentUser = JSON.parse(currentUserStr);
@@ -4803,6 +4808,24 @@ async function returnVisitToDoctor(visitId, patientName) {
             if (vDb) visit = vDb;
         }
 
+        // ກວດບິນຂອງ visit ນີ້: ຖ້າມີບິນທີ່ຊຳລະແລ້ວ ຫ້າມສົ່ງກັບ (ບໍ່ດັ່ງນັ້ນບິນທີ່ຈ່າຍແລ້ວຈະຖືກລຶບ)
+        const PAID_BILL_STATUSES = ['ชำระแล้ว', 'ชำระเงินแล้ว', 'paid'];
+        let unpaidBillIds = [];
+        if (typeof _supabase !== 'undefined') {
+            const { data: visitBills, error: billErr } = await _supabase.from('bills').select('bill_id, status').eq('visit_id', visitId);
+            if (billErr) throw billErr;
+            const paidBills = (visitBills || []).filter(b => PAID_BILL_STATUSES.includes(String(b.status || '').trim()));
+            if (paidBills.length > 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ສົ່ງກັບບໍ່ໄດ້',
+                    text: `Visit ນີ້ມີບິນທີ່ຊຳລະແລ້ວ (${paidBills.map(b => b.bill_id).join(', ')}) ກະລຸນາຍົກເລີກບິນກ່ອນ`
+                });
+                return;
+            }
+            unpaidBillIds = (visitBills || []).map(b => b.bill_id);
+        }
+
         const prevLabs = (visit && visit.lab_tests) ? visit.lab_tests : '';
         const currentLabNote = (visit && visit.lab_note) ? visit.lab_note : '';
         const updatedLabNote = `[ສົ່ງກັບຈາກການເງິນ (ເດີມ: ${prevLabs || '-'}): ${returnReason}] ${currentLabNote}`.trim();
@@ -4817,10 +4840,11 @@ async function returnVisitToDoctor(visitId, patientName) {
 
             if (upErr) throw upErr;
 
-            // ລົບ draft bills ຄ້າງຂອງ visit ນີ້ (ຖ້າມີ)
-            try {
-                await _supabase.from('bills').delete().eq('visit_id', visitId);
-            } catch (be) { }
+            // ລົບສະເພາະ draft bills ທີ່ຍັງບໍ່ຊຳລະຂອງ visit ນີ້ (ຖ້າມີ)
+            if (unpaidBillIds.length > 0) {
+                const { error: delErr } = await _supabase.from('bills').delete().in('bill_id', unpaidBillIds);
+                if (delErr) console.warn('Delete draft bills warning:', delErr.message);
+            }
         }
 
         // 4. ອັບເດດຕົວປ່ຽນໃນໜ່ວຍຄວາມຈຳ
@@ -15400,8 +15424,11 @@ async function deleteAllHistoryVisits() {
         }
     };
 
+    // เก็บเฉพาะ visit_id ที่แสดงอยู่จริง เพื่อลบใน DB ให้ตรงกับจำนวนที่ผู้ใช้ยืนยัน
+    const historyVisitIds = [];
     (window.allHistoryVisits || []).forEach(v => {
         if (v) {
+            if (v.visit_id) historyVisitIds.push(String(v.visit_id).trim());
             addIdVariants(v.visit_id);
             addIdVariants(v.order_id);
             addIdVariants(v.bill_id);
@@ -15446,13 +15473,28 @@ async function deleteAllHistoryVisits() {
         }
     } catch (e) { }
 
-    // 4. ลบจาก DB
+    // 4. ลบจาก DB (เฉพาะ visit ที่ผู้ใช้ยืนยัน ไม่ใช่ทุก visit ที่ status = 'เสร็จสิ้น')
+    let dbDeleteError = null;
     try {
         if (typeof _supabase !== 'undefined' && _supabase) {
-            await _supabase.from('visits').delete().eq('status', 'เสร็จสิ้น');
+            const uniqueIds = [...new Set(historyVisitIds)];
+            for (let i = 0; i < uniqueIds.length; i += 200) {
+                const { error } = await _supabase.from('visits').delete().in('visit_id', uniqueIds.slice(i, i + 200));
+                if (error) { dbDeleteError = error; break; }
+            }
         }
     } catch (e) {
-        console.warn('Delete all history visits DB error:', e);
+        dbDeleteError = e;
+    }
+
+    if (dbDeleteError) {
+        console.warn('Delete all history visits DB error:', dbDeleteError);
+        Swal.fire({
+            icon: 'error',
+            title: 'ลบในฐานข้อมูลไม่สำเร็จ',
+            text: dbDeleteError.message || 'เกิดข้อผิดพลาดในการลบประวัติจากฐานข้อมูล'
+        });
+        return;
     }
 
     Swal.fire({
@@ -19221,12 +19263,15 @@ async function addStaff(staffData) {
         full_name: (full_name || '').trim(),
         email: email.trim(),
         role: role,
-        password_hash: password.trim(),
         permissions: Array.isArray(permissions) ? permissions : [],
         is_active: true,
     };
     const { data, error } = await _supabase.from('staff_users').insert([payload]).select();
     if (error) throw error;
+    // รหัสผ่านเก็บใน Supabase Auth (bcrypt) ไม่เก็บในตาราง staff_users
+    const newId = data && data[0] && data[0].id;
+    const { error: pwdErr } = await _supabase.rpc('admin_set_staff_password', { p_staff_id: String(newId), p_password: password.trim() });
+    if (pwdErr) throw pwdErr;
     await loadStaffUsers();
     return data;
 }
@@ -19291,12 +19336,12 @@ async function submitStaffUser() {
         permissions: perms,
         is_active: true,
     };
-    if (password.length >= 6) payload.password_hash = password;
 
     try {
         Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
         let error;
+        let newStaffId = null;
         // ถ้าเป็นการสร้างใหม่ ให้เช็คก่อนว่ามี emp_code นี้อยู่ในระบบแล้วหรือไม่ เพื่ออัปเดตแทนการเพิ่มซ้ำ
         if (!editId) {
             const { data: existing } = await _supabase.from('staff_users').select('id').eq('emp_code', empCode).maybeSingle();
@@ -19308,7 +19353,9 @@ async function submitStaffUser() {
         if (editId) {
             ({ error } = await _supabase.from('staff_users').update(payload).eq('id', editId));
         } else {
-            ({ error } = await _supabase.from('staff_users').insert([payload]));
+            let inserted;
+            ({ data: inserted, error } = await _supabase.from('staff_users').insert([payload]).select('id'));
+            if (!error && inserted && inserted[0]) newStaffId = inserted[0].id;
         }
 
         if (error && error.message && (error.message.includes('staff_users_emp_code_key') || error.message.includes('duplicate key'))) {
@@ -19321,6 +19368,13 @@ async function submitStaffUser() {
         }
 
         if (error) throw error;
+
+        // ตั้งรหัสผ่านใน Supabase Auth (bcrypt) — พนักงานจะถูกบังคับเปลี่ยนรหัสตอนล็อกอินครั้งถัดไป
+        const pwdTargetId = editId || newStaffId;
+        if (password.length >= 6 && pwdTargetId) {
+            const { error: pwdErr } = await _supabase.rpc('admin_set_staff_password', { p_staff_id: String(pwdTargetId), p_password: password });
+            if (pwdErr) throw pwdErr;
+        }
 
         bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
         await loadStaffUsers();
@@ -19606,8 +19660,9 @@ window.logoutUser = function () {
         cancelButtonColor: '#64748b',
         confirmButtonText: 'ออกจากระบบ',
         cancelButtonText: 'ยกเลิก'
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
+            if (typeof window.clinicSignOut === 'function') await window.clinicSignOut();
             localStorage.removeItem('clinicUser');
             localStorage.removeItem('clinic_last_activity');
             window.location.href = 'login.html';
@@ -19688,6 +19743,7 @@ window.logoutUser = function () {
         isLoggingOut = true;
 
         try {
+            if (typeof window.clinicSignOut === 'function') window.clinicSignOut();
             localStorage.removeItem('clinicUser');
             localStorage.removeItem(STORAGE_KEY);
         } catch (e) { }

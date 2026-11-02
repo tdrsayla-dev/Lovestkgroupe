@@ -106,14 +106,16 @@ window.logoutUser = function() {
                 showCancelButton: true,
                 confirmButtonText: 'ແມ່ນ, ອອກຈາກລະບົບ',
                 cancelButtonText: 'ຍົກເລີກ'
-            }).then((res) => {
+            }).then(async (res) => {
                 if (res.isConfirmed) {
+                    if (typeof window.clinicSignOut === 'function') await window.clinicSignOut();
                     localStorage.removeItem('clinicUser');
                     localStorage.removeItem('clinic_last_activity');
                     (window.top || window).location.href = 'login.html';
                 }
             });
         } else {
+            if (typeof window.clinicSignOut === 'function') window.clinicSignOut();
             localStorage.removeItem('clinicUser');
             localStorage.removeItem('clinic_last_activity');
             (window.top || window).location.href = 'login.html';

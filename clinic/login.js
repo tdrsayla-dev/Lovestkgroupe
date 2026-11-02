@@ -14,21 +14,6 @@ let lockoutTimer = null;
 const MAX_FAILED_ATTEMPTS = 3;
 const LOCKOUT_DURATION_MS = 30000; // 30 seconds
 
-// 🔒 Helper: SHA-256 Hashing สำหรับเข้ารหัสรหัสผ่านใน Frontend
-async function hashPassword(str) {
-    if (!str) return '';
-    try {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(str);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch (e) {
-        console.warn('Crypto SHA-256 fallback', e);
-        return str;
-    }
-}
-
 // 🛡️ Helper: CSRF Protection
 function initCSRFProtection() {
     let csrfToken = sessionStorage.getItem('clinic_csrf_token');
@@ -174,92 +159,43 @@ async function registerFailedAttempt() {
     }
 }
 
-// 📱 2FA Verification Modal Process (100% Match with Design)
-function prompt2FAVerification(userData) {
-    return new Promise((resolve) => {
-        const overlay = document.getElementById('otpModalOverlay');
-        const display = document.getElementById('otpGeneratedDisplay');
-        const input = document.getElementById('otpCodeInput');
-        const errorText = document.getElementById('otpErrorText');
-        const confirmBtn = document.getElementById('otpConfirmBtn');
-        const cancelBtn = document.getElementById('otpCancelBtn');
-
-        // สร้างรหัส OTP 6 หลักสำหรับการยืนยัน
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        if (display) display.innerText = otpCode;
-        if (input) {
-            input.value = '';
-            input.classList.remove('input-error');
-        }
-        if (errorText) errorText.style.display = 'none';
-
-        if (overlay) {
-            overlay.style.display = 'flex';
-            requestAnimationFrame(() => {
-                overlay.classList.add('show');
-                if (input) setTimeout(() => input.focus(), 50);
-            });
-        }
-
-        function cleanup() {
-            if (overlay) {
-                overlay.classList.remove('show');
-                setTimeout(() => {
-                    overlay.style.display = 'none';
-                }, 200);
+// 🔑 บังคับเปลี่ยนรหัสผ่าน (บัญชีที่ Admin ตั้งรหัสให้ หรือยังใช้รหัสเริ่มต้น)
+async function promptForcedPasswordChange() {
+    while (true) {
+        const res = await Swal.fire({
+            title: 'ກະລຸນາປ່ຽນລະຫັດຜ່ານ',
+            html: '<input id="newPwd1" type="password" class="swal2-input" placeholder="ລະຫັດຜ່ານໃໝ່ (ຢ່າງໜ້ອຍ 8 ຕົວ)" autocomplete="new-password">' +
+                '<input id="newPwd2" type="password" class="swal2-input" placeholder="ຢືນຢັນລະຫັດຜ່ານໃໝ່" autocomplete="new-password">',
+            confirmButtonText: 'ບັນທຶກ',
+            showCancelButton: true,
+            cancelButtonText: 'ຍົກເລີກ',
+            allowOutsideClick: false,
+            preConfirm: () => {
+                const p1 = document.getElementById('newPwd1').value;
+                const p2 = document.getElementById('newPwd2').value;
+                if (p1.length < 8) { Swal.showValidationMessage('ລະຫັດຜ່ານຕ້ອງມີຢ່າງໜ້ອຍ 8 ຕົວ'); return false; }
+                if (p1 === '123456' || p1 === '12345678') { Swal.showValidationMessage('ລະຫັດຜ່ານນີ້ງ່າຍເກີນໄປ'); return false; }
+                if (p1 !== p2) { Swal.showValidationMessage('ລະຫັດຜ່ານທັງສອງບໍ່ກົງກັນ'); return false; }
+                return p1;
             }
-            if (confirmBtn) confirmBtn.removeEventListener('click', onConfirm);
-            if (cancelBtn) cancelBtn.removeEventListener('click', onCancel);
-            if (input) {
-                input.removeEventListener('keydown', onKeyDown);
-                input.removeEventListener('input', onInput);
-            }
-        }
+        });
+        if (!res.isConfirmed) return false;
 
-        function onConfirm() {
-            const val = input ? input.value.trim() : '';
-            if (val === otpCode) {
-                cleanup();
-                resolve(true);
-            } else {
-                if (input) {
-                    input.classList.add('input-error');
-                    input.select();
-                    setTimeout(() => {
-                        input.classList.remove('input-error');
-                    }, 500);
-                }
-                if (errorText) errorText.style.display = 'block';
-            }
+        const { error } = await _supabase.auth.updateUser({ password: res.value });
+        if (error) {
+            await Swal.fire({ icon: 'error', title: 'ປ່ຽນລະຫັດຜ່ານບໍ່ສຳເລັດ', text: error.message });
+            continue;
         }
+        const { error: flagErr } = await _supabase.rpc('clear_my_password_flag');
+        if (flagErr) console.warn('clear_my_password_flag error:', flagErr.message);
+        return true;
+    }
+}
 
-        function onCancel() {
-            cleanup();
-            resolve(false);
-        }
-
-        function onKeyDown(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                onConfirm();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                onCancel();
-            }
-        }
-
-        function onInput() {
-            this.value = this.value.replace(/\D/g, '').slice(0, 6);
-            if (errorText) errorText.style.display = 'none';
-        }
-
-        if (confirmBtn) confirmBtn.addEventListener('click', onConfirm);
-        if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
-        if (input) {
-            input.addEventListener('keydown', onKeyDown);
-            input.addEventListener('input', onInput);
-        }
-    });
+function resetLoginButton(btn) {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> ' + (typeof t === 'function' ? t('login_button', 'เข้าสู่ระบบ') : 'เข้าสู่ระบบ');
 }
 
 // 🖼️ Helper: โหลดและแสดงผลภาพพื้นหลังจาก Clinic Settings
@@ -356,68 +292,50 @@ if (loginForm) {
         }
 
         try {
-            // 🔒 SHA-256 Hashing ของรหัสผ่าน
-            const hashedPassword = await hashPassword(password);
+            // 1. ยืนยันตัวตนผ่าน Supabase Auth (ตรวจรหัสผ่านที่ฝั่งเซิร์ฟเวอร์ + มี rate limit ของ Supabase)
+            const { data: authData, error: authError } = await _supabase.auth.signInWithPassword({ email, password });
 
-            let userData = null;
-
-            // ⏱️ Timeout Control (10 Seconds Limit)
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            try {
-                // 1. ตรวจสอบข้อมูลพนักงานจาก Supabase Clinic DB (เช็คทั้ง password_hash และ hashed/plain)
-                const { data, error } = await _supabase
-                    .from('staff_users')
-                    .select('*')
-                    .eq('email', email)
-                    .maybeSingle();
-
-                clearTimeout(timeoutId);
-
-                if (data && !error) {
-                    const dbPass = data.password_hash || '';
-                    if (dbPass === password || dbPass === hashedPassword) {
-                        userData = data;
-                    }
-                }
-            } catch (dbErr) {
-                clearTimeout(timeoutId);
-                console.warn('Supabase authentication error:', dbErr.message);
-            }
-
-            // 🗑️ บัญชีทดสอบ (defaultUsers) ถูกลบออกแล้วอย่างสมบูรณ์ เพื่อความปลอดภัย
-
-            if (!userData) {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> ' + (typeof t === 'function' ? t('login_button', 'เข้าสู่ระบบ') : 'เข้าสู่ระบบ');
-                }
+            if (authError || !authData || !authData.user) {
+                if (authError) console.warn('Supabase auth error:', authError.message);
+                resetLoginButton(btn);
                 registerFailedAttempt();
                 return;
             }
 
-            if (userData.is_active === false) {
+            // 2. ดึงข้อมูลพนักงานของบัญชีนี้ (RLS อนุญาตเฉพาะผู้ที่ล็อกอินแล้ว)
+            const authUid = authData.user.id;
+            const staffCols = 'id, emp_code, email, full_name, role, permissions, is_active, must_change_password';
+            let { data: userData, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('auth_user_id', authUid).maybeSingle();
+            if (!userData && !staffErr) {
+                ({ data: userData, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('id', authUid).maybeSingle());
+            }
+            if (staffErr) {
+                // เช่น ยังไม่ได้รัน security_fix SQL (ไม่มีคอลัมน์ must_change_password)
+                await _supabase.auth.signOut();
+                throw new Error('ໂຫຼດຂໍ້ມູນພະນັກງານບໍ່ໄດ້: ' + staffErr.message);
+            }
+
+            if (!userData || userData.is_active === false) {
+                await _supabase.auth.signOut();
                 await showLoginErrorAlert({
                     title: 'ບັນຊີຖືກລະງັບ',
-                    subtitle: 'ບັນຊີນີ້ຖືກລະງັບການນຳໃຊ້ ກະລຸນາຕິດຕໍ່ Admin',
+                    subtitle: !userData
+                        ? 'ບໍ່ພົບຂໍ້ມູນພະນັກງານຂອງບັນຊີນີ້ ກະລຸນາຕິດຕໍ່ Admin'
+                        : 'ບັນຊີນີ້ຖືກລະງັບການນຳໃຊ້ ກະລຸນາຕິດຕໍ່ Admin',
                     warningText: ''
                 });
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> ' + (typeof t === 'function' ? t('login_button', 'เข้าสู่ระบบ') : 'เข้าสู่ระบบ');
-                }
+                resetLoginButton(btn);
                 return;
             }
 
-            // 📱 2FA Verification Step
-            const is2FAVerified = await prompt2FAVerification(userData);
-            if (!is2FAVerified) {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> ' + (typeof t === 'function' ? t('login_button', 'เข้าสู่ระบบ') : 'เข้าสู่ระบบ');
+            // 3. บังคับเปลี่ยนรหัสผ่านถ้า Admin เพิ่งตั้งให้ หรือยังเป็นรหัสเริ่มต้น
+            if (userData.must_change_password) {
+                const changed = await promptForcedPasswordChange();
+                if (!changed) {
+                    await _supabase.auth.signOut();
+                    resetLoginButton(btn);
+                    return;
                 }
-                return;
             }
 
             // Successful login - reset failed attempts
@@ -440,8 +358,7 @@ if (loginForm) {
                 name: userName,
                 role: userData.role,
                 permissions: userData.permissions || [],
-                authenticated_at: new Date().toISOString(),
-                has_2fa: true
+                authenticated_at: new Date().toISOString()
             }));
             localStorage.setItem('clinic_last_activity', Date.now().toString());
 
@@ -457,9 +374,7 @@ if (loginForm) {
 
         } catch (err) {
             console.error("Login processing error:", err);
-            const msg = (err && err.name === 'AbortError')
-                ? 'ການເຊື່ອມຕໍ່ໃຊ້ເວລາດົນເກີນໄປ ກະລຸນາລອງໃໝ່ອີກຄັ້ງ (Request Timed Out)'
-                : (err.message || 'ເກີດຂໍ້ຜິດພາດບໍ່ຊາບສາເຫດ');
+            const msg = (err && err.message) || 'ເກີດຂໍ້ຜິດພາດບໍ່ຊາບສາເຫດ';
 
             await showLoginErrorAlert({
                 title: 'ເກີດຂໍ້ຜິດພາດ',

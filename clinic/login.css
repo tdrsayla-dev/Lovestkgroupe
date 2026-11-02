@@ -202,6 +202,7 @@ body.default-animated-bg {
 }
 
 @keyframes otpShake {
+
     0%,
     100% {
         transform: translateX(0);
