@@ -11,6 +11,92 @@
     const safeUpper = (str) => String(str || '').trim().toUpperCase();
 
     /**
+     * ระบบจำแนกประเภทราคาตามมาตรฐานกลาง (Classification Engine)
+     * รองรับ 4 ประเภทราคา: 'ราคาเต็ม', 'ราคาสมาชิก', 'ราคาโปร', 'ราคาศูนย์'
+     */
+    function classifyOrderItem(it, price, amt, prodMapObj = {}) {
+        const rawPrice = (price !== undefined && price !== null && !isNaN(Number(price))) 
+            ? Number(price) 
+            : ((amt && it.qty && Number(it.qty) > 0) ? Math.round(Number(amt) / Number(it.qty)) : null);
+
+        const pName = String(it.prod || it.productName || it.name || '').trim();
+        const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+        const pNameUpper = pName.toUpperCase();
+        const cleanPNameUpper = cleanPName.toUpperCase();
+        const pNameLower = pName.toLowerCase();
+        const typeStr = String(it.type || it.priceType || it.price_type || it.rateType || '').trim().toLowerCase();
+
+        const pObj = (it.id && prodMapObj[it.id]) || 
+                     (it.product_id && prodMapObj[it.product_id]) || 
+                     prodMapObj[pName] || 
+                     prodMapObj[cleanPName] || 
+                     prodMapObj[pNameUpper] || 
+                     prodMapObj[cleanPNameUpper] || {};
+
+        const pFull = Number(pObj.price_full ?? pObj.priceFull ?? 0);
+        const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
+        const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
+
+        // 1. ตรวจสอบราคาศูนย์ (แถมฟรี / ราคา 0)
+        if (rawPrice === 0 || (rawPrice !== null && rawPrice <= 0.01 && rawPrice >= 0)) {
+            return 'ราคาศูนย์';
+        }
+        if (typeStr && (typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('ຟຣີ') || typeStr.includes('ແຖມ') || typeStr === 'zero' || typeStr === 'free')) {
+            return 'ราคาศูนย์';
+        }
+        if (pNameLower.includes('(แถม)') || pNameLower.includes('(ฟรี)') || pNameLower.includes('(ศูนย์)') || pNameLower.includes('(ຟຣີ)') || pNameLower.includes('(ແຖມ)')) {
+            return 'ราคาศูนย์';
+        }
+
+        // 2. ตรวจสอบจากราคาจริง (Actual Unit Price) เทียบกับฐานข้อมูลสินค้าเป็นอันดับหนึ่ง
+        if (rawPrice !== null && rawPrice > 0) {
+            if ((pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) || (rawPrice === 1500 && (pMember === 1500 || pMember === 0))) {
+                return 'ราคาสมาชิก';
+            }
+            if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) {
+                return 'ราคาโปร';
+            }
+            if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) {
+                return 'ราคาเต็ม';
+            }
+
+            // Benchmark ราคามาตรฐานของระบบ STK
+            if (rawPrice === 1500) return 'ราคาสมาชิก';
+            if (rawPrice === 800 || rawPrice === 1000 || rawPrice === 400 || rawPrice === 200 || rawPrice === 280) return 'ราคาโปร';
+            if (rawPrice === 1800 || rawPrice === 1950 || rawPrice === 2500 || rawPrice === 890 || rawPrice === 590 || rawPrice === 390) return 'ราคาเต็ม';
+            if (rawPrice === 300) {
+                return (pMember === 300) ? 'ราคาสมาชิก' : 'ราคาโปร';
+            }
+        }
+
+        // 3. ถ้าไม่มีราคาจริงหรือราคาไม่ตรงฐานข้อมูล ให้ดูจากประเภทราคาที่ระบุในบิล
+        if (typeStr) {
+            if (typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ')) {
+                return 'ราคาสมาชิก';
+            }
+            if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສດ')) {
+                return 'ราคาโปร';
+            }
+            if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ') || typeStr.includes('ເຕັມ')) {
+                return 'ราคาเต็ม';
+            }
+        }
+
+        // 4. ดูจากชื่อสินค้า
+        if (pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ส่ง)') || pNameLower.includes('(ສະມາຊິກ)') || pNameLower.includes('(ສົ່ງ)') || pNameLower.includes('ວີໄອພີ')) return 'ราคาสมาชิก';
+        if (pNameLower.includes('(โปร)') || pNameLower.includes('(โบร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('ພິເສດ')) return 'ราคาโปร';
+        if (pNameLower.includes('(เต็ม)') || pNameLower.includes('(ปกติ)') || pNameLower.includes('(ປົກກະຕິ)') || pNameLower.includes('(ເຕັມ)')) return 'ราคาเต็ม';
+
+        // 5. Fallback เทียบกับราคาสมาชิก
+        if (rawPrice !== null && pMember > 0) {
+            if (rawPrice <= pMember) return 'ราคาสมาชิก';
+            return 'ราคาเต็ม';
+        }
+
+        return 'ราคาสมาชิก';
+    }
+
+    /**
      * 1. แปลงชื่อทีมให้เป็นมาตรฐานกลาง
      */
     function resolveTeamName(rawTeam, businessTeams) {
@@ -36,8 +122,20 @@
     /**
      * 2. จัดโครงสร้างข้อมูลบิลขายสำหรับสต๊อก (Parsing items_json & Customer mapping)
      */
-    function processStockSales(saleRes, custRes) {
+    function processStockSales(saleRes, custRes, products = []) {
         if (!Array.isArray(saleRes)) return [];
+        
+        const prodMapObj = {};
+        (products || []).forEach(p => {
+            if (!p) return;
+            const pId = String(p.product_id || p.id || '').trim();
+            const pName = String(p.name || p.product_name || pId).trim();
+            const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+            if (pId) prodMapObj[pId] = p;
+            if (pName) { prodMapObj[pName] = p; prodMapObj[pName.toUpperCase()] = p; }
+            if (cleanPName) { prodMapObj[cleanPName] = p; prodMapObj[cleanPName.toUpperCase()] = p; }
+        });
+
         return saleRes.map(s => {
             let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
             let itemsList = [];
@@ -47,9 +145,11 @@
             
             if (Array.isArray(itemsList) && itemsList.length > 0) {
                 itemsList.forEach(it => {
-                    const typeStr = String(it.type || it.priceType || '').trim();
                     const qtyNum = Number(it.qty || it.quantity || 1);
                     const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
+                    const price = it.price !== undefined ? it.price : (it.unit_price ?? it.rate);
+                    const amt = it.amount !== undefined ? it.amount : (it.total_amount ?? it.totalPrice);
+                    const typeStr = classifyOrderItem(it, price, amt, prodMapObj);
                     s[`${pName}_${typeStr}`] = qtyNum;
                     
                     if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
@@ -61,10 +161,19 @@
             } else {
                 Object.keys(s).forEach(k => {
                     if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาสมาชิก' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-                        if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-                        else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
-                        else if (k.endsWith('_ราคาโปร') || k.endsWith('_โปรโมชั่น')) sumP += (parseInt(s[k]) || 0);
-                        else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                        const lastUnderscore = k.lastIndexOf('_');
+                        if (lastUnderscore > 0) {
+                            const rawPName = k.substring(0, lastUnderscore).trim();
+                            const legacyType = k.substring(lastUnderscore + 1).trim();
+                            const valQty = parseInt(s[k]) || 0;
+                            if (valQty > 0) {
+                                const correctType = classifyOrderItem({ prod: rawPName, type: legacyType, qty: valQty }, null, null, prodMapObj);
+                                if (correctType === 'ราคาเต็ม') sumF += valQty;
+                                else if (correctType === 'ราคาสมาชิก') sumM += valQty;
+                                else if (correctType === 'ราคาโปร' || correctType === 'โปรโมชั่น') sumP += valQty;
+                                else if (correctType === 'ราคาศูนย์') sumZ += valQty;
+                            }
+                        }
                     }
                 });
             }
@@ -113,8 +222,19 @@
     /**
      * 3. กระจายรายการสินค้าจากบิลขาย สำหรับตรวจสอบสินค้าของแถม/ตัดศูนย์
      */
-    function unfoldStockSales(sales, startDate, endDate, permittedMemberSet, members, customers, businessTeams) {
+    function unfoldStockSales(sales, startDate, endDate, permittedMemberSet, members, customers, businessTeams, products = []) {
         let items = [];
+        const prodMapObj = {};
+        (products || []).forEach(p => {
+            if (!p) return;
+            const pId = String(p.product_id || p.id || '').trim();
+            const pName = String(p.name || p.product_name || pId).trim();
+            const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+            if (pId) prodMapObj[pId] = p;
+            if (pName) { prodMapObj[pName] = p; prodMapObj[pName.toUpperCase()] = p; }
+            if (cleanPName) { prodMapObj[cleanPName] = p; prodMapObj[cleanPName.toUpperCase()] = p; }
+        });
+
         const dateFilteredSales = (sales || []).filter(s => {
             const sDate = s.date || s.sale_date || '';
             if (!s || sDate < startDate || sDate > endDate) return false;
@@ -155,6 +275,9 @@
                 rawItems.forEach(it => {
                     const q = Number(it.qty || it.quantity || 1);
                     if (q > 0) {
+                        const unitPrice = it.price !== undefined ? it.price : (it.unit_price ?? it.rate);
+                        const amt = it.amount !== undefined ? it.amount : (it.total_amount ?? it.totalPrice);
+                        const resolvedType = classifyOrderItem(it, unitPrice, amt, prodMapObj);
                         items.push({
                             billId: record.id,
                             date: record.date || record.sale_date || '',
@@ -163,7 +286,7 @@
                             team: cleanTeam,
                             custType: resolvedCustType,
                             product: String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim(),
-                            priceType: String(it.type || 'ราคาเต็ม').trim(),
+                            priceType: resolvedType,
                             qty: q
                         });
                     }
@@ -176,15 +299,19 @@
 
     /**
      * 4. คำนวณความเคลื่อนไหวและสต๊อกคงเหลือ (Forward Calculation: ยอดยกมา + รับเข้า - ออก = คงเหลือ)
+     * รองรับ Bundle Expansion กระจายสินค้าเซ็ตลงสต๊อกสินค้าหลัก และแยก 4 ประเภทราคาตามจริง
      */
     function calculateStockSalesReport(products, stockMovements, sales, startDate, endDate, isZeroPromoView, searchQuery, permittedMemberSet, isBalanceView) {
         let map = {};
+        const prodMapObj = {};
+        const bundleMap = {};
         
         // ก. ตั้งต้นสินค้าทั้งหมด โดยรองรับทั้ง product_id และ id จากฐานข้อมูล
         (products || []).forEach(p => {
             if (!p) return;
             const pId = String(p.product_id || p.id || '').trim();
             const pName = String(p.name || p.product_name || pId).trim();
+            const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
             if (!pId && !pName) return;
             const key = pId || pName;
             
@@ -198,6 +325,25 @@
                 periodOut: 0,        // ขาย/เบิกออกช่วงเวลา
                 fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0
             };
+
+            if (pId) prodMapObj[pId] = p;
+            if (pName) {
+                prodMapObj[pName] = p;
+                prodMapObj[pName.toUpperCase()] = p;
+            }
+            if (cleanPName) {
+                prodMapObj[cleanPName] = p;
+                prodMapObj[cleanPName.toUpperCase()] = p;
+            }
+
+            const isBundle = Boolean(p.is_bundle || p.isBundle || (p.bundle_qty && Number(p.bundle_qty) > 1));
+            if (isBundle) {
+                const baseId = String(p.base_product || p.baseProduct || '').trim();
+                const bQty = Number(p.bundle_qty || p.bundleQty) || 1;
+                if (pId) bundleMap[pId] = { baseId, multiplier: bQty };
+                if (pName) bundleMap[pName.toUpperCase()] = { baseId, multiplier: bQty };
+                if (cleanPName) bundleMap[cleanPName.toUpperCase()] = { baseId, multiplier: bQty };
+            }
         });
 
         // ฟังก์ชันช่วยค้นหาคีย์สินค้าอย่างแม่นยำ (จับคู่ได้ทั้งรหัส P024, ชื่อ SESAMEEN ACTIVE หรือชื่อตัดวงเล็บ)
@@ -285,53 +431,101 @@
 
             if (Array.isArray(billItems) && billItems.length > 0) {
                 billItems.forEach(it => {
-                    const qty = Number(it.qty || it.quantity || 0);
-                    if (qty <= 0) return;
-                    const target = it.id || it.product_id || it.productId || it.prod || it.productName || it.name;
-                    let foundKey = findKey(target);
+                    const rawQty = Number(it.qty || it.quantity || 0);
+                    if (rawQty <= 0) return;
+                    const rawId = String(it.id || it.product_id || it.productId || '').trim();
+                    const rawName = String(it.prod || it.productName || it.name || '').trim();
+                    const targetStr = rawId || rawName;
+                    const targetUpper = targetStr.toUpperCase();
+                    const cleanUpper = targetUpper.replace(/\(.*?\)/g, '').trim();
+
+                    let multiplier = 1;
+                    let targetBaseId = targetStr;
+
+                    const bInfo = bundleMap[targetStr] || bundleMap[targetUpper] || bundleMap[cleanUpper];
+                    if (bInfo) {
+                        targetBaseId = bInfo.baseId || targetStr;
+                        multiplier = bInfo.multiplier || 1;
+                    } else {
+                        const pObj = (targetStr && prodMapObj[targetStr]) || prodMapObj[targetUpper] || prodMapObj[cleanUpper];
+                        if (pObj && (pObj.is_bundle || pObj.isBundle || (pObj.bundle_qty && Number(pObj.bundle_qty) > 1))) {
+                            targetBaseId = String(pObj.base_product || pObj.baseProduct || '').trim();
+                            multiplier = Number(pObj.bundle_qty || pObj.bundleQty) || 1;
+                        }
+                    }
+
+                    if (multiplier === 1) {
+                        const buyFreeMatch = rawName.match(/(\d+)\s*(?:แถม|\+)\s*(\d+)/);
+                        if (buyFreeMatch) {
+                            multiplier = (parseInt(buyFreeMatch[1]) || 0) + (parseInt(buyFreeMatch[2]) || 0);
+                        } else {
+                            const boxMatch = rawName.match(/(\d+)\s*(?:กล่อง|ชิ้น|ขวด|กระปุก|ชุด|เซ็ต)/i);
+                            if (boxMatch && parseInt(boxMatch[1]) > 1) {
+                                multiplier = parseInt(boxMatch[1]);
+                            }
+                        }
+                    }
+
+                    const actualQty = rawQty * multiplier;
+                    const targetKey = targetBaseId || rawId || rawName;
+                    let foundKey = findKey(targetKey);
+
                     if (!foundKey) {
-                        const fallbackKey = String(target || 'Unknown');
-                        map[fallbackKey] = { id: fallbackKey, name: fallbackKey, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                        const fallbackKey = String(targetKey || 'Unknown');
+                        map[fallbackKey] = { id: fallbackKey, name: rawName || fallbackKey, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
                         foundKey = fallbackKey;
                     }
 
-                    const priceType = String(it.type || it.priceType || 'ราคาสมาชิก').trim();
+                    let linePrice = Number(it.price || it.unitPrice || it.unit_price || 0);
+                    let lineTotal = Number(it.total || it.amount || it.total_amount || 0);
+                    if (lineTotal === 0 && linePrice > 0 && rawQty > 0) lineTotal = rawQty * linePrice;
+                    if (linePrice === 0 && rawQty > 0 && lineTotal > 0) linePrice = Math.round(lineTotal / rawQty);
+
+                    const unitAr = (actualQty > 0 && lineTotal > 0) ? (lineTotal / actualQty) : linePrice;
+                    const priceType = classifyOrderItem(it, unitAr, lineTotal, prodMapObj);
 
                     if (saleDate < startDate) {
-                        map[foundKey].openingBalance -= qty;
+                        map[foundKey].openingBalance -= actualQty;
                     } else if (saleDate >= startDate && saleDate <= endDate) {
-                        map[foundKey].periodOut += qty;
-                        if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += qty;
-                        else if (priceType === 'ราคาโปร' || priceType === 'โปรโมชั่น') map[foundKey].promoQty += qty;
-                        else if (priceType === 'ราคาศูนย์') map[foundKey].zeroQty += qty;
-                        else map[foundKey].memberQty += qty;
+                        map[foundKey].periodOut += actualQty;
+                        if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += actualQty;
+                        else if (priceType === 'ราคาโปร' || priceType === 'โปรโมชั่น') map[foundKey].promoQty += actualQty;
+                        else if (priceType === 'ราคาศูนย์') map[foundKey].zeroQty += actualQty;
+                        else map[foundKey].memberQty += actualQty;
                     }
                 });
             } else {
                 // 2. Fallback อ่านจาก flattened key (เช่น SESAMEEN ACTIVE_ราคาสมาชิก)
                 Object.entries(record || {}).forEach(([key, value]) => {
                     if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์') || key.endsWith('_โปรโมชั่น')) {
-                        const qty = parseInt(value, 10);
-                        if (!isNaN(qty) && qty > 0) {
+                        const lineQty = parseInt(value, 10);
+                        if (!isNaN(lineQty) && lineQty > 0) {
                             const lastUnderscore = key.lastIndexOf('_');
                             const rawPName = key.substring(0, lastUnderscore).trim();
-                            const priceType = key.substring(lastUnderscore + 1).trim();
+                            const legacyType = key.substring(lastUnderscore + 1).trim();
 
-                            let foundKey = findKey(rawPName);
+                            const bundleInfo = bundleMap[rawPName] || bundleMap[rawPName.toUpperCase()] || bundleMap[rawPName.replace(/\(.*?\)/g, '').trim().toUpperCase()];
+                            const multiplier = bundleInfo ? (bundleInfo.multiplier || 1) : 1;
+                            const targetBaseId = bundleInfo ? (bundleInfo.baseId || rawPName) : rawPName;
+                            const actualQty = lineQty * multiplier;
+
+                            let foundKey = findKey(targetBaseId);
                             if (!foundKey) {
-                                map[rawPName] = { id: rawPName, name: rawPName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
-                                foundKey = rawPName;
+                                map[targetBaseId] = { id: targetBaseId, name: rawPName || targetBaseId, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                                foundKey = targetBaseId;
                             }
 
+                            const correctType = classifyOrderItem({ prod: rawPName, type: legacyType, qty: lineQty }, null, null, prodMapObj);
+
                             if (saleDate < startDate) {
-                                map[foundKey].openingBalance -= qty;
+                                map[foundKey].openingBalance -= actualQty;
                             } else if (saleDate >= startDate && saleDate <= endDate) {
-                                map[foundKey].periodOut += qty;
-                                
-                                if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += qty;
-                                else if (priceType === 'ราคาสมาชิก') map[foundKey].memberQty += qty;
-                                else if (priceType === 'ราคาโปร' || priceType === 'โปรโมชั่น') map[foundKey].promoQty += qty;
-                                else if (priceType === 'ราคาศูนย์') map[foundKey].zeroQty += qty;
+                                map[foundKey].periodOut += actualQty;
+                                if (correctType === 'ราคาเต็ม') map[foundKey].fullQty += actualQty;
+                                else if (correctType === 'ราคาสมาชิก') map[foundKey].memberQty += actualQty;
+                                else if (correctType === 'ราคาโปร' || correctType === 'โปรโมชั่น') map[foundKey].promoQty += actualQty;
+                                else if (correctType === 'ราคาศูนย์') map[foundKey].zeroQty += actualQty;
+                                else map[foundKey].memberQty += actualQty;
                             }
                         }
                     }
@@ -391,6 +585,7 @@
     // Export Engine to Global Scope
     window.ReportStockEngine = {
         resolveTeamName,
+        classifyOrderItem,
         processStockSales,
         unfoldStockSales,
         calculateStockSalesReport,

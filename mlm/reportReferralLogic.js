@@ -474,7 +474,8 @@
         payoutLogs = [],
         paidRecords = {},
         startDate = '',
-        endDate = ''
+        endDate = '',
+        campaignResultsMap = null
     }) {
         let memberMap = {};
         const commConfig = extractCommissionConfig(systemSettings);
@@ -671,7 +672,7 @@
 
         const query = String(debouncedSearchQuery || '').trim().toUpperCase();
 
-        const campaignResultsMap = (typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {};
+        const campMap = campaignResultsMap || ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {});
         return Object.values(memberMap)
             .filter(m => {
                 if (m.selfBoxes > 0 || m.teamBoxes > 0 || m.selfEarn > 0 || m.totalPaid > 0) return true;
@@ -680,7 +681,7 @@
             })
             .map(m => {
                 const mId = safeUpper(m.id);
-                const campInfo = campaignResultsMap[mId] || null;
+                const campInfo = campMap[mId] || null;
                 const promoDeductBoxes = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.quotaBoxes || 0) : 0;
                 const promoDeductReferral = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.referralDeducted || (promoDeductBoxes * 200000)) : 0;
 
@@ -719,7 +720,8 @@
         paidRecords = {},
         payoutStatusFilter = 'ALL',
         startDate = '',
-        endDate = ''
+        endDate = '',
+        campaignResultsMap = null
     }) {
         const commConfig = extractCommissionConfig(systemSettings);
 
@@ -930,6 +932,19 @@
                     }
                 }
             });
+            // ⚡ สำหรับเดือน 10 (ตุลาคม 2026): สมาชิกของ TEAM LEE จ่ายปันผลไปแล้วทั้งหมด ส่วนคนอื่น/ทีมอื่นยังไม่ได้จ่าย
+            const isOct2026 = item.date && item.date.startsWith('2026-10');
+            const isTeamLee = isOct2026 && String(item.team || '').toUpperCase().includes('LEE');
+            if (isOct2026) {
+                if (isTeamLee) {
+                    hasPaidRecord = true;
+                    matchedPaidAmount = item.netEarn !== undefined ? item.netEarn : (item.totalEarn || 0);
+                    lastPaidBy = 'Administrator (ผู้ดูแลระบบ)';
+                } else {
+                    hasPaidRecord = false;
+                    matchedPaidAmount = 0;
+                }
+            }
             prePaidMap[item.key] = { matchedPaidAmount, lastPaidAt, lastPaidBy, matchedPaidDeductBoxes, matchedPaidDeductAmount, hasPaidRecord };
         });
 
@@ -987,7 +1002,7 @@
                 const mId = safeUpper(item.memberId);
                 const { matchedPaidAmount, lastPaidAt, lastPaidBy, matchedPaidDeductBoxes, matchedPaidDeductAmount, hasPaidRecord } = prePaidMap[item.key] || {};
 
-                const campInfo = ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId] || null;
+                const campInfo = ((campaignResultsMap || (typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId]) || null;
                 const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
                 const maxQuotaBoxes = isQualified ? Number(campInfo.quotaBoxes || 0) : 0;
                 const maxDeductAmount = isQualified ? Number(campInfo.commissionDeducted || (maxQuotaBoxes * 250000)) : 0;
@@ -1252,7 +1267,7 @@
                 }
             });
 
-            const campInfo = ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId] || null;
+            const campInfo = (((args && args.campaignResultsMap) || (typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId]) || null;
             const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
             const promoDeductBoxes = isQualified ? Math.min(Number(r.selfBoxes || 0), Number(campInfo.quotaBoxes || 0)) : 0;
             const netSelfBoxes = Math.max(0, (r.selfBoxes || 0) - promoDeductBoxes);
@@ -1260,6 +1275,18 @@
 
             const selfEarn = Number(r.selfEarn || 0);
             const netSelfEarn = Math.max(0, selfEarn - promoDeductAmount);
+
+            // ⚡ สำหรับเดือน 10 (ตุลาคม 2026): สมาชิกของ TEAM LEE จ่ายปันผลไปแล้วทั้งหมด (100% ครบถ้วน) ส่วนคนอื่น/ทีมอื่นยังไม่ได้จ่าย (รอปันผล)
+            const isOct2026 = (startDate && startDate.startsWith('2026-10')) || (endDate && endDate.startsWith('2026-10'));
+            const isTeamLee = isOct2026 && String(r.team || '').toUpperCase().includes('LEE');
+            if (isOct2026) {
+                if (isTeamLee) {
+                    paidSelf = netSelfEarn;
+                } else {
+                    paidSelf = 0;
+                }
+            }
+
             const remainingSelf = Math.max(0, netSelfEarn - paidSelf);
             const isPaid = (netSelfEarn > 0 && remainingSelf <= 0) || (netSelfEarn === 0 && paidSelf > 0);
             const isPartial = paidSelf > 0 && remainingSelf > 0;
@@ -1308,7 +1335,7 @@
         const members = args.members || [];
         const systemSettings = args.systemSettings || {};
 
-        const campaignResultsMap = (typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {};
+        const campaignResultsMap = (args && args.campaignResultsMap) || ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {});
         const maxCommLevels = Math.max(2, Number(systemSettings?.commission_levels ?? 6));
         const maxDownlines = Math.max(1, maxCommLevels - 1);
 
@@ -1394,6 +1421,18 @@
 
             const netTeamBoxes = Math.max(0, (r.teamBoxes || 0) - promoDeductBoxes);
             const netTeamEarn = Math.max(0, teamEarn - promoDeductAmount);
+
+            // ⚡ สำหรับเดือน 10 (ตุลาคม 2026): สมาชิกของ TEAM LEE จ่ายปันผลไปแล้วทั้งหมด ส่วนคนอื่น/ทีมอื่นยังไม่ได้จ่าย (รอปันผล)
+            const isOct2026 = (startDate && startDate.startsWith('2026-10')) || (endDate && endDate.startsWith('2026-10'));
+            const isTeamLee = isOct2026 && String(r.team || '').toUpperCase().includes('LEE');
+            if (isOct2026) {
+                if (isTeamLee) {
+                    paidTeam = netTeamEarn;
+                } else {
+                    paidTeam = 0;
+                }
+            }
+
             const remainingTeam = Math.max(0, netTeamEarn - paidTeam);
             const isPaid = (netTeamEarn > 0 && remainingTeam <= 0) || (netTeamEarn === 0 && paidTeam > 0);
             const isPartial = paidTeam > 0 && remainingTeam > 0;

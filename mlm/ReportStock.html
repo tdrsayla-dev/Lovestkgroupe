@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -91,6 +91,7 @@
 
     const { 
         resolveTeamName, 
+        classifyOrderItem,
         processStockSales, 
         unfoldStockSales, 
         calculateStockSalesReport, 
@@ -204,12 +205,19 @@
 
         // Filter states
         const todayStr = getLocalISODate();
-        const [startDate, setStartDate] = useState(todayStr);
-        const [endDate, setEndDate] = useState(todayStr);
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialStart = urlParams.get('startDate') || urlParams.get('start') || todayStr;
+        const initialEnd = urlParams.get('endDate') || urlParams.get('end') || todayStr;
+        const [startDate, setStartDate] = useState(initialStart);
+        const [endDate, setEndDate] = useState(initialEnd);
 
         // ⚡ Smart On-Demand Date Range Fetcher: ดึงยอดขายและ Stock Movements ประจำช่วงวันที่เลือกอัตโนมัติ
         const fetchedDateRangesRef = useRef(new Set());
         const dateFetchDebounceRef = useRef(null);
+        const productsRef = useRef(products);
+        productsRef.current = products;
+        const customersRef = useRef(customers);
+        customersRef.current = customers;
 
         const fetchRangeSalesSmart = useCallback((start, end) => {
             const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
@@ -226,9 +234,10 @@
                     ]);
                     fetchedDateRangesRef.current.add(rangeKey);
                     if (Array.isArray(resSales) && resSales.length > 0) {
+                        const processed = processStockSales ? processStockSales(resSales, customersRef.current, productsRef.current) : resSales;
                         setSales(prev => {
                             const map = new Map((prev || []).map(x => [String(x.order_id || x.id), x]));
-                            resSales.forEach(x => {
+                            processed.forEach(x => {
                                 map.set(String(x.order_id || x.id), x);
                             });
                             return Array.from(map.values()).sort((a, b) => String(b.order_id || b.id || '').localeCompare(String(a.order_id || a.id || '')));
@@ -369,7 +378,7 @@
 
                 const [saleRes, prodRes, moveRes, memRes, teamRes, custRes, setRes] = await Promise.all([
                     selectAllFn('stk_sales', `select=order_id,date,customer_id,seller_id,items_json,status,sale_type,total_amount&date=gte.${curMonthStart}&date=lte.${curMonthEnd}&order=order_id.desc`).catch(() => []),
-                    window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status').catch(() => []),
+                    window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,is_bundle,bundle_qty,base_product').catch(() => []),
                     selectAllFn('stk_stock_movements', `select=movement_id,date,product_id,type,sub_type,quantity,lot_id,notes,created_by,created_at&date=gte.${curMonthStart}&date=lte.${curMonthEnd}&order=created_at.desc`).catch(() => []),
                     window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status&order=user_id.asc').catch(() => []),
                     window.supabaseSelect('stk_business_teams').catch(() => []),
@@ -405,7 +414,7 @@
                 }
 
                 if (Array.isArray(saleRes)) {
-                    setSales(processStockSales ? processStockSales(saleRes, custRes) : saleRes);
+                    setSales(processStockSales ? processStockSales(saleRes, custRes, prodRes) : saleRes);
                 } else {
                     setSales([]);
                 }
@@ -436,13 +445,28 @@
             loadAllData();
         }, [loadAllData]);
 
+        // พจนานุกรมข้อมูลสินค้าสำหรับจำแนกราคาและดึงราคามาตรฐาน
+        const prodMap = useMemo(() => {
+            const m = {};
+            (products || []).forEach(p => {
+                if (!p) return;
+                const pId = String(p.product_id || p.id || '').trim();
+                const pName = String(p.name || p.product_name || pId).trim();
+                const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+                if (pId) m[pId] = p;
+                if (pName) { m[pName] = p; m[pName.toUpperCase()] = p; }
+                if (cleanPName) { m[cleanPName] = p; m[cleanPName.toUpperCase()] = p; }
+            });
+            return m;
+        }, [products]);
+
         // Unfolded Sales สำหรับสินค้าแถม/ตัดศูนย์
         const unfoldedSales = useMemo(() => {
             if (unfoldStockSales) {
-                return unfoldStockSales(sales, startDate, endDate, permittedMemberSet, members, customers, businessTeams);
+                return unfoldStockSales(sales, startDate, endDate, permittedMemberSet, members, customers, businessTeams, products);
             }
             return [];
-        }, [sales, startDate, endDate, permittedMemberSet, members, customers, businessTeams]);
+        }, [sales, startDate, endDate, permittedMemberSet, members, customers, businessTeams, products]);
 
         // 1. คำนวณความเคลื่อนไหวและสต๊อกคงเหลือ (Forward Calculation แบบแม่นยำ)
         const isZeroPromoView = subTab === 'stock_zero_promo';
@@ -1223,10 +1247,18 @@
                                                                 const modalId = String(stockModalItem.id || '').trim().toUpperCase();
                                                                 const rawName = String(it.prod || it.productName || it.name || '').trim();
                                                                 const modalName = String(stockModalItem.name || '').trim();
+                                                                
+                                                                let targetBaseId = itId || rawName;
+                                                                const pObj = (itId && prodMap[itId]) || prodMap[rawName] || prodMap[rawName.toUpperCase()];
+                                                                if (pObj && (pObj.is_bundle || pObj.isBundle || (pObj.bundle_qty && Number(pObj.bundle_qty) > 1))) {
+                                                                    targetBaseId = String(pObj.base_product || pObj.baseProduct || '').trim();
+                                                                }
+
                                                                 const isMatch = (itId && modalId && itId === modalId)
                                                                     || (rawName && modalName && rawName.toUpperCase() === modalName.toUpperCase())
                                                                     || (itId && modalName && itId === modalName.toUpperCase())
-                                                                    || (rawName.replace(/\(.*?\)/g, '').trim().toUpperCase() === modalName.replace(/\(.*?\)/g, '').trim().toUpperCase());
+                                                                    || (rawName.replace(/\(.*?\)/g, '').trim().toUpperCase() === modalName.replace(/\(.*?\)/g, '').trim().toUpperCase())
+                                                                    || (targetBaseId && (targetBaseId.toUpperCase() === modalId || targetBaseId.toUpperCase() === modalName.toUpperCase() || targetBaseId.replace(/\(.*?\)/g, '').trim().toUpperCase() === modalName.replace(/\(.*?\)/g, '').trim().toUpperCase()));
                                                                 if (isMatch) {
                                                                     found = true;
                                                                 }
@@ -1265,14 +1297,37 @@
                                                                 const modalId = String(stockModalItem.id || '').trim().toUpperCase();
                                                                 const rawName = String(it.prod || it.productName || it.name || '').trim();
                                                                 const modalName = String(stockModalItem.name || '').trim();
+
+                                                                let multiplier = 1;
+                                                                let targetBaseId = itId || rawName;
+                                                                const pObj = (itId && prodMap[itId]) || prodMap[rawName] || prodMap[rawName.toUpperCase()];
+                                                                if (pObj && (pObj.is_bundle || pObj.isBundle || (pObj.bundle_qty && Number(pObj.bundle_qty) > 1))) {
+                                                                    targetBaseId = String(pObj.base_product || pObj.baseProduct || '').trim();
+                                                                    multiplier = Number(pObj.bundle_qty || pObj.bundleQty) || 1;
+                                                                } else {
+                                                                    const buyFreeMatch = rawName.match(/(\d+)\s*(?:แถม|\+)\s*(\d+)/);
+                                                                    if (buyFreeMatch) {
+                                                                        multiplier = (parseInt(buyFreeMatch[1]) || 0) + (parseInt(buyFreeMatch[2]) || 0);
+                                                                    } else {
+                                                                        const boxMatch = rawName.match(/(\d+)\s*(?:กล่อง|ชิ้น|ขวด|กระปุก|ชุด|เซ็ต)/i);
+                                                                        if (boxMatch && parseInt(boxMatch[1]) > 1) {
+                                                                            multiplier = parseInt(boxMatch[1]);
+                                                                        }
+                                                                    }
+                                                                }
+
                                                                 const isMatch = (itId && modalId && itId === modalId)
                                                                     || (rawName && modalName && rawName.toUpperCase() === modalName.toUpperCase())
                                                                     || (itId && modalName && itId === modalName.toUpperCase())
-                                                                    || (rawName.replace(/\(.*?\)/g, '').trim().toUpperCase() === modalName.replace(/\(.*?\)/g, '').trim().toUpperCase());
+                                                                    || (rawName.replace(/\(.*?\)/g, '').trim().toUpperCase() === modalName.replace(/\(.*?\)/g, '').trim().toUpperCase())
+                                                                    || (targetBaseId && (targetBaseId.toUpperCase() === modalId || targetBaseId.toUpperCase() === modalName.toUpperCase() || targetBaseId.replace(/\(.*?\)/g, '').trim().toUpperCase() === modalName.replace(/\(.*?\)/g, '').trim().toUpperCase()));
+                                                                
                                                                 if (isMatch) {
-                                                                    const q = Number(it.qty || it.quantity || 1);
+                                                                    const q = (Number(it.qty || it.quantity || 1)) * multiplier;
                                                                     totalQty += q;
-                                                                    const tStr = String(it.type || it.priceType || 'ราคาเต็ม');
+                                                                    const itPrice = it.price !== undefined ? it.price : (it.unit_price ?? it.rate);
+                                                                    const itAmt = it.amount !== undefined ? it.amount : (it.total_amount ?? it.totalPrice);
+                                                                    const tStr = classifyOrderItem ? classifyOrderItem(it, itPrice, itAmt, prodMap) : String(it.type || it.priceType || 'ราคาเต็ม');
                                                                     if (!typeLabels.includes(tStr)) typeLabels.push(tStr);
                                                                 }
                                                             });
@@ -1288,7 +1343,8 @@
                                                                 const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
                                                                 if (pName.toUpperCase() === stockModalItem.name.toUpperCase() || pName.toUpperCase() === (stockModalItem.id || '').toUpperCase()) {
                                                                     totalQty += qty;
-                                                                    const tStr = key.substring(key.lastIndexOf('_') + 1);
+                                                                    const rawT = key.substring(key.lastIndexOf('_') + 1);
+                                                                    const tStr = classifyOrderItem ? classifyOrderItem({ prod: pName, type: rawT, qty }, null, null, prodMap) : rawT;
                                                                     if (!typeLabels.includes(tStr)) typeLabels.push(tStr);
                                                                 }
                                                             }

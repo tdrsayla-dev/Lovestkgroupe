@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -21,7 +21,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานการเงินและรายรับ (Finance & Revenue) - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=2026.10.17.02">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.30.01">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&family=Noto+Sans+Lao:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -34,11 +37,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=2026.10.17.02"></script>
-  <script src="companySettings.js?v=2026.10.17.02"></script>
-  <script src="dictionary.js?v=2026.10.17.02"></script>
-  <script src="CommonComponents.js?v=2026.10.17.02"></script>
-  <script src="reportFinanceLogic.js?v=2026.10.17.02"></script>
+  <script src="config.js?v=2026.10.30.01"></script>
+  <script src="companySettings.js?v=2026.10.30.01"></script>
+  <script src="dictionary.js?v=2026.10.30.01"></script>
+  <script src="CommonComponents.js?v=2026.10.30.01"></script>
+  <script src="reportFinanceLogic.js?v=2026.10.30.01"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -55,8 +58,17 @@
     const { useState, useMemo, useEffect, useCallback, useReducer } = React;
     const { 
         Sidebar, LoginModal, Toast, EditModal, 
-        Coins, Activity, FileText, Archive, Eye, Info, SearchIcon 
+        Coins, Activity, FileText, Archive, Eye, Info, SearchIcon, PackageIcon, BarChart3, Users, Contact, Lock 
     } = window;
+
+    const IconProps = { fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
+    const PrinterIcon = ({ size = 16, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>;
+    const CalendarIcon = ({ size = 16, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+    const ArrowLeftIcon = ({ size = 16, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
+    const RepeatIcon = ({ size = 16, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+    const DownloadIcon = ({ size = 16, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+    const LandmarkIcon = ({ size = 16, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>;
+    const ScaleIcon = ({ size = 16, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps} className={className}><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>;
 
     const safeUpper = (str) => String(str || '').trim().toUpperCase();
     const getLocalISODate = () => {
@@ -73,19 +85,21 @@
         return debouncedValue;
     }
 
-    const SubTabButton = ({ id, label, activeTab, setSubTab, isSpecial, isData }) => {
+    const SubTabButton = ({ id, label, icon: Icon, activeTab, setSubTab, isSpecial, isData, isMatrix }) => {
         const isActive = activeTab === id;
-        let baseClass = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 shadow-sm border ";
+        let baseClass = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 shadow-sm border flex items-center gap-2 cursor-pointer ";
         if (isActive) {
-            if (isSpecial) baseClass += "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200";
-            else if (isData) baseClass += "bg-emerald-600 text-white border-emerald-600 shadow-emerald-200";
-            else baseClass += "bg-blue-600 text-white border-blue-600 shadow-blue-200";
+            if (isMatrix) baseClass += "bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600 shadow-blue-200 dark:shadow-none";
+            else if (isSpecial) baseClass += "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200 dark:shadow-none";
+            else if (isData) baseClass += "bg-emerald-600 text-white border-emerald-600 shadow-emerald-200 dark:shadow-none";
+            else baseClass += "bg-blue-600 text-white border-blue-600 shadow-blue-200 dark:shadow-none";
         } else {
-            baseClass += "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-blue-600";
+            baseClass += "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400";
         }
         return (
             <button type="button" onClick={() => setSubTab(id)} className={baseClass}>
-                {label}
+                {Icon && <Icon size={16} className={isActive ? "text-white" : "text-slate-500 dark:text-slate-400"} />}
+                <span>{label}</span>
             </button>
         );
     };
@@ -196,11 +210,291 @@
             return () => window.removeEventListener('stk_theme_change', onThemeChange);
         }, []);
 
+        // 🏢 ข้อมูลการตั้งค่าบริษัท ซิงค์จาก companySettings.js / LocalStorage / Supabase
+        const [companySettings, setCompanySettings] = useState(() => {
+            let cs = {
+                name: 'LOVE STK GROUPE',
+                branch: 'สำนักงานใหญ่',
+                address: 'เวียงจันทน์, สปป.ลาว',
+                phone: '+856 20 xx xxx xxx',
+                taxId: '',
+                logoUrl: ''
+            };
+            if (typeof window.getCompanySettings === 'function') {
+                try {
+                    const res = window.getCompanySettings();
+                    if (res) cs = Object.assign({}, cs, res);
+                } catch(e) {}
+            }
+            if (!cs.logoUrl) {
+                try {
+                    const direct = localStorage.getItem('stk_company_settings');
+                    if (direct) {
+                        const parsed = JSON.parse(direct);
+                        if (parsed && parsed.logoUrl) cs = Object.assign({}, cs, parsed);
+                    }
+                } catch(e) {}
+            }
+            return cs;
+        });
+
         useEffect(() => {
             if (typeof window.syncCompanySettingsFromSupabase === 'function') {
-                window.syncCompanySettingsFromSupabase().catch(() => {});
+                window.syncCompanySettingsFromSupabase().then(res => {
+                    if (res) setCompanySettings(prev => Object.assign({}, prev, res));
+                }).catch(() => {});
             }
+            const updateSettings = (e) => {
+                if (e && e.detail) {
+                    setCompanySettings(e.detail);
+                } else if (typeof window.getCompanySettings === 'function') {
+                    try {
+                        const res = window.getCompanySettings();
+                        if (res) setCompanySettings(prev => Object.assign({}, prev, res));
+                    } catch(e) {}
+                }
+            };
+            window.addEventListener('company_settings_updated', updateSettings);
+            window.addEventListener('storage', updateSettings);
+            return () => {
+                window.removeEventListener('company_settings_updated', updateSettings);
+                window.removeEventListener('storage', updateSettings);
+            };
         }, []);
+
+        // 🌐 ภาษาปัจจุบัน เชื่อมโยงกับ Sidebar (th, en, lo)
+        const [currentLang, setCurrentLang] = useState(() => (typeof window.getCurrentLang === 'function' ? window.getCurrentLang() : (localStorage.getItem('stk_lang') || 'th')));
+
+        useEffect(() => {
+            const handleLangChange = (e) => {
+                const newLang = e.detail?.lang || (typeof window.getCurrentLang === 'function' ? window.getCurrentLang() : (localStorage.getItem('stk_lang') || 'th'));
+                setCurrentLang(newLang);
+            };
+            window.addEventListener('stk_lang_change', handleLangChange);
+            window.addEventListener('storage', handleLangChange);
+            return () => {
+                window.removeEventListener('stk_lang_change', handleLangChange);
+                window.removeEventListener('storage', handleLangChange);
+            };
+        }, []);
+
+        const MATRIX_I18N = {
+            th: {
+                pageTitle: 'รายงานการเงินและรายรับบริษัท',
+                pageSubtitle: 'สรุปรายรับบริษัทเปรียบเทียบ 12 เดือน และรายละเอียดรายรับแยกตามบิล',
+                tab_finance_summary: 'สรุปรายรับบริษัท (รายปี)',
+                tab_finance_detail: 'รายละเอียดการรับเงินแยกตามบิล',
+                tab_sale_product_report: 'รายงานยอดขาย และสินค้า (Sale Report)',
+                tab_daily_cash_closing: 'ใบสรุปยอดเงินรายวัน (Daily Closing)',
+                tab_product_daily_sales: 'รายงานการขายตามสินค้า (Product Sales)',
+                filterStartDate: 'ตั้งแต่วันที่ (เริ่มต้น)',
+                filterEndDate: 'ถึงวันที่ (สิ้นสุด)',
+                btnToday: 'วันนี้',
+                btnYesterday: 'เมื่อวาน',
+                btnThisMonth: 'เดือนนี้',
+                onlySoldCheckbox: 'แสดงเฉพาะสินค้าที่ขายได้',
+                searchPlaceholder: 'ค้นหาชื่อ/รหัส...',
+                btnPrintA4: 'พิมพ์รายงาน (Print A4)',
+                btnExportPdf: 'ส่งออก PDF',
+                btnExportExcel: 'ส่งออก Excel',
+                           kpiGrandTotalTitle: 'ยอดขายรวม (Total Revenue)',
+                kpiTotalSoldTitle: 'จำนวนที่ขายได้ทั้งหมด',
+                kpiMemberPromoTitle: 'ยอดขายสมาชิก, B2B & โปร',
+                kpiNormalTitle: 'ยอดขายราคาปกติ',
+                ratePrefix: 'เรท',
+                boxUnit: 'กล่อง',
+                kpiFreeLabel: 'ยอดแถม (ราคา 0)',
+                kpiMemberLabel: 'สมาชิก',
+                kpiB2bLabel: 'B2B',
+                kpiPromoLabel: 'โปร',
+                kpiNormalSoldLabel: 'จำนวนขาย',
+                docTitle: 'รายงานขายตามสินค้า',
+                previewBarTitle: 'หน้าต่างตัวอย่างเอกสารรายงาน (สั่งพิมพ์) - รายงานขายตามสินค้า',
+                btnPdf: 'บันทึกเป็น PDF',
+                btnClose: '✕ ปิดหน้าต่าง',
+                btnPrint: 'พิมพ์เอกสาร (Print)',
+                branchMain: 'สำนักงานใหญ่',
+                exchangeRate: 'อัตราแลกเปลี่ยน',
+                printAt: 'พิมพ์เมื่อ',
+                dateRangeFrom: 'ตั้งแต่วันที่',
+                dateRangeTo: 'ถึงวันที่',
+                totalBills: 'จำนวนบิลทั้งหมด',
+                billsUnit: 'บิล',
+                itemsUnit: 'รายการ',
+                noData: 'ไม่พบข้อมูลสินค้าตามช่วงวันที่และเงื่อนไขที่เลือก',
+                totalAll: 'รวมทั้งสิ้น',
+                colNo: '#',
+                colProduct: 'สินค้า',
+                colCode: 'รหัสสินค้า',
+                colQty0: 'จำนวนราคา 0<br/>(แถม)',
+                colQtyMember: 'ราคาสมาชิก',
+                colQtyB2b: 'ราคา B2B',
+                colQtyPromo: 'ราคาโปร',
+                colQtyNormal: 'ราคาปกติ',
+                colPriceNormal: 'ราคาปกติ<br/>(ต่อกล่อง)',
+                colPriceMember: 'ราคาสมาชิก<br/>(ต่อกล่อง)',
+                colPriceB2b: 'ราคา B2B<br/>(ต่อกล่อง)',
+                colPricePromo: 'ราคาโปร<br/>(ต่อกล่อง)',
+                colSoldQty: 'จำนวนที่ขายได้',
+                colSalesNormal: 'ยอดขายราคาปกติ',
+                colSalesMember: 'ยอดขายราคาสมาชิก',
+                colSalesB2b: 'ยอดขาย B2B',
+                colSalesPromo: 'ยอดขายราคาโปร',
+                colGrandTotal: 'ยอดขายรวม',
+                sigReporter: 'ผู้รายงาน',
+                sigReporterRole: 'เจ้าหน้าที่การเงิน / คัดแยก',
+                sigAuditor: 'ผู้ตรวจสอบ',
+                sigAuditorRole: 'หัวหน้าฝ่ายบัญชี / ตรวจสอบ',
+                sigPresident: 'ประธาน บริษัท เลิฟเอสทีเค',
+                sigCompany: 'LOVE STK GROUPE',
+                sigDate: 'วันที่: ......./......./............'
+            },
+            en: {
+                pageTitle: 'Company Finance & Revenue Report',
+                pageSubtitle: '12-Month Company Revenue Summary & Receipt Breakdown',
+                tab_finance_summary: 'Annual Revenue Summary',
+                tab_finance_detail: 'Receipt Details by Bill',
+                tab_sale_product_report: 'Sales & Product Report',
+                tab_daily_cash_closing: 'Daily Cash Closing',
+                tab_product_daily_sales: 'Product Sales Report',
+                filterStartDate: 'Start Date (From)',
+                filterEndDate: 'End Date (To)',
+                btnToday: 'Today',
+                btnYesterday: 'Yesterday',
+                btnThisMonth: 'This Month',
+                onlySoldCheckbox: 'Show only sold products',
+                searchPlaceholder: 'Search name/code...',
+                btnPrintA4: 'Print Report (Print A4)',
+                btnExportPdf: 'Export PDF',
+                btnExportExcel: 'Export Excel',
+                kpiGrandTotalTitle: 'Total Revenue',
+                kpiTotalSoldTitle: 'Total Units Sold',
+                kpiMemberPromoTitle: 'Member, B2B & Promo Sales',
+                kpiNormalTitle: 'Standard Price Sales',
+                ratePrefix: 'Rate',
+                boxUnit: 'boxes',
+                kpiFreeLabel: 'Free (Price 0)',
+                kpiMemberLabel: 'Member',
+                kpiB2bLabel: 'B2B',
+                kpiPromoLabel: 'Promo',
+                kpiNormalSoldLabel: 'Sold Qty',
+                docTitle: 'Product Sales Report',
+                previewBarTitle: 'Print Preview Window - Product Sales Report',
+                btnPdf: 'Save as PDF',
+                btnClose: '✕ Close Window',
+                btnPrint: 'Print Document',
+                branchMain: 'Headquarters',
+                exchangeRate: 'Exchange Rate',
+                printAt: 'Printed on',
+                dateRangeFrom: 'From Date',
+                dateRangeTo: 'To Date',
+                totalBills: 'Total Bills',
+                billsUnit: 'bills',
+                itemsUnit: 'items',
+                noData: 'No product sales data found for the selected period',
+                totalAll: 'Grand Total',
+                colNo: '#',
+                colProduct: 'Product Name',
+                colCode: 'Product ID',
+                colQty0: 'Free (Qty 0)',
+                colQtyMember: 'Member Qty',
+                colQtyB2b: 'B2B Qty',
+                colQtyPromo: 'Promo Qty',
+                colQtyNormal: 'Normal Qty',
+                colPriceNormal: 'Normal Price<br/>(Per Box)',
+                colPriceMember: 'Member Price<br/>(Per Box)',
+                colPriceB2b: 'B2B Price<br/>(Per Box)',
+                colPricePromo: 'Promo Price<br/>(Per Box)',
+                colSoldQty: 'Total Sold Qty',
+                colSalesNormal: 'Normal Sales',
+                colSalesMember: 'Member Sales',
+                colSalesB2b: 'B2B Sales',
+                colSalesPromo: 'Promo Sales',
+                colGrandTotal: 'Total Revenue',
+                sigReporter: 'Reported By',
+                sigReporterRole: 'Finance Officer / Sorter',
+                sigAuditor: 'Verified By',
+                sigAuditorRole: 'Chief Accountant / Auditor',
+                sigPresident: 'President, Love STK Company',
+                sigCompany: 'LOVE STK GROUPE',
+                sigDate: 'Date: ......./......./............'
+            },
+            lo: {
+                pageTitle: 'ລາຍງານການເງິນ ແລະ ລາຍຮັບບໍລິສັດ',
+                pageSubtitle: 'ສະຫຼຸບລາຍຮັບບໍລິສັດປຽບທຽບ 12 ເດືອນ ແລະ ລາຍລະອຽດການຮັບເງິນແຍກຕາມບິນ',
+                tab_finance_summary: 'ສະຫຼຸບລາຍຮັບບໍລິສັດ (ລາຍປີ)',
+                tab_finance_detail: 'ລາຍລະອຽດການຮັບເງິນແຍກຕາມບິນ',
+                tab_sale_product_report: 'ລາຍງານຍອດຂາຍ ແລະ ສິນຄ້າ (Sale Report)',
+                tab_daily_cash_closing: 'ໃບສະຫຼຸບຍອດເງິນລາຍວັນ (Daily Closing)',
+                tab_product_daily_sales: 'ລາຍງານການຂາຍຕາມສິນຄ້າ (Product Sales)',
+                filterStartDate: 'ແຕ່ວັນທີ (ເລີ່ມຕົ້ນ)',
+                filterEndDate: 'ເຖິງວັນທີ (ສິ້ນສຸດ)',
+                btnToday: 'ມື້ນີ້',
+                btnYesterday: 'ມື້ວານ',
+                btnThisMonth: 'ເດືອນນີ້',
+                onlySoldCheckbox: 'ສະແດງສະເພາະສິນຄ້າທີ່ຂາຍໄດ້',
+                searchPlaceholder: 'ຄົ້ນຫາຊື່/ລະຫັດ...',
+                btnPrintA4: 'ພິມລາຍງານ (Print A4)',
+                btnExportPdf: 'ສົ່ງອອກ PDF',
+                btnExportExcel: 'ສົ່ງອອກ Excel',
+                kpiGrandTotalTitle: 'ຍອດຂາຍລວມ (Total Revenue)',
+                kpiTotalSoldTitle: 'ຈຳນວນທີ່ຂາຍໄດ້ທັງໝົດ',
+                kpiMemberPromoTitle: 'ຍອດຂາຍສະມາຊິກ, B2B & ໂປຣ',
+                kpiNormalTitle: 'ຍອດຂາຍລາຄາປົກກະຕິ',
+                ratePrefix: 'ເລດ',
+                boxUnit: 'ກ່ອງ',
+                kpiFreeLabel: 'ຍອດແຖມ (ລາຄາ 0)',
+                kpiMemberLabel: 'ສະມາຊິກ',
+                kpiB2bLabel: 'B2B',
+                kpiPromoLabel: 'ໂປຣ',
+                kpiNormalSoldLabel: 'ຈຳນວນຂາຍ',
+                docTitle: 'ລາຍງານການຂາຍຕາມສິນຄ້າ',
+                previewBarTitle: 'ໜ້າຕ່າງຕົວຢ່າງເອກະສານລາຍງານ (ສັ່ງພິມ) - ລາຍງານການຂາຍຕາມສິນຄ້າ',
+                btnPdf: 'ບັນທຶກເປັນ PDF',
+                btnClose: '✕ ປິດໜ້າຕ່າງ',
+                btnPrint: 'ພິມເອກະສານ (Print)',
+                branchMain: 'ສຳນັກງານໃຫຍ່',
+                exchangeRate: 'ອັດຕາແລກປ່ຽນ',
+                printAt: 'ພິມເມື່ອ',
+                dateRangeFrom: 'ແຕ່ວັນທີ',
+                dateRangeTo: 'ເຖິງວັນທີ',
+                totalBills: 'ຈຳນວນບິນທັງໝົດ',
+                billsUnit: 'ບິນ',
+                itemsUnit: 'ລາຍການ',
+                noData: 'ບໍ່ພົບຂໍ້ມູນການຂາຍສິນຄ້າຕາມຊ່ວງວັນທີ ແລະ ເງື່ອນໄຂທີ່ເລືອກ',
+                totalAll: 'ລວມທັງໝົດ',
+                colNo: 'ລ/ດ',
+                colProduct: 'ສິນຄ້າ',
+                colCode: 'ລະຫັດສິນຄ້າ',
+                colQty0: 'ຈຳນວນລາຄາ 0<br/>(ແຖມ)',
+                colQtyMember: 'ລາຄາສະມາຊິກ',
+                colQtyB2b: 'ຂາຍສົ່ງ B2B',
+                colQtyPromo: 'ລາຄາໂປຣ',
+                colQtyNormal: 'ລາຄາປົກກະຕິ',
+                colPriceNormal: 'ລາຄາປົກກະຕິ<br/>(ຕໍ່ກ່ອງ)',
+                colPriceMember: 'ລາຄາສະມາຊິກ<br/>(ຕໍ່ກ່ອງ)',
+                colPriceB2b: 'ລາຄາ B2B<br/>(ຕໍ່ກ່ອງ)',
+                colPricePromo: 'ລາຄາໂປຣ<br/>(ຕໍ່ກ່ອງ)',
+                colSoldQty: 'ຈຳນວນທີ່ຂາຍໄດ້',
+                colSalesNormal: 'ຍອດຂາຍລາຄາປົກກະຕິ',
+                colSalesMember: 'ຍອດຂາຍລາຄາສະມາຊິກ',
+                colSalesB2b: 'ຍອດຂາຍ B2B',
+                colSalesPromo: 'ຍອດຂາຍລາຄາໂປຣ',
+                colGrandTotal: 'ຍອດຂາຍລວມ',
+                sigReporter: 'ຜູ້ລາຍງານ',
+                sigReporterRole: 'ເຈົ້າໜ້າທີ່ການເງິນ / ຄັດແຍກ',
+                sigAuditor: 'ຜູ້ກວດສອບ',
+                sigAuditorRole: 'ຫົວໜ້າພະແນກບັນຊີ / ກວດສອບ',
+                sigPresident: 'ປະທານ ບໍລິສັດ ເລີຟເອັສທີເຄ',
+                sigCompany: 'LOVE STK GROUPE',
+                sigDate: 'ວັນທີ: ......./......./............'
+            }
+        };
+
+        const matrixT = (key, lang = currentLang) => {
+            const l = (MATRIX_I18N && MATRIX_I18N[lang]) ? lang : 'th';
+            return (MATRIX_I18N[l] && MATRIX_I18N[l][key] !== undefined) ? MATRIX_I18N[l][key] : (MATRIX_I18N['th'][key] || key);
+        };
 
         // Data States
         const [sales, setSales] = useState([]);
@@ -231,15 +525,15 @@
             try {
                 const params = new URLSearchParams(window.location.search);
                 const tabParam = params.get('tab');
-                if (tabParam && ['finance_summary', 'finance_detail', 'sale_product_report', 'daily_cash_closing'].includes(tabParam)) {
+                if (tabParam && ['finance_summary', 'finance_detail', 'sale_product_report', 'daily_cash_closing', 'product_daily_sales'].includes(tabParam)) {
                     return tabParam;
                 }
                 const hash = (window.location.hash || '').replace('#', '').trim();
-                if (hash && ['finance_summary', 'finance_detail', 'sale_product_report', 'daily_cash_closing'].includes(hash)) {
+                if (hash && ['finance_summary', 'finance_detail', 'sale_product_report', 'daily_cash_closing', 'product_daily_sales'].includes(hash)) {
                     return hash;
                 }
                 const savedTab = sessionStorage.getItem('stk_report_finance_subtab');
-                if (savedTab && ['finance_summary', 'finance_detail', 'sale_product_report', 'daily_cash_closing'].includes(savedTab)) {
+                if (savedTab && ['finance_summary', 'finance_detail', 'sale_product_report', 'daily_cash_closing', 'product_daily_sales'].includes(savedTab)) {
                     return savedTab;
                 }
             } catch(e) {}
@@ -261,10 +555,10 @@
             } catch(e) {}
         };
 
-        const [startDate, setStartDate] = useState(todayStr);
-        const [endDate, setEndDate] = useState(todayStr);
-        const [closingDate, setClosingDate] = useState(todayStr); // 🌟 วันที่สำหรับใบสรุปยอดเงินรายวัน (Daily Closing Date)
-        const [searchQuery, setSearchQuery] = useState('');
+        const [startDate, setStartDate] = useState(() => { try { return (new URLSearchParams(window.location.search)).get('start') || todayStr; } catch(e) { return todayStr; } });
+        const [endDate, setEndDate] = useState(() => { try { return (new URLSearchParams(window.location.search)).get('end') || todayStr; } catch(e) { return todayStr; } });
+        const [closingDate, setClosingDate] = useState(() => { try { return (new URLSearchParams(window.location.search)).get('closingDate') || todayStr; } catch(e) { return todayStr; } });
+        const [searchQuery, setSearchQuery] = useState(() => { try { return (new URLSearchParams(window.location.search)).get('search') || ''; } catch(e) { return ''; } });
         const debouncedSearchQuery = useDebounce(searchQuery, 300);
         const [productReportGroupBy, setProductReportGroupBy] = useState('seller');
         const [productReportViewMode, setProductReportViewMode] = useState('summary'); // 'summary' (ยุบรวมรายชื่อสินค้าตามพนักงานขาย) | 'bill' (แยกตามบิล)
@@ -673,6 +967,443 @@
             });
 
             await exportFinanceExcel(rows, `Daily_Cash_Closing_${closingDate}.xlsx`, "DailyClosing");
+        };
+
+        // 5. 🌟 ข้อมูลสำหรับแท็บที่ 5: รายงานขายตามสินค้า (Product Sales Matrix Report - 15 Columns)
+        const [onlySoldProducts, setOnlySoldProducts] = useState(true);
+
+        const productMatrixData = useMemo(() => {
+            if (typeof window.ReportFinanceEngine?.calculateProductSalesMatrix === 'function') {
+                return window.ReportFinanceEngine.calculateProductSalesMatrix(sales, products, startDate, endDate, {
+                    permittedMemberSet,
+                    searchQuery: debouncedSearchQuery,
+                    showAllProducts: !onlySoldProducts
+                });
+            }
+            return {
+                items: [],
+                totalBillsCount: 0,
+                summary: {
+                    totalProductCount: 0,
+                    qty0: 0,
+                    qtyMember: 0,
+                    qtyB2B: 0,
+                    qtyPromo: 0,
+                    qtyNormal: 0,
+                    totalSoldQty: 0,
+                    salesNormal: 0,
+                    salesMember: 0,
+                    salesB2B: 0,
+                    salesPromo: 0,
+                    grandTotal: 0
+                }
+            };
+        }, [sales, products, startDate, endDate, permittedMemberSet, debouncedSearchQuery, onlySoldProducts]);
+
+        // 📊 ส่งออก Excel รายงานขายตามสินค้า (18 Columns)
+        const handleExportProductMatrixExcel = async () => {
+            const rows = [
+                ['รายงานขายตามสินค้า (Product Sales Report) - LOVE STK GROUPE'],
+                [`ตั้งแต่วันที่: ${startDate}`, `ถึงวันที่: ${endDate}`, `อัตราแลกเปลี่ยน: 1 ฿ = ${exchangeRate} ₭`, `จำนวนบิลทั้งหมด: ${productMatrixData.totalBillsCount} บิล`],
+                [],
+                [
+                    '#', 'สินค้า', 'รหัสสินค้า', 
+                    'จำนวนราคา 0 (แถม)', 'ราคาสมาชิก', 'ราคา B2B', 'ราคาโปร', 'ราคาปกติ',
+                    'ราคาปกติ (ต่อกล่อง)', 'ราคาสมาชิก (ต่อกล่อง)', 'ราคา B2B (ต่อกล่อง)', 'ราคาโปร (ต่อกล่อง)',
+                    'จำนวนที่ขายได้', 'ยอดขายราคาปกติ', 'ยอดขายราคาสมาชิก', 'ยอดขาย B2B', 'ยอดขายราคาโปร', 'ยอดขายรวม'
+                ]
+            ];
+
+            productMatrixData.items.forEach((it, idx) => {
+                const b2bPriceExport = (it.b2bTierList && it.b2bTierList.length > 1)
+                    ? it.b2bTierList.map(t => `${t.unitPrice} (${t.qty})`).join(', ')
+                    : (it.unitPriceB2B || 0);
+
+                rows.push([
+                    idx + 1,
+                    it.productName,
+                    it.productId || '-',
+                    it.qty0 || 0,
+                    it.qtyMember || 0,
+                    it.qtyB2B || 0,
+                    it.qtyPromo || 0,
+                    it.qtyNormal || 0,
+                    it.unitPriceNormal || 0,
+                    it.unitPriceMember || 0,
+                    b2bPriceExport,
+                    it.unitPricePromo || 0,
+                    it.totalSoldQty || 0,
+                    it.salesNormal || 0,
+                    it.salesMember || 0,
+                    it.salesB2B || 0,
+                    it.salesPromo || 0,
+                    it.grandTotal || 0
+                ]);
+            });
+
+            const sm = productMatrixData.summary;
+            rows.push([]);
+            rows.push([
+                'รวมทั้งสิ้น', '', '',
+                'รวมทั้งสิ้น', '', '',
+                sm.qty0, sm.qtyMember, sm.qtyB2B, sm.qtyPromo, sm.qtyNormal,
+                '', '', '', '',
+                sm.totalSoldQty, sm.salesNormal, sm.salesMember, sm.salesB2B, sm.salesPromo, sm.grandTotal
+            ]);
+
+            await exportFinanceExcel(rows, `Product_Sales_${startDate}_${endDate}.xlsx`, "ProductSales");
+        };
+
+        // 🖨️ พิมพ์รายงานขายตามสินค้า / ส่งออก PDF (A4 Landscape, 1 Single Page Fit, Multilingual TH/EN/LA)
+        const handlePrintProductMatrix = (isPdf = false) => {
+            const printWin = window.open('', '_blank');
+            if (!printWin) {
+                alert('กรุณาอนุญาตป๊อปอัปเพื่อเปิดหน้าพิมพ์รายงาน');
+                return;
+            }
+
+            // Sync ข้อมูลบริษัทล่าสุดจาก companySettings
+            let comp = Object.assign({}, companySettings);
+            if (typeof window.getCompanySettings === 'function') {
+                try {
+                    const latest = window.getCompanySettings();
+                    if (latest) comp = Object.assign({}, comp, latest);
+                } catch(e) {}
+            }
+
+            // ตรวจสอบภาษาปัจจุบันจาก Sidebar (th, en, lo)
+            const activeLang = (typeof window.getCurrentLang === 'function')
+                ? window.getCurrentLang()
+                : (localStorage.getItem('stk_lang') || currentLang || 'th');
+
+            const t = (k) => (MATRIX_I18N[activeLang] && MATRIX_I18N[activeLang][k] !== undefined)
+                ? MATRIX_I18N[activeLang][k]
+                : (MATRIX_I18N['th'][k] || k);
+
+            const now = new Date();
+            const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+            const enMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const loMonths = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'];
+
+            const thaiYear = now.getFullYear() + 543;
+            const timePart = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            let printDateStr = '';
+            if (activeLang === 'en') {
+                printDateStr = now.getDate() + ' ' + enMonths[now.getMonth()] + ' ' + now.getFullYear() + ' ' + timePart;
+            } else if (activeLang === 'lo') {
+                printDateStr = now.getDate() + ' ' + loMonths[now.getMonth()] + ' ' + now.getFullYear() + ' ' + timePart;
+            } else {
+                printDateStr = now.getDate() + ' ' + thaiMonths[now.getMonth()] + ' ' + thaiYear + ' ' + timePart;
+            }
+
+            const escapeHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            let branchText = comp.branch || '';
+            if (!branchText || branchText === 'สำนักงานใหญ่') branchText = t('branchMain');
+
+            let addressText = comp.address || '';
+            if (activeLang === 'en' && (!addressText || addressText.includes('เวียงจันทน์'))) {
+                addressText = 'Vientiane, Lao PDR';
+            } else if (activeLang === 'lo' && (!addressText || addressText.includes('เวียงจันทน์'))) {
+                addressText = 'ວຽງຈັນ, ສປປ.ລາວ';
+            }
+
+            const items = productMatrixData.items || [];
+            const summary = productMatrixData.summary || {};
+
+            let tableRowsHtml = '';
+            if (items.length === 0) {
+                tableRowsHtml = '<tr><td colspan="18" style="padding: 18px; text-align: center; color: #94a3b8; font-weight: bold; border: 1px solid #cbd5e1;">' + t('noData') + '</td></tr>';
+            } else {
+                tableRowsHtml = items.map((it, idx) => {
+                    const bg = idx % 2 === 1 ? '#f8fafc' : '#ffffff';
+                    return '<tr style="background-color: ' + bg + ';">' +
+                        '<td style="text-align: center; color: #64748b; font-weight: 700; border: 1px solid #cbd5e1; padding: 2px 3px;">' + (idx + 1) + '</td>' +
+                        '<td style="font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1; padding: 2px 5px; white-space: nowrap;">' + escapeHtml(it.productName) + '</td>' +
+                        '<td style="text-align: center; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 700; color: #475569; border: 1px solid #cbd5e1; padding: 2px 3px;">' + escapeHtml(it.productId || '-') + '</td>' +
+                        '<td style="text-align: center; font-weight: 700; color: #7c3aed; border: 1px solid #cbd5e1; padding: 2px 3px;">' + (it.qty0 > 0 ? it.qty0.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: center; font-weight: 700; color: #2563eb; border: 1px solid #cbd5e1; padding: 2px 3px;">' + (it.qtyMember > 0 ? it.qtyMember.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: center; font-weight: 700; color: #0284c7; border: 1px solid #cbd5e1; padding: 2px 3px;">' + (it.qtyB2B > 0 ? (it.b2bTierList && it.b2bTierList.length > 1 ? it.qtyB2B.toLocaleString() + '<br/><span style="font-size: 7px; color: #64748b; font-weight: normal;">(' + it.b2bTierList.map(t => t.qty).join('+') + ')</span>' : it.qtyB2B.toLocaleString()) : '-') + '</td>' +
+                        '<td style="text-align: center; font-weight: 700; color: #d97706; border: 1px solid #cbd5e1; padding: 2px 3px;">' + (it.qtyPromo > 0 ? it.qtyPromo.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: center; font-weight: 700; color: #334155; border: 1px solid #cbd5e1; padding: 2px 3px;">' + (it.qtyNormal > 0 ? it.qtyNormal.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; color: #475569; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.unitPriceNormal > 0 ? it.unitPriceNormal.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; color: #475569; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.unitPriceMember > 0 ? it.unitPriceMember.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; color: #475569; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.b2bTierList && it.b2bTierList.length > 1 ? it.b2bTierList.map(t => t.unitPrice.toLocaleString() + ' <span style="font-size: 7px; color: #64748b; font-weight: normal;">(' + t.qty + ')</span>').join('<br/>') : (it.unitPriceB2B > 0 ? it.unitPriceB2B.toLocaleString() : '-')) + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; color: #475569; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.unitPricePromo > 0 ? it.unitPricePromo.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: center; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 900; color: #15803d; background-color: #dcfce7; border: 1px solid #cbd5e1; padding: 2px 3px;">' + (it.totalSoldQty > 0 ? it.totalSoldQty.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 700; color: #334155; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.salesNormal > 0 ? it.salesNormal.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 800; color: #1d4ed8; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.salesMember > 0 ? it.salesMember.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 800; color: #0284c7; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.salesB2B > 0 ? (it.b2bTierList && it.b2bTierList.length > 1 ? it.salesB2B.toLocaleString() + '<br/><span style="font-size: 7px; color: #64748b; font-weight: normal;">(' + it.b2bTierList.map(t => t.sales.toLocaleString()).join('+') + ')</span>' : it.salesB2B.toLocaleString()) : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 800; color: #b45309; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.salesPromo > 0 ? it.salesPromo.toLocaleString() : '-') + '</td>' +
+                        '<td style="text-align: right; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 900; color: #1e3a8a; background-color: #e0e7ff; border: 1px solid #cbd5e1; padding: 2px 4px;">' + (it.grandTotal > 0 ? it.grandTotal.toLocaleString() : '-') + '</td>' +
+                    '</tr>';
+                }).join('');
+            }
+
+            const tableFootHtml = [
+                '<tr style="background-color: #f1f5f9; font-weight: 900; border-top: 1.5px solid #64748b; font-size: 8.5px;">',
+                '  <td colspan="3" style="padding: 2.5px 4px; text-align: left; color: #0f172a; border: 1px solid #94a3b8;">' + t('totalAll') + ' ' + items.length.toLocaleString() + ' ' + t('itemsUnit') + '</td>',
+                '  <td style="text-align: center; color: #6d28d9; border: 1px solid #94a3b8; padding: 2.5px 2px;">' + (summary.qty0 > 0 ? summary.qty0.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: center; color: #1d4ed8; border: 1px solid #94a3b8; padding: 2.5px 2px;">' + (summary.qtyMember > 0 ? summary.qtyMember.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: center; color: #0284c7; border: 1px solid #94a3b8; padding: 2.5px 2px;">' + (summary.qtyB2B > 0 ? summary.qtyB2B.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: center; color: #b45309; border: 1px solid #94a3b8; padding: 2.5px 2px;">' + (summary.qtyPromo > 0 ? summary.qtyPromo.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: center; color: #334155; border: 1px solid #94a3b8; padding: 2.5px 2px;">' + (summary.qtyNormal > 0 ? summary.qtyNormal.toLocaleString() : '-') + '</td>',
+                '  <td colspan="4" style="text-align: center; color: #94a3b8; font-weight: normal; border: 1px solid #94a3b8;">-</td>',
+                '  <td style="text-align: center; color: #166534; background-color: #bbf7d0; border: 1px solid #94a3b8; padding: 2.5px 2px; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 900;">' + (summary.totalSoldQty || 0).toLocaleString() + '</td>',
+                '  <td style="text-align: right; color: #0f172a; border: 1px solid #94a3b8; padding: 2.5px 4px; font-family: \'Plus Jakarta Sans\', monospace;">' + (summary.salesNormal > 0 ? summary.salesNormal.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: right; color: #1e40af; border: 1px solid #94a3b8; padding: 2.5px 4px; font-family: \'Plus Jakarta Sans\', monospace;">' + (summary.salesMember > 0 ? summary.salesMember.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: right; color: #0284c7; border: 1px solid #94a3b8; padding: 2.5px 4px; font-family: \'Plus Jakarta Sans\', monospace;">' + (summary.salesB2B > 0 ? summary.salesB2B.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: right; color: #b45309; border: 1px solid #94a3b8; padding: 2.5px 4px; font-family: \'Plus Jakarta Sans\', monospace;">' + (summary.salesPromo > 0 ? summary.salesPromo.toLocaleString() : '-') + '</td>',
+                '  <td style="text-align: right; color: #1e3a8a; background-color: #c7d2fe; border: 1px solid #94a3b8; padding: 2.5px 4px; font-family: \'Plus Jakarta Sans\', monospace; font-weight: 900;">' + (summary.grandTotal || 0).toLocaleString() + '</td>',
+                '</tr>'
+            ].join('\n');
+
+            const dateRangeLabel = t('dateRangeFrom') + ': ' + startDate + ' ' + t('dateRangeTo') + ': ' + endDate + ' (' + t('totalBills') + ': ' + (productMatrixData.totalBillsCount || 0).toLocaleString() + ' ' + t('billsUnit') + ')';
+            const logoImgHtml = comp.logoUrl ? '<img src="' + comp.logoUrl + '" class="comp-logo" alt="Logo" />' : '';
+            const compAddressPhone = escapeHtml(addressText) + (comp.phone ? ' • ' + (activeLang === 'en' ? 'Tel: ' : (activeLang === 'lo' ? 'ໂທ: ' : 'โทร: ')) + escapeHtml(comp.phone) : '');
+
+            const docHtml = [
+                '<!DOCTYPE html>',
+                '<html lang="' + activeLang + '">',
+                '<head>',
+                '  <meta charset="UTF-8">',
+                '  <title>' + t('docTitle') + ' (' + startDate + ' - ' + endDate + ')</title>',
+                '  <link rel="preconnect" href="https://fonts.googleapis.com">',
+                '  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+                '  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&family=Noto+Sans+Lao:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">',
+                '  <style>',
+                '    @page {',
+                '      size: A4 landscape;',
+                '      margin: 4.5mm 5mm;',
+                '    }',
+                '    * { box-sizing: border-box; }',
+                '    html, body {',
+                '      margin: 0; padding: 0;',
+                '      background: #ffffff;',
+                '      background-color: #ffffff;',
+                '      font-family: "Plus Jakarta Sans", "Noto Sans Lao", "Noto Sans Thai", "Sarabun", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;',
+                '      color: #0f172a;',
+                '      -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;',
+                '    }',
+                '    .no-print {',
+                '      display: flex; justify-content: space-between; align-items: center;',
+                '      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);',
+                '      color: #ffffff; padding: 10px 24px;',
+                '      position: sticky; top: 0; z-index: 1000;',
+                '      box-shadow: 0 4px 16px rgba(0,0,0,0.35);',
+                '      border-bottom: 1px solid rgba(255,255,255,0.08);',
+                '    }',
+                '    .no-print .btn {',
+                '      padding: 7px 16px; border-radius: 8px; font-weight: 800; font-size: 12px;',
+                '      cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;',
+                '    }',
+                '    .btn-pdf { background-color: #e11d48; color: #fff; margin-right: 8px; box-shadow: 0 2px 6px rgba(225,29,72,0.3); }',
+                '    .btn-pdf:hover { background-color: #be123c; }',
+                '    .btn-print { background-color: #2563eb; color: #fff; margin-right: 8px; box-shadow: 0 2px 6px rgba(37,99,235,0.3); }',
+                '    .btn-print:hover { background-color: #1d4ed8; }',
+                '    .btn-close { background-color: #334155; color: #fff; }',
+                '    .btn-close:hover { background-color: #475569; }',
+                '    .sheet-wrapper {',
+                '      padding: 24px 20px 48px; display: flex; justify-content: center; width: 100%;',
+                '      background-color: #0b1329;',
+                '      min-height: calc(100vh - 54px);',
+                '    }',
+                '    .print-sheet {',
+                '      background: #ffffff;',
+                '      width: 96%; max-width: 1560px;',
+                '      margin: 0 auto; padding: 28px 36px 36px;',
+                '      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.45);',
+                '      border-radius: 16px;',
+                '    }',
+                '    .header-bar {',
+                '      display: flex; justify-content: space-between; align-items: flex-start;',
+                '      border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 8px;',
+                '    }',
+                '    .comp-left { display: flex; align-items: center; gap: 12px; }',
+                '    .comp-logo { max-height: 48px; max-width: 100px; object-fit: contain; }',
+                '    .comp-title { font-size: 16px; font-weight: 900; color: #0f172a; line-height: 1.1; letter-spacing: -0.2px; }',
+                '    .comp-sub { font-size: 11px; font-weight: 700; color: #334155; margin-top: 2px; }',
+                '    .comp-meta { font-size: 10px; color: #64748b; margin-top: 1px; }',
+                '    .header-right { text-align: right; }',
+                '    .rate-badge {',
+                '      display: inline-block; background-color: #eff6ff; border: 1px solid #bfdbfe;',
+                '      color: #1d4ed8; padding: 3px 10px; border-radius: 6px; font-weight: 800; font-size: 11px;',
+                '    }',
+                '    .print-time { font-size: 10px; color: #64748b; margin-top: 4px; font-family: "Plus Jakarta Sans", monospace; font-weight: 700; }',
+                '    .report-title-box { text-align: center; margin: 8px 0 14px 0; }',
+                '    .report-title-box h1 { margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px; }',
+                '    .report-title-box p { margin: 3px 0 0 0; font-size: 11px; font-weight: 700; color: #2563eb; }',
+                '    table.matrix-table {',
+                '      width: 100%; border-collapse: collapse; font-size: 11px;',
+                '    }',
+                '    table.matrix-table th {',
+                '      background-color: #f1f5f9; color: #0f172a; font-weight: 800;',
+                '      border: 1px solid #cbd5e1; padding: 5px 4px; text-align: center; line-height: 1.2; font-size: 10.5px;',
+                '    }',
+                '    table.matrix-table td {',
+                '      border: 1px solid #cbd5e1; padding: 4.5px 5px; vertical-align: middle;',
+                '    }',
+                '    .signature-row {',
+                '      margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr 1fr;',
+                '      gap: 16px; text-align: center; page-break-inside: avoid;',
+                '    }',
+                '    .sig-col { display: flex; flex-direction: column; align-items: center; }',
+                '    .sig-heading { font-weight: 800; font-size: 11px; color: #0f172a; margin-bottom: 28px; }',
+                '    .sig-dotted { border-bottom: 1.5px dotted #64748b; width: 160px; margin-bottom: 4px; }',
+                '    .sig-sub { font-size: 10px; color: #475569; }',
+                '    .sig-date { font-size: 9px; color: #64748b; margin-top: 3px; }',
+                '    @media print {',
+                '      html, body {',
+                '        background: #ffffff !important;',
+                '        background-color: #ffffff !important;',
+                '        color: #0f172a !important;',
+                '        margin: 0 !important; padding: 0 !important;',
+                '        font-size: 8.5px !important; line-height: 1.18 !important;',
+                '        min-height: 100% !important; height: auto !important;',
+                '      }',
+                '      .no-print { display: none !important; }',
+                '      .sheet-wrapper {',
+                '        padding: 0 !important; margin: 0 !important;',
+                '        background: #ffffff !important;',
+                '        background-color: #ffffff !important;',
+                '        min-height: 0 !important; height: auto !important;',
+                '        display: block !important;',
+                '        box-shadow: none !important;',
+                '      }',
+                '      .print-sheet {',
+                '        box-shadow: none !important; border: none !important;',
+                '        margin: 0 !important; padding: 0 !important;',
+                '        width: 100% !important; max-width: 100% !important;',
+                '        border-radius: 0 !important;',
+                '        background: #ffffff !important;',
+                '        background-color: #ffffff !important;',
+                '      }',
+                '      .header-bar { border-bottom: 1.5px solid #0f172a !important; padding-bottom: 3.5px !important; margin-bottom: 3.5px !important; }',
+                '      .comp-logo { max-height: 32px !important; }',
+                '      .comp-title { font-size: 12.5px !important; }',
+                '      .comp-sub { font-size: 8.5px !important; }',
+                '      .comp-meta { font-size: 7.5px !important; }',
+                '      .rate-badge { font-size: 8px !important; padding: 1.5px 5px !important; }',
+                '      .print-time { font-size: 7.5px !important; margin-top: 2px !important; }',
+                '      .report-title-box { margin: 2px 0 4px 0 !important; }',
+                '      .report-title-box h1 { font-size: 14px !important; margin: 0 !important; }',
+                '      .report-title-box p { font-size: 8px !important; margin: 1px 0 0 0 !important; }',
+                '      table.matrix-table { font-size: 8.5px !important; page-break-inside: avoid !important; }',
+                '      table.matrix-table th {',
+                '        font-size: 7.8px !important; padding: 2.2px 2px !important; line-height: 1.12 !important;',
+                '        background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;',
+                '      }',
+                '      table.matrix-table td {',
+                '        font-size: 8.5px !important; padding: 1.8px 3px !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;',
+                '      }',
+                '      table.matrix-table tfoot td {',
+                '        font-size: 8px !important; padding: 2px 3px !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;',
+                '      }',
+                '      .signature-row { margin-top: 10px !important; gap: 12px !important; page-break-inside: avoid !important; }',
+                '      .sig-heading { font-size: 8.5px !important; margin-bottom: 18px !important; }',
+                '      .sig-dotted { width: 120px !important; border-bottom-width: 1px !important; }',
+                '      .sig-sub { font-size: 7.5px !important; }',
+                '      .sig-date { font-size: 7px !important; margin-top: 2px !important; }',
+                '    }',
+                '  </style>',
+                '</head>',
+                '<body>',
+                '  <div class="no-print">',
+                '    <div style="display: flex; align-items: center; gap: 10px;">',
+                '      <span style="font-weight: 900; font-size: 13px; letter-spacing: 0.3px;">' + t('previewBarTitle') + '</span>',
+                '      <span style="background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; color: #93c5fd;">' + activeLang.toUpperCase() + '</span>',
+                '    </div>',
+                '    <div>',
+                '      <button onclick="window.print()" class="btn btn-pdf">' + t('btnPdf') + '</button>',
+                '      <button onclick="window.print()" class="btn btn-print">' + t('btnPrint') + '</button>',
+                '      <button onclick="window.close()" class="btn btn-close">' + t('btnClose') + '</button>',
+                '    </div>',
+                '  </div>',
+                '  <div class="sheet-wrapper">',
+                '    <div class="print-sheet">',
+                '      <div class="header-bar">',
+                '        <div class="comp-left">',
+                '          ' + logoImgHtml,
+                '          <div>',
+                '            <div class="comp-title">' + escapeHtml(comp.name || 'LOVE STK GROUPE') + '</div>',
+                '            <div class="comp-sub">' + escapeHtml(branchText) + '</div>',
+                '            <div class="comp-meta">' + compAddressPhone + '</div>',
+                '          </div>',
+                '        </div>',
+                '        <div class="header-right">',
+                '          <div class="rate-badge">' + t('exchangeRate') + ': 1 ฿ = ' + exchangeRate.toLocaleString() + ' ₭</div>',
+                '          <div class="print-time">' + t('printAt') + ': ' + printDateStr + '</div>',
+                '        </div>',
+                '      </div>',
+                '      <div class="report-title-box">',
+                '        <h1>' + t('docTitle') + '</h1>',
+                '        <p>' + dateRangeLabel + '</p>',
+                '      </div>',
+                '      <table class="matrix-table">',
+                '        <thead>',
+                '          <tr>',
+                '            <th style="width: 24px;">' + t('colNo') + '</th>',
+                '            <th style="text-align: left; padding-left: 6px; width: 130px;">' + t('colProduct') + '</th>',
+                '            <th style="width: 50px;">' + t('colCode') + '</th>',
+                '            <th style="width: 50px;">' + t('colQty0') + '</th>',
+                '            <th style="width: 44px;">' + t('colQtyMember') + '</th>',
+                '            <th style="width: 44px;">' + t('colQtyB2b') + '</th>',
+                '            <th style="width: 42px;">' + t('colQtyPromo') + '</th>',
+                '            <th style="width: 42px;">' + t('colQtyNormal') + '</th>',
+                '            <th style="width: 48px;">' + t('colPriceNormal') + '</th>',
+                '            <th style="width: 44px;">' + t('colPriceMember') + '</th>',
+                '            <th style="width: 44px;">' + t('colPriceB2b') + '</th>',
+                '            <th style="width: 48px;">' + t('colPricePromo') + '</th>',
+                '            <th style="width: 52px; background-color: #dcfce7; color: #166534;">' + t('colSoldQty') + '</th>',
+                '            <th style="width: 60px;">' + t('colSalesNormal') + '</th>',
+                '            <th style="width: 58px;">' + t('colSalesMember') + '</th>',
+                '            <th style="width: 58px;">' + t('colSalesB2b') + '</th>',
+                '            <th style="width: 60px;">' + t('colSalesPromo') + '</th>',
+                '            <th style="width: 72px; background-color: #e0e7ff; color: #1e3a8a;">' + t('colGrandTotal') + '</th>',
+                '          </tr>',
+                '        </thead>',
+                '        <tbody>',
+                '          ' + tableRowsHtml,
+                '        </tbody>',
+                '        <tfoot>',
+                '          ' + tableFootHtml,
+                '        </tfoot>',
+                '      </table>',
+                '      <div class="signature-row">',
+                '        <div class="sig-col">',
+                '          <div class="sig-heading">' + t('sigReporter') + '</div>',
+                '          <div class="sig-dotted"></div>',
+                '          <div class="sig-sub">( ............................................................ )</div>',
+                '          <div class="sig-sub" style="margin-top: 2px;">' + t('sigReporterRole') + '</div>',
+                '          <div class="sig-date">' + t('sigDate') + '</div>',
+                '        </div>',
+                '        <div class="sig-col">',
+                '          <div class="sig-heading">' + t('sigAuditor') + '</div>',
+                '          <div class="sig-dotted"></div>',
+                '          <div class="sig-sub">( ............................................................ )</div>',
+                '          <div class="sig-sub" style="margin-top: 2px;">' + t('sigAuditorRole') + '</div>',
+                '          <div class="sig-date">' + t('sigDate') + '</div>',
+                '        </div>',
+                '        <div class="sig-col">',
+                '          <div class="sig-heading">' + t('sigPresident') + '</div>',
+                '          <div class="sig-dotted"></div>',
+                '          <div class="sig-sub" style="font-weight: 800; color: #0f172a;">' + t('sigCompany') + '</div>',
+                '          <div class="sig-date" style="margin-top: 2px;">' + t('sigDate') + '</div>',
+                '        </div>',
+                '      </div>',
+                '    </div>',
+                '  </div>',
+                '</body>',
+                '</html>'
+            ].join('\n');
+
+            printWin.document.open();
+            printWin.document.write(docHtml);
+            printWin.document.close();
+            printWin.focus();
+            if (isPdf) {
+                setTimeout(() => { try { printWin.print(); } catch(e){} }, 400);
+            }
         };
 
         // ═════════════════════════════════════════════════════════════════════
@@ -1414,13 +2145,13 @@
             printWin.focus();
         };
 
-        const boxWrapper = "bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5";
-        const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 bg-slate-50 text-slate-700 whitespace-nowrap uppercase tracking-wide";
-        const labelClassHud = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
-        const inputClassHud = "w-full bg-slate-50/50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all";
+        const boxWrapper = "bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-5";
+        const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 whitespace-nowrap uppercase tracking-wide";
+        const labelClassHud = "block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5";
+        const inputClassHud = "w-full bg-slate-50/50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-blue-500 transition-all";
 
         return (
-            <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
+            <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
                 <Sidebar 
                     activePage="report_finance" 
                     isLoggedIn={isLoggedIn} 
@@ -1434,46 +2165,50 @@
                     setIsSidebarCollapsed={setIsSidebarCollapsed}
                 />
 
-                <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+                <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
                     <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
                         {!isLoggedIn ? (
                             <div className="flex flex-col items-center justify-center py-28 px-4 text-center animation-fade-in">
-                                <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mb-4 shadow-sm border border-blue-100">
-                                    🔒
+                                <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4 shadow-sm border border-blue-100 dark:border-blue-900">
+                                    <Lock size={32} />
                                 </div>
-                                <h3 className="text-lg font-black text-slate-800 mb-1">
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white mb-1">
                                     กรุณาเข้าสู่ระบบเพื่อดูรายงานการเงิน
                                 </h3>
-                                <p className="text-xs text-slate-500 max-w-sm mb-6 font-medium">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mb-6 font-medium">
                                     ข้อมูลการเงินและรายงานถูกจำกัดสิทธิ์เฉพาะผู้ใช้ที่เข้าสู่ระบบแล้วเท่านั้น
                                 </p>
                                 <button
                                     onClick={() => setShowLoginModal(true)}
                                     className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2"
                                 >
-                                    <span>🔐</span> เข้าสู่ระบบ (Login)
+                                    <Lock size={15} /> เข้าสู่ระบบ (Login)
                                 </button>
                             </div>
                         ) : (
                             <React.Fragment>
                         {/* Page Header matching Reports.html */}
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4 mb-6 no-print">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 no-print">
                             <div>
-                                <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                    💰 รายงานการเงินและรายรับบริษัท
+                                <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-3">
+                                    <span className="p-2.5 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-2xl border border-blue-100 dark:border-blue-900 flex items-center justify-center shadow-xs">
+                                        <Coins size={24} />
+                                    </span>
+                                    <span>{matrixT('pageTitle')}</span>
                                 </h2>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    สรุปรายรับบริษัทเปรียบเทียบ 12 เดือน และรายละเอียดรายรับแยกตามบิล
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    {matrixT('pageSubtitle')}
                                 </p>
                             </div>
                         </div>
 
                         {/* Sub Tab Switcher */}
-                        <div className="flex flex-wrap gap-2 pb-2 w-full border-b border-slate-200 no-print mb-6">
-                            <SubTabButton id="finance_summary" label="💵 สรุปรายรับบริษัท (รายปี)" activeTab={subTab} setSubTab={setSubTab} />
-                            <SubTabButton id="finance_detail" label="📜 รายละเอียดรับเงินแยกตามบิล" activeTab={subTab} setSubTab={setSubTab} isData={true} />
-                            <SubTabButton id="sale_product_report" label="📦 รายงานยอดขายและสินค้า (Sale Report)" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
-                            <SubTabButton id="daily_cash_closing" label="📑 ใบสรุปยอดเงินรายวัน (Daily Closing)" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                        <div className="flex flex-wrap gap-2 pb-2 w-full border-b border-slate-200 dark:border-slate-800 no-print mb-6">
+                            <SubTabButton id="finance_summary" label={matrixT('tab_finance_summary')} icon={Coins} activeTab={subTab} setSubTab={setSubTab} />
+                            <SubTabButton id="finance_detail" label={matrixT('tab_finance_detail')} icon={FileText} activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                            <SubTabButton id="sale_product_report" label={matrixT('tab_sale_product_report')} icon={PackageIcon} activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                            <SubTabButton id="daily_cash_closing" label={matrixT('tab_daily_cash_closing')} icon={BarChart3} activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                            <SubTabButton id="product_daily_sales" label={matrixT('tab_product_daily_sales')} icon={BarChart3} activeTab={subTab} setSubTab={setSubTab} isMatrix={true} />
                         </div>
 
                         {/* กล่องตัวกรอง: ใบสรุปยอดเงินรายวัน (Daily Closing Filter) */}
@@ -1501,9 +2236,9 @@
                                             <button 
                                                 type="button" 
                                                 onClick={() => setClosingDate(todayStr)} 
-                                                className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all ${closingDate === todayStr ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                                className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all flex items-center gap-1.5 ${closingDate === todayStr ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
                                             >
-                                                📅 วันนี้
+                                                <CalendarIcon size={14} /> วันนี้
                                             </button>
                                             <button 
                                                 type="button" 
@@ -1512,13 +2247,14 @@
                                                     d.setDate(d.getDate() - 1);
                                                     setClosingDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
                                                 }} 
-                                                className="px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
+                                                className="px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-1.5"
                                             >
-                                                ⏮️ เมื่อวาน
+                                                <ArrowLeftIcon size={14} /> เมื่อวาน
                                             </button>
                                         </div>
                                         <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
-                                            <span>💱 อัตราแลกเปลี่ยน:</span>
+                                            <RepeatIcon size={14} className="text-amber-700" />
+                                            <span>อัตราแลกเปลี่ยน:</span>
                                             <span className="font-mono font-black text-amber-900">1 ฿ = {exchangeRate.toLocaleString()} ₭</span>
                                         </div>
                                     </div>
@@ -1529,14 +2265,14 @@
                                             onClick={() => handlePrintReport(false)} 
                                             className="px-4 py-2.5 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-500 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
                                         >
-                                            <FileText size={15} /> 🖨️ พิมพ์ใบสรุปยอด (Print)
+                                            <PrinterIcon size={15} /> พิมพ์ใบสรุปยอด (Print)
                                         </button>
                                         <button 
                                             type="button" 
                                             onClick={() => handlePrintReport(true)} 
                                             className="px-4 py-2.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
                                         >
-                                            📄 ส่งออก PDF
+                                            <DownloadIcon size={15} /> ส่งออก PDF
                                         </button>
                                         <button 
                                             type="button" 
@@ -1544,6 +2280,115 @@
                                             className="px-4 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
                                         >
                                             <Archive size={15} /> ส่งออก Excel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* กล่องตัวกรอง: รายงานขายตามสินค้า (Product Daily Sales Filter) */}
+                        {subTab === 'product_daily_sales' && (
+                            <div className={`${boxWrapper} py-4 mb-6 no-print`}>
+                                <div className="flex flex-col xl:flex-row flex-wrap items-start xl:items-end justify-between gap-4">
+                                    <div className="flex flex-wrap items-end gap-3">
+                                        <div>
+                                            <label className={labelClassHud}>{matrixT('filterStartDate')}</label>
+                                            <input 
+                                                type="date" 
+                                                className={inputClassHud} 
+                                                value={startDate} 
+                                                onChange={e => setStartDate(e.target.value)} 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelClassHud}>{matrixT('filterEndDate')}</label>
+                                            <input 
+                                                type="date" 
+                                                className={inputClassHud} 
+                                                value={endDate} 
+                                                onChange={e => setEndDate(e.target.value)} 
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-1.5 pb-0.5">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setStartDate(todayStr); setEndDate(todayStr); }} 
+                                                className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all flex items-center gap-1.5 ${startDate === todayStr && endDate === todayStr ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                            >
+                                                <CalendarIcon size={14} /> {matrixT('btnToday')}
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                    const d = new Date();
+                                                    d.setDate(d.getDate() - 1);
+                                                    const yStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                                    setStartDate(yStr);
+                                                    setEndDate(yStr);
+                                                }} 
+                                                className="px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5"
+                                            >
+                                                <ArrowLeftIcon size={14} /> {matrixT('btnYesterday')}
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                    const d = new Date();
+                                                    const firstDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+                                                    setStartDate(firstDay);
+                                                    setEndDate(todayStr);
+                                                }} 
+                                                className="px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5"
+                                            >
+                                                <CalendarIcon size={14} /> {matrixT('btnThisMonth')}
+                                            </button>
+                                        </div>
+                                        <div className="pb-0.5">
+                                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={onlySoldProducts} 
+                                                    onChange={e => setOnlySoldProducts(e.target.checked)}
+                                                    className="w-4 h-4 text-blue-600 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-blue-500 cursor-pointer"
+                                                />
+                                                <span>{matrixT('onlySoldCheckbox')} ({productMatrixData.items.length} {matrixT('itemsUnit')})</span>
+                                            </label>
+                                        </div>
+                                        <div className="min-w-[180px] pb-0.5">
+                                            <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 shadow-2xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900 transition-all h-[38px]">
+                                                <SearchIcon size={15} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder={matrixT('searchPlaceholder')} 
+                                                    className="w-full bg-transparent border-none outline-none text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 pl-2" 
+                                                    value={searchQuery} 
+                                                    onChange={e => setSearchQuery(e.target.value)} 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto justify-end">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handlePrintProductMatrix(false)} 
+                                            className="px-4 py-2.5 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-500 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
+                                        >
+                                            <PrinterIcon size={15} /> {matrixT('btnPrintA4')}
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handlePrintProductMatrix(true)} 
+                                            className="px-4 py-2.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
+                                        >
+                                            <DownloadIcon size={15} /> {matrixT('btnExportPdf')}
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleExportProductMatrixExcel} 
+                                            className="px-4 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
+                                        >
+                                            <Archive size={15} /> {matrixT('btnExportExcel')}
                                         </button>
                                     </div>
                                 </div>
@@ -1589,7 +2434,7 @@
                                                         }`}
                                                         title="ยุบรวมสินค้าชนิดเดียวกันต่อพนักงานขายเป็น 1 แถว สรุปยอดรวมจำนวนและเงิน"
                                                     >
-                                                        <span>📦</span> รวมตามสินค้า (สรุปยอด)
+                                                        <PackageIcon size={14} /> รวมตามสินค้า (สรุปยอด)
                                                     </button>
                                                     <button
                                                         type="button"
@@ -1601,7 +2446,7 @@
                                                         }`}
                                                         title="แสดงแยกตามบิลขายแต่ละใบ"
                                                     >
-                                                        <span>📄</span> แยกตามบิล
+                                                        <FileText size={14} /> แยกตามบิล
                                                     </button>
                                                 </div>
                                             </div>
@@ -1885,7 +2730,9 @@
                                 {/* KPI Cards */}
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-md text-white">
-                                        <div className="text-xs font-bold text-amber-100 mb-1">💰 รวมสุทธิ (คิดเป็นบาท)</div>
+                                        <div className="text-xs font-bold text-amber-100 mb-1 flex items-center gap-1.5">
+                                            <Coins size={14} /> รวมสุทธิ (คิดเป็นบาท)
+                                        </div>
                                         <div className="text-2xl font-black">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                                     </div>
                                     <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
@@ -2088,7 +2935,9 @@
                                 {/* KPI Cards */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-4 rounded-2xl shadow-md text-white">
-                                        <div className="text-xs font-bold text-indigo-100 mb-1">💰 ยอดขายรวม (Grand Total)</div>
+                                        <div className="text-xs font-bold text-indigo-100 mb-1 flex items-center gap-1.5">
+                                            <Coins size={14} /> ยอดขายรวม (Grand Total)
+                                        </div>
                                         <div className="text-2xl font-black">฿{productReportData.grandTotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                                         <div className="text-[11px] text-indigo-200 mt-1 flex items-center justify-between">
                                             <span>{productReportData.groups.length.toLocaleString()} {productReportGroupBy === 'seller' ? 'ผู้ขาย' : 'ลูกค้า'}</span>
@@ -2096,17 +2945,23 @@
                                         </div>
                                     </div>
                                     <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
-                                        <div className="text-xs font-bold text-emerald-700 mb-1">📦 จำนวนชิ้นทั้งหมด (QT)</div>
+                                        <div className="text-xs font-bold text-emerald-700 mb-1 flex items-center gap-1.5">
+                                            <PackageIcon size={14} /> จำนวนชิ้นทั้งหมด (QT)
+                                        </div>
                                         <div className="text-2xl font-black text-emerald-700">{productReportData.grandTotalQty.toLocaleString()} ชิ้น</div>
                                         <div className="text-[11px] text-emerald-600 font-bold mt-1">ยอดรวมจำนวนสินค้าทุกรายการ</div>
                                     </div>
                                     <div className="bg-sky-50 border border-sky-200 p-4 rounded-2xl shadow-sm">
-                                        <div className="text-xs font-bold text-sky-700 mb-1">⚖️ รวมหน่วยนับ (WG)</div>
+                                        <div className="text-xs font-bold text-sky-700 mb-1 flex items-center gap-1.5">
+                                            <ScaleIcon size={14} /> รวมหน่วยนับ (WG)
+                                        </div>
                                         <div className="text-2xl font-black text-sky-700">{productReportData.grandTotalWg.toLocaleString()}</div>
                                         <div className="text-[11px] text-sky-600 font-bold mt-1">น้ำหนัก/หน่วยนับสินค้า</div>
                                     </div>
                                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm">
-                                        <div className="text-xs font-bold text-amber-700 mb-1">👥 {productReportGroupBy === 'seller' ? 'จำนวนผู้ขาย' : 'จำนวนลูกค้า'}</div>
+                                        <div className="text-xs font-bold text-amber-700 mb-1 flex items-center gap-1.5">
+                                            <Users size={14} /> {productReportGroupBy === 'seller' ? 'จำนวนผู้ขาย' : 'จำนวนลูกค้า'}
+                                        </div>
                                         <div className="text-2xl font-black text-amber-700">{productReportData.groups.length.toLocaleString()} ราย</div>
                                         <div className="text-[11px] text-amber-600 font-bold mt-1">ที่มีรายการขายในช่วงวันที่เลือก</div>
                                     </div>
@@ -2395,7 +3250,7 @@
                                     <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-700 p-5 rounded-3xl shadow-lg text-white relative overflow-hidden">
                                         <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
                                         <div className="text-xs font-bold text-blue-100 mb-1 flex items-center justify-between">
-                                            <span>💰 ຍອດຂາຍທັງໝົດ (Total Sales)</span>
+                                            <span className="flex items-center gap-1.5"><Coins size={14} className="text-blue-200" /> ຍອດຂາຍທັງໝົດ (Total Sales)</span>
                                             <span className="bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{dailyClosingData.billsCount} ບິນ</span>
                                         </div>
                                         <div className="text-2xl font-black tracking-tight font-mono">
@@ -2409,7 +3264,7 @@
 
                                     <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/60 p-5 rounded-3xl shadow-sm hover:border-emerald-300 transition-all">
                                         <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1 flex items-center justify-between">
-                                            <span>🏦 ຍອດໂອນລວມ (Bank Transfers)</span>
+                                            <span className="flex items-center gap-1.5"><LandmarkIcon size={14} className="text-emerald-600 dark:text-emerald-400" /> ຍອດໂອນລວມ (Bank Transfers)</span>
                                             <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-full">BCEL / Kasikorn</span>
                                         </div>
                                         <div className="text-2xl font-black tracking-tight font-mono text-emerald-700 dark:text-emerald-400">
@@ -2422,7 +3277,7 @@
 
                                     <div className="bg-white dark:bg-slate-900 border border-sky-200 dark:border-sky-900/60 p-5 rounded-3xl shadow-sm hover:border-sky-300 transition-all">
                                         <div className="text-xs font-bold text-sky-700 dark:text-sky-400 mb-1 flex items-center justify-between">
-                                            <span>💵 ເງິນສົດມອບທະນາຄານ (Cash to Bank)</span>
+                                            <span className="flex items-center gap-1.5"><Coins size={14} className="text-sky-600 dark:text-sky-400" /> ເງິນສົດມອບທະນາຄານ (Cash to Bank)</span>
                                             <span className="bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 text-[10px] font-black px-2 py-0.5 rounded-full">Physical Cash</span>
                                         </div>
                                         <div className="text-2xl font-black tracking-tight font-mono text-sky-700 dark:text-sky-400">
@@ -2435,7 +3290,7 @@
 
                                     <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 p-5 rounded-3xl shadow-sm hover:border-amber-300 transition-all">
                                         <div className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1 flex items-center justify-between">
-                                            <span>📦 ຍອດ COD / VIP (Pending)</span>
+                                            <span className="flex items-center gap-1.5"><PackageIcon size={14} className="text-amber-600 dark:text-amber-400" /> ຍອດ COD / VIP (Pending)</span>
                                             <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">ค้างชำระ</span>
                                         </div>
                                         <div className="text-2xl font-black tracking-tight font-mono text-amber-700 dark:text-amber-400">
@@ -2656,6 +3511,272 @@
                                             <div className="w-52 border-b-2 border-dotted border-slate-400 mb-2"></div>
                                             <span className="font-black text-xs text-slate-800 dark:text-white">ປະທານ ບໍລິສັດ ເລີບເອັສທີເຄ</span>
                                             <span className="text-[10px] text-slate-400 mt-1">LOVE STK GROUPE</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : subTab === 'product_daily_sales' ? (
+                            /* 🌟 TAB 5: รายงานขายตามสินค้า (Product Sales Matrix Report) */
+                            <div className="space-y-6 animation-fade-in">
+                                {/* 🌟 KPI Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-700 p-5 rounded-3xl shadow-lg text-white relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+                                        <div className="text-xs font-bold text-blue-100 mb-1 flex items-center justify-between">
+                                            <span className="flex items-center gap-1.5"><Coins size={14} className="text-blue-200" /> {matrixT('kpiGrandTotalTitle')}</span>
+                                            <span className="bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{productMatrixData.totalBillsCount} {matrixT('billsUnit')}</span>
+                                        </div>
+                                        <div className="text-2xl font-black tracking-tight font-mono">
+                                            ฿{productMatrixData.summary.grandTotal.toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-blue-200 mt-1 font-mono font-bold flex items-center gap-1">
+                                            <span>₭{(productMatrixData.summary.grandTotal * exchangeRate).toLocaleString()}</span>
+                                            <span className="text-[10px] text-blue-300 font-normal">({matrixT('ratePrefix')} {exchangeRate})</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/60 p-5 rounded-3xl shadow-xs hover:border-emerald-300 dark:hover:border-emerald-700 transition-all">
+                                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1 flex items-center justify-between">
+                                            <span className="flex items-center gap-1.5"><PackageIcon size={14} className="text-emerald-600 dark:text-emerald-400" /> {matrixT('kpiTotalSoldTitle')}</span>
+                                            <span className="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/60 text-[10px] font-black px-2 py-0.5 rounded-full">{productMatrixData.summary.totalProductCount} {matrixT('itemsUnit')}</span>
+                                        </div>
+                                        <div className="text-2xl font-black tracking-tight font-mono text-emerald-700 dark:text-emerald-400">
+                                            {productMatrixData.summary.totalSoldQty.toLocaleString()} {matrixT('boxUnit')}
+                                        </div>
+                                        <div className="text-xs text-emerald-600 dark:text-emerald-500 font-mono font-bold mt-1">
+                                            {matrixT('kpiFreeLabel')}: {productMatrixData.summary.qty0.toLocaleString()} {matrixT('boxUnit')}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-xs hover:border-indigo-300 dark:hover:border-indigo-700 transition-all">
+                                        <div className="text-xs font-bold text-indigo-700 dark:text-indigo-400 mb-1 flex items-center justify-between">
+                                            <span className="flex items-center gap-1.5"><Users size={14} className="text-indigo-600 dark:text-indigo-400" /> {matrixT('kpiMemberPromoTitle')}</span>
+                                            <span className="bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/60 text-[10px] font-black px-2 py-0.5 rounded-full">Member / B2B & Promo</span>
+                                        </div>
+                                        <div className="text-2xl font-black tracking-tight font-mono text-indigo-900 dark:text-indigo-200">
+                                            ฿{((productMatrixData.summary.salesMember || 0) + (productMatrixData.summary.salesB2B || 0) + (productMatrixData.summary.salesPromo || 0)).toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono font-medium mt-1">
+                                            {matrixT('kpiMemberLabel')}: ฿{(productMatrixData.summary.salesMember || 0).toLocaleString()} • {matrixT('kpiB2bLabel')}: ฿{(productMatrixData.summary.salesB2B || 0).toLocaleString()} • {matrixT('kpiPromoLabel')}: ฿{(productMatrixData.summary.salesPromo || 0).toLocaleString()}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-xs hover:border-amber-300 dark:hover:border-amber-700 transition-all">
+                                        <div className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1 flex items-center justify-between">
+                                            <span className="flex items-center gap-1.5"><FileText size={14} className="text-amber-600 dark:text-amber-400" /> {matrixT('kpiNormalTitle')}</span>
+                                            <span className="bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-800/60 text-[10px] font-black px-2 py-0.5 rounded-full">Standard Full</span>
+                                        </div>
+                                        <div className="text-2xl font-black tracking-tight font-mono text-amber-900 dark:text-amber-200">
+                                            ฿{productMatrixData.summary.salesNormal.toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono font-medium mt-1">
+                                            {matrixT('kpiNormalSoldLabel')}: {productMatrixData.summary.qtyNormal.toLocaleString()} {matrixT('boxUnit')}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 🌟 Printable Official Statement Table */}
+                                <div id="product-matrix-printable-area" className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                    {/* Header Document matching screenshot */}
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-3">
+                                            {companySettings.logoUrl ? (
+                                                <img 
+                                                    src={companySettings.logoUrl} 
+                                                    alt="Company Logo" 
+                                                    className="w-12 h-12 object-contain rounded-2xl p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs" 
+                                                />
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-xs">
+                                                    <Coins size={24} />
+                                                </div>
+                                            )}
+                                            <div>
+                                                <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                                                    {companySettings.name || 'LOVE STK GROUPE'}
+                                                </h3>
+                                                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                    {companySettings.branch || matrixT('branchMain')}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                                                    {companySettings.address || (currentLang === 'en' ? 'Vientiane, Lao PDR' : (currentLang === 'lo' ? 'ວຽງຈັນ, ສປປ.ລາວ' : 'เวียงจันทน์, สปป.ลาว'))} {companySettings.phone ? `• ${currentLang === 'en' ? 'Tel' : (currentLang === 'lo' ? 'ໂທ' : 'โทร')}: ${companySettings.phone}` : ''}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="sm:text-right">
+                                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-xl text-blue-700 dark:text-blue-300 text-xs font-black">
+                                                <span>{matrixT('exchangeRate')}: 1 ฿ = {exchangeRate.toLocaleString()} ₭</span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-mono font-bold">
+                                                {matrixT('printAt')}: {new Date().toLocaleDateString(currentLang === 'lo' ? 'lo-LA' : (currentLang === 'en' ? 'en-US' : 'th-TH'), { year: 'numeric', month: '2-digit', day: '2-digit' })} {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-center py-6">
+                                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{matrixT('docTitle')}</h2>
+                                        <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
+                                            {matrixT('dateRangeFrom')}: <span className="font-mono">{startDate}</span> {matrixT('dateRangeTo')}: <span className="font-mono">{endDate}</span> ({matrixT('totalBills')}: {productMatrixData.totalBillsCount.toLocaleString()} {matrixT('billsUnit')})
+                                        </p>
+                                    </div>
+
+                                    {/* 🌟 Rounded Outer Border Container */}
+                                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs bg-white dark:bg-slate-900">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-xs border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-10">{matrixT('colNo')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-left font-black min-w-[150px]">{matrixT('colProduct')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-24">{matrixT('colCode')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-24" dangerouslySetInnerHTML={{ __html: matrixT('colQty0') }}></th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black min-w-[100px]">{matrixT('colQtyMember')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black min-w-[100px] text-sky-700 dark:text-sky-300">{matrixT('colQtyB2b')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-20">{matrixT('colQtyPromo')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-20">{matrixT('colQtyNormal')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-24" dangerouslySetInnerHTML={{ __html: matrixT('colPriceNormal') }}></th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black min-w-[100px]" dangerouslySetInnerHTML={{ __html: matrixT('colPriceMember') }}></th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black min-w-[100px] text-sky-700 dark:text-sky-300" dangerouslySetInnerHTML={{ __html: matrixT('colPriceB2b') }}></th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-24" dangerouslySetInnerHTML={{ __html: matrixT('colPricePromo') }}></th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-24 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">{matrixT('colSoldQty')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-24">{matrixT('colSalesNormal')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black min-w-[105px]">{matrixT('colSalesMember')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black min-w-[105px] text-sky-700 dark:text-sky-300">{matrixT('colSalesB2b')}</th>
+                                                        <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center font-black w-24">{matrixT('colSalesPromo')}</th>
+                                                        <th className="p-2.5 text-center font-black w-28 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300">{matrixT('colGrandTotal')}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
+                                                    {productMatrixData.items.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan="18" className="p-8 text-center text-slate-400 dark:text-slate-500 font-bold">
+                                                                {matrixT('noData')}
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        productMatrixData.items.map((it, idx) => (
+                                                            <tr key={it.productId || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-center font-bold text-slate-400 dark:text-slate-500">{idx + 1}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 font-black text-slate-800 dark:text-slate-100">{it.productName}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 font-mono text-center font-bold text-slate-500 dark:text-slate-400">{it.productId || '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-center font-bold text-purple-600 dark:text-purple-400">{it.qty0 > 0 ? it.qty0.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-center font-bold text-blue-600 dark:text-blue-400">{it.qtyMember > 0 ? it.qtyMember.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-center font-bold text-sky-600 dark:text-sky-400">
+                                                                    {it.qtyB2B > 0 ? (
+                                                                        it.b2bTierList && it.b2bTierList.length > 1 ? (
+                                                                            <div className="flex flex-col items-center leading-tight">
+                                                                                <span className="font-bold text-sky-600 dark:text-sky-400">{it.qtyB2B.toLocaleString()}</span>
+                                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-normal">({it.b2bTierList.map(t => t.qty).join(' + ')})</span>
+                                                                            </div>
+                                                                        ) : it.qtyB2B.toLocaleString()
+                                                                    ) : '-'}
+                                                                </td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-center font-bold text-amber-600 dark:text-amber-400">{it.qtyPromo > 0 ? it.qtyPromo.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-center font-bold text-slate-700 dark:text-slate-300">{it.qtyNormal > 0 ? it.qtyNormal.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono text-slate-600 dark:text-slate-400">{it.unitPriceNormal > 0 ? it.unitPriceNormal.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono text-slate-600 dark:text-slate-400">{it.unitPriceMember > 0 ? it.unitPriceMember.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono text-slate-600 dark:text-slate-400">
+                                                                    {it.b2bTierList && it.b2bTierList.length > 1 ? (
+                                                                        <div className="flex flex-col items-end leading-tight py-0.5">
+                                                                            {it.b2bTierList.map((tier, tIdx) => (
+                                                                                <div key={tIdx} className="text-[11px] font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                                                    <span>{tier.unitPrice.toLocaleString()}</span>
+                                                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1">({tier.qty})</span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        it.unitPriceB2B > 0 ? it.unitPriceB2B.toLocaleString() : '-'
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono text-slate-600 dark:text-slate-400">{it.unitPricePromo > 0 ? it.unitPricePromo.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-center font-mono font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/40">{it.totalSoldQty > 0 ? it.totalSoldQty.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono text-slate-700 dark:text-slate-300">{it.salesNormal > 0 ? it.salesNormal.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono font-bold text-blue-700 dark:text-blue-400">{it.salesMember > 0 ? it.salesMember.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono font-bold text-sky-600 dark:text-sky-400">
+                                                                    {it.salesB2B > 0 ? (
+                                                                        it.b2bTierList && it.b2bTierList.length > 1 ? (
+                                                                            <div className="flex flex-col items-end leading-tight py-0.5">
+                                                                                <span className="font-bold text-sky-600 dark:text-sky-400">{it.salesB2B.toLocaleString()}</span>
+                                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-normal">({it.b2bTierList.map(t => t.sales.toLocaleString()).join(' + ')})</span>
+                                                                            </div>
+                                                                        ) : it.salesB2B.toLocaleString()
+                                                                    ) : '-'}
+                                                                </td>
+                                                                <td className="p-2.5 border-r border-slate-200/70 dark:border-slate-800 text-right font-mono font-bold text-amber-700 dark:text-amber-400">{it.salesPromo > 0 ? it.salesPromo.toLocaleString() : '-'}</td>
+                                                                <td className="p-2.5 text-right font-mono font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/40">{it.grandTotal > 0 ? `฿${it.grandTotal.toLocaleString()}` : '-'}</td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                                <tfoot className="bg-slate-100/90 dark:bg-slate-800/90 font-black border-t-2 border-slate-300 dark:border-slate-700">
+                                                    <tr>
+                                                         <td colSpan="3" className="p-3 border-r border-slate-200 dark:border-slate-700 text-center font-black text-slate-800 dark:text-slate-100">
+                                                             {matrixT('totalAll')} ({productMatrixData.items.length.toLocaleString()} {matrixT('itemsUnit')})
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-center font-black text-purple-700 dark:text-purple-400">
+                                                             {productMatrixData.summary.qty0 > 0 ? productMatrixData.summary.qty0.toLocaleString() : '-'}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-center font-black text-blue-700 dark:text-blue-400">
+                                                             {productMatrixData.summary.qtyMember > 0 ? productMatrixData.summary.qtyMember.toLocaleString() : '-'}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-center font-black text-sky-700 dark:text-sky-400">
+                                                             {productMatrixData.summary.qtyB2B > 0 ? productMatrixData.summary.qtyB2B.toLocaleString() : '-'}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-center font-black text-amber-700 dark:text-amber-400">
+                                                             {productMatrixData.summary.qtyPromo > 0 ? productMatrixData.summary.qtyPromo.toLocaleString() : '-'}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-center font-black text-slate-700 dark:text-slate-300">
+                                                             {productMatrixData.summary.qtyNormal > 0 ? productMatrixData.summary.qtyNormal.toLocaleString() : '-'}
+                                                         </td>
+                                                         <td colSpan="4" className="p-3 border-r border-slate-200 dark:border-slate-700 text-center text-slate-400 dark:text-slate-500 font-normal">-</td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-center font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60">
+                                                             {productMatrixData.summary.totalSoldQty.toLocaleString()}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-right font-black text-slate-800 dark:text-slate-200">
+                                                             {productMatrixData.summary.salesNormal > 0 ? `฿${productMatrixData.summary.salesNormal.toLocaleString()}` : '-'}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-right font-black text-blue-800 dark:text-blue-300">
+                                                             {productMatrixData.summary.salesMember > 0 ? `฿${productMatrixData.summary.salesMember.toLocaleString()}` : '-'}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-right font-black text-sky-800 dark:text-sky-300">
+                                                             {productMatrixData.summary.salesB2B > 0 ? `฿${productMatrixData.summary.salesB2B.toLocaleString()}` : '-'}
+                                                         </td>
+                                                         <td className="p-3 border-r border-slate-200 dark:border-slate-700 text-right font-black text-amber-800 dark:text-amber-300">
+                                                             {productMatrixData.summary.salesPromo > 0 ? `฿${productMatrixData.summary.salesPromo.toLocaleString()}` : '-'}
+                                                         </td>
+                                                         <td className="p-3 text-right font-black text-indigo-900 dark:text-indigo-200 bg-indigo-100/80 dark:bg-indigo-950/60">
+                                                             ฿{productMatrixData.summary.grandTotal.toLocaleString()}
+                                                         </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* 🌟 3-Column Signature Section matching Image 2 */}
+                                    <div className="pt-8 border-t border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center mt-6">
+                                        <div className="flex flex-col items-center">
+                                            <span className="font-black text-xs text-slate-700 dark:text-slate-200 mb-10">{matrixT('sigReporter')}</span>
+                                            <div className="w-48 border-b-2 border-dotted border-slate-400 dark:border-slate-600 mb-2"></div>
+                                            <span className="text-[11px] text-slate-500 dark:text-slate-400">( ............................................................ )</span>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{matrixT('sigReporterRole')}</span>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{matrixT('sigDate')}</span>
+                                        </div>
+
+                                        <div className="flex flex-col items-center">
+                                            <span className="font-black text-xs text-slate-700 dark:text-slate-200 mb-10">{matrixT('sigAuditor')}</span>
+                                            <div className="w-48 border-b-2 border-dotted border-slate-400 dark:border-slate-600 mb-2"></div>
+                                            <span className="text-[11px] text-slate-500 dark:text-slate-400">( ............................................................ )</span>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{matrixT('sigAuditorRole')}</span>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{matrixT('sigDate')}</span>
+                                        </div>
+
+                                        <div className="flex flex-col items-center">
+                                            <span className="font-black text-xs text-slate-700 dark:text-slate-200 mb-10">{matrixT('sigPresident')}</span>
+                                            <div className="w-48 border-b-2 border-dotted border-slate-400 dark:border-slate-600 mb-2"></div>
+                                            <span className="font-black text-xs text-slate-800 dark:text-white">{matrixT('sigCompany')}</span>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{matrixT('sigDate')}</span>
                                         </div>
                                     </div>
                                 </div>

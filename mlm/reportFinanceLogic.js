@@ -898,6 +898,371 @@
         };
     }
 
+    /**
+     * 7. คำนวณรายงานยอดขายตามสินค้า (Product Sales Matrix Report - 15 Columns)
+     * สรุป 4 ระดับราคา (ราคา 0, สมาชิก, โปร, ปกติ) พร้อมถอดเซ็ตโปรโมชั่น (Bundle Unpacking)
+     */
+    function calculateProductSalesMatrix(sales, products = [], startDate = '', endDate = '', options = {}) {
+        const { permittedMemberSet = null, searchQuery = '', showAllProducts = false } = options;
+
+        if (!Array.isArray(sales)) {
+            return {
+                items: [],
+                totalBillsCount: 0,
+                summary: {
+                    totalProductCount: 0,
+                    qty0: 0,
+                    qtyMember: 0,
+                    qtyB2B: 0,
+                    qtyPromo: 0,
+                    qtyNormal: 0,
+                    totalSoldQty: 0,
+                    salesNormal: 0,
+                    salesMember: 0,
+                    salesB2B: 0,
+                    salesPromo: 0,
+                    grandTotal: 0
+                }
+            };
+        }
+
+        // 1. สร้าง Map สำหรับค้นหาสินค้า
+        const prodMapObj = {};
+        const baseProductsList = [];
+        const bundleMap = {};
+
+        (products || []).forEach(p => {
+            if (!p) return;
+            const pId = String(p.product_id || p.id || '').trim();
+            const pName = String(p.name || p.product_name || '').trim();
+            const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+
+            if (pId) prodMapObj[pId] = p;
+            if (pName) {
+                prodMapObj[pName] = p;
+                prodMapObj[pName.toUpperCase()] = p;
+            }
+            if (cleanPName) {
+                prodMapObj[cleanPName] = p;
+                prodMapObj[cleanPName.toUpperCase()] = p;
+            }
+
+            const isBundle = Boolean(p.is_bundle || p.isBundle || (p.bundle_qty && Number(p.bundle_qty) > 1));
+            if (isBundle) {
+                const baseId = String(p.base_product || p.baseProduct || '').trim();
+                const bQty = Number(p.bundle_qty || p.bundleQty) || 1;
+                if (pId) bundleMap[pId] = { baseId, multiplier: bQty };
+                if (pName) bundleMap[pName.toUpperCase()] = { baseId, multiplier: bQty };
+                if (cleanPName) bundleMap[cleanPName.toUpperCase()] = { baseId, multiplier: bQty };
+            } else {
+                baseProductsList.push(p);
+            }
+        });
+
+        // 2. สร้างโครงสร้างแถวของสินค้าหลัก (Base Product Rows)
+        const rowMap = new Map();
+
+        baseProductsList.forEach(p => {
+            const pId = String(p.product_id || p.id || '').trim();
+            const pName = String(p.name || p.product_name || '').trim();
+            if (!pId && !pName) return;
+
+            const rowKey = pId || pName.toUpperCase();
+            rowMap.set(rowKey, {
+                productId: pId,
+                productName: pName,
+                category: p.category || '',
+                qty0: 0,
+                qtyMember: 0,
+                qtyB2B: 0,
+                qtyPromo: 0,
+                qtyNormal: 0,
+                unitPriceNormal: Number(p.price_full ?? p.priceFull ?? 0),
+                unitPriceMember: Number(p.price_member ?? p.priceMember ?? 0),
+                unitPriceB2B: Number(p.price_b2b ?? p.priceB2B ?? 0),
+                unitPricePromo: Number(p.price_promo ?? p.pricePromo ?? 0),
+                b2bTiers: {},
+                b2bTierList: [],
+                totalSoldQty: 0,
+                salesNormal: 0,
+                salesMember: 0,
+                salesB2B: 0,
+                salesPromo: 0,
+                grandTotal: 0
+            });
+        });
+
+        // Helper ในการหาแถวสินค้า
+        const getTargetRow = (pId, pName) => {
+            if (pId && rowMap.has(pId)) return rowMap.get(pId);
+            if (pName) {
+                const upName = pName.toUpperCase();
+                if (rowMap.has(upName)) return rowMap.get(upName);
+                for (let [, r] of rowMap.entries()) {
+                    if (r.productName.toUpperCase() === upName) return r;
+                    if (r.productName.replace(/\(.*?\)/g, '').trim().toUpperCase() === pName.replace(/\(.*?\)/g, '').trim().toUpperCase()) return r;
+                }
+            }
+            return null;
+        };
+
+        // 3. วนลูปบิลขายเพื่อกระจายยอดลงแต่ละแถว
+        const billCountSet = new Set();
+
+        sales.forEach(s => {
+            if (!s) return;
+            const bDate = String(s.date || s.created_at || '').split('T')[0].split(' ')[0];
+            if (startDate && bDate < startDate) return;
+            if (endDate && bDate > endDate) return;
+
+            // ข้ามบิลที่ถูกยกเลิก
+            const st = String(s.status || '').trim().toLowerCase();
+            if (st === 'ยกเลิก' || st === 'cancelled' || st === 'void') return;
+
+            const sellerId = String(s.seller_id || s.memberId || '').trim();
+            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(sellerId))) return;
+
+            const billId = String(s.id || s.order_id || '').trim();
+            if (billId) billCountSet.add(billId);
+
+            let itemsList = s._items;
+            if (!itemsList && s.items_json) {
+                try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+            }
+
+            if (Array.isArray(itemsList) && itemsList.length > 0) {
+                itemsList.forEach(it => {
+                    const rawId = String(it.id || it.product_id || '').trim();
+                    const rawName = String(it.productName || it.name || it.product || it.prod || 'สินค้า').trim();
+                    const cleanName = rawName.replace(/\(.*?\)/g, '').trim();
+
+                    // ค้นหาว่าเป็น Bundle หรือไม่
+                    let targetBaseId = '';
+                    let multiplier = 1;
+
+                    if (rawId && bundleMap[rawId]) {
+                        targetBaseId = bundleMap[rawId].baseId;
+                        multiplier = bundleMap[rawId].multiplier;
+                    } else if (rawName && bundleMap[rawName.toUpperCase()]) {
+                        targetBaseId = bundleMap[rawName.toUpperCase()].baseId;
+                        multiplier = bundleMap[rawName.toUpperCase()].multiplier;
+                    } else if (cleanName && bundleMap[cleanName.toUpperCase()]) {
+                        targetBaseId = bundleMap[cleanName.toUpperCase()].baseId;
+                        multiplier = bundleMap[cleanName.toUpperCase()].multiplier;
+                    } else {
+                        const pObj = prodMapObj[rawId] || prodMapObj[rawName] || prodMapObj[cleanName] || {};
+                        if (pObj.is_bundle || pObj.isBundle || (pObj.bundle_qty && Number(pObj.bundle_qty) > 1)) {
+                            targetBaseId = String(pObj.base_product || pObj.baseProduct || '').trim();
+                            multiplier = Number(pObj.bundle_qty || pObj.bundleQty) || 1;
+                        }
+                    }
+
+                    // Fallback ตัวคูณจากข้อความในชื่อ เช่น "โปร 2 แถม 1" หรือ "3 กล่อง"
+                    if (multiplier === 1) {
+                        const buyFreeMatch = rawName.match(/(\d+)\s*(?:แถม|\+)\s*(\d+)/);
+                        if (buyFreeMatch) {
+                            multiplier = (parseInt(buyFreeMatch[1]) || 0) + (parseInt(buyFreeMatch[2]) || 0);
+                        } else {
+                            const boxMatch = rawName.match(/(\d+)\s*(?:กล่อง|ชิ้น|ขวด|กระปุก|ชุด|เซ็ต)/i);
+                            if (boxMatch && parseInt(boxMatch[1]) > 1) {
+                                multiplier = parseInt(boxMatch[1]);
+                            }
+                        }
+                    }
+
+                    // ค้นหาแถวของสินค้าเป้าหมาย
+                    let targetRow = null;
+                    if (targetBaseId) {
+                        targetRow = getTargetRow(targetBaseId, '');
+                        if (!targetRow) {
+                            const bpObj = prodMapObj[targetBaseId];
+                            if (bpObj) targetRow = getTargetRow(bpObj.product_id, bpObj.name);
+                        }
+                    }
+                    if (!targetRow) {
+                        targetRow = getTargetRow(rawId, rawName);
+                    }
+
+                    // ถ้าไม่พบใน Master Data ให้สร้างแถว Dynamic ขึ้นมา
+                    if (!targetRow) {
+                        const newKey = rawId || rawName.toUpperCase();
+                        targetRow = {
+                            productId: rawId || '-',
+                            productName: rawName,
+                            category: '',
+                            qty0: 0,
+                            qtyMember: 0,
+                            qtyB2B: 0,
+                            qtyPromo: 0,
+                            qtyNormal: 0,
+                            unitPriceNormal: 0,
+                            unitPriceMember: 0,
+                            unitPriceB2B: 0,
+                            unitPricePromo: 0,
+                            b2bTiers: {},
+                            b2bTierList: [],
+                            totalSoldQty: 0,
+                            salesNormal: 0,
+                            salesMember: 0,
+                            salesB2B: 0,
+                            salesPromo: 0,
+                            grandTotal: 0
+                        };
+                        rowMap.set(newKey, targetRow);
+                    }
+
+                    const orderedQty = Number(it.qty || it.quantity || 1);
+                    const actualQty = orderedQty * multiplier;
+
+                    let linePrice = Number(it.price || it.unitPrice || it.unit_price || 0);
+                    let lineTotal = Number(it.total || it.amount || 0);
+
+                    if (lineTotal === 0 && linePrice > 0 && orderedQty > 0) lineTotal = orderedQty * linePrice;
+                    if (linePrice === 0 && orderedQty > 0 && lineTotal > 0) linePrice = Math.round(lineTotal / orderedQty);
+
+                    const unitAr = (actualQty > 0 && lineTotal > 0) ? (lineTotal / actualQty) : linePrice;
+
+                    // 🌟 ตรวจสอบว่าเป็นการขายส่ง B2B หรือไม่ (แยกห้องออกมาต่างหาก ไม่ปนกับ Member ทั่วไป)
+                    const isB2B = (String(s.sale_type || '').toUpperCase() === 'B2B') ||
+                                  String(s.order_id || '').toUpperCase().startsWith('B2B-') ||
+                                  Boolean(it.appliedTier) ||
+                                  String(it.priceType || it.type || '').toLowerCase().includes('b2b');
+
+                    if (isB2B) {
+                        targetRow.qtyB2B += actualQty;
+                        targetRow.salesB2B += lineTotal;
+
+                        if (!targetRow.b2bTiers) targetRow.b2bTiers = {};
+                        const rateKey = Math.round(unitAr);
+                        if (rateKey > 0) {
+                            if (!targetRow.b2bTiers[rateKey]) {
+                                targetRow.b2bTiers[rateKey] = { unitPrice: rateKey, qty: 0, sales: 0 };
+                            }
+                            targetRow.b2bTiers[rateKey].qty += actualQty;
+                            targetRow.b2bTiers[rateKey].sales += lineTotal;
+                        }
+
+                        if (targetRow.unitPriceB2B === 0 && unitAr > 0) {
+                            targetRow.unitPriceB2B = unitAr;
+                        }
+                    } else {
+                        // จำแนกประเภทราคาปกติ / สมาชิก / โปร / ศูนย์
+                        const priceType = classifyOrderItem(it, unitAr, lineTotal, prodMapObj);
+
+                        if (priceType === 'ราคาศูนย์') {
+                            targetRow.qty0 += actualQty;
+                        } else if (priceType === 'ราคาเต็ม') {
+                            targetRow.qtyNormal += actualQty;
+                            targetRow.salesNormal += lineTotal;
+                            if (targetRow.unitPriceNormal === 0 && unitAr > 0) targetRow.unitPriceNormal = unitAr;
+                        } else if (priceType === 'ราคาโปร') {
+                            targetRow.qtyPromo += actualQty;
+                            targetRow.salesPromo += lineTotal;
+                            if (targetRow.unitPricePromo === 0 && unitAr > 0) targetRow.unitPricePromo = unitAr;
+                        } else {
+                            // ราคาสมาชิก (default ทั่วไป)
+                            targetRow.qtyMember += actualQty;
+                            targetRow.salesMember += lineTotal;
+                            if (targetRow.unitPriceMember === 0 && unitAr > 0) targetRow.unitPriceMember = unitAr;
+                        }
+                    }
+                });
+            }
+        });
+
+        // 4. สรุปรวมรายแถวและผลรวมท้ายตาราง
+        const resultRows = [];
+        let summary = {
+            totalProductCount: 0,
+            qty0: 0,
+            qtyMember: 0,
+            qtyB2B: 0,
+            qtyPromo: 0,
+            qtyNormal: 0,
+            totalSoldQty: 0,
+            salesNormal: 0,
+            salesMember: 0,
+            salesB2B: 0,
+            salesPromo: 0,
+            grandTotal: 0
+        };
+
+        const query = String(searchQuery || '').trim().toUpperCase();
+
+        rowMap.forEach((r) => {
+            const b2bTierValues = Object.values(r.b2bTiers || {});
+            if (b2bTierValues.length > 0) {
+                b2bTierValues.sort((a, b) => b.qty - a.qty || b.unitPrice - a.unitPrice);
+                r.b2bTierList = b2bTierValues;
+                if (b2bTierValues.length === 1) {
+                    r.unitPriceB2B = b2bTierValues[0].unitPrice;
+                }
+            } else {
+                r.b2bTierList = [];
+            }
+
+            r.totalSoldQty = r.qty0 + r.qtyMember + r.qtyB2B + r.qtyPromo + r.qtyNormal;
+
+            // ตรวจสอบยอดขายถ้ามียอดจำนวนแต่ยอดเงินคำนวณจากราคาต่อหน่วย
+            if (r.salesNormal === 0 && r.qtyNormal > 0 && r.unitPriceNormal > 0) {
+                r.salesNormal = r.qtyNormal * r.unitPriceNormal;
+            }
+            if (r.salesMember === 0 && r.qtyMember > 0 && r.unitPriceMember > 0) {
+                r.salesMember = r.qtyMember * r.unitPriceMember;
+            }
+            if (r.salesB2B === 0 && r.qtyB2B > 0) {
+                if (r.b2bTierList.length > 0) {
+                    r.salesB2B = r.b2bTierList.reduce((sum, t) => sum + (t.sales || (t.qty * t.unitPrice)), 0);
+                } else if (r.unitPriceB2B > 0) {
+                    r.salesB2B = r.qtyB2B * r.unitPriceB2B;
+                }
+            }
+            if (r.salesPromo === 0 && r.qtyPromo > 0 && r.unitPricePromo > 0) {
+                r.salesPromo = r.qtyPromo * r.unitPricePromo;
+            }
+
+            r.grandTotal = r.salesNormal + r.salesMember + r.salesB2B + r.salesPromo;
+
+            // กรองตามการตั้งค่าและคำค้นหา
+            if (!showAllProducts && r.totalSoldQty === 0) return;
+
+            if (query) {
+                const matchName = r.productName.toUpperCase().includes(query);
+                const matchCode = String(r.productId).toUpperCase().includes(query);
+                if (!matchName && !matchCode) return;
+            }
+
+            resultRows.push(r);
+
+            summary.qty0 += r.qty0;
+            summary.qtyMember += r.qtyMember;
+            summary.qtyB2B += r.qtyB2B;
+            summary.qtyPromo += r.qtyPromo;
+            summary.qtyNormal += r.qtyNormal;
+            summary.totalSoldQty += r.totalSoldQty;
+            summary.salesNormal += r.salesNormal;
+            summary.salesMember += r.salesMember;
+            summary.salesB2B += r.salesB2B;
+            summary.salesPromo += r.salesPromo;
+            summary.grandTotal += r.grandTotal;
+        });
+
+        // เรียงลำดับตามรหัสสินค้า
+        resultRows.sort((a, b) => {
+            const idA = String(a.productId || '');
+            const idB = String(b.productId || '');
+            return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        summary.totalProductCount = resultRows.length;
+
+        return {
+            items: resultRows,
+            totalBillsCount: billCountSet.size,
+            summary
+        };
+    }
+
     // Export Engine to Global Scope
     window.ReportFinanceEngine = {
         parseSaleCurrencyAmounts,
@@ -906,8 +1271,10 @@
         calculateFinanceKpi,
         calculateYearlyFinanceData,
         groupSalesForProductReport,
-        calculateDailyCashClosing
+        calculateDailyCashClosing,
+        calculateProductSalesMatrix
     };
+    window.calculateProductSalesMatrix = calculateProductSalesMatrix;
 
 })(window);
 

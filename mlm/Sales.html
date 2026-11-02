@@ -1013,16 +1013,36 @@
             const [salesPage, setSalesPage] = useState(1);
             const SALES_PER_PAGE = 20;
 
+            const isSellerAdmin = (s) => {
+                if (!s) return false;
+                if (typeof s === 'object') {
+                    const sId = String(s.user_id || s.id || '').toUpperCase();
+                    const sRole = String(s.permission_role || s.role || '').toLowerCase();
+                    const sUser = String(s.username || '').toLowerCase();
+                    if (sId === 'U001' || sId.startsWith('U001') || sRole.includes('admin') || sRole.includes('ผู้ดูแลระบบ') || sUser === 'admin') return true;
+                }
+                const str = String(s).toUpperCase();
+                if (str.includes('U001') || str.startsWith('U001') || str.includes('ADMIN') || str.includes('แอดมิน') || str.includes('ผู้ดูแลระบบ')) return true;
+                const m = (members || []).find(x => x && (safeUpper(x.id) === safeUpper(s) || safeUpper(x.user_id) === safeUpper(s) || safeUpper(`${x.id || x.user_id} - ${x.name}`) === safeUpper(s)));
+                if (m) {
+                    const mId = String(m.user_id || m.id || '').toUpperCase();
+                    const mRole = String(m.permission_role || m.role || '').toLowerCase();
+                    const uName = String(m.username || '').toLowerCase();
+                    if (mId === 'U001' || mRole.includes('admin') || mRole.includes('ผู้ดูแลระบบ') || uName === 'admin') return true;
+                }
+                return false;
+            };
+
             const findMemberRobustLocal = (inputStr) => {
                 if (!inputStr) return null;
                 const mId = inputStr.split(' ')[0].replace('-', '').trim();
-                return (members || []).find(m => m && safeUpper(m.id) === safeUpper(mId));
+                return (members || []).find(m => m && (safeUpper(m.id) === safeUpper(mId) || safeUpper(m.user_id) === safeUpper(mId)));
             };
             const foundMember = findMemberRobustLocal(memberIdInput);
 
-            const membersSuggestList = useMemo(() => (members || []).filter(m => m && m.id).map(m => ({
-                label: `${m.id} - ${m.name}`,
-                value: `${m.id} - ${m.name}`
+            const membersSuggestList = useMemo(() => (members || []).filter(m => m && (m.id || m.user_id) && !isSellerAdmin(m)).map(m => ({
+                label: `${m.id || m.user_id} - ${m.name}`,
+                value: `${m.id || m.user_id} - ${m.name}`
             })), [members]);
 
             const customersSuggestList = useMemo(() => (customers || []).filter(c => c && c.id).map(c => ({
@@ -1385,26 +1405,38 @@
                     const isSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
                         ? window.isClinicDoctorIdentifier(pendingSeller, effectiveClinicDoctors || clinicDoctors)
                         : false;
-                    if (isSellerDoc) pendingSeller = '';
+                    if (isSellerDoc || isSellerAdmin(pendingSeller)) pendingSeller = '';
+
+                    // ⚡ ตรวจสอบประวัติบิลเดิมจาก sales หากยังไม่มีผู้แนะนำหรือผู้แนะนำเดิมเป็นหมอ/แอดมิน
+                    if (!pendingSeller) {
+                        const targetHn = pending.hn || foundExistingCust.id || foundExistingCust.customer_id;
+                        if (targetHn) {
+                            const prevSale = (sales || []).find(s => s && (safeUpper(s.customerId) === safeUpper(targetHn) || safeUpper(s.customer_id) === safeUpper(targetHn)) && !isSellerAdmin(s.memberId || s.seller_id));
+                            if (prevSale) {
+                                pendingSeller = String(prevSale.memberId || prevSale.seller_id || '').trim();
+                            }
+                        }
+                    }
 
                     const isClinicVisitCase = Boolean(pending.visit_id && pending.visit_id !== '-');
                     if (pendingSeller && pendingSeller !== '-' && pendingSeller !== '--') {
                         const matchedPendingM = (members || []).find(m => m && (
                             safeUpper(m.id) === safeUpper(pendingSeller) ||
-                            safeUpper(`${m.id} - ${m.name}`) === safeUpper(pendingSeller) ||
-                            pendingSeller.toUpperCase().startsWith(safeUpper(m.id)) ||
+                            safeUpper(m.user_id) === safeUpper(pendingSeller) ||
+                            safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(pendingSeller) ||
+                            pendingSeller.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
                             safeUpper(m.name) === safeUpper(pendingSeller) ||
                             safeUpper(m.name).includes(safeUpper(pendingSeller)) ||
                             safeUpper(pendingSeller).includes(safeUpper(m.name))
                         ));
-                        const sellerDisplay = matchedPendingM ? `${matchedPendingM.id} - ${matchedPendingM.name}` : pendingSeller;
+                        const sellerDisplay = matchedPendingM ? `${matchedPendingM.id || matchedPendingM.user_id} - ${matchedPendingM.name}` : pendingSeller;
                         setMemberIdInput(sellerDisplay);
                     } else if (!isClinicVisitCase) {
                         // เฉพาะกรณีไม่ใช่เคสคลินิกและไม่มีการระบุผู้แนะนำมาในบิล จึงจะซิงค์ผู้ดูแลเดิม
                         const existingOwnerId = String(foundExistingCust.owner_member_id || foundExistingCust.ownerMemberId || foundExistingCust.memberId || '').trim();
-                        if (existingOwnerId) {
-                            const matchedM = (members || []).find(m => m && safeUpper(m.id) === safeUpper(existingOwnerId));
-                            const ownerDisplay = matchedM ? `${matchedM.id} - ${matchedM.name}` : existingOwnerId;
+                        if (existingOwnerId && !isSellerAdmin(existingOwnerId)) {
+                            const matchedM = (members || []).find(m => m && (safeUpper(m.id) === safeUpper(existingOwnerId) || safeUpper(m.user_id) === safeUpper(existingOwnerId)));
+                            const ownerDisplay = matchedM ? `${matchedM.id || matchedM.user_id} - ${matchedM.name}` : existingOwnerId;
                             setMemberIdInput(ownerDisplay);
                         }
                     }
@@ -1456,22 +1488,31 @@
                     };
 
                     let initSeller = String(pending.recorded_by || pending.seller_id || '').trim();
-                    // 🛡️ ป้องกันชื่อหมอหลุดเข้ามาเป็นผู้ขาย (Seller/Marketer)
+                    // 🛡️ ป้องกันชื่อหมอและแอดมินหลุดเข้ามาเป็นผู้ขาย (Seller/Marketer)
                     const isInitSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
                         ? window.isClinicDoctorIdentifier(initSeller, effectiveClinicDoctors || clinicDoctors)
                         : false;
-                    if (isInitSellerDoc) {
+                    if (isInitSellerDoc || isSellerAdmin(initSeller)) {
                         initSeller = '';
+                    }
+
+                    // ⚡ ตรวจสอบประวัติบิลเดิมจาก sales (สำหรับเคสต่อยา หรือคนไข้เก่าที่บิลก่อนหน้ามีผู้ขายตัวจริง)
+                    if (!initSeller && pending.hn) {
+                        const prevSale = (sales || []).find(s => s && (safeUpper(s.customerId) === safeUpper(pending.hn) || safeUpper(s.customer_id) === safeUpper(pending.hn)) && !isSellerAdmin(s.memberId || s.seller_id));
+                        if (prevSale) {
+                            initSeller = String(prevSale.memberId || prevSale.seller_id || '').trim();
+                        }
                     }
 
                     if (initSeller && initSeller !== '-' && initSeller !== '--') {
                         const matchedInitM = (members || []).find(m => m && (
                             safeUpper(m.id) === safeUpper(initSeller) ||
-                            safeUpper(`${m.id} - ${m.name}`) === safeUpper(initSeller) ||
-                            initSeller.toUpperCase().startsWith(safeUpper(m.id)) ||
+                            safeUpper(m.user_id) === safeUpper(initSeller) ||
+                            safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(initSeller) ||
+                            initSeller.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
                             safeUpper(m.name) === safeUpper(initSeller)
                         ));
-                        setMemberIdInput(matchedInitM ? `${matchedInitM.id} - ${matchedInitM.name}` : initSeller);
+                        setMemberIdInput(matchedInitM ? `${matchedInitM.id || matchedInitM.user_id} - ${matchedInitM.name}` : initSeller);
                     } else {
                         setMemberIdInput('');
                     }
@@ -1483,14 +1524,15 @@
                                 const isRefDoc = (typeof window.isClinicDoctorIdentifier === 'function')
                                     ? window.isClinicDoctorIdentifier(refStr, effectiveClinicDoctors || clinicDoctors)
                                     : false;
-                                if (!isRefDoc) {
+                                if (!isRefDoc && !isSellerAdmin(refStr)) {
                                     const matchedRefM = (members || []).find(m => m && (
                                         safeUpper(m.id) === safeUpper(refStr) ||
-                                        safeUpper(`${m.id} - ${m.name}`) === safeUpper(refStr) ||
-                                        refStr.toUpperCase().startsWith(safeUpper(m.id)) ||
+                                        safeUpper(m.user_id) === safeUpper(refStr) ||
+                                        safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(refStr) ||
+                                        refStr.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
                                         safeUpper(m.name) === safeUpper(refStr)
                                     ));
-                                    setMemberIdInput(matchedRefM ? `${matchedRefM.id} - ${matchedRefM.name}` : refStr);
+                                    setMemberIdInput(matchedRefM ? `${matchedRefM.id || matchedRefM.user_id} - ${matchedRefM.name}` : refStr);
                                 }
                             }
                         }).catch(() => {});
@@ -2704,6 +2746,10 @@
                     return;
                 }
                 if (!foundMember) { showToast('ระบุรหัสสมาชิกผู้ขายไม่ถูกต้อง', 'error'); return; }
+                if (isSellerAdmin(foundMember)) {
+                    showToast(`รหัส ${foundMember.name || foundMember.id} เป็นบัญชีแอดมิน ไม่ใช่พนักงานการตลาด กรุณาระบุรหัสผู้ขายจริง`, 'error');
+                    return;
+                }
                 if (!custMode || String(custMode).trim() === '') { showToast('กรุณาระบุประเภทลูกค้า', 'error'); return; }
 
                 if (!editingSaleId && paymentNote && paymentNote.includes('VISIT:')) {

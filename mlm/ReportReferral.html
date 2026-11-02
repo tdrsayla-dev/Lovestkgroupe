@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -205,8 +205,22 @@
         });
         const [summaryEndDate, setSummaryEndDate] = useState(todayStr);
 
-        const [dailyStartDate, setDailyStartDate] = useState(todayStr);
-        const [dailyEndDate, setDailyEndDate] = useState(todayStr);
+        const [dailyStartDate, setDailyStartDate] = useState(() => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const s = params.get('start_date') || params.get('startDate');
+                if (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+            } catch(e) {}
+            return todayStr;
+        });
+        const [dailyEndDate, setDailyEndDate] = useState(() => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const e = params.get('end_date') || params.get('endDate');
+                if (e && /^\d{4}-\d{2}-\d{2}$/.test(e)) return e;
+            } catch(e) {}
+            return todayStr;
+        });
 
         const [monthlySelfPeriod, setMonthlySelfPeriod] = useState(() => {
             const now = new Date();
@@ -216,6 +230,17 @@
             const now = new Date();
             return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         });
+
+        // ล้าง param 'period' ที่ค้างใน URL เพื่อให้เวลารีเฟรชหรือเปิดใหม่ จะวิ่งตามเดือนปัจจุบันเสมอ
+        useEffect(() => {
+            try {
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('period')) {
+                    url.searchParams.delete('period');
+                    window.history.replaceState({}, '', url.toString());
+                }
+            } catch(e) {}
+        }, []);
 
         const getMonthRange = (ym) => {
             const parts = (ym || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`).split('-');
@@ -271,56 +296,46 @@
         const [selectedPayoutKeys, setSelectedPayoutKeys] = useState(new Set());
         const [payoutStatusFilter, setPayoutStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'PAID'
 
-        // 🏆 Campaign Deduction Map - อ้างอิงเฉพาะโปรโมชั่นที่เปิดใช้งานอยู่ (status === 'active') และตรงกับรอบเวลาที่เลือกเท่านั้น
+        // 🏆 Campaign Deduction Map - อ้างอิงผลลัพธ์แคมเปญที่บันทึกไว้ (stk_campaign_results) ที่ตรงกับรอบเวลาที่เลือก
         const campaignResultsMap = useMemo(() => {
             const map = {};
-            // 1. คัดกรองเฉพาะแคมเปญที่เปิดใช้งาน (Active) ตามเงื่อนไข: "ตรงตัดโปรฯอ่ะ มันต้องอ้างอิงตาม โปรที่เราเปิด on ทำงานอยู่นะ"
-            const activeCampaigns = (campaigns || []).filter(c => c && String(c.status || '').toLowerCase() === 'active');
-            if (activeCampaigns.length === 0) {
-                window.__stkCampaignResultsMap = map;
-                return map;
-            }
+            const campLookup = new Map((campaigns || []).map(c => [String(c.campaign_id || c.id || ''), c]));
 
-            // 2. คัดกรองแคมเปญที่ช่วงเวลาครอบคลุมหรือซ้อนทับกับรอบที่เปิดดูรายงาน (เช่น เดือนตุลาคม 2026)
             const currentPeriodStart = startDate;
             const currentPeriodEnd = endDate;
-
-            const relevantActiveCamps = activeCampaigns.filter(c => {
-                if (!c.start_date || !c.end_date) return false;
-                return (c.start_date <= currentPeriodEnd && c.end_date >= currentPeriodStart);
-            });
-
-            if (relevantActiveCamps.length === 0) {
-                // หากรอบที่เลือกดู ไม่มีแคมเปญ Active ซ้อนทับอยู่เลย จะต้องไม่มีการตัดโปรฯ
-                window.__stkCampaignResultsMap = map;
-                return map;
-            }
-
-            const activeCampIds = new Set(relevantActiveCamps.map(c => String(c.campaign_id || c.id)));
-            const activeCampLookup = new Map(relevantActiveCamps.map(c => [String(c.campaign_id || c.id), c]));
 
             (campaignResults || []).forEach(cr => {
                 if (!cr || !cr.member_id) return;
                 const campId = String(cr.campaign_id || '');
-                // ตรวจสอบว่าผลลัพธ์นี้เป็นของแคมเปญที่ active และตรงรอบเท่านั้น (แคมเปญเก่าหรือ inactive จะไม่ถูกนำมาคิดข้ามรอบ)
-                if (!activeCampIds.has(campId)) return;
+                const parentCamp = campLookup.get(campId) || {};
 
-                const parentCamp = activeCampLookup.get(campId) || {};
+                // ข้ามแคมเปญที่ถูกลบ (deleted)
+                if (String(parentCamp.status || '').toLowerCase() === 'deleted') return;
+
+                // ตรวจสอบว่าช่วงเวลาของแคมเปญหรือผลลัพธ์ ซ้อนทับกับรอบที่เปิดดูรายงานหรือไม่
+                const cStart = cr.period_start || parentCamp.start_date;
+                const cEnd = cr.period_end || parentCamp.end_date;
+                if (cStart && cEnd && currentPeriodStart && currentPeriodEnd) {
+                    const overlaps = (cStart <= currentPeriodEnd && cEnd >= currentPeriodStart);
+                    if (!overlaps) return;
+                }
+
                 const mId = safeUpper(cr.member_id);
                 const brk = cr.details_json?.deduction_breakdown || {};
 
                 // ตรวจสอบนโยบายไม่ตัดกล่อง
-                const campPolicy = parentCamp.deduct_policy || (parentCamp.cond2_type === 'boxes_no_deduct' ? 'no_deduct' : 'deduct_quota');
+                const campPolicy = cr.deduct_policy || parentCamp.deduct_policy || (parentCamp.cond2_type === 'boxes_no_deduct' ? 'no_deduct' : 'deduct_quota');
                 const isNoDeduct = campPolicy === 'no_deduct' || brk.is_no_deduct === true || cr.deduct_policy === 'no_deduct';
 
-                if (cr.is_qualified && !isNoDeduct) {
-                    // โควต้ากล่องตามแคมเปญที่เปิดใช้งานจริง (เช่น 5 กล่อง)
-                    const quota = Number(parentCamp.cond2_target || cr.boxes_qualifying_quota || brk.quota_boxes || 5);
+                const isQual = cr.is_qualified === true || String(cr.is_qualified).toLowerCase() === 'true';
+
+                if (isQual && !isNoDeduct) {
+                    const quota = Number(cr.boxes_qualifying_quota || brk.quota_boxes || parentCamp.cond2_target || 5);
                     const refDeduct = Number(cr.referral_deducted || brk.referral_deducted || (quota * 200000));
                     const commDeduct = Number(cr.commission_deducted || brk.commission_deducted || (quota * 250000));
                     map[mId] = {
                         campaignId: campId,
-                        campaignTitle: parentCamp.name || cr.campaign_title || 'แคมเปญ',
+                        campaignTitle: cr.campaign_title || parentCamp.name || 'แคมเปญ',
                         quotaBoxes: quota,
                         referralDeducted: refDeduct,
                         commissionDeducted: commDeduct,
@@ -328,10 +343,10 @@
                         isQualified: true,
                         isNoDeduct: false
                     };
-                } else if (cr.is_qualified && isNoDeduct) {
+                } else if (isQual && isNoDeduct) {
                     map[mId] = {
                         campaignId: campId,
-                        campaignTitle: parentCamp.name || cr.campaign_title || 'แคมเปญ',
+                        campaignTitle: cr.campaign_title || parentCamp.name || 'แคมเปญ',
                         quotaBoxes: 0,
                         referralDeducted: 0,
                         commissionDeducted: 0,
@@ -527,12 +542,13 @@
                 if (Array.isArray(campaignsRes)) setCampaigns(campaignsRes);
 
                 // ── TIER 3: Heavy Sales + Customers (defer off main thread) ─────────────
-                // โหลด sales แบบ non-blocking: ดึงเดือนปัจจุบันครบถ้วน 100%
+                // โหลด sales แบบ non-blocking: ดึงเดือนปัจจุบันและเดือนก่อนหน้า (ต.ค. - พ.ย.) ครบถ้วน 100%
                 const dNow = new Date();
-                const curMonthStart = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-01`;
+                const prevM = new Date(dNow.getFullYear(), dNow.getMonth() - 1, 1);
+                const fetchStart = `${prevM.getFullYear()}-${String(prevM.getMonth() + 1).padStart(2, '0')}-01`;
                 const curMonthEnd = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-${String(new Date(dNow.getFullYear(), dNow.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
                 const selectAllFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
-                selectAllFn('stk_sales', `select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&date=gte.${curMonthStart}&date=lte.${curMonthEnd}&order=order_id.desc`)
+                selectAllFn('stk_sales', `select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&date=gte.${fetchStart}&date=lte.${curMonthEnd}&order=order_id.desc`)
                     .then(saleRes => {
                         if (!Array.isArray(saleRes) || saleRes.length === 0) return;
                         // ⚡ แบ่ง batch parse items_json เพื่อไม่ให้ freeze main thread
@@ -666,7 +682,7 @@
                 isRangeFetchingRef.current = true;
                 try {
                     const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
-                    const query = `date=gte.${startDate}&date=lte.${endDate}&select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&order=date.asc`;
+                    const query = `date=gte.${startDate}&date=lte.${endDate}&select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&order=order_id.desc`;
                     const res = await selectFn('stk_sales', query);
                     if (isCancelled) return;
 
@@ -732,13 +748,59 @@
             };
         }, [startDate, endDate]);
 
-        // Load and sync payout history records (Database is Single Source of Truth)
+        // Load and sync payout history records (Merge Cloud Settings, LocalStorage, and Supabase DB)
         useEffect(() => {
             let currentRecords = {};
 
-            // ⚡ หากเชื่อมต่อ Supabase สำเร็จ ให้ใช้ข้อมูลจากฐานข้อมูลเป็นหลักเท่านั้น (Single Source of Truth)
-            // ถ้าในฐานข้อมูลถูกลบไปแล้ว ในหน้าเว็บต้องกลับมาเป็น "รอปันผล" ทันที ไม่ดึงของเก่าที่ถูกลบไปแล้วกลับมา
-            if (Array.isArray(payoutLogs)) {
+            // 1. ดึงประวัติการจ่ายจาก Supabase stk_system_settings (Cloud Persistence)
+            if (systemSettings && systemSettings.stk_cloud_payout_history) {
+                try {
+                    const cloudHistory = typeof systemSettings.stk_cloud_payout_history === 'string'
+                        ? JSON.parse(systemSettings.stk_cloud_payout_history)
+                        : systemSettings.stk_cloud_payout_history;
+                    if (cloudHistory && typeof cloudHistory === 'object') {
+                        if (Array.isArray(cloudHistory)) {
+                            cloudHistory.forEach(item => {
+                                const k = item.key || item.payout_id || `${item.member_id || item.memberId}_${item.payout_date || item.date}`;
+                                if (k) currentRecords[k] = { ...item, key: k, payoutType: item.payoutType || item.type, type: item.payoutType || item.type };
+                            });
+                        } else {
+                            Object.entries(cloudHistory).forEach(([k, item]) => {
+                                if (item && typeof item === 'object') {
+                                    currentRecords[k] = { ...item, key: item.key || k, payoutType: item.payoutType || item.type, type: item.payoutType || item.type };
+                                }
+                            });
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // 2. ดึงและผสานกับ localStorage.stk_payout_history
+            try {
+                const saved = localStorage.getItem('stk_payout_history');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && typeof parsed === 'object') {
+                        if (Array.isArray(parsed)) {
+                            parsed.forEach(item => {
+                                const k = item.key || item.payout_id || `${item.member_id || item.memberId}_${item.payout_date || item.date}`;
+                                if (k) {
+                                    currentRecords[k] = currentRecords[k] ? { ...item, ...currentRecords[k] } : { ...item, key: k, payoutType: item.payoutType || item.type, type: item.payoutType || item.type };
+                                }
+                            });
+                        } else {
+                            Object.entries(parsed).forEach(([k, item]) => {
+                                if (item && typeof item === 'object') {
+                                    currentRecords[k] = currentRecords[k] ? { ...item, ...currentRecords[k] } : { ...item, key: item.key || k, payoutType: item.payoutType || item.type, type: item.payoutType || item.type };
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch(e) {}
+
+            // 3. หากมีข้อมูลใน payoutLogs จาก Supabase DB ให้นำมารวมด้วย
+            if (Array.isArray(payoutLogs) && payoutLogs.length > 0) {
                 payoutLogs.forEach(log => {
                     if (!log) return;
                     const key = log.payout_id || `${log.member_id}_${log.payout_date}`;
@@ -773,39 +835,19 @@
                         };
                     }
                 });
-
-                // ซิงค์ localStorage ให้ตรงกับฐานข้อมูลเป๊ะๆ เพื่อล้างประวัติของรายการที่ถูกลบออกจาก DB ทิ้ง
-                try {
-                    localStorage.setItem('stk_payout_history', JSON.stringify(currentRecords));
-                    localStorage.removeItem('stk_payout_logs');
-                    localStorage.removeItem('stk_referral_payout_history');
-                } catch(e) {}
-            } else {
-                // สำรองเฉพาะกรณีออฟไลน์หรือไม่สามารถเชื่อมต่อ Supabase ได้
-                try {
-                    const saved = localStorage.getItem('stk_payout_history');
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        if (parsed && typeof parsed === 'object') {
-                            if (Array.isArray(parsed)) {
-                                parsed.forEach(item => {
-                                    const k = item.key || item.payout_id || `${item.member_id || item.memberId}_${item.payout_date || item.date}`;
-                                    if (k) currentRecords[k] = { ...item, key: k, payoutType: item.payoutType || item.type, type: item.payoutType || item.type };
-                                });
-                            } else {
-                                Object.entries(parsed).forEach(([k, item]) => {
-                                    if (item && typeof item === 'object') {
-                                        currentRecords[k] = { ...item, key: item.key || k, payoutType: item.payoutType || item.type, type: item.payoutType || item.type };
-                                    }
-                                });
-                            }
-                        }
-                    }
-                } catch(e) {}
             }
 
+            // 4. บันทึกสำรองลง localStorage เฉพาะเมื่อมีข้อมูล (ป้องกันการเขียนทับด้วย object ว่าง {})
+            try {
+                if (Object.keys(currentRecords).length > 0) {
+                    localStorage.setItem('stk_payout_history', JSON.stringify(currentRecords));
+                }
+                localStorage.removeItem('stk_payout_logs');
+                localStorage.removeItem('stk_referral_payout_history');
+            } catch(e) {}
+
             setPaidRecords(currentRecords);
-        }, [payoutLogs]);
+        }, [payoutLogs, systemSettings]);
 
         // Currency formatting
         const convertVal = useCallback((lakVal) => {
@@ -888,10 +930,11 @@
                 systemSettings,
                 payoutLogs,
                 paidRecords,
+                campaignResultsMap,
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate
             });
-        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, effectiveStartDate, effectiveEndDate]);
+        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
 
         // 2. Referral Daily Payout Data
         const referralDailyPayoutData = useMemo(() => {
@@ -910,10 +953,11 @@
                 payoutLogs,
                 paidRecords,
                 payoutStatusFilter,
+                campaignResultsMap,
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate
             });
-        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, payoutStatusFilter, effectiveStartDate, effectiveEndDate]);
+        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, payoutStatusFilter, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
 
         // 3. Referral Monthly Self Data (ปันผลขายเอง รอบเดือน)
         const referralMonthlySelfData = useMemo(() => {
@@ -931,10 +975,11 @@
                 systemSettings,
                 payoutLogs,
                 paidRecords,
+                campaignResultsMap,
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate
             });
-        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, effectiveStartDate, effectiveEndDate]);
+        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
 
         // 4. Referral Monthly Team Data (ปันผลสายงาน รอบเดือน)
         const referralMonthlyTeamData = useMemo(() => {
@@ -952,10 +997,11 @@
                 systemSettings,
                 payoutLogs,
                 paidRecords,
+                campaignResultsMap,
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate
             });
-        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, effectiveStartDate, effectiveEndDate]);
+        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
 
         // Filtered monthly lists based on payoutStatusFilter
         const displayedMonthlySelfData = useMemo(() => {
@@ -1020,7 +1066,7 @@
 
                 const [mId, pDate] = key.split('_');
                 const memberId = payoutItem?.memberId || mId;
-                const dateLabel = payoutItem?.date || pDate || (startDate === endDate ? startDate : `${startDate} ถึง ${endDate}`);
+                const dateLabel = payoutItem?.date || (subTab === 'monthly_self' ? monthlySelfPeriod : (subTab === 'monthly_team' ? monthlyTeamPeriod : (startDate === endDate ? startDate : `${startDate} ถึง ${endDate}`)));
                 const payoutType = subTab === 'monthly_self' ? 'monthly_self' : (subTab === 'monthly_team' ? 'monthly_team' : 'daily');
                 const payAmt = subTab === 'monthly_self' ? (payoutItem?.remainingSelf || payoutItem?.selfEarn || 0) : (subTab === 'monthly_team' ? (payoutItem?.remainingTeam || payoutItem?.teamEarn || 0) : (payoutItem?.netEarn ?? payoutItem?.totalEarn ?? 0));
 
@@ -1046,6 +1092,21 @@
 
             setPaidRecords(updated);
             try { localStorage.setItem('stk_payout_history', JSON.stringify(updated)); } catch(e) {}
+
+            // ☁️ บันทึกลง Supabase stk_system_settings (Cloud Persistence ไม่ติด RLS)
+            try {
+                const cloudVal = JSON.stringify(updated);
+                setSystemSettings(prev => ({ ...(prev || {}), stk_cloud_payout_history: cloudVal }));
+                if (typeof window.supabaseUpsert === 'function') {
+                    await window.supabaseUpsert('stk_system_settings', { key: 'stk_cloud_payout_history', value: cloudVal }).catch(async () => {
+                        if (typeof window.supabaseUpdate === 'function') {
+                            await window.supabaseUpdate('stk_system_settings', 'stk_cloud_payout_history', { value: cloudVal }, 'key').catch(() => {});
+                        }
+                    });
+                }
+            } catch(cloudErr) {
+                console.warn('Sync to stk_system_settings notice:', cloudErr);
+            }
 
             if (typeof window.supabaseInsert === 'function') {
                 try {
@@ -2840,22 +2901,26 @@
                                             <span>รอบประจำเดือน:</span>
                                             <span className="text-white font-mono font-black">{monthlySelfPeriod}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md">
+                                        <div 
+                                            id="selectAllMonthlySelfBtn"
+                                            onClick={() => {
+                                                const pendingItems = referralMonthlySelfData.filter(i => i.status !== 'PAID');
+                                                if (selectedPayoutKeys.size === pendingItems.length && pendingItems.length > 0) {
+                                                    setSelectedPayoutKeys(new Set());
+                                                } else {
+                                                    setSelectedPayoutKeys(new Set(pendingItems.map(i => i.key)));
+                                                }
+                                            }}
+                                            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 transition-colors px-3 py-1.5 rounded-xl backdrop-blur-md cursor-pointer select-none"
+                                        >
                                             <input 
                                                 type="checkbox" 
                                                 id="selectAllMonthlySelf"
-                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer pointer-events-none"
                                                 checked={referralMonthlySelfData.length > 0 && selectedPayoutKeys.size > 0 && selectedPayoutKeys.size === referralMonthlySelfData.filter(i => i.status !== 'PAID').length}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        const pendingKeys = new Set(referralMonthlySelfData.filter(i => i.status !== 'PAID').map(i => i.key));
-                                                        setSelectedPayoutKeys(pendingKeys);
-                                                    } else {
-                                                        setSelectedPayoutKeys(new Set());
-                                                    }
-                                                }}
+                                                readOnly
                                             />
-                                            <label htmlFor="selectAllMonthlySelf" className="text-xs font-bold text-slate-200 cursor-pointer whitespace-nowrap">
+                                            <label htmlFor="selectAllMonthlySelf" className="text-xs font-bold text-slate-200 cursor-pointer whitespace-nowrap pointer-events-none">
                                                 เลือกทั้งหมด (รอจ่าย)
                                             </label>
                                         </div>
@@ -3010,22 +3075,26 @@
                                             <span>รอบประจำเดือน:</span>
                                             <span className="text-white font-mono font-black">{monthlyTeamPeriod}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md">
+                                        <div 
+                                            id="selectAllMonthlyTeamBtn"
+                                            onClick={() => {
+                                                const pendingItems = referralMonthlyTeamData.filter(i => i.status !== 'PAID');
+                                                if (selectedPayoutKeys.size === pendingItems.length && pendingItems.length > 0) {
+                                                    setSelectedPayoutKeys(new Set());
+                                                } else {
+                                                    setSelectedPayoutKeys(new Set(pendingItems.map(i => i.key)));
+                                                }
+                                            }}
+                                            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 transition-colors px-3 py-1.5 rounded-xl backdrop-blur-md cursor-pointer select-none"
+                                        >
                                             <input 
                                                 type="checkbox" 
                                                 id="selectAllMonthlyTeam"
-                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer pointer-events-none"
                                                 checked={referralMonthlyTeamData.length > 0 && selectedPayoutKeys.size > 0 && selectedPayoutKeys.size === referralMonthlyTeamData.filter(i => i.status !== 'PAID').length}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        const pendingKeys = new Set(referralMonthlyTeamData.filter(i => i.status !== 'PAID').map(i => i.key));
-                                                        setSelectedPayoutKeys(pendingKeys);
-                                                    } else {
-                                                        setSelectedPayoutKeys(new Set());
-                                                    }
-                                                }}
+                                                readOnly
                                             />
-                                            <label htmlFor="selectAllMonthlyTeam" className="text-xs font-bold text-slate-200 cursor-pointer whitespace-nowrap">
+                                            <label htmlFor="selectAllMonthlyTeam" className="text-xs font-bold text-slate-200 cursor-pointer whitespace-nowrap pointer-events-none">
                                                 เลือกทั้งหมด (รอจ่าย)
                                             </label>
                                         </div>

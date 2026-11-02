@@ -22,7 +22,6 @@
           'stk_reports_cache_data',
           'stk_reports_cache_time',
           'stk_app_cache_movements',
-          'stk_payout_history',
           'stk_transfer_history',
           'stk_grn_history',
           'stk_clinic_doctors_cache'
