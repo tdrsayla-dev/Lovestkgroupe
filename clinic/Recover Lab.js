@@ -28,6 +28,13 @@
         return !!(url && (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')));
     }
 
+    function _getSbClient() {
+        return window._supabase
+            || (window.parent && window.parent !== window && window.parent._supabase)
+            || (typeof _supabase !== 'undefined' ? _supabase : null)
+            || (typeof supabase !== 'undefined' && typeof CONFIG !== 'undefined' ? (window._supabase = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)) : null);
+    }
+
     function _isPdf(url) {
         if (!url) return false;
         const u = String(url).toLowerCase();
@@ -1572,10 +1579,7 @@
         } catch (e) { }
 
         // 2. ดึงจาก Supabase table clinic_settings
-        const sbClient = (typeof _supabase !== 'undefined' && _supabase) 
-            || (window._supabase)
-            || (window.parent && window.parent._supabase)
-            || (typeof supabase !== 'undefined' && typeof CONFIG !== 'undefined' ? supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY) : null);
+        const sbClient = _getSbClient();
 
         if (sbClient) {
             try {
@@ -1773,8 +1777,7 @@
         } = opts;
 
         // กำหนด URL ของรายงานฉบับแปลงแล้ว (Cloud Digital PDF)
-        const sbClient = (typeof _supabase !== 'undefined' && _supabase) 
-            || (typeof supabase !== 'undefined' && typeof CONFIG !== 'undefined' ? supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY) : null);
+        const sbClient = _getSbClient();
         const supabaseBaseUrl = (sbClient && sbClient.supabaseUrl) 
             ? sbClient.supabaseUrl 
             : ((typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) ? CONFIG.SUPABASE_URL : 'https://fpmstumpobbjozflkola.supabase.co');
@@ -2537,8 +2540,7 @@
 
             async function _uploadConvertedPdfToCloud() {
                 try {
-                    const sbClient = (typeof _supabase !== 'undefined' && _supabase) 
-                        || (typeof supabase !== 'undefined' && typeof CONFIG !== 'undefined' ? supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY) : null);
+                    const sbClient = _getSbClient();
                     if (!sbClient || !sbClient.storage) return;
 
                     await _loadHtml2Pdf();

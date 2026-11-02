@@ -3668,6 +3668,16 @@
                 }
             }
 
+            // 2.1 ວັນທີນັດໝາຍມາກວດລ່ວງໜ້າ (Next Appointment Date ເຊັ່ນ: ລົງທະບຽນມື້ນີ້ ແຕ່ມາກວດວັນທີ 3)
+            if (p.next_appointment_date) {
+                const d = new Date(p.next_appointment_date);
+                if (!isNaN(d.getTime())) {
+                    let y = d.getFullYear();
+                    if (y > 2400) y -= 543;
+                    candidateDates.push(`${y}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                }
+            }
+
             // 3. ຂໍ້ຄວາມ latest_visit_date ເຊັ່ນ "5/9/2569 17:13:12" ຫຼື "05/09/2026"
             if (p.latest_visit_date && typeof p.latest_visit_date === 'string') {
                 const str = p.latest_visit_date.trim();
@@ -3710,16 +3720,41 @@
         let sharedHistoryReqId = 0;
 
         function getHistoryTabRows() {
-            return Array.isArray(sharedHistoryRows) ? sharedHistoryRows : filteredPatientsData;
+            const baseList = Array.isArray(filteredPatientsData) ? filteredPatientsData : [];
+
+            if (!Array.isArray(sharedHistoryRows) || sharedHistoryRows.length === 0) {
+                return baseList.map(toBookingHistoryRow);
+            }
+
+            // ໂຮມຂໍ້ມູນ sharedHistoryRows (Visit/Order) ກັບ ຄົນໄຂ້ທີ່ລົງທະບຽນລ່ວງໜ້າ (ທີ່ຍັງບໍ່ທັນມີ Visit) ເຂົ້າດ້ວຍກັນ
+            const combined = [...sharedHistoryRows];
+            const existingHns = new Set(combined.map(r => r.hn).filter(Boolean));
+
+            baseList.forEach(p => {
+                if (p && p.hn && !existingHns.has(p.hn)) {
+                    combined.push(toBookingHistoryRow(p));
+                    existingHns.add(p.hn);
+                }
+            });
+
+            return combined;
         }
 
         function toBookingHistoryRow(v) {
             const ts = v.created_at || v.updated_at;
+            const appt = v.next_appointment_date || v.appointment_date || '';
+            let apptFormatted = appt;
+            if (appt) {
+                try {
+                    const parsed = new Date(appt);
+                    if (!isNaN(parsed.getTime())) apptFormatted = parsed.toLocaleDateString('lo-LA');
+                } catch (e) { }
+            }
             return Object.assign({}, v, {
-                latest_visit_id: v.visit_id || '-',
-                latest_symptom: v.symptom || v.reason || '-',
-                latest_visit_date: ts ? new Date(ts).toLocaleString('lo-LA') : '-',
-                visit_status: v.status
+                latest_visit_id: v.latest_visit_id || v.visit_id || (v.hn ? v.hn : '-'),
+                latest_symptom: v.latest_symptom || v.symptom || (appt ? ('ນັດມາກວດ: ' + apptFormatted) : 'ລົງທະບຽນລ່ວງໜ້າ (ລໍຖ້າຄັດກອງ)'),
+                latest_visit_date: v.latest_visit_date || (apptFormatted ? apptFormatted : (ts ? new Date(ts).toLocaleString('lo-LA') : '-')),
+                visit_status: v.visit_status || v.status || '01 ທະບຽນຜູ້ປ່ວຍ (ລົງທະບຽນແລ້ວ ລໍຖ້າຄັດກອງ)'
             });
         }
 
@@ -3736,6 +3771,9 @@
                 else renderHistoryTable(rows, '', 1);
             };
 
+            // ⚡ ສະແດງຂໍ້ມູນທີ່ມີຢູ່ແລ້ວທັນທີ (Instant Render) ທັງ 15 ລາຍການ ບໍ່ໃຫ້ຕາຕະລາງຫວ່າງເປົ່າ
+            renderNow();
+
             if (!parentWin || typeof parentWin.fetchPatientHistoryRows !== 'function') {
                 sharedHistoryRows = null;
                 renderNow();
@@ -3745,11 +3783,14 @@
             const reqId = ++sharedHistoryReqId;
             let rows = [];
             try {
-                rows = (await parentWin.fetchPatientHistoryRows(startDate, endDate)) || [];
+                // Timeout 3.5s ປ້ອງກັນບໍ່ໃຫ້ຄ້າງ
+                const fetchPromise = parentWin.fetchPatientHistoryRows(startDate, endDate);
+                const timeoutPromise = new Promise(resolve => setTimeout(() => resolve([]), 3500));
+                rows = (await Promise.race([fetchPromise, timeoutPromise])) || [];
             } catch (e) {
                 console.warn('Load shared history rows error:', e);
             }
-            if (reqId !== sharedHistoryReqId) return; // มีการเปลี่ยนตัวกรองระหว่างโหลด
+            if (reqId !== sharedHistoryReqId) return; // ມີການປ່ຽນຕົວຕອງລະຫວ່າງໂຫຼດ
 
             const isOrder = (r) => typeof parentWin.isPatientHistoryOrder === 'function' && parentWin.isPatientHistoryOrder(r);
             if (currentTypeFilterMode === 'order') rows = rows.filter(isOrder);
@@ -4101,6 +4142,13 @@
                         </td>
                         <td class="text-center">
                             <div class="history-action-group">
+                                <button type="button" class="history-action-btn" style="color: #0284c7; background: #f0f9ff; border-color: #bae6fd;" onclick="openPatientCard('${p.hn}')" title="ເບິ່ງກະດານບັດຄົນໄຂ້ (Patient Pass)">
+                                    <i class="ph ph-identification-card history-action-icon"></i>
+                                    <span class="history-action-copy">
+                                        <span class="history-action-title">ບັດຄົນໄຂ້</span>
+                                        <small class="history-action-desc">Patient Pass</small>
+                                    </span>
+                                </button>
                                 <button type="button" class="history-action-btn history-action-timeline" onclick="viewPatientTimeline('${p.hn}')" title="ເບິ່ງ Timeline ແລະ ຕິດຕາມຂັ້ນຕອນ">
                                     <i class="ph ph-chart-line-up history-action-icon"></i>
                                     <span class="history-action-copy">
@@ -4250,6 +4298,16 @@
         }
 
         // เปลี่ยนคนไข้บนหน้า Timeline
+        function openPatientCard(hn) {
+            if (!hn || hn === '-') return;
+            try {
+                if (window.parent && typeof window.parent.openPatientCardModal === 'function') {
+                    window.parent.openPatientCardModal(hn);
+                    return;
+                }
+            } catch (e) { console.warn(e); }
+        }
+
         function viewPatientTimeline(hn) {
             if (!hn || hn === '-') {
                 showModernPopup({
@@ -8020,7 +8078,7 @@
                 const key = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
                 if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
                     // ใช้ session ที่ล็อกอินไว้ (RLS ของคลินิกอนุญาตเฉพาะผู้ที่ล็อกอินแล้ว)
-                    clinicSupabaseOrderClient = supabase.createClient(url, key);
+                    clinicSupabaseOrderClient = (window.parent && window.parent._supabase) || window._supabase || supabase.createClient(url, key);
                     return clinicSupabaseOrderClient;
                 }
             } catch (err) {

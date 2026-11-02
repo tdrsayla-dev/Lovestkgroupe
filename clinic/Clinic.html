@@ -14,7 +14,17 @@
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Supabase JS Client CDN -->
+    <script src="config.js?v=2.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function' && !window._supabase) {
+            try {
+                var _cUrl = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || 'https://fpmstumpobbjozflkola.supabase.co';
+                var _cKey = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+                window._supabase = supabase.createClient(_cUrl, _cKey);
+            } catch (e) { }
+        }
+    </script>
 
 
     <!-- เชื่อมโยงไฟล์ CSS -->
@@ -22,7 +32,9 @@
     <link rel="stylesheet" href="dashboard.css?v=1.2">
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <!-- html2pdf.js for Exporting PDF -->
+    <!-- html2canvas and html2pdf for Exporting Cards/PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- Tesseract.js for OCR Lab Results -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -572,7 +584,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=3.9.87" title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=4.0.0" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -3526,6 +3538,171 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- 🌟 Modal: กระดานบัตรคนไข้ลงทะเบียนล่วงหน้า (Patient Digital Card / Pass) -->
+    <!-- ============================================================ -->
+    <div class="modal fade" id="patientCardModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+            <div class="modal-content border-0 shadow-2xl" style="border-radius: 22px; overflow: hidden; background: #f8fafc;">
+                <!-- Header Toolbar -->
+                <div class="modal-header border-0 pb-0 px-4 pt-3.5 d-flex justify-content-between align-items-center bg-white">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge rounded-pill bg-primary-subtle text-primary px-3 py-1.5 fw-bold" style="font-size: 12px; letter-spacing: 0.3px;">
+                            <i class="bi bi-person-vcard text-primary me-1.5"></i> ບັດລົງທະບຽນຜູ້ປ່ວຍ (Patient Pass)
+                        </span>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="border-radius: 50rem;"></button>
+                </div>
+
+                <!-- Modal Body with Card to capture -->
+                <div class="modal-body p-3.5 pt-2.5">
+                    <!-- THE DIGITAL CARD (Captureable / Shareable) -->
+                    <div id="patientCardCaptureArea" style="background: #ffffff; border-radius: 18px; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04); border: 1px solid #e2e8f0; overflow: hidden; position: relative;">
+                        
+                        <!-- Top Header Banner -->
+                        <div style="background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 60%, #0ea5e9 100%); padding: 16px 18px; color: #ffffff; position: relative;">
+                            <!-- Background Pulse Art -->
+                            <div style="position: absolute; right: -8px; bottom: -12px; opacity: 0.12; font-size: 88px; line-height: 1; pointer-events: none;">
+                                <i class="bi bi-heart-pulse-fill"></i>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; position: relative; z-index: 2;">
+                                <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+                                    <div id="cardClinicLogoContainer" style="width: 38px; height: 38px; min-width: 38px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); border-radius: 10px; display: grid; place-items: center; backdrop-filter: blur(4px); overflow: hidden; padding: 2px;">
+                                        <i class="bi bi-hospital fs-5 text-white" id="cardClinicIconFallback"></i>
+                                        <img id="cardClinicLogoImg" src="" alt="Logo" style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 8px;" crossorigin="anonymous">
+                                    </div>
+                                    <div style="min-width: 0; flex: 1;">
+                                        <h5 class="fw-bold mb-0 text-white" id="cardClinicNameLa" style="font-size: 14.5px; line-height: 1.35; letter-spacing: -0.2px; word-break: break-word;">-</h5>
+                                        <div id="cardClinicNameEn" style="color: rgba(255,255,255,0.88); font-size: 10.5px; font-weight: 500; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+                                    </div>
+                                </div>
+                                <span style="flex-shrink: 0; background: rgba(255, 255, 255, 0.22); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 999px; padding: 4px 10px; font-size: 10px; font-weight: 700; color: #ffffff; white-space: nowrap; letter-spacing: 0.5px;">
+                                    <i class="bi bi-patch-check-fill me-1"></i>PASS ບັດຄົນໄຂ້
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Card Content -->
+                        <div style="padding: 16px 18px;">
+                            <!-- HN Hero Box -->
+                            <div style="background: linear-gradient(180deg, #f0f7ff 0%, #f8fafc 100%); border: 1.5px dashed #93c5fd; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="display: inline-flex; align-items: center; gap: 4px; background: #dbeafe; color: #1d4ed8; padding: 2px 7px; border-radius: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px;">
+                                        <i class="bi bi-upc-scan"></i> HN CODE
+                                    </div>
+                                    <div id="cardHnCode" style="font-size: 23px; font-weight: 800; color: #1e3a8a; letter-spacing: 1px; line-height: 1.1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">
+                                        HN-000000
+                                    </div>
+                                    <div style="font-size: 10.5px; color: #0284c7; font-weight: 600; margin-top: 5px;" id="cardApptDate">
+                                        <i class="bi bi-calendar-event me-1"></i> ວັນທີນັດມາກວດ: -
+                                    </div>
+                                    <div style="font-size: 9.5px; color: #64748b; margin-top: 1px;" id="cardRegDate">
+                                        ວັນທີລົງທະບຽນ: -
+                                    </div>
+                                </div>
+                                <!-- QR Code -->
+                                <div style="text-align: center; flex-shrink: 0;">
+                                    <div style="background: #ffffff; padding: 3px; border-radius: 10px; border: 1px solid #cbd5e1; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: inline-block;">
+                                        <img id="cardQrImage" src="" alt="HN QR" crossorigin="anonymous" style="width: 64px; height: 64px; border-radius: 7px; display: block;">
+                                    </div>
+                                    <span style="font-size: 8px; color: #64748b; font-weight: 700; display: block; margin-top: 3px; letter-spacing: 0.5px;">SCAN HN</span>
+                                </div>
+                            </div>
+
+                            <!-- Patient Name & Badges -->
+                            <div style="margin-bottom: 12px;">
+                                <div style="font-size: 10px; font-weight: 600; color: #64748b; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
+                                    <i class="bi bi-person-fill text-primary me-1"></i> ຊື່ ແລະ ນາມສະກຸນຜູ້ປ່ວຍ (Patient Name)
+                                </div>
+                                <div id="cardPatientName" style="font-weight: 800; color: #0f172a; margin-bottom: 6px; font-size: 17.5px; line-height: 1.35;">
+                                    -
+                                </div>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <span id="cardGenderBadge" class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" style="font-size: 10.5px; border-radius: 8px;">
+                                        -
+                                    </span>
+                                    <span id="cardAgeText" class="badge bg-light text-secondary border px-2 py-1" style="font-size: 10.5px; border-radius: 8px;">
+                                        ອາຍຸ: - ປີ
+                                    </span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 10.5px; border-radius: 8px;">
+                                        <i class="bi bi-check-circle-fill me-1 text-success"></i> ລົງທະບຽນລ່ວງໜ້າແລ້ວ
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Info Grid -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+                                <div style="background: #f8fafc; border-radius: 10px; padding: 7px 10px; border: 1px solid #e2e8f0;">
+                                    <div style="font-size: 9.5px; color: #64748b; font-weight: 600; margin-bottom: 1px;"><i class="bi bi-telephone-fill text-primary me-1"></i> ເບີໂທລະສັບ</div>
+                                    <div id="cardPhone" style="font-size: 12.5px; font-weight: 700; color: #1e293b; font-family: monospace;">-</div>
+                                </div>
+                                <div style="background: #f8fafc; border-radius: 10px; padding: 7px 10px; border: 1px solid #e2e8f0;">
+                                    <div style="font-size: 9.5px; color: #64748b; font-weight: 600; margin-bottom: 1px;"><i class="bi bi-geo-alt-fill text-danger me-1"></i> ແຂວງ / ທີ່ຢູ່</div>
+                                    <div id="cardAddress" style="font-size: 12px; font-weight: 700; color: #1e293b; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">-</div>
+                                </div>
+                            </div>
+
+                            <!-- Appointment Date Highlight Box -->
+                            <div style="background: #eff6ff; border-radius: 12px; padding: 9px 12px; border: 1.5px solid #bfdbfe; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                <div>
+                                    <div style="font-size: 9.5px; color: #1d4ed8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">
+                                        <i class="bi bi-calendar2-check-fill text-primary me-1"></i> ວັນທີນັດໝາຍມາກວດ (Appointment Date)
+                                    </div>
+                                    <div id="cardApptDateGrid" style="font-size: 14.5px; font-weight: 800; color: #1e40af; margin-top: 2px;">
+                                        -
+                                    </div>
+                                </div>
+                                <span class="badge bg-primary text-white px-2 py-1" style="font-size: 9.5px; border-radius: 6px; flex-shrink: 0;">
+                                    <i class="bi bi-clock-history me-1"></i> ວັນທີມາກວດ
+                                </span>
+                            </div>
+
+                            <!-- Clinic Contact Box -->
+                            <div id="cardClinicContactBox" style="background: #f8fafc; border-radius: 10px; padding: 7px 10px; border: 1px solid #e2e8f0; margin-bottom: 10px; display: none;">
+                                <div style="font-size: 9.5px; color: #64748b; font-weight: 600;"><i class="bi bi-headset text-primary me-1"></i> ຕິດຕໍ່ສອບຖາມຄລີນິກ (Clinic Contact)</div>
+                                <div id="cardClinicPhone" style="font-size: 12px; font-weight: 700; color: #0284c7; margin-top: 1px; font-family: monospace;">-</div>
+                            </div>
+
+                            <span id="cardReferrer" style="display: none;"></span>
+
+                            <!-- Footer Notice inside Card -->
+                            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; text-align: center;">
+                                <div style="font-size: 10px; color: #64748b; font-weight: 500; line-height: 1.4;">
+                                    <i class="bi bi-shield-check text-success me-1"></i>
+                                    ກະລຸນາສະແດງບັດນີ້ ຫຼື ແຈ້ງລະຫັດ <strong class="text-primary">HN</strong> ຕໍ່ເຈົ້າໜ້າທີ່ ເມື່ອມາຮອດຄລີນິກ
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex flex-column gap-2 mt-3">
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary flex-fill py-2 px-2 fw-bold d-flex align-items-center justify-content-center gap-1.5 shadow-sm" id="btnCopyPatientCard" onclick="copyPatientCardText()" style="border-radius: 12px; font-size: 13px;">
+                                <i class="bi bi-clipboard-check fs-6"></i>
+                                <span>ຄັດລອກຂໍ້ຄວາມແຈ້ງຄົນໄຂ້</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary flex-fill py-2 px-2 fw-bold d-flex align-items-center justify-content-center gap-1.5" id="btnDownloadPatientCard" onclick="downloadPatientCardImage()" style="border-radius: 12px; font-size: 13px;" title="ດາວໂຫຼດຮູບພາບໃບນັດ/ບັດ">
+                                <i class="bi bi-image fs-6"></i>
+                                <span>ບັນທຶກຮູບ</span>
+                            </button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-light border flex-grow-1 py-1.5 text-secondary fw-semibold d-flex align-items-center justify-content-center gap-1.5" onclick="printPatientCard()" style="border-radius: 10px; font-size: 12.5px;">
+                                <i class="bi bi-printer"></i>
+                                <span>ພິມບັດ (Print)</span>
+                            </button>
+                            <button type="button" class="btn btn-light border py-1.5 px-4 text-muted fw-semibold" data-bs-dismiss="modal" style="border-radius: 10px; font-size: 12.5px;">
+                                ປິດ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="triageModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius: 16px; border: none;">
@@ -5421,9 +5598,9 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=9.5"></script>
+    <script src="function.js?v=10.5"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
-    <script src="Recover Lab.js?v=7.8"></script>
+    <script src="Recover Lab.js?v=7.9"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
