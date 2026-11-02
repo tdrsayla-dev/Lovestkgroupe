@@ -387,3 +387,18 @@ body.default-animated-bg {
 .login-error-btn-ok:active {
     transform: scale(0.96);
 }
+
+/* 👁️ Toggle Password Visibility Button */
+#togglePasswordBtn {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    transition: background-color 0.15s ease;
+}
+
+#togglePasswordBtn:hover {
+    background-color: #f1f5f9 !important;
+}
+
+#togglePasswordBtn:hover i {
+    color: #004b93 !important;
+}

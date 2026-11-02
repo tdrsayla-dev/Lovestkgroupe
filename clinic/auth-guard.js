@@ -61,7 +61,14 @@
     // 2) ตรวจกับเซิร์ฟเวอร์ + รีเฟรชสิทธิ์จากฐานข้อมูล
     async function verifyWithServer() {
         if (!window.supabase || typeof window.supabase.createClient !== 'function') return;
-        var client = window.supabase.createClient(getUrl(), getKey());
+        var parentClient = null;
+        try {
+            if (window.parent && window.parent !== window && window.parent._supabase) {
+                parentClient = window.parent._supabase;
+            }
+        } catch (e) { }
+        var client = window._supabase || parentClient || (window.supabase.createClient(getUrl(), getKey()));
+        if (client) window._supabase = client;
 
         var userRes;
         try {

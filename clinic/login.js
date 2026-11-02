@@ -248,6 +248,18 @@ document.addEventListener("DOMContentLoaded", function () {
         if (emailEl) emailEl.value = rememberedEmail;
         if (remEl) remEl.checked = true;
     }
+
+    // 👁️ ปุ่มสลับดูรหัสผ่าน / ซ่อนรหัสผ่าน
+    const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+    const loginPasswordInput = document.getElementById('loginPassword');
+    const togglePasswordIcon = document.getElementById('togglePasswordIcon');
+    if (togglePasswordBtn && loginPasswordInput && togglePasswordIcon) {
+        togglePasswordBtn.addEventListener('click', function () {
+            const isPassword = loginPasswordInput.getAttribute('type') === 'password';
+            loginPasswordInput.setAttribute('type', isPassword ? 'text' : 'password');
+            togglePasswordIcon.className = isPassword ? 'ph ph-eye-slash text-primary' : 'ph ph-eye text-muted';
+        });
+    }
 });
 
 // Form Submission Handler

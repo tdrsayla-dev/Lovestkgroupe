@@ -2,7 +2,7 @@
 <html lang="lo">
 
 <head>
-    <meta charset="UTF-8"><script src="auth-guard.js"></script>
+    <meta charset="UTF-8"><script src="auth-guard.js"></script><script src="deleted-sync.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Booking - Timeline</title>
     <link rel="icon" type="image/png" href="favicon.png?v=1.0">
@@ -3409,7 +3409,7 @@
                     if (histSearchInput && histSearchInput.value.trim()) {
                         applyHistoryTableSearch();
                     } else {
-                        renderHistoryTable(filteredPatientsData, '', historyCurrentPage || 1);
+                        renderHistoryTable(getHistoryTabRows(), '', historyCurrentPage || 1);
                     }
                 } else if (allPatientsData && allPatientsData.length > 0) {
                     applyFilters();
@@ -3704,6 +3704,67 @@
         let currentHistoryPatientsList = [];
         let currentHistorySearchQuery = '';
 
+        // ✅ แท็บประวัติใช้ข้อมูลชุดเดียวกับหน้า "ປະຫວັດຜູ້ປ່ວຍ" ใน Clinic.html (window.parent.fetchPatientHistoryRows)
+        //    null = เปิดแบบ standalone (ไม่มี parent) → ใช้ filteredPatientsData แบบเดิม
+        let sharedHistoryRows = null;
+        let sharedHistoryReqId = 0;
+
+        function getHistoryTabRows() {
+            return Array.isArray(sharedHistoryRows) ? sharedHistoryRows : filteredPatientsData;
+        }
+
+        function toBookingHistoryRow(v) {
+            const ts = v.created_at || v.updated_at;
+            return Object.assign({}, v, {
+                latest_visit_id: v.visit_id || '-',
+                latest_symptom: v.symptom || v.reason || '-',
+                latest_visit_date: ts ? new Date(ts).toLocaleString('lo-LA') : '-',
+                visit_status: v.status
+            });
+        }
+
+        async function refreshSharedHistoryTab(startDate, endDate, filterLabel) {
+            const parentWin = (window.parent && window.parent !== window) ? window.parent : null;
+            const histSubTitle = document.getElementById('history-subtitle');
+            const histSearchInput = document.getElementById('historySearchInput');
+            const renderNow = () => {
+                const rows = getHistoryTabRows();
+                if (histSubTitle && filterLabel) {
+                    histSubTitle.innerHTML = `ລາຍການປະຫວັດການກວດ - ${filterLabel}: ພົບ <strong>${rows.length}</strong> ລາຍການ`;
+                }
+                if (histSearchInput && histSearchInput.value.trim()) applyHistoryTableSearch();
+                else renderHistoryTable(rows, '', 1);
+            };
+
+            if (!parentWin || typeof parentWin.fetchPatientHistoryRows !== 'function') {
+                sharedHistoryRows = null;
+                renderNow();
+                return;
+            }
+
+            const reqId = ++sharedHistoryReqId;
+            let rows = [];
+            try {
+                rows = (await parentWin.fetchPatientHistoryRows(startDate, endDate)) || [];
+            } catch (e) {
+                console.warn('Load shared history rows error:', e);
+            }
+            if (reqId !== sharedHistoryReqId) return; // มีการเปลี่ยนตัวกรองระหว่างโหลด
+
+            const isOrder = (r) => typeof parentWin.isPatientHistoryOrder === 'function' && parentWin.isPatientHistoryOrder(r);
+            if (currentTypeFilterMode === 'order') rows = rows.filter(isOrder);
+            else if (currentTypeFilterMode === 'visit') rows = rows.filter(r => !isOrder(r));
+
+            // โหมด "ສະເພາະຂອງຂ້ອຍ" → เฉพาะคนไข้ที่ผู้ใช้นี้เป็นผู้แนะนำ (เทียบด้วย HN)
+            if (currentAdminViewMode !== 'all') {
+                const myHns = new Set((rawMyPatients || []).map(p => p && p.hn).filter(Boolean));
+                rows = rows.filter(r => r.hn && myHns.has(r.hn));
+            }
+
+            sharedHistoryRows = rows.map(toBookingHistoryRow);
+            try { renderNow(); } catch (tblErr) { console.error('Error updating history table:', tblErr); }
+        }
+
         function changeHistoryPage(newPage) {
             historyCurrentPage = newPage;
             renderHistoryTable(currentHistoryPatientsList, currentHistorySearchQuery, newPage);
@@ -3791,17 +3852,8 @@
                 histSubTitle.innerHTML = `ລາຍການປະຫວັດການກວດ - ${filterLabel}: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
             }
 
-            // ສະແດງຜົນຕາຕະລາງປະຫວັດໃນແທັບ 2 (ຖ້າມີຄຳຄົ້ນຫາຄ້າງຢູ່ໃຫ້ກັ່ນຕອງຕໍ່)
-            try {
-                const histSearchInput = document.getElementById('historySearchInput');
-                if (histSearchInput && histSearchInput.value.trim()) {
-                    applyHistoryTableSearch();
-                } else {
-                    renderHistoryTable(filteredPatientsData, '', 1);
-                }
-            } catch (tblErr) {
-                console.error('Error updating history table:', tblErr);
-            }
+            // ສະແດງຜົນຕາຕະລາງປະຫວັດໃນແທັບ 2 — ດຶງຈາກແຫຼ່ງດຽວກັນກັບໜ້າ "ປະຫວັດຜູ້ປ່ວຍ" (1 ແຖວ = 1 ການມາ)
+            refreshSharedHistoryTab(startDate, endDate, filterLabel);
 
             // ອັບເດດຂໍ້ມູນຜູ້ປ່ວຍເທິງໜ້າ Timeline
             try {
@@ -4150,7 +4202,21 @@
             }
 
             if (!val) {
-                renderHistoryTable(filteredPatientsData, '', 1);
+                renderHistoryTable(getHistoryTabRows(), '', 1);
+                return;
+            }
+
+            // ✅ ใช้ข้อมูลชุดเดียวกับหน้าປະຫວັດຜູ້ປ່ວຍ → ค้นหาในแถวประวัติตามช่วงวันที่ที่เลือก
+            if (Array.isArray(sharedHistoryRows)) {
+                const histMatches = sharedHistoryRows.filter(r =>
+                    (r.patient_name && r.patient_name.toLowerCase().includes(val)) ||
+                    (r.hn && r.hn.toLowerCase().includes(val)) ||
+                    (r.phone && String(r.phone).toLowerCase().includes(val)) ||
+                    (r.visit_id && r.visit_id.toLowerCase().includes(val)) ||
+                    (r.symptom && r.symptom.toLowerCase().includes(val)) ||
+                    (r.doctor_name && r.doctor_name.toLowerCase().includes(val))
+                );
+                renderHistoryTable(histMatches, val, 1);
                 return;
             }
 
@@ -4180,7 +4246,7 @@
             const clearBtn = document.getElementById('btnClearHistorySearch');
             if (searchInput) searchInput.value = '';
             if (clearBtn) clearBtn.classList.add('d-none');
-            renderHistoryTable(filteredPatientsData, '', 1);
+            renderHistoryTable(getHistoryTabRows(), '', 1);
         }
 
         // เปลี่ยนคนไข้บนหน้า Timeline
@@ -4355,7 +4421,7 @@
                 if (typeof applyFilters === 'function') {
                     applyFilters();
                 } else if (typeof renderHistoryTable === 'function') {
-                    renderHistoryTable(filteredPatientsData, currentHistorySearchQuery || '', historyCurrentPage || 1);
+                    renderHistoryTable(getHistoryTabRows(), currentHistorySearchQuery || '', historyCurrentPage || 1);
                 }
 
                 Swal.fire({
@@ -5097,7 +5163,11 @@
 
         function viewVisit(visitId, hn, encName) {
             const pName = encName ? decodeURIComponent(encName).trim() : '';
-            const pt = (allPatientsData || []).find(p => (hn && p.hn === hn) || (pName && p.patient_name && p.patient_name.trim().toLowerCase() === pName.toLowerCase()));
+            // ✅ มี HN → หาด้วย HN อย่างเดียว (ชื่อซ้ำกันได้); ใช้ชื่อเฉพาะเมื่อไม่มี HN
+            const hasHn = hn && hn !== '-';
+            const pt = (allPatientsData || []).find(p => hasHn
+                ? p.hn === hn
+                : (pName && p.patient_name && p.patient_name.trim().toLowerCase() === pName.toLowerCase()));
             let ordData = pt ? pt.order_data : null;
 
             if (!ordData) {
