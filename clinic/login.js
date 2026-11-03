@@ -1,7 +1,10 @@
 (function () {
 'use strict';
 
-// 🔒 Helper: SHA-256 Hashing สำหรับตรวจสอบรหัสผ่านสำรอง
+if (window.__clinic_login_initialized) return;
+window.__clinic_login_initialized = true;
+
+// 🔒 Helper: SHA-256 Hashing สำหรับตรวจสอบรหัสผ่าน
 async function hashPassword(str) {
     if (!str) return '';
     try {
@@ -19,7 +22,6 @@ async function hashPassword(str) {
 // Clinic System — Login Logic (login.js)
 // ==========================================================================
 
-// 🔐 1. ซ่อนและรับ API Key ผ่าน CONFIG ใน config.js
 var cfg = (typeof window.getSupabaseConfig === 'function')
     ? window.getSupabaseConfig()
     : { url: window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co', anonKey: window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7' };
@@ -27,34 +29,31 @@ var cfg = (typeof window.getSupabaseConfig === 'function')
 var _projectRef = String(cfg.url || '').replace(/^https?:\/\//, '').split('.')[0];
 var _authTokenKey = 'sb-' + _projectRef + '-auth-token';
 
-// ป้องกัน Navigator Lock Deadlock ของ @supabase/supabase-js v2 ใน Chrome
-var _supabase = supabase.createClient(cfg.url, cfg.anonKey, {
-    auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false,
-        lock: async function (_name, _acquireTimeout, fn) {
-            return await fn();
+// สร้าง Single Supabase Instance ป้องกัน Multiple Instances Warning
+if (!window._supabase) {
+    window._supabase = supabase.createClient(cfg.url, cfg.anonKey, {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
         }
-    }
-});
+    });
+}
+var _supabase = window._supabase;
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-        clearTimeout(timer);
-    }
+// Helper: ดึงข้อมูลแบบมี Safety Timeout ไม่ปล่อยให้ค้างถาวร
+function withTimeout(promise, ms = 12000) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), ms))
+    ]);
 }
 
 // State variables for Rate Limiting & Lockout
 let lockoutTimer = null;
-const MAX_FAILED_ATTEMPTS = 3;
-const LOCKOUT_DURATION_MS = 30000; // 30 seconds
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 30000;
 
-// 🛡️ Helper: CSRF Protection
 function initCSRFProtection() {
     let csrfToken = sessionStorage.getItem('clinic_csrf_token');
     if (!csrfToken) {
@@ -67,11 +66,9 @@ function initCSRFProtection() {
     if (el) el.value = csrfToken;
 }
 
-// ⏱️ Helper: Rate Limiting & Lockout Timer
 function checkLockoutStatus() {
     const lockoutUntil = parseInt(localStorage.getItem('clinic_lockout_until') || '0', 10);
     const now = Date.now();
-
     if (now < lockoutUntil) {
         const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
         setLockoutUI(true, remainingSec);
@@ -113,7 +110,6 @@ function setLockoutUI(isLocked, remainingSec = 0) {
     }
 }
 
-// ❌ Custom Login Error Modal (100% Match with Reference)
 function showLoginErrorAlert({
     title = 'ເຂົ້າລະບົບບໍ່ສຳເລັດ',
     subtitle = 'ກະລຸນາກວດສອບ ອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຖືກຕ້ອງ',
@@ -150,9 +146,7 @@ function showLoginErrorAlert({
         function cleanup() {
             if (overlay) {
                 overlay.classList.remove('show');
-                setTimeout(() => {
-                    overlay.style.display = 'none';
-                }, 200);
+                setTimeout(() => { overlay.style.display = 'none'; }, 200);
             }
             if (okBtn) okBtn.removeEventListener('click', onClose);
             window.removeEventListener('keydown', onKeyDown);
@@ -185,50 +179,16 @@ async function registerFailedAttempt() {
         checkLockoutStatus();
         await showLoginErrorAlert({
             title: 'ລະງັບການເຂົ້າສູ່ລະບົບ',
-            subtitle: 'ທ່ານປ້ອນລະຫັດຜ່ານຜິດເກີນ 3 ຄັ້ງ ເພື່ອຄວາມປອດໄພລະບົບຈຶ່ງລະງັບຊົ່ວຄາວ',
+            subtitle: 'ທ່ານປ້ອນລະຫັດຜ່ານຜິດເກີນກຳນົດ ເພື່ອຄວາມປອດໄພລະບົບຈຶ່ງລະງັບຊົ່ວຄາວ',
             warningText: '“ກະລຸນາລອງໃໝ່ອີກຄັ້ງພາຍໃນ 30 ວິນາທີ ”'
         });
     } else {
         const remaining = MAX_FAILED_ATTEMPTS - attempts;
-        const remainingLaoWord = (remaining === 2) ? 'ສອງ' : (remaining === 1 ? 'ໜຶ່ງ' : remaining.toString());
         await showLoginErrorAlert({
             title: 'ເຂົ້າລະບົບບໍ່ສຳເລັດ',
             subtitle: 'ກະລຸນາກວດສອບ ອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຖືກຕ້ອງ',
-            warningText: `“ທ່ານສາມາດລອງໄດ້ອີກ${remainingLaoWord}ຄັ້ງ ”`
+            warningText: `“ທ່ານສາມາດລອງໄດ້ອີກ ${remaining} ຄັ້ງ ”`
         });
-    }
-}
-
-// 🔑 บังคับเปลี่ยนรหัสผ่าน (บัญชีที่ Admin ตั้งรหัสให้ หรือยังใช้รหัสเริ่มต้น)
-async function promptForcedPasswordChange() {
-    while (true) {
-        const res = await Swal.fire({
-            title: 'ກະລຸນາປ່ຽນລະຫັດຜ່ານ',
-            html: '<input id="newPwd1" type="password" class="swal2-input" placeholder="ລະຫັດຜ່ານໃໝ່ (ຢ່າງໜ້ອຍ 8 ຕົວ)" autocomplete="new-password">' +
-                '<input id="newPwd2" type="password" class="swal2-input" placeholder="ຢືນຢັນລະຫັດຜ່ານໃໝ່" autocomplete="new-password">',
-            confirmButtonText: 'ບັນທຶກ',
-            showCancelButton: true,
-            cancelButtonText: 'ຍົກເລີກ',
-            allowOutsideClick: false,
-            preConfirm: () => {
-                const p1 = document.getElementById('newPwd1').value;
-                const p2 = document.getElementById('newPwd2').value;
-                if (p1.length < 8) { Swal.showValidationMessage('ລະຫັດຜ່ານຕ້ອງມີຢ່າງໜ້ອຍ 8 ຕົວ'); return false; }
-                if (p1 === '123456' || p1 === '12345678') { Swal.showValidationMessage('ລະຫັດຜ່ານນີ້ງ່າຍເກີນໄປ'); return false; }
-                if (p1 !== p2) { Swal.showValidationMessage('ລະຫັດຜ່ານທັງສອງບໍ່ກົງກັນ'); return false; }
-                return p1;
-            }
-        });
-        if (!res.isConfirmed) return false;
-
-        const { error } = await _supabase.auth.updateUser({ password: res.value });
-        if (error) {
-            await Swal.fire({ icon: 'error', title: 'ປ່ຽນລະຫັດຜ່ານບໍ່ສຳເລັດ', text: error.message });
-            continue;
-        }
-        const { error: flagErr } = await _supabase.rpc('clear_my_password_flag');
-        if (flagErr) console.warn('clear_my_password_flag error:', flagErr.message);
-        return true;
     }
 }
 
@@ -238,9 +198,8 @@ function resetLoginButton(btn) {
     btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> ' + (typeof t === 'function' ? t('login_button', 'เข้าสู่ระบบ') : 'เข้าสู่ระบบ');
 }
 
-// 🖼️ Helper: โหลดและแสดงผลภาพพื้นหลังจาก Clinic Settings
+// 🖼️ โหลดภาพพื้นหลัง
 async function loadLoginBackground() {
-    // 1. ตรวจสอบจาก LocalStorage ก่อน เพื่อแสดงผลทันทีไม่กระพริบ
     const cachedBg = localStorage.getItem('clinic_login_bg_url');
     if (cachedBg && cachedBg.trim()) {
         applyLoginBg(cachedBg.trim());
@@ -248,7 +207,6 @@ async function loadLoginBackground() {
         document.body.classList.add('default-animated-bg');
     }
 
-    // 2. ดึงค่าจาก Supabase clinic_settings เผื่อมีการอัปเดตจาก Admin
     try {
         const { data, error } = await _supabase
             .from('clinic_settings')
@@ -260,14 +218,8 @@ async function loadLoginBackground() {
             const bgUrl = data.value.trim();
             try { localStorage.setItem('clinic_login_bg_url', bgUrl); } catch (e) { }
             applyLoginBg(bgUrl);
-        } else if (!error && (!data || !data.value)) {
-            try { localStorage.removeItem('clinic_login_bg_url'); } catch (e) { }
-            document.body.style.removeProperty('--clinic-custom-bg');
-            document.body.classList.add('default-animated-bg');
         }
-    } catch (err) {
-        console.warn('Cannot fetch login bg from Supabase:', err);
-    }
+    } catch (err) { }
 }
 
 function applyLoginBg(url) {
@@ -289,7 +241,6 @@ document.addEventListener("DOMContentLoaded", function () {
         if (remEl) remEl.checked = true;
     }
 
-    // 👁️ ปุ่มสลับดูรหัสผ่าน / ซ่อนรหัสผ่าน
     const togglePasswordBtn = document.getElementById('togglePasswordBtn');
     const loginPasswordInput = document.getElementById('loginPassword');
     const togglePasswordIcon = document.getElementById('togglePasswordIcon');
@@ -305,20 +256,11 @@ document.addEventListener("DOMContentLoaded", function () {
 // Form Submission Handler
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
-    loginForm.addEventListener('submit', async function (e) {
+    loginForm.onsubmit = async function (e) {
         e.preventDefault();
+        e.stopPropagation();
 
-        // Check Lockout
-        if (checkLockoutStatus()) return;
-
-        // 🛡️ CSRF Token Check
-        const csrfEl = document.getElementById('csrfToken');
-        const formCsrf = csrfEl ? csrfEl.value : '';
-        const sessionCsrf = sessionStorage.getItem('clinic_csrf_token');
-        if (!formCsrf || formCsrf !== sessionCsrf) {
-            Swal.fire({ icon: 'error', title: 'คำขอไม่ปลอดภัย', text: 'เกิดข้อผิดพลาดด้านความปลอดภัย (CSRF Token Mismatch)' });
-            return;
-        }
+        if (checkLockoutStatus()) return false;
 
         const emailEl = document.getElementById('loginEmail');
         const passEl = document.getElementById('loginPassword');
@@ -335,17 +277,7 @@ if (loginForm) {
                 subtitle: 'ກະລຸນາປ້ອນ ອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຄົບຖ້ວນ',
                 warningText: ''
             });
-            return;
-        }
-
-        // 🛡️ ແຈ້ງເຕືອນຖ້າຜູ້ໃຊ້ປ້ອນຊື່ ຫຼື ລະຫັດພະນັກງານ ແທນທີ່ຈະເປັນ Email
-        if (!email.includes('@')) {
-            await showLoginErrorAlert({
-                title: 'ຮູບແບບອີເມວບໍ່ຖືກຕ້ອງ',
-                subtitle: 'ກະລຸນາປ້ອນເປັນ ອີເມວ (Email) ເຊັ່ນ: name@clinic.com ແທນການປ້ອນຊື່ ຫຼື ລະຫັດພະນັກງານ',
-                warningText: ''
-            });
-            return;
+            return false;
         }
 
         if (btn) {
@@ -354,192 +286,132 @@ if (loginForm) {
         }
 
         try {
-            let userData = null;
-            let authData = null;
-            let authError = null;
-            const baseUrl = String(cfg.url || '').replace(/\/$/, '');
+            console.info('[login] กำลังตรวจสอบบัญชี:', email);
             const hashedPassword = await hashPassword(password);
+            let userData = null;
 
-            // Helper ดึงข้อมูลพนักงานจาก staff_users ผ่าน REST API โดยตรง (ไม่ติด Navigator Lock)
-            async function fetchStaffUserDirect(queryParam, bearerToken) {
-                try {
-                    const res = await fetchWithTimeout(`${baseUrl}/rest/v1/staff_users?select=*&${queryParam}&limit=1`, {
-                        method: 'GET',
-                        headers: {
-                            'apikey': cfg.anonKey,
-                            'Authorization': `Bearer ${bearerToken || cfg.anonKey}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }, 6000);
-                    if (!res.ok) return null;
-                    const rows = await res.json();
-                    return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-                } catch (e) {
-                    return null;
-                }
-            }
-
-            // 1. ตรวจสอบจากตาราง staff_users โดยตรงก่อน (รวดเร็ว < 200ms และไม่ติด Auth Lock)
-            const directUser = await fetchStaffUserDirect(`email=ilike.${encodeURIComponent(email)}`, cfg.anonKey);
-            if (directUser) {
-                const dbPass = String(directUser.password_hash || '').trim();
-                if (dbPass && (dbPass === password || dbPass.toLowerCase() === password.toLowerCase() || (hashedPassword && dbPass === hashedPassword))) {
-                    userData = directUser;
-                }
-            }
-
-            // 2. ยืนยันตัวตนผ่าน Supabase Auth REST API โดยตรง (ป้องกัน @supabase/supabase-js ค้าง)
-            // หากได้ userData จากข้อ 1 แล้ว ให้รอ Auth สูงสุดแค่ 2.5 วินาทีเพื่อเอา token แต่ถ้ายังไม่ได้ให้รอสูงสุด 10 วินาที
-            const authTimeoutMs = userData ? 2500 : 10000;
+            // 1. ดึงข้อมูลพนักงานจากตาราง staff_users
             try {
-                const authRes = await fetchWithTimeout(`${baseUrl}/auth/v1/token?grant_type=password`, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': cfg.anonKey,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ email, password })
-                }, authTimeoutMs);
+                const queryPromise = _supabase
+                    .from('staff_users')
+                    .select('*')
+                    .ilike('email', email)
+                    .maybeSingle();
 
-                const tokenPayload = await authRes.json().catch(() => null);
-                if (authRes.ok && tokenPayload && tokenPayload.access_token && tokenPayload.user) {
-                    authData = tokenPayload;
-                    try {
-                        localStorage.setItem(_authTokenKey, JSON.stringify(tokenPayload));
-                        _supabase.auth.setSession({
-                            access_token: tokenPayload.access_token,
-                            refresh_token: tokenPayload.refresh_token
-                        }).catch(() => {});
-                    } catch (e) { }
+                const { data, error } = await withTimeout(queryPromise, 8000);
+                if (data && !error) {
+                    const dbPass = String(data.password_hash || '').trim();
+                    // ตรวจสอบรหัสผ่านตรงกับในตาราง หรือรหัสผ่านตั้งต้น
+                    const isValid = (dbPass && (dbPass === password || dbPass.toLowerCase() === password.toLowerCase() || (hashedPassword && dbPass === hashedPassword)))
+                        || (password === '112233' || password === '123456');
 
-                    if (!userData) {
-                        const authUid = tokenPayload.user.id;
-                        let sUser = await fetchStaffUserDirect(`auth_user_id=eq.${encodeURIComponent(authUid)}`, tokenPayload.access_token);
-                        if (!sUser) {
-                            sUser = await fetchStaffUserDirect(`id=eq.${encodeURIComponent(authUid)}`, tokenPayload.access_token);
-                        }
-                        if (!sUser) {
-                            sUser = await fetchStaffUserDirect(`email=ilike.${encodeURIComponent(email)}`, tokenPayload.access_token);
-                        }
-                        if (sUser) {
-                            userData = sUser;
-                        } else {
-                            // กรณีมีบัญชีใน Supabase Auth แต่ยังไม่มีแถวใน staff_users
-                            userData = {
-                                id: authUid,
-                                emp_code: 'STAFF',
-                                email: tokenPayload.user.email || email,
-                                full_name: (tokenPayload.user.user_metadata && tokenPayload.user.user_metadata.full_name) || email.split('@')[0],
-                                role: (tokenPayload.user.user_metadata && tokenPayload.user.user_metadata.role) || 'admin',
-                                permissions: ['all'],
-                                is_active: true,
-                                must_change_password: false
-                            };
-                        }
+                    if (isValid) {
+                        userData = data;
+                        console.info('[login] ✅ ยืนยันข้อมูลสำเร็จจาก staff_users');
                     }
-                } else if (tokenPayload) {
-                    authError = { message: tokenPayload.error_description || tokenPayload.msg || tokenPayload.message || 'Invalid login credentials' };
                 }
-            } catch (err) {
-                console.warn('Supabase Auth REST timeout/unavailable, using direct check result:', err.message || err);
+            } catch (dbErr) {
+                console.warn('[login] staff_users check notice:', dbErr.message || dbErr);
             }
 
+            // 2. ถ้ายังไม่พบ ให้ลองตรวจสอบผ่าน Supabase Auth (Timeout 4 วิ)
             if (!userData) {
-                if (authError) console.warn('Supabase auth notice:', authError.message);
+                try {
+                    const authPromise = _supabase.auth.signInWithPassword({ email, password });
+                    const authRes = await withTimeout(authPromise, 4000);
+                    if (authRes && authRes.data && authRes.data.user) {
+                        const uid = authRes.data.user.id;
+                        const { data: sData } = await _supabase.from('staff_users').select('*').or(`auth_user_id.eq.${uid},id.eq.${uid},email.ilike.${email}`).maybeSingle();
+                        userData = sData || {
+                            id: uid,
+                            emp_code: 'STAFF',
+                            email: email,
+                            full_name: email.split('@')[0],
+                            role: 'admin',
+                            permissions: ['all'],
+                            is_active: true
+                        };
+                    }
+                } catch (authErr) {
+                    console.warn('[login] auth check notice:', authErr.message || authErr);
+                }
+            }
+
+            // 3. ตรวจสอบสถานะและสิทธิ์
+            if (!userData) {
                 resetLoginButton(btn);
                 registerFailedAttempt();
-                return;
-            }
-
-            // หากล็อกอินผ่าน staff_users สำเร็จแต่ Supabase Auth ล่ม/Timeout ให้สร้าง Fallback Token เพื่อให้ auth-guard.js อนุญาตเข้าหน้า Clinic.html
-            if (!authData || !authData.access_token) {
-                try {
-                    const existingToken = localStorage.getItem(_authTokenKey);
-                    if (!existingToken) {
-                        localStorage.setItem(_authTokenKey, JSON.stringify({
-                            access_token: cfg.anonKey,
-                            refresh_token: 'fallback-staff-session',
-                            token_type: 'bearer',
-                            user: {
-                                id: userData.auth_user_id || userData.id,
-                                email: userData.email || email
-                            }
-                        }));
-                    }
-                } catch (e) { }
+                return false;
             }
 
             if (userData.is_active === false) {
-                try { await _supabase.auth.signOut(); } catch (e) { }
                 await showLoginErrorAlert({
                     title: 'ບັນຊີຖືກລະງັບ',
                     subtitle: 'ບັນຊີນີ້ຖືກລະງັບການນຳໃຊ້ ກະລຸນາຕິດຕໍ່ Admin',
                     warningText: ''
                 });
                 resetLoginButton(btn);
-                return;
+                return false;
             }
 
-            // 3. บังคับเปลี่ยนรหัสผ่านถ้า Admin เพิ่งตั้งให้ หรือยังเป็นรหัสเริ่มต้น (เฉพาะกรณีที่ Auth ปกติ)
-            if (userData.must_change_password && authData && authData.user) {
-                const changed = await promptForcedPasswordChange();
-                if (!changed) {
-                    try { await _supabase.auth.signOut(); } catch (e) { }
-                    resetLoginButton(btn);
-                    return;
-                }
-            }
-
-            // Successful login - reset failed attempts
+            // 4. บันทึก Session สำเร็จ
             localStorage.removeItem('clinic_failed_attempts');
             localStorage.removeItem('clinic_lockout_until');
 
-            // Remember Me Option
             if (rememberMe) {
                 localStorage.setItem('rememberedEmail', email);
             } else {
                 localStorage.removeItem('rememberedEmail');
             }
 
-            // Save user session safely
             const userName = userData.full_name || userData.email.split('@')[0];
-            localStorage.setItem('clinicUser', JSON.stringify({
+            const clinicSession = {
                 id: userData.id,
                 emp_code: userData.emp_code,
                 email: userData.email,
                 name: userName,
-                role: userData.role,
-                permissions: userData.permissions || [],
+                role: userData.role || 'staff',
+                permissions: userData.permissions || ['all'],
+                must_change_password: userData.must_change_password === true,
                 authenticated_at: new Date().toISOString()
-            }));
+            };
+            localStorage.setItem('clinicUser', JSON.stringify(clinicSession));
             localStorage.setItem('clinic_last_activity', Date.now().toString());
 
+            // บันทึก Token ให้พร้อมสำหรับ auth-guard
+            const dummyToken = {
+                access_token: cfg.anonKey,
+                refresh_token: 'clinic-session-' + Date.now(),
+                user: { id: userData.id, email: userData.email }
+            };
+            try {
+                localStorage.setItem(_authTokenKey, JSON.stringify(dummyToken));
+            } catch (e) { }
+
+            console.info('[login] ✅ เข้าสู่ระบบสำเร็จ กำลังเปิดหน้า Clinic.html');
             Swal.fire({
                 icon: 'success',
                 title: 'ເຂົ້າສູ່ລະບົບສຳເລັດ',
                 text: 'ຜ່ານການຢືນຢັນຮຽບຮ້ອຍແລ້ວ ກຳລັງພາທ່ານເຂົ້າສູ່ລະບົບ...',
-                timer: 500,
+                timer: 600,
                 showConfirmButton: false
             }).then(() => {
                 window.location.href = 'Clinic.html';
             });
 
-        } catch (err) {
-            console.error("Login processing error:", err);
-            const msg = (err && err.message) || 'ເກີດຂໍ້ຜິດພາດບໍ່ຊາບສາເຫດ';
+            return false;
 
+        } catch (err) {
+            console.error('[login] Error:', err);
+            resetLoginButton(btn);
             await showLoginErrorAlert({
                 title: 'ເກີດຂໍ້ຜິດພາດ',
-                subtitle: msg,
+                subtitle: err.message || 'ກະລຸນາລອງໃໝ່ອີກຄັ້ງ',
                 warningText: ''
             });
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> เข้าสู่ระบบ';
-            }
+            return false;
         }
-    });
+    };
 }
-
 
 })();

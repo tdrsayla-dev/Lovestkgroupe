@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <script src="auth-guard.js?v=2.1"></script>
+    <script src="auth-guard.js?v=2.6"></script>
     <script src="deleted-sync.js?v=2.2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบการทำงาน - Clinic System</title>
@@ -23,7 +23,7 @@
             try {
                 var _cUrl = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || 'https://fpmstumpobbjozflkola.supabase.co';
                 var _cKey = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
-                window._supabase = supabase.createClient(_cUrl, _cKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, lock: async function (_n, _t, fn) { return await fn(); } } });
+                window._supabase = supabase.createClient(_cUrl, _cKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
             } catch (e) { }
         }
     </script>
@@ -46,7 +46,7 @@
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
-        // ป้องกัน Uncaught (in promise) AbortError หรือ network change drop และ Blocked aria-hidden
+        // ป้องกัน Unct (in promise) Abornetwork change drop และ Blocked aria-hidden
         window.addEventListener('unhandledrejection', function (e) {
             const msg = String(e.reason?.message || e.reason || '');
             if (e.reason && (e.reason.name === 'AbortError' || e.reason.name === 'NotAllowedError' || msg.includes('interrupted by a call to pause') || msg.includes('NETWORK_CHANGED') || msg.includes('Failed to fetch'))) {
@@ -156,6 +156,51 @@
         }
 
         // 🛡️ ป้องกัน ReferenceError: showPage is not defined เมื่อคลิกเมนูก่อน function.js โหลดเสร็จ
+                // 🛡️ ป้องกัน ReferenceError: logoutUser is not defined เมื่อคลิกออกจากระบบ
+        function logoutUser() {
+            function doSignOut() {
+                try {
+                    if (window._supabase && window._supabase.auth) {
+                        window._supabase.auth.signOut({ scope: 'local' });
+                    }
+                } catch (e) { }
+                localStorage.removeItem('clinicUser');
+                localStorage.removeItem('clinic_last_activity');
+                try {
+                    for (let i = localStorage.length - 1; i >= 0; i--) {
+                        const k = localStorage.key(i);
+                        if (k && (k.startsWith('sb-') && k.endsWith('-auth-token'))) {
+                            localStorage.removeItem(k);
+                        }
+                    }
+                } catch (e) { }
+                window.location.replace('login.html');
+            }
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'ออกจากระบบ? / ອອກຈາກລະບົບ?',
+                    text: 'คุณต้องการออกจากระบบใช่หรือไม่? / ທ່ານຕ້ອງການອອກຈາກລະບົບແທ້ບໍ?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'ออกจากระบบ',
+                    cancelButtonText: 'ยกเลิก',
+                    customClass: { popup: 'rounded-4 shadow-lg' }
+                }).then(function (result) {
+                    if (result.isConfirmed) {
+                        doSignOut();
+                    }
+                });
+            } else {
+                if (confirm('คุณต้องการออกจากระบบใช่หรือไม่? / ທ່ານຕ້ອງການອອກຈາກລະບົບແທ້ບໍ?')) {
+                    doSignOut();
+                }
+            }
+        }
+        window.logoutUser = logoutUser;
+
         if (typeof window.showPage !== 'function') {
             window.showPage = function (pageId, element) {
                 if (typeof window._realShowPage === 'function') {
@@ -177,8 +222,7 @@
                     showPage(targetPage, navEl);
                 }
             }
-            // 🚀 ถ้าไม่มีการระบุหน้าผ่าน URL ปล่อยว่างไว้เลย 
-            // แล้วให้ฟังก์ชัน applyUserPermissions ใน function.js เป็นตัวจัดการเด้งไปหน้าแรกที่มีสิทธิ์เองครับ
+            // 🚀 ถ้าไม่มีการระบุหน้าผ่าน URL ปล่อยว่างไว้             // แล้วให้ฟังก์ชัน applyUserPermissions ใน function.js เป็นตัวจัดการเด้งไปหน้าแรกที่มีสิทธิ์เองครับ
         });
     </script>
     <style>
@@ -3693,7 +3737,8 @@
                                     style="background: #f8fafc; border-radius: 10px; padding: 7px 10px; border: 1px solid #e2e8f0;">
                                     <div
                                         style="font-size: 9.5px; color: #64748b; font-weight: 600; margin-bottom: 1px;">
-                                        <i class="bi bi-telephone-fill text-primary me-1"></i> ເບີໂທລະສັບ</div>
+                                        <i class="bi bi-telephone-fill text-primary me-1"></i> ເບີໂທລະສັບ
+                                    </div>
                                     <div id="cardPhone"
                                         style="font-size: 12.5px; font-weight: 700; color: #1e293b; font-family: monospace;">
                                         -</div>
@@ -3702,7 +3747,8 @@
                                     style="background: #f8fafc; border-radius: 10px; padding: 7px 10px; border: 1px solid #e2e8f0;">
                                     <div
                                         style="font-size: 9.5px; color: #64748b; font-weight: 600; margin-bottom: 1px;">
-                                        <i class="bi bi-geo-alt-fill text-danger me-1"></i> ແຂວງ / ທີ່ຢູ່</div>
+                                        <i class="bi bi-geo-alt-fill text-danger me-1"></i> ແຂວງ / ທີ່ຢູ່
+                                    </div>
                                     <div id="cardAddress"
                                         style="font-size: 12px; font-weight: 700; color: #1e293b; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
                                         -</div>
@@ -4379,7 +4425,8 @@
                                             disabled onclick="addMedToRx()"
                                             style="height: 38px; font-size: 0.85rem; border-radius: 8px; flex-shrink: 0; cursor: not-allowed;"
                                             title="ກະລຸນາເລືອກລາຍການຢາທີ່ມີໃນຖານຂໍ້ມູນກ່ອນ">
-                                            <i class="bi bi-slash-circle-fill text-danger fs-6"></i> <span>+ ເພີ່ມລາຍການ</span>
+                                            <i class="bi bi-slash-circle-fill text-danger fs-6"></i> <span>+
+                                                ເພີ່ມລາຍການ</span>
                                         </button>
                                     </div>
 
@@ -5993,14 +6040,68 @@
             </div>
         </div>
     </div>
+    
+    <!-- 🔒 Modal บังคับเปลี่ยนรหัสผ่านเมื่อเข้าใช้งานครั้งแรก (Force Change Password Modal) -->
+    <div class="modal fade" id="forceChangePasswordModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="forceChangePasswordModalLabel" aria-hidden="true" style="z-index: 1099;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow-lg" style="background: #ffffff;">
+                <div class="modal-header border-0 pb-0 text-center d-flex flex-column align-items-center pt-4">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center mb-3 shadow-sm" style="width: 64px; height: 64px; background: rgba(11, 60, 115, 0.1); color: #0b3c73;">
+                        <i class="ph ph-shield-check" style="font-size: 2.2rem;"></i>
+                    </div>
+                    <h5 class="modal-title fw-bold text-dark" id="forceChangePasswordModalLabel">
+                        ປ່ຽນລະຫັດຜ່ານໃໝ່ (ບັງຄັບຄັ້ງທຳອິດ)
+                    </h5>
+                    <p class="text-muted small mb-0 px-3 text-center" style="font-size: 0.88rem;">
+                        ເພື່ອຄວາມປອດໄພຂອງຂໍ້ມູນຄລີນິກ ກະລຸນາຕັ້ງລະຫັດຜ່ານໃໝ່ຂອງທ່ານກ່ອນເລີ່ມໃຊ້ງານ
+                    </p>
+                </div>
+                <div class="modal-body p-4 pt-3">
+                    <form id="forceChangePasswordForm" onsubmit="event.preventDefault(); submitForceChangePassword();">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary small">ລະຫັດຜ່ານໃໝ່ (New Password): <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="ph ph-lock text-muted"></i></span>
+                                <input type="password" id="forceNewPassword" class="form-control border-start-0 border-end-0 bg-light" placeholder="ຢ່າງໜ້ອຍ 6 ຕົວອັກສອນ" minlength="6" required autocomplete="new-password">
+                                <button class="btn btn-light border border-start-0 text-muted" type="button" onclick="toggleForcePasswordVisibility('forceNewPassword', this)">
+                                    <i class="ph ph-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text text-muted" style="font-size: 0.75rem;">
+                                💡 ຄວາມຍາວຢ່າງໜ້ອຍ 6 ຕົວອັກສອນ ແລະ ຫ້າມໃຊ້ລະຫັດງ່າຍ (123456 / 112233)
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-secondary small">ຢືນຢັນລະຫັດຜ່ານໃໝ່ (Confirm Password): <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="ph ph-lock-key text-muted"></i></span>
+                                <input type="password" id="forceConfirmPassword" class="form-control border-start-0 border-end-0 bg-light" placeholder="ປ້ອນລະຫັດຜ່ານໃໝ່ອີກຄັ້ງ" minlength="6" required autocomplete="new-password">
+                                <button class="btn btn-light border border-start-0 text-muted" type="button" onclick="toggleForcePasswordVisibility('forceConfirmPassword', this)">
+                                    <i class="ph ph-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="forcePasswordErrorAlert" class="alert alert-danger py-2 small mb-3" style="display: none;"></div>
+
+                        <button type="submit" id="btnSubmitForcePassword" class="btn w-100 py-2.5 fw-bold rounded-3 text-white shadow-sm" style="background: #0b3c73;">
+                            <i class="ph ph-check-circle me-1"></i> ບັນທຶກລະຫັດຜ່ານ ແລະ ເລີ່ມໃຊ້ງານ
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="config.js"></script>
     <script>
         if (typeof CONFIG === 'undefined') {
-            document.write('<script src="../config.js"><\/script>');
+document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=10.9"></script>
+    <script src="function.js?v=11.0"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.9"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
@@ -6064,6 +6165,194 @@
             }
         });
     </script>
+
+    <!-- 🔒 Script บังคับเปลี่ยนรหัสผ่านเมื่อเข้าใช้งานครั้งแรก (Force Change Password Engine) -->
+    <script>
+        function toggleForcePasswordVisibility(inputId, btn) {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            const isPass = el.type === 'password';
+            el.type = isPass ? 'text' : 'password';
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.className = isPass ? 'ph ph-eye-slash text-primary' : 'ph ph-eye text-muted';
+            }
+        }
+
+        async function submitForceChangePassword() {
+            const newPassEl = document.getElementById('forceNewPassword');
+            const confirmPassEl = document.getElementById('forceConfirmPassword');
+            const errAlert = document.getElementById('forcePasswordErrorAlert');
+            const submitBtn = document.getElementById('btnSubmitForcePassword');
+
+            const newPass = (newPassEl ? newPassEl.value : '').trim();
+            const confirmPass = (confirmPassEl ? confirmPassEl.value : '').trim();
+
+            if (errAlert) errAlert.style.display = 'none';
+
+            if (!newPass || newPass.length < 6) {
+                if (errAlert) {
+                    errAlert.innerText = 'ລະຫັດຜ່ານໃໝ່ຕ້ອງມີຢ່າງໜ້ອຍ 6 ຕົວອັກສອນ';
+                    errAlert.style.display = 'block';
+                }
+                if (newPassEl) newPassEl.focus();
+                return;
+            }
+
+            if (newPass === '123456' || newPass === '112233' || newPass.toLowerCase() === 'password') {
+                if (errAlert) {
+                    errAlert.innerText = 'ກະລຸນາຢ່າໃຊ້ລະຫັດຜ່ານເລີ່ມຕົ້ນ (123456 / 112233)';
+                    errAlert.style.display = 'block';
+                }
+                if (newPassEl) newPassEl.focus();
+                return;
+            }
+
+            if (newPass !== confirmPass) {
+                if (errAlert) {
+                    errAlert.innerText = 'ລະຫັດຜ່ານ ແລະ ການຢືນຢັນລະຫັດຜ່ານບໍ່ກົງກັນ';
+                    errAlert.style.display = 'block';
+                }
+                if (confirmPassEl) confirmPassEl.focus();
+                return;
+            }
+
+            let user = null;
+            try {
+                user = JSON.parse(localStorage.getItem('clinicUser') || '{}');
+            } catch (e) { }
+
+            if (!user || (!user.id && !user.email)) {
+                window.location.replace('login.html');
+                return;
+            }
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>ກຳລັງບັນທຶກລະຫັດຜ່ານ...';
+            }
+
+            try {
+                // คำนวณ SHA-256 hash
+                let hashed = newPass;
+                try {
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(newPass);
+                    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                    hashed = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+                } catch (hErr) { }
+
+                const client = window._supabase || (typeof supabase !== 'undefined' && window._supabase);
+                if (client) {
+                    // 1. อัปเดต staff_users: password_hash และ must_change_password = false
+                    const updatePayload = {
+                        password_hash: hashed,
+                        must_change_password: false,
+                        updated_at: new Date().toISOString()
+                    };
+
+                    let updQuery = client.from('staff_users').update(updatePayload);
+                    if (user.id) {
+                        updQuery = updQuery.eq('id', user.id);
+                    } else if (user.email) {
+                        updQuery = updQuery.ilike('email', user.email);
+                    }
+                    const { error: updErr } = await updQuery;
+                    if (updErr) console.warn('Update staff_users notice:', updErr);
+
+                    // 2. อัปเดตรหัสผ่านใน Supabase Auth ด้วย (ถ้ามี auth session)
+                    try {
+                        await client.auth.updateUser({ password: newPass });
+                    } catch (authErr) {
+                        console.warn('auth.updateUser notice:', authErr);
+                    }
+                }
+
+                // 3. ปรับสถานะใน localStorage
+                user.must_change_password = false;
+                localStorage.setItem('clinicUser', JSON.stringify(user));
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'ປ່ຽນລະຫັດຜ່ານສຳເລັດ!',
+                        text: 'ຍິນດີຕ້ອນຮັບເຂົ້າສູ່ລະບົບຄລີນິກ',
+                        timer: 1600,
+                        showConfirmButton: false,
+                        customClass: { popup: 'rounded-4 shadow-lg' }
+                    });
+                }
+
+                const mEl = document.getElementById('forceChangePasswordModal');
+                if (mEl && typeof bootstrap !== 'undefined') {
+                    const inst = bootstrap.Modal.getInstance(mEl) || bootstrap.Modal.getOrCreateInstance(mEl);
+                    if (inst) inst.hide();
+                }
+
+            } catch (err) {
+                console.error('Error changing force password:', err);
+                if (errAlert) {
+                    errAlert.innerText = 'ເກີດຂໍ້ຜິດພາດ: ' + (err.message || 'ກະລຸນາລອງໃໝ່');
+                    errAlert.style.display = 'block';
+                }
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="ph ph-check-circle me-1"></i> ບັນທຶກລະຫັດຜ່ານ ແລະ ເລີ່ມໃຊ້ງານ';
+                }
+            }
+        }
+
+        async function checkAndEnforcePasswordChange() {
+            let user = null;
+            try {
+                user = JSON.parse(localStorage.getItem('clinicUser') || '{}');
+            } catch (e) { }
+            if (!user || (!user.id && !user.email)) return;
+
+            function showModal() {
+                const modalEl = document.getElementById('forceChangePasswordModal');
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    const modalInst = bootstrap.Modal.getOrCreateInstance(modalEl, {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                    modalInst.show();
+                    modalEl.addEventListener('hide.bs.modal', function (e) {
+                        let curU = null;
+                        try { curU = JSON.parse(localStorage.getItem('clinicUser') || '{}'); } catch (err) { }
+                        if (curU && curU.must_change_password === true) {
+                            e.preventDefault();
+                        }
+                    });
+                }
+            }
+
+            if (user.must_change_password === true) {
+                showModal();
+                return;
+            }
+
+            const client = window._supabase;
+            if (client) {
+                try {
+                    let q = client.from('staff_users').select('must_change_password');
+                    if (user.id) q = q.eq('id', user.id);
+                    else if (user.email) q = q.ilike('email', user.email);
+                    const { data, error } = await q.maybeSingle();
+                    if (!error && data && data.must_change_password === true) {
+                        user.must_change_password = true;
+                        localStorage.setItem('clinicUser', JSON.stringify(user));
+                        showModal();
+                    }
+                } catch (e) { }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(checkAndEnforcePasswordChange, 600);
+        });
+    </script>
+
 </body>
 
 </html>

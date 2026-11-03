@@ -623,7 +623,7 @@ if (!_mlmSupabase && typeof supabase !== 'undefined' && typeof supabase.createCl
 // =====================================
 // Centralized Real-time Synchronization Hub (All Tables)
 // =====================================
-let _realtimeDebounceTimers = {};
+var _realtimeDebounceTimers = window._realtimeDebounceTimers || {};
 
 function debounceRealtime(key, callback, delay = 250) {
     if (_realtimeDebounceTimers[key]) {
@@ -984,41 +984,41 @@ document.addEventListener("DOMContentLoaded", function () {
         };
     }
 
-    // ⚡ Phase 1: โหลดคิวหลักและ Realtime ทันทีเพื่อให้ UI พร้อมใช้งานเร็วที่สุด
+    // ⚡ Phase 1: โหลดคิวหลักหน้าแรกและระบบ Realtime ทันที เพื่อให้พร้อมทำงานทันทีใน 0.1 วินาที
+    loadAppointments();
     loadDoctorQueue();
     loadPaymentQueue();
     loadPharmacyQueue();
     loadQueueList();
-    loadMedicines();
-    loadMlmProducts();
-    initMlmRealtimeSubscription();
     initClinicRealtimeHub();
 
-    // ⚡ Phase 2: ทยอยโหลดข้อมูลใน background แบบแบ่งกลุ่ม ไม่ให้แย่ง Network Connections (Browser 6-connection limit)
+    // ⚡ Phase 2: ทยอยโหลดข้อมูลพื้นฐานแบบกระจายคิว (Smooth Staggered Loading) ไม่แย่ง Network สายหลัก
     setTimeout(() => {
-        loadAppointments();
         loadPatients();
+        loadMedicines();
         loadTriage();
-    }, 200);
+    }, 400);
 
     setTimeout(() => {
         loadLabQueue();
         loadPrescriptionList();
-        loadPatientHistory();
-    }, 600);
+        loadMlmProducts();
+        initMlmRealtimeSubscription();
+    }, 1000);
 
     setTimeout(() => {
         loadSupplyItems();
         loadSupplyRequests();
         loadServicesData();
-    }, 1000);
+        loadPatientHistory();
+    }, 1800);
 
     setTimeout(() => {
         loadReferralData();
         loadStaffUsers();
         loadBills();
         loadExpenses();
-    }, 1400);
+    }, 2600);
 
     // Listen for messages from iframes (e.g. marketing.html) to circumvent CORS issues
     window.addEventListener('message', async function (event) {
@@ -1558,17 +1558,46 @@ async function loadAppointments() {
         dateInput.value = todayStr;
     }
 
-    const { data, error } = await _supabase
-        .from('appointments')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
+    // ⚡ Instant Cache First: เรนเดอร์ข้อมูลเดิมจากแคชทันทีใน 0.01 วินาที ไม่ต้องปล่อยให้หน้าจอค้าง "กำลังโหลดข้อมูล..."
+    if (!allAppointments || allAppointments.length === 0) {
+        try {
+            const cachedAppts = JSON.parse(localStorage.getItem('clinic_appointments_cache') || '[]');
+            if (Array.isArray(cachedAppts) && cachedAppts.length > 0) {
+                allAppointments = cachedAppts;
+                filterAppointments();
+            }
+        } catch (e) { }
     }
 
-    allAppointments = data || [];
+    let data = null;
+    try {
+        const queryPromise = _supabase
+            .from('appointments')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 15000)
+        );
+
+        const res = await Promise.race([queryPromise, timeoutPromise]);
+        if (res && res.data) {
+            data = res.data;
+            try {
+                localStorage.setItem('clinic_appointments_cache', JSON.stringify(data.slice(0, 150)));
+            } catch (e) { }
+        }
+    } catch (fetchErr) {
+        console.warn('loadAppointments notice, using cache:', fetchErr.message || fetchErr);
+    }
+
+    if (data) {
+        allAppointments = data;
+    } else if (!allAppointments || allAppointments.length === 0) {
+        try {
+            allAppointments = JSON.parse(localStorage.getItem('clinic_appointments_cache') || '[]');
+        } catch (e) { allAppointments = []; }
+    }
 
     // ดึงข้อมูล referred_by จาก persistent localStorage map
     window.appointmentReferrersMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
@@ -3213,7 +3242,7 @@ async function loadPrescriptionList(triggerBtn) {
                     .limit(100);
 
                 const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('timeout')), 5000)
+                    setTimeout(() => reject(new Error('timeout')), 15000)
                 );
 
                 const res = await Promise.race([queryPromise, timeoutPromise]);
@@ -20173,7 +20202,7 @@ function getMonthlyReferredCount(referrerId, referrerName) {
     }).length;
 }
 
-let _syncReferralDebounce = null;
+var _syncReferralDebounce = null;
 window.saveReferralLocalData = function (data) {
     if (window.referrersData) {
         if (typeof window.safeSetLocalStorage === 'function') {
