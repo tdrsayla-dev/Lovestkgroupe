@@ -724,7 +724,7 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
     // 2. ตรวจสอบว่าเป็นสมาชิกสายการตลาดหรือไม่
     const isCloserFromMarketing = Boolean(
         (matchedCloser && matchedCloser.team && matchedCloser.team.toUpperCase() !== 'CENTER') ||
-        (matchedMember && matchedMember.business_team && matchedMember.business_team.toUpperCase() !== 'T02') ||
+        (matchedMember && (matchedMember.business_team || matchedMember.businessTeam || matchedMember.team) && String(matchedMember.business_team || matchedMember.businessTeam || matchedMember.team).toUpperCase() !== 'T02') ||
         (!isDoctorName && (closerDrStr.match(/^[LM0-9]/i) || (recordedByStr && closerDrStr && recordedByStr.toLowerCase() === closerDrStr.toLowerCase())))
     );
 
@@ -736,7 +736,7 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
         isSelf = false;
     } else if (matchedCloser && matchedCloser.team && matchedCloser.team.toUpperCase() !== 'CENTER') {
         isSelf = true;
-    } else if (matchedMember && matchedMember.business_team && matchedMember.business_team.toUpperCase() !== 'T02') {
+    } else if (matchedMember && (matchedMember.business_team || matchedMember.businessTeam || matchedMember.team) && String(matchedMember.business_team || matchedMember.businessTeam || matchedMember.team).toUpperCase() !== 'T02') {
         isSelf = true;
     } else if (isCloserFromMarketing) {
         isSelf = true;
@@ -752,9 +752,9 @@ window.resolveOrderCloser = function(ord, closersPool, membersList, businessTeam
         const orderByType = 'สั่งจ่ายยาเอง';
         let resolvedTeam = '';
         if (matchedCloser && matchedCloser.team && matchedCloser.team.toUpperCase() !== 'CENTER') {
-            resolvedTeam = matchedCloser.team;
-        } else if (matchedMember && matchedMember.business_team) {
-            const rawT = String(matchedMember.business_team).trim().toUpperCase();
+            resolvedTeam = teamIdToName[String(matchedCloser.team).trim().toUpperCase()] || matchedCloser.team;
+        } else if (matchedMember && (matchedMember.business_team || matchedMember.businessTeam || matchedMember.team)) {
+            const rawT = String(matchedMember.business_team || matchedMember.businessTeam || matchedMember.team).trim().toUpperCase();
             resolvedTeam = teamIdToName[rawT] || rawT;
         } else if (teamStr && teamLower !== 'center' && teamStr !== '-') {
             resolvedTeam = teamIdToName[teamStr.toUpperCase()] || teamStr;

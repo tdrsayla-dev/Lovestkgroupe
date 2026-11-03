@@ -266,6 +266,45 @@
         names: new Set()
       });
       const [membersList, setMembersList] = useState([]);
+      // 🛡️ Helper: ตรวจสอบว่ารหัส/ชื่อ/ออบเจ็กต์สมาชิกนี้เป็นบัญชีผู้ดูแลระบบ (Admin) หรือไม่ (ห้ามไม่ให้แอดมินเป็นผู้แนะนำการตลาดเด็ดขาด)
+      const isMemberAdmin = (rawOrObj, customPool) => {
+        if (!rawOrObj || rawOrObj === '-' || rawOrObj === '--') return false;
+        if (typeof rawOrObj === 'object') {
+          const mId = String(rawOrObj.user_id || rawOrObj.id || '').trim().toUpperCase();
+          const mName = String(rawOrObj.name || '').trim().toUpperCase();
+          const pRole = String(rawOrObj.permission_role || rawOrObj.role || '').trim().toLowerCase();
+          const uName = String(rawOrObj.username || '').trim().toLowerCase();
+          return (
+            mId === 'U001' ||
+            mId.startsWith('U001') ||
+            uName === 'admin' ||
+            pRole.includes('admin') ||
+            pRole.includes('ผู้ดูแลระบบ') ||
+            mName === 'ADMIN' ||
+            mName.includes('แอดมิน') ||
+            mName.includes('ผู้ดูแลระบบ')
+          );
+        }
+        const sUp = String(rawOrObj).trim().toUpperCase();
+        if (sUp.includes('U001') || sUp.startsWith('U001') || sUp === 'ADMIN' || sUp.includes('แอดมิน') || sUp.includes('ผู้ดูแลระบบ')) return true;
+        const pool = (Array.isArray(customPool) && customPool.length > 0)
+          ? customPool
+          : ((Array.isArray(window.STK_MEMBERS_CACHE) && window.STK_MEMBERS_CACHE.length > 0) ? window.STK_MEMBERS_CACHE : membersList);
+        const m = (pool || []).find(x => {
+          if (!x) return false;
+          const mId = String(x.user_id || x.id || '').toUpperCase();
+          const mName = String(x.name || '').toUpperCase();
+          return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
+                 (mName && (sUp === mName || sUp.includes(mName)));
+        });
+        if (m) {
+          const mId = String(m.user_id || m.id || '').toUpperCase();
+          const pRole = String(m.permission_role || m.role || '').toLowerCase();
+          const uName = String(m.username || '').toLowerCase();
+          if (mId === 'U001' || pRole.includes('admin') || pRole.includes('ผู้ดูแลระบบ') || uName === 'admin') return true;
+        }
+        return false;
+      };
       const [clinicDoctors, setClinicDoctors] = useState(() => (typeof window.getClinicDoctorsSync === 'function' ? window.getClinicDoctorsSync() : []));
 
       // 🩺 ฟังก์ชันช่วยวิเคราะห์ข้อมูลผู้สั่งจ่าย / ทีมผู้ปิดการขาย โดยใช้ resolveOrderCloser สากล
@@ -332,6 +371,12 @@
         if (showLoading && typeof showLoading !== 'object') setLoading(true);
         let dbList = [];
         let localList = [];
+        const salesVisitMap = new Map();
+        const salesHnSet = new Set();
+        const salesPhoneSet = new Set();
+        const clinicVisitsDoctorMap = new Map();
+        let clinicDocsRes = [];
+        let getBestReferrer = null;
 
         // ─── โหลด Blacklist รายการที่ถูกลบไปแล้ว และแปลงทุกรูปแบบ ID ────────────────
         const deletedIdsList = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
@@ -350,11 +395,11 @@
             const cacheParam = isForce ? '&nocache=true' : '';
 
             // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย + แพทย์คลินิก + ข้อมูลการตรวจคลินิก
-            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes, clinicDocsRes, clinicVisitsRes] = await Promise.all([
+            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes, fetchedClinicDocs, clinicVisitsRes] = await Promise.all([
               window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
-              window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id,total_bottles,total_amount&order=created_at.desc&limit=400' + cacheParam).catch(() => []),
+              window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id,seller_id,memberId,total_bottles,total_amount&order=created_at.desc&limit=1000' + cacheParam).catch(() => []),
               window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=1000').catch(() => []),
-              window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status&order=user_id.asc').catch(() => []),
+              window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status,permission_role,role,username&order=user_id.asc').catch(() => []),
               (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone,customer_type&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
               window.supabaseSelect('stk_closers').catch(() => []),
               window.supabaseSelect('stk_business_teams').catch(() => []),
@@ -372,12 +417,13 @@
               window.STK_MEMBERS_CACHE = membersRes;
               setMembersList(membersRes);
             }
-            if (Array.isArray(clinicDocsRes) && clinicDocsRes.length > 0) {
+            clinicDocsRes = Array.isArray(fetchedClinicDocs) ? fetchedClinicDocs : [];
+            if (clinicDocsRes.length > 0) {
               setClinicDoctors(clinicDocsRes);
             }
 
             // 🩺 แมปข้อมูลแพทย์ผู้ตรวจจริง และ นับจำนวน Visit ต่อ HN จากตาราง visits ของระบบคลินิกภายนอก
-            const clinicVisitsDoctorMap = new Map();
+            // clinicVisitsDoctorMap declared at top of fetchOrders
             const clinicVisitsCountByHn = new Map();
             if (Array.isArray(clinicVisitsRes)) {
               clinicVisitsRes.forEach(v => {
@@ -399,9 +445,11 @@
             window.clinicVisitsDoctorMap = clinicVisitsDoctorMap;
             window.clinicVisitsCountByHn = clinicVisitsCountByHn;
 
-            // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales และจำนวนขวดที่ขายจริง
-            const salesVisitMap = new Map();
+            // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales และจำนวนขวดที่ขายจริง รวมถึงผู้ขายเดิม
+            // salesVisitMap declared at top of fetchOrders
             const salesOrderBottlesMap = new Map();
+            const salesSellerByHn = new Map();
+            const salesSellerByVisitMap = new Map();
             if (Array.isArray(salesRes)) {
               salesRes.forEach(s => {
                 const note = String(s.payment_note || s.paymentNote || '');
@@ -415,9 +463,28 @@
                   salesVisitMap.set(vKey, s.order_id);
                   salesOrderBottlesMap.set(vKey, sBottles);
                 }
+
+                // ⚡ แคชผู้ขายเดิมที่แท้จริงจากบิลเก่า (ยกเว้นแอดมิน)
+                const rawSeller = String(s.seller_id || s.memberId || '').trim();
+                if (rawSeller && rawSeller !== '-' && rawSeller !== '--' && !rawSeller.toUpperCase().startsWith('U001') && !rawSeller.toUpperCase().includes('ADMIN')) {
+                  if (s.customer_id) {
+                    const hnList = (typeof window.normalizeHnCandidates === 'function')
+                      ? window.normalizeHnCandidates(s.customer_id)
+                      : [String(s.customer_id).trim().toUpperCase()];
+                    hnList.forEach(cand => {
+                      if (cand && !salesSellerByHn.has(cand)) salesSellerByHn.set(cand, rawSeller);
+                    });
+                  }
+                  if (m && m[1]) {
+                    const vKey = m[1].trim().toUpperCase();
+                    if (!salesSellerByVisitMap.has(vKey)) salesSellerByVisitMap.set(vKey, rawSeller);
+                  }
+                }
               });
             }
             window.salesOrderBottlesMap = salesOrderBottlesMap;
+            window.salesSellerByHn = salesSellerByHn;
+            window.salesSellerByVisitMap = salesSellerByVisitMap;
 
             // ⚡ สร้าง Set ของลูกค้าเดิมในระบบเพื่อตรวจสอบความมีอยู่จริง (รองรับ HN ทุกรูปแบบ)
             const hnSet = new Set();
@@ -501,8 +568,8 @@
             }
 
             // 3. จากประวัติการขายเดิมใน stk_sales (เฉพาะบิลที่ขายสำเร็จจริง)
-            const salesHnSet = new Set();
-            const salesPhoneSet = new Set();
+            // salesHnSet declared at top of fetchOrders
+            // salesPhoneSet declared at top of fetchOrders
             if (Array.isArray(salesRes)) {
               salesRes.forEach(s => {
                 if (s && s.status !== 'บิลถูกยกเลิก') {
@@ -530,6 +597,28 @@
               return Boolean(hasHn || (p && p.length >= 7 && salesPhoneSet.has(p)));
             };
 
+            // 🛡️ Helper: ตรวจสอบว่ารหัส/ชื่อนี้เป็นบัญชีผู้ดูแลระบบ (Admin) หรือไม่ (ห้ามไม่ให้แอดมินเป็นผู้แนะนำการตลาดเด็ดขาด)
+            const isMemberAdmin = (rawStr) => {
+              if (!rawStr || rawStr === '-' || rawStr === '--') return false;
+              const sUp = String(rawStr).trim().toUpperCase();
+              if (sUp.includes('U001') || sUp.startsWith('U001') || sUp === 'ADMIN' || sUp.includes('แอดมิน') || sUp.includes('ผู้ดูแลระบบ')) return true;
+              const pool = (Array.isArray(membersRes) && membersRes.length > 0) ? membersRes : membersList;
+              const m = (pool || []).find(x => {
+                if (!x) return false;
+                const mId = String(x.user_id || x.id || '').toUpperCase();
+                const mName = String(x.name || '').toUpperCase();
+                return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
+                       (mName && (sUp === mName || sUp.includes(mName)));
+              });
+              if (m) {
+                const mId = String(m.user_id || m.id || '').toUpperCase();
+                const pRole = String(m.permission_role || m.role || '').toLowerCase();
+                const uName = String(m.username || '').toLowerCase();
+                if (mId === 'U001' || pRole.includes('admin') || pRole.includes('ผู้ดูแลระบบ') || uName === 'admin') return true;
+              }
+              return false;
+            };
+
             // 🛡️ Helper: ค้นหาและแปลงรหัสผู้แนะนำ/พนักงานการตลาดให้ตรงกับฐานข้อมูล stk_members
             const resolveReferrerMember = (rawStr) => {
               if (!rawStr || rawStr === '-' || rawStr === '--') return '';
@@ -551,28 +640,33 @@
               return s;
             };
 
-            const getBestReferrer = (targetHn, targetPhone, existingRecorded) => {
+            getBestReferrer = (targetHn, targetPhone, existingRecorded, notesOrSymptom) => {
               const hCandidates = (typeof window.normalizeHnCandidates === 'function')
                 ? window.normalizeHnCandidates(targetHn)
                 : [String(targetHn || '').trim().toUpperCase()].filter(Boolean);
               const pClean = String(targetPhone || '').replace(/[^0-9]/g, '');
 
               // 1. ตรวจสอบจากตาราง patients ของระบบคลินิกก่อนเสมอ (เป็นผู้แนะนำตัวจริงที่พาลูกค้ามาตรวจในระบบคลินิก)
-              // 🛡️ กฎเหล็กเด็ดขาด: แพทย์หมอไม่มีสิทธิ์แนะนำคนเจ็บมารักษา! หมอมีหน้าที่แค่ปิดการขายหรือจ่ายยาเท่านั้น ห้ามให้ชื่อหมอขึ้นเป็นผู้แนะนำเด็ดขาด!
+              // 🛡️ กฎเหล็ก: แพทย์หมอและแอดมินไม่มีสิทธิ์เป็นผู้แนะนำเด็ดขาด!
               let clinicRef = hCandidates.map(c => clinicReferrerByHn.get(c)).find(Boolean) || '';
               if (!clinicRef && pClean.length >= 7) clinicRef = clinicReferrerByPhone.get(pClean) || '';
               const isClinicRefDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
                 ? window.isClinicDoctorIdentifier(clinicRef, clinicDocsRes || clinicDoctors)
                 : false;
-              if (clinicRef && !isClinicRefDoctor) return resolveReferrerMember(clinicRef);
+              if (clinicRef && !isClinicRefDoctor && !isMemberAdmin(clinicRef)) return resolveReferrerMember(clinicRef);
 
-              // 2. ตรวจสอบจากค่าที่มีการระบุมาในออเดอร์ (กรณีไม่ได้ระบุผู้พามาในคลินิก)
-              const cleanExisting = String(existingRecorded || '').trim();
-              const isRecordedValid = cleanExisting && cleanExisting !== '-' && cleanExisting !== '--';
-              const isDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
-                ? window.isClinicDoctorIdentifier(cleanExisting, clinicDocsRes || clinicDoctors)
-                : false;
-              if (isRecordedValid && !isDoctor) return resolveReferrerMember(cleanExisting);
+              // 2. ⚡ ตรวจสอบจากประวัติการซื้อจริงของคนไข้รายนี้ (stk_sales) - แม่นยำที่สุดสำหรับเคสต่อยา
+              // 2.1 ตรวจจับจากหมายเหตุ เช่น "ต่อยา ชุดที่ 3 (จาก VIS-ORD-53868)"
+              if (notesOrSymptom && typeof notesOrSymptom === 'string') {
+                const prevVisitMatch = notesOrSymptom.match(/(VIS-[A-Z0-9\-]+)/i);
+                if (prevVisitMatch && prevVisitMatch[1]) {
+                  const refFromVisit = salesSellerByVisitMap.get(prevVisitMatch[1].trim().toUpperCase());
+                  if (refFromVisit && !isMemberAdmin(refFromVisit)) return resolveReferrerMember(refFromVisit);
+                }
+              }
+              // 2.2 ตรวจจับจาก HN ที่เคยซื้อสำเร็จใน stk_sales
+              const salesRef = hCandidates.map(c => salesSellerByHn.get(c)).find(Boolean) || '';
+              if (salesRef && !isMemberAdmin(salesRef)) return resolveReferrerMember(salesRef);
 
               // 3. ตรวจสอบจากเจ้าของลูกค้าเดิมใน stk_customers
               let custRef = hCandidates.map(c => custOwnerByHn.get(c)).find(Boolean) || '';
@@ -580,7 +674,15 @@
               const isCustRefDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
                 ? window.isClinicDoctorIdentifier(custRef, clinicDocsRes || clinicDoctors)
                 : false;
-              if (custRef && !isCustRefDoctor) return resolveReferrerMember(custRef);
+              if (custRef && !isCustRefDoctor && !isMemberAdmin(custRef)) return resolveReferrerMember(custRef);
+
+              // 4. ตรวจสอบจากค่าที่มีการระบุมาในออเดอร์ (ต้องไม่ใช่หมอและไม่ใช่แอดมิน)
+              const cleanExisting = String(existingRecorded || '').trim();
+              const isRecordedValid = cleanExisting && cleanExisting !== '-' && cleanExisting !== '--';
+              const isDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
+                ? window.isClinicDoctorIdentifier(cleanExisting, clinicDocsRes || clinicDoctors)
+                : false;
+              if (isRecordedValid && !isDoctor && !isMemberAdmin(cleanExisting)) return resolveReferrerMember(cleanExisting);
 
               return '-';
             };
@@ -674,7 +776,7 @@
                     badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                   };
                 }
-                const resolvedRecordedBy = getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, itemRecorded || item.seller_id);
+                const resolvedRecordedBy = getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, itemRecorded || item.seller_id, item.notes || item.symptom);
 
                 // ซิงค์สถานะบิลขายสำเร็จ, ประเภทลูกค้า และทีมผู้สั่งจ่ายที่ถูกต้องกลับ Supabase อัตโนมัติในพื้นหลังหากยังไม่ได้อัปเดต
                 if (typeof window.supabaseUpdate === 'function' && item.visit_id && item.visit_id !== '-') {
@@ -859,7 +961,7 @@
               };
             }
             const localRecordedBy = (typeof getBestReferrer === 'function')
-              ? getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, localRecorded)
+              ? getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, localRecorded, item.notes || item.symptom)
               : (localRecorded || '-');
             const localEntry = {
               id: orderId,
@@ -1119,8 +1221,23 @@
         const refMapPhone = window.clinicReferrerByPhone;
         const clinicMatch = (refMapHn && hnCand.map(c => refMapHn.get(c)).find(Boolean)) || (refMapPhone && pCln.length >= 7 ? refMapPhone.get(pCln) : null);
 
-        // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง
-        let rawSellerCandidate = clinicMatch || String(order.recorded_by || '').trim();
+        // ⚡ ดึงผู้แนะนำเดิมจากประวัติการขาย (stk_sales) สำหรับเคสคนไข้เก่าหรือต่อยา
+        const noteStr = String(order.notes || order.symptom || '');
+        let prevSellerFromSales = '';
+        const prevVMatch = noteStr.match(/(VIS-[A-Z0-9\-]+)/i);
+        if (prevVMatch && prevVMatch[1] && window.salesSellerByVisitMap) {
+          prevSellerFromSales = window.salesSellerByVisitMap.get(prevVMatch[1].trim().toUpperCase()) || '';
+        }
+        if (!prevSellerFromSales && window.salesSellerByHn) {
+          prevSellerFromSales = hnCand.map(c => window.salesSellerByHn.get(c)).find(Boolean) || '';
+        }
+
+        // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง เมื่อแพทย์หมอหรือแอดมินเป็นคนสั่งจ่ายมาเอง
+        let rawSellerCandidate = clinicMatch || prevSellerFromSales || '';
+        const existingRecStr = String(order.recorded_by || '').trim();
+        if (!rawSellerCandidate && existingRecStr && existingRecStr !== '-' && existingRecStr !== '--' && !isMemberAdmin(existingRecStr)) {
+          rawSellerCandidate = existingRecStr;
+        }
         let rawDoctorCandidate = String(closerInfo.closerName || order.closer_dr || order.closer || '').trim();
 
         const isSellerCandidateDoc = (typeof window.isClinicDoctorIdentifier === 'function')
@@ -1133,9 +1250,9 @@
         // หาก rawSellerCandidate เป็นแพทย์คลินิก ให้ย้ายมาเป็นหมอผู้สั่งจ่ายทันที!
         if (isSellerCandidateDoc && !isDoctorCandidateDoc) {
           rawDoctorCandidate = rawSellerCandidate;
-          rawSellerCandidate = clinicMatch || '';
+          rawSellerCandidate = clinicMatch || prevSellerFromSales || '';
         } else if (isSellerCandidateDoc && isDoctorCandidateDoc) {
-          rawSellerCandidate = clinicMatch || '';
+          rawSellerCandidate = clinicMatch || prevSellerFromSales || '';
         }
 
         // 🩺 สำหรับใบสั่งยาคลินิกจริง (VIS-xxxxxx): ดึงหมอผู้ตรวจจริงจากตาราง visits และล็อกรูปแบบเป็นหมอสั่งจ่าย (Center)
@@ -1170,7 +1287,9 @@
         let currentCloserDocStr = rawDoctorCandidate;
 
         let sellerFoundInList = false;
-        const sellerOptionsHtml = (membersList || []).map(m => {
+        const sellerOptionsHtml = (membersList || [])
+          .filter(m => !isMemberAdmin(m)) // 🛡️ คัดกรองบัญชีแอดมินออก เพื่อป้องกันการระบุผิดพลาด 100%
+          .map(m => {
           const mId = m.user_id || m.id;
           const val = `${mId} - ${m.name}`;
           const isSelected = currentSellerStr && (
@@ -1310,6 +1429,44 @@
               const orderByTypeEl = document.getElementById('swal-select-order-by-type');
               const drBox = document.getElementById('swal-doctor-select-box');
               const selfHint = document.getElementById('swal-self-closer-hint');
+              const sellerSelectEl = document.getElementById('swal-select-seller');
+              const resolveSellerTeamAndLabel = (sellerVal) => {
+                const rawS = String(sellerVal || '').trim();
+                if (!rawS || rawS === '-' || rawS === '--') return { team: closerInfo.closerTeam !== 'Center' ? closerInfo.closerTeam : 'Marketing', label: rawS || 'พนักงานการตลาด' };
+                const teamMap = { 'T01': 'Marketing', 'T02': 'Center', 'T03': 'TEAM LEE', 'T04': 'TEAM THAILAND', 'T05': 'TEAM NOUDAM', 'T06': 'TEAM YIA', 'T07': 'TEAM BOUAPHOUT', 'T08': 'TEAM KEE' };
+                (window.STK_TEAMS_CACHE || []).forEach(t => {
+                  const tid = String(t.id || t.team_id || '').trim().toUpperCase();
+                  const tname = String(t.name || t.team_name || '').trim();
+                  if (tid && tname) teamMap[tid] = tname;
+                });
+                const sCode = rawS.includes(' - ') ? rawS.split(' - ')[0].trim().toUpperCase() : rawS.toUpperCase();
+                const foundM = (membersList || []).find(m => m && (
+                  String(m.id || m.user_id || '').trim().toUpperCase() === sCode ||
+                  `${String(m.id || m.user_id || '').trim()} - ${String(m.name || '').trim()}`.toUpperCase() === rawS.toUpperCase() ||
+                  String(m.name || '').trim().toUpperCase() === rawS.toUpperCase()
+                ));
+                if (foundM) {
+                  const rawT = String(foundM.business_team || foundM.businessTeam || foundM.team || '').trim();
+                  const resolvedT = teamMap[rawT.toUpperCase()] || rawT || 'Marketing';
+                  const fullLabel = `${String(foundM.id || foundM.user_id || '').trim()} - ${String(foundM.name || '').trim()}`;
+                  return { team: resolvedT, label: fullLabel };
+                }
+                return { team: closerInfo.closerTeam !== 'Center' ? closerInfo.closerTeam : 'Marketing', label: rawS };
+              };
+              const syncSellerTeamUI = () => {
+                if (!sellerSelectEl) return;
+                const info = resolveSellerTeamAndLabel(sellerSelectEl.value);
+                if (orderByTypeEl && orderByTypeEl.options && orderByTypeEl.options[0]) {
+                  orderByTypeEl.options[0].textContent = `👤 สั่งจ่ายยาเอง (ทีม: ${info.team})`;
+                }
+                if (selfHint) {
+                  selfHint.innerHTML = `ผู้สั่งจ่าย: <strong class="text-slate-800">${info.label} (${info.team})</strong>`;
+                }
+              };
+              if (sellerSelectEl) {
+                sellerSelectEl.addEventListener('change', syncSellerTeamUI);
+                syncSellerTeamUI();
+              }
               if (orderByTypeEl && drBox) {
                 orderByTypeEl.addEventListener('change', () => {
                   if (orderByTypeEl.value === 'หมอสั่งจ่าย') {
@@ -1348,11 +1505,36 @@
             const selectedCloserDoctor = result.value?.closerDoctor || closerInfo.closerName;
             const isSelfOrder = selectedOrderByVal === 'สั่งจ่ายยาเอง';
             const chosenOrderByType = isSelfOrder ? 'สั่งจ่ายยาเอง' : 'หมอสั่งจ่าย';
+            const resolvedSellerInfo = (() => {
+              const rawS = String(selectedSeller || '').trim();
+              const teamMap = { 'T01': 'Marketing', 'T02': 'Center', 'T03': 'TEAM LEE', 'T04': 'TEAM THAILAND', 'T05': 'TEAM NOUDAM', 'T06': 'TEAM YIA', 'T07': 'TEAM BOUAPHOUT', 'T08': 'TEAM KEE' };
+              (window.STK_TEAMS_CACHE || []).forEach(t => {
+                const tid = String(t.id || t.team_id || '').trim().toUpperCase();
+                const tname = String(t.name || t.team_name || '').trim();
+                if (tid && tname) teamMap[tid] = tname;
+              });
+              const sCode = rawS.includes(' - ') ? rawS.split(' - ')[0].trim().toUpperCase() : rawS.toUpperCase();
+              const foundM = (membersList || []).find(m => m && (
+                String(m.id || m.user_id || '').trim().toUpperCase() === sCode ||
+                `${String(m.id || m.user_id || '').trim()} - ${String(m.name || '').trim()}`.toUpperCase() === rawS.toUpperCase() ||
+                String(m.name || '').trim().toUpperCase() === rawS.toUpperCase()
+              ));
+              if (foundM) {
+                const rawT = String(foundM.business_team || foundM.businessTeam || foundM.team || '').trim();
+                const resolvedT = teamMap[rawT.toUpperCase()] || rawT || 'Marketing';
+                const fullLabel = `${String(foundM.id || foundM.user_id || '').trim()} - ${String(foundM.name || '').trim()}`;
+                return { team: resolvedT, label: fullLabel };
+              }
+              const fallbackT = (closerInfo.closerTeam && closerInfo.closerTeam !== 'Center') ? (teamMap[String(closerInfo.closerTeam).toUpperCase()] || closerInfo.closerTeam) : 'Marketing';
+              return { team: fallbackT, label: rawS || closerInfo.closerName || 'พนักงานการตลาด' };
+            })();
+            const chosenCloserTeamResolved = isSelfOrder ? resolvedSellerInfo.team : 'Center';
+            const chosenCloserNameResolved = isSelfOrder ? resolvedSellerInfo.label : (selectedCloserDoctor || closerInfo.closerName || 'หมอผู้เชี่ยวชาญ (Center)');
             const chosenCloserTeam = isSelfOrder
-              ? (closerInfo.closerTeam && closerInfo.closerTeam !== 'Center' ? closerInfo.closerTeam : 'Marketing')
+              ? chosenCloserTeamResolved
               : 'Center';
             const chosenCloserName = isSelfOrder
-              ? (closerInfo.closerName && closerInfo.closerName !== 'หมอผู้เชี่ยวชาญ (Center)' ? closerInfo.closerName : (selectedSeller || 'พนักงานการตลาด'))
+              ? chosenCloserNameResolved
               : (selectedCloserDoctor || closerInfo.closerName || 'หมอผู้เชี่ยวชาญ (Center)');
 
             const finalCustTypeObj = (typeof window.normalizeCustomerType === 'function')

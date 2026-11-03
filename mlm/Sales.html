@@ -1099,7 +1099,20 @@
 
             // 💼 2. รายชื่อฝ่ายการตลาด (Marketing) จากสมาชิก (Members) แยกเด็ดขาดไม่ปนกับหมอ
             const marketingMembersPool = useMemo(() => {
-                const teamIdToName = {};
+                const teamIdToName = {
+                    'T01': 'Marketing',
+                    'T02': 'Center',
+                    'T03': 'TEAM LEE',
+                    'T04': 'TEAM THAILAND',
+                    'T05': 'TEAM NOUDAM',
+                    'T06': 'TEAM YIA',
+                    'T07': 'TEAM BOUAPHOUT',
+                    'T08': 'TEAM KEE',
+                    'TEAM A': 'Marketing',
+                    'TEAM B': 'Center',
+                    'CENTER': 'Center',
+                    'MARKETING': 'Marketing'
+                };
                 (businessTeams || []).forEach(t => {
                     const tId = String(t.id || t.team_id || '').trim().toUpperCase();
                     const tName = String(t.name || t.team_name || t.team_id || '').trim();
@@ -1128,6 +1141,35 @@
             }, [centerDoctorsPool, marketingMembersPool]);
 
             // 🛡️ ฟังก์ชันแกะและตรวจจับทีมผู้ปิดการขายและชื่อผู้ปิดอย่างแม่นยำ 100% (ป้องกันการสลับชื่อหรือเอาการตลาดมาทับหมอ)
+            const normalizeTeamName = useCallback((raw) => {
+                if (!raw) return '';
+                const s = String(raw).trim();
+                if (!s || s === '-' || s === '--') return '';
+                const sUp = s.toUpperCase();
+                const map = {
+                    'T01': 'Marketing',
+                    'T02': 'Center',
+                    'T03': 'TEAM LEE',
+                    'T04': 'TEAM THAILAND',
+                    'T05': 'TEAM NOUDAM',
+                    'T06': 'TEAM YIA',
+                    'T07': 'TEAM BOUAPHOUT',
+                    'T08': 'TEAM KEE',
+                    'TEAM A': 'Marketing',
+                    'TEAM B': 'Center',
+                    'CENTER': 'Center',
+                    'MARKETING': 'Marketing'
+                };
+                (businessTeams || []).forEach(t => {
+                    const tId = String(t.id || t.team_id || '').trim().toUpperCase();
+                    const tName = String(t.name || t.team_name || '').trim();
+                    if (tId && tName) map[tId] = tName;
+                    if (tName) map[tName.toUpperCase()] = tName;
+                });
+                return map[sUp] || s;
+            }, [businessTeams]);
+
+            // 🛡️ ฟังก์ชันแกะและตรวจจับทีมผู้ปิดการขายและชื่อผู้ปิดอย่างแม่นยำ 100% (ป้องกันการสลับชื่อหรือเอาการตลาดมาทับหมอ)
             const resolveCloserAndTeam = useCallback((target, fallbackSellerId = '') => {
                 if (!target) return { closer: '', closerTeam: '' };
 
@@ -1143,11 +1185,44 @@
                     }
                 }
 
-                let rawTeam = String(target.closerTeam || target.closer_team || extraObj.closerTeam || '').trim();
+                let rawTeam = normalizeTeamName(target.closerTeam || target.closer_team || extraObj.closerTeam || '');
                 if (rawTeam === 'Team A') rawTeam = 'Marketing';
                 if (rawTeam === 'Team B') rawTeam = 'Center';
 
                 const searchVal = rawCloser.toUpperCase();
+
+                if (rawCloser && rawCloser !== '-') {
+                    const matchedDocInPool = (centerDoctorsPool || []).find(d => {
+                        if (!d) return false;
+                        const dId = String(d.id || d.emp_code || '').trim().toUpperCase();
+                        const dName = String(d.name || d.full_name || '').trim().toUpperCase();
+                        const dComb = `${dId} - ${dName}`.toUpperCase();
+                        return (dId && (searchVal === dId || searchVal.startsWith(dId + ' ') || searchVal.startsWith(dId + '-') || searchVal.includes(dId))) ||
+                               (dName && (searchVal === dName || searchVal.includes(dName) || dName.includes(searchVal))) ||
+                               (dComb && searchVal === dComb);
+                    });
+                    if (matchedDocInPool) {
+                        return { closer: `${matchedDocInPool.id} - ${matchedDocInPool.name}`, closerTeam: 'Center' };
+                    }
+                    if (typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(rawCloser, centerDoctorsPool)) {
+                        return { closer: rawCloser, closerTeam: 'Center' };
+                    }
+                    const matchedMktMember = (marketingMembersPool || []).find(m => {
+                        if (!m) return false;
+                        const mId = String(m.id || '').trim().toUpperCase();
+                        const mName = String(m.name || '').trim().toUpperCase();
+                        const mComb = `${mId} - ${mName}`.toUpperCase();
+                        return (mId && (searchVal === mId || searchVal.startsWith(mId + ' ') || searchVal.startsWith(mId + '-') || searchVal.includes(mId))) ||
+                               (mName && (searchVal === mName || searchVal.includes(mName))) ||
+                               (mComb && searchVal === mComb);
+                    });
+                    if (matchedMktMember && rawTeam !== 'Center') {
+                        return {
+                            closer: `${matchedMktMember.id} - ${matchedMktMember.name}`,
+                            closerTeam: normalizeTeamName(matchedMktMember.team) || rawTeam || 'Marketing'
+                        };
+                    }
+                }
 
                 // 1. ตรวจสอบว่าชื่อหรือทีมเดิมระบุว่าเป็น Center/หมอ หรือไม่
                 const isDoctorCloser = rawTeam.toLowerCase().includes('center') ||
@@ -1203,11 +1278,66 @@
                     }
                 }
 
-                return { closer: rawCloser, closerTeam: rawTeam || 'Marketing' };
+                return { closer: rawCloser, closerTeam: normalizeTeamName(rawTeam) || 'Marketing' };
+            }, [centerDoctorsPool, marketingMembersPool, members, normalizeTeamName, effectiveClinicDoctors, clinicDoctors]);
+
+            // 🔄 ซิงค์ทีมผู้ปิด (closerTeam) อัตโนมัติตามผู้ปิดการขาย (closer) ไม่ว่าจะเป็นการตลาดหรือหมอ
+            useEffect(() => {
+                const currentCloser = String(custData.closer || '').trim();
+                const currentTeam = String(custData.closerTeam || '').trim();
+                const normCurrentTeam = normalizeTeamName(currentTeam);
+
+                if (!currentCloser || currentCloser === '-' || currentCloser === '--') {
+                    if (currentTeam && normCurrentTeam && normCurrentTeam !== currentTeam) {
+                        setCustData(prev => ({ ...prev, closerTeam: normCurrentTeam }));
+                    }
+                    return;
+                }
+
+                const resolved = resolveCloserAndTeam({ closer: currentCloser });
+                const targetTeam = normalizeTeamName(resolved.closerTeam);
+                if (targetTeam && targetTeam !== currentTeam) {
+                    setCustData(prev => ({ ...prev, closerTeam: targetTeam }));
+                }
+            }, [custData.closer, resolveCloserAndTeam, normalizeTeamName]);
+
+            const _unusedCloserDeps = useCallback(() => {
             }, [centerDoctorsPool, marketingMembersPool, members]);
 
             const closersSuggestList = useMemo(() => {
-                const selectedTeam = String(custData.closerTeam || '').trim().toUpperCase();
+                const selectedTeam = String(normalizeTeamName(custData.closerTeam) || '').trim().toUpperCase();
+                if (true) {
+                    const isCenterTeam = selectedTeam === 'CENTER' || selectedTeam.includes('ผู้เชี่ยวชาญ') || selectedTeam === 'T02' || selectedTeam === 'TEAM B';
+                    const docItems = (centerDoctorsPool || []).map(doc => ({
+                        label: `🩺 ${doc.id} - ${doc.name} (${doc.role || 'แพทย์/Center'})`,
+                        value: `${doc.id} - ${doc.name}`
+                    }));
+                    const mktMatching = [];
+                    const mktOthers = [];
+                    (marketingMembersPool || []).forEach(m => {
+                        const mTeam = String(normalizeTeamName(m.team) || 'Marketing').trim();
+                        const item = {
+                            label: `💼 ${m.id} - ${m.name} (${mTeam})`,
+                            value: `${m.id} - ${m.name}`
+                        };
+                        if (!selectedTeam || selectedTeam === 'MARKETING' || mTeam.toUpperCase() === selectedTeam) {
+                            mktMatching.push(item);
+                        } else {
+                            mktOthers.push(item);
+                        }
+                    });
+                    const combined = isCenterTeam
+                        ? [...docItems, ...mktMatching, ...mktOthers]
+                        : (selectedTeam ? [...mktMatching, ...docItems, ...mktOthers] : [...docItems, ...mktMatching]);
+                    const currentCloser = String(custData.closer || '').trim();
+                    if (currentCloser && currentCloser !== '-' && !combined.some(it => it.value.toLowerCase() === currentCloser.toLowerCase())) {
+                        combined.unshift({
+                            label: `${isCenterTeam ? '🩺' : '💼'} ${currentCloser} (${normalizeTeamName(custData.closerTeam) || 'Center'})`,
+                            value: currentCloser
+                        });
+                    }
+                    return combined;
+                }
 
                 // 🩺 ถ้าเลือกทีม Center -> แสดงเฉพาะหมอคลินิก/ทีมแพทย์ Center 100%
                 if (selectedTeam === 'CENTER' || selectedTeam.includes('ผู้เชี่ยวชาญ') || selectedTeam === 'T02' || selectedTeam === 'TEAM B') {
@@ -1382,7 +1512,8 @@
 
                     const isClinicCase = Boolean(pending.visit_id && pending.visit_id !== '-');
                     const resolvedCloser = pending.closer || pending.closer_dr || (!isClinicCase ? (foundExistingCust.closer || foundExistingCust.closer_id || '') : '');
-                    const resolvedCloserTeam = pending.closerTeam || pending.closer_team || (!isClinicCase ? (foundExistingCust.closerTeam || foundExistingCust.closer_team || '') : '');
+                    const rawResolvedTeam = pending.closerTeam || pending.closer_team || (!isClinicCase ? (foundExistingCust.closerTeam || foundExistingCust.closer_team || '') : '');
+                    const resolvedCloserTeam = normalizeTeamName(rawResolvedTeam) || resolveCloserAndTeam({ closer: resolvedCloser, closerTeam: rawResolvedTeam }).closerTeam;
 
                     setCustData(prev => ({
                         ...prev,
@@ -1544,11 +1675,11 @@
 
                     // 1. กำหนดผู้ปิดการขายและทีมผู้ปิด (ใช้ resolveOrderCloser สากล แม่นยำ 100%)
                     const cInfo = (typeof window.resolveOrderCloser === 'function')
-                        ? window.resolveOrderCloser(pending)
+                        ? window.resolveOrderCloser(pending, closers, members, businessTeams, effectiveClinicDoctors || clinicDoctors)
                         : { closerName: String(pending.closer || pending.closer_dr || '').trim(), closerTeam: String(pending.closer_team || pending.closerTeam || 'Center').trim(), isSelf: false };
 
                     let pendingCloser = cInfo.closerName;
-                    let pendingCloserTeam = cInfo.closerTeam;
+                    let pendingCloserTeam = normalizeTeamName(cInfo.closerTeam);
 
                     if (pendingCloser && pendingCloser !== 'หมอผู้เชี่ยวชาญ (Center)') {
                         try {
@@ -1565,7 +1696,7 @@
                             });
                             if (foundCloserObj) {
                                 pendingCloser = `${foundCloserObj.id} - ${foundCloserObj.name}`;
-                                if (foundCloserObj.team) pendingCloserTeam = foundCloserObj.team;
+                                if (foundCloserObj.team) pendingCloserTeam = normalizeTeamName(foundCloserObj.team);
                             }
                         } catch (closerErr) {
                             console.warn('Closer match error:', closerErr);
@@ -6044,7 +6175,42 @@
                                     <div className="flex gap-2">
                                         <div className="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                             <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ทีมผู้ปิด</label>
-                                            <select required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.closerTeam} onChange={(e) => setCustData(prev => ({ ...prev, closerTeam: e.target.value }))}>
+                                            <select required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={normalizeTeamName(custData.closerTeam)} onChange={(e) => {
+                                                const newTeam = normalizeTeamName(e.target.value);
+                                                setCustData(prev => {
+                                                    let nextCloser = prev.closer;
+                                                    if (newTeam === 'Center') {
+                                                        const prevRes = resolveCloserAndTeam({ closer: prev.closer });
+                                                        if (prev.closer && prevRes.closerTeam !== 'Center') {
+                                                            nextCloser = (centerDoctorsPool && centerDoctorsPool.length > 0) ? `${centerDoctorsPool[0].id} - ${centerDoctorsPool[0].name}` : '';
+                                                        }
+                                                    } else if (newTeam && prev.closer) {
+                                                        const prevRes = resolveCloserAndTeam({ closer: prev.closer });
+                                                        if (prevRes.closerTeam === 'Center') {
+                                                            nextCloser = memberIdInput || '';
+                                                        }
+                                                    }
+                                                    return { ...prev, closerTeam: newTeam, closer: nextCloser };
+                                                });
+                                            }}>
+                                                <option value="">- เลือกทีมผู้ปิด -</option>
+                                                <option value="Center">Center (ทีมผู้เชี่ยวชาญปิดการขาย)</option>
+                                                <option value="Marketing">Marketing (ฝ่ายการตลาด - รวมทุกสังกัดย่อย)</option>
+                                                {(() => {
+                                                    const defaultSubTeams = ['TEAM LEE', 'TEAM THAILAND', 'TEAM NOUDAM', 'TEAM YIA', 'TEAM BOUAPHOUT', 'TEAM KEE'];
+                                                    const teamNamesSet = new Set(defaultSubTeams);
+                                                    (businessTeams || []).forEach(t => {
+                                                        const tName = normalizeTeamName(t.name || t.team_name || t.id || t.team_id);
+                                                        if (tName && tName !== 'Center' && tName !== 'Marketing') teamNamesSet.add(tName);
+                                                    });
+                                                    const curT = normalizeTeamName(custData.closerTeam);
+                                                    if (curT && curT !== 'Center' && curT !== 'Marketing') teamNamesSet.add(curT);
+                                                    return Array.from(teamNamesSet).map(tName => (
+                                                        <option key={tName} value={tName}>{tName}</option>
+                                                    ));
+                                                })()}
+                                            </select>
+                                            <select className="hidden" aria-hidden="true" tabIndex={-1}>
                                                 <option value="">- เลือกทีมผู้ปิด -</option>
                                                 <option value="Center">Center (ทีมผู้เชี่ยวชาญปิดการขาย)</option>
                                                 <option value="Marketing">Marketing (ฝ่ายการตลาด - รวมทุกสังกัดย่อย)</option>
@@ -6061,16 +6227,16 @@
                                                 value={custData.closer}
                                                 onChange={(val) => {
                                                     setCustData(prev => {
-                                                        if (prev.closerTeam === 'Center') {
+                                                        if (false && prev.closerTeam === 'Center') {
                                                             return { ...prev, closer: val };
                                                         }
-                                                        const autoTeam = resolveCloserAndTeam({ closer: val, closerTeam: prev.closerTeam }).closerTeam;
+                                                        const autoTeam = resolveCloserAndTeam({ closer: val }).closerTeam;
                                                         return { ...prev, closer: val, closerTeam: autoTeam || prev.closerTeam };
                                                     });
                                                 }}
                                                 onSelect={(val) => {
                                                     setCustData(prev => {
-                                                        if (prev.closerTeam === 'Center') {
+                                                        if (false && prev.closerTeam === 'Center') {
                                                             return { ...prev, closer: val };
                                                         }
                                                         const autoTeam = resolveCloserAndTeam({ closer: val }).closerTeam;
@@ -6998,7 +7164,7 @@
                 }
             });
             const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name })) : []);
-            const [members, setMembers] = useState(() => initialCache && Array.isArray(initialCache.members) ? initialCache.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })) : []);
+            const [members, setMembers] = useState(() => initialCache && Array.isArray(initialCache.members) ? initialCache.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, businessTeam: m.business_team || m.businessTeam || m.team || '' })) : []);
             const [customers, setCustomers] = useState(() => initialCache && Array.isArray(initialCache.customers) ? initialCache.customers.map(c => ({ ...c, id: c.id || c.customer_id, name: c.name || c.customer_name })) : []);
             const [sales, setSales] = useState(() => initialCache && Array.isArray(initialCache.sales) ? initialCache.sales.map(s => ({ ...s, id: s.id || s.sale_id || s.order_id, customerId: s.customerId || s.customer_id, memberId: s.memberId || s.sellerId || s.seller_id })) : []);
             const [systemUsers, setSystemUsers] = useState([]);
