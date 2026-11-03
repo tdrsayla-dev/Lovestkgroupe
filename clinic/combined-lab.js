@@ -52,6 +52,106 @@
         console.warn('Init Supabase warning:', e);
     }
 
+    // 🌟 Immediate cleanup on page load to free up LocalStorage and prevent QuotaExceededError
+    (function cleanupOldLocalStorageQuota() {
+        try {
+            // 1. Clean clinic_combined_lab_results if oversized
+            const rawComb = localStorage.getItem('clinic_combined_lab_results');
+            if (rawComb && rawComb.length > 200000) {
+                try {
+                    const parsed = JSON.parse(rawComb);
+                    const keys = Object.keys(parsed);
+                    if (keys.length > 20) {
+                        const keepKeys = keys.slice(-15);
+                        const cleanObj = {};
+                        keepKeys.forEach(k => cleanObj[k] = parsed[k]);
+                        localStorage.setItem('clinic_combined_lab_results', JSON.stringify(cleanObj));
+                        console.log('🧹 Pruned clinic_combined_lab_results to 15 recent records');
+                    }
+                } catch (e) {
+                    try { localStorage.removeItem('clinic_combined_lab_results'); } catch (ignore) {}
+                }
+            }
+
+            // 2. Clean other bloated results
+            ['clinic_cbc_results', 'clinic_biochem_results', 'clinic_other_lab_results'].forEach(k => {
+                const raw = localStorage.getItem(k);
+                if (raw && raw.length > 200000) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        const keys = Object.keys(parsed);
+                        if (keys.length > 20) {
+                            const cleanObj = {};
+                            keys.slice(-15).forEach(x => cleanObj[x] = parsed[x]);
+                            localStorage.setItem(k, JSON.stringify(cleanObj));
+                        }
+                    } catch (e) {
+                        try { localStorage.removeItem(k); } catch (ignore) {}
+                    }
+                }
+            });
+
+            // 3. Purge non-critical oversized caches if storage is full
+            ['clinic_login_bg_url', 'mlm_stk_products_cache', 'clinic_commission_logs', 'clinic_bills_cache'].forEach(bk => {
+                const val = localStorage.getItem(bk);
+                if (val && val.length > 50000) {
+                    try { localStorage.removeItem(bk); } catch (e) {}
+                }
+            });
+        } catch (err) {
+            console.warn('LocalStorage cleanup notice:', err);
+        }
+    })();
+
+    // 🌟 Helper บันทึก Combined Lab ลง LocalStorage อย่างปลอดภัย (ไม่ให้เกิด QuotaExceededError)
+    function safeSaveCombinedLabToLocalStorage(vId, payload) {
+        if (!vId) return;
+        try {
+            let allComb = {};
+            try { allComb = JSON.parse(localStorage.getItem('clinic_combined_lab_results') || '{}'); } catch (e) { }
+
+            allComb[vId] = payload;
+            const noPrefix = String(vId).replace('VIS-', '');
+            if (noPrefix !== vId) {
+                delete allComb[noPrefix]; // หลีกเลี่ยงการเก็บ 2 ชุดซ้ำซ้อน
+            }
+
+            // รักษาเฉพาะ 20 รายการล่าสุด
+            const keys = Object.keys(allComb);
+            if (keys.length > 20) {
+                const removeCount = keys.length - 20;
+                for (let i = 0; i < removeCount; i++) {
+                    delete allComb[keys[i]];
+                }
+            }
+
+            try {
+                localStorage.setItem('clinic_combined_lab_results', JSON.stringify(allComb));
+            } catch (quotaErr) {
+                console.warn('Quota exceeded on save, attempting emergency prune...', quotaErr);
+                // Emergency prune: keep only last 5
+                const curKeys = Object.keys(allComb);
+                const miniObj = {};
+                curKeys.slice(-5).forEach(k => miniObj[k] = allComb[k]);
+                try {
+                    localStorage.setItem('clinic_combined_lab_results', JSON.stringify(miniObj));
+                } catch (e2) {
+                    // ลบแคชที่ไม่จำเป็นออก
+                    ['clinic_login_bg_url', 'mlm_stk_products_cache', 'clinic_lab_files_meta', 'clinic_commission_logs'].forEach(bk => {
+                        try { localStorage.removeItem(bk); } catch (ignore) {}
+                    });
+                    try {
+                        localStorage.setItem('clinic_combined_lab_results', JSON.stringify(miniObj));
+                    } catch (e3) {
+                        console.warn('LocalStorage completely full. Local cache skipped, cloud sync will proceed.');
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('safeSaveCombinedLabToLocalStorage error (cloud sync will continue):', err);
+        }
+    }
+
     // Helper: Format Date
     function formatLaoDate(dateStr) {
         if (!dateStr) return '-';
@@ -1757,12 +1857,8 @@
         };
 
         try {
-            // 1. ບັນທຶກ Combined Lab ລົງ LocalStorage
-            let allComb = {};
-            try { allComb = JSON.parse(localStorage.getItem('clinic_combined_lab_results') || '{}'); } catch (e) { }
-            allComb[visitId] = combinedPayload;
-            allComb[String(visitId).replace('VIS-', '')] = combinedPayload;
-            localStorage.setItem('clinic_combined_lab_results', JSON.stringify(allComb));
+            // 1. ບັນທຶກ Combined Lab ລົງ LocalStorage (พร้อมระบบป้องกัน QuotaExceededError)
+            safeSaveCombinedLabToLocalStorage(visitId, combinedPayload);
 
             // =========================================================
             // 2. SYNC BACK TO INDIVIDUAL DATA STORES (ເຊື່ອມທຸກຟອມໃຫ້ກົງກັນ)

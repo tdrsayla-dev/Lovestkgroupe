@@ -3386,12 +3386,87 @@ function filterMedsByCategory() {
     onMedSelectChange(); // อัปเดตราคาปุ่มกดตัวเลือกให้สอดคล้องกัน
 }
 
+// 🌟 ฟังก์ชันปรับเปลี่ยนสถานะปุ่มเพิ่มยา (เวลาให้กด vs เวลาไม่ให้กด Icon และสีจะต่างกันชัดเจน)
+function updateRxAddButtonState(enabled, reason = '') {
+    const btn = document.getElementById('btnRxAddMed');
+    if (!btn) return;
+
+    if (enabled) {
+        // ✅ สถานะ: ให้กดได้ (มียาในระบบ + มีสต็อก) -> สีฟ้า/น้ำเงินสดใส + ไอคอนบวกสีขาว
+        btn.disabled = false;
+        btn.className = 'btn btn-primary fw-bold px-3 d-flex align-items-center justify-content-center gap-1.5 shadow-sm text-nowrap';
+        btn.style.cursor = 'pointer';
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+        btn.removeAttribute('title');
+        btn.innerHTML = '<i class="bi bi-plus-circle-fill text-white fs-6"></i> <span>+ ເພີ່ມລາຍການ</span>';
+    } else {
+        // 🚫 สถานะ: ไม่ให้กด (ยังไม่เลือก / ไม่มีใน DB / หมดสต็อก) -> สีเทา + ไอคอนห้ามสีแดง
+        btn.disabled = true;
+        btn.className = 'btn btn-secondary fw-semibold px-3 d-flex align-items-center justify-content-center gap-1.5 shadow-none text-nowrap opacity-75';
+        btn.style.cursor = 'not-allowed';
+        btn.style.opacity = '0.75';
+        btn.style.pointerEvents = 'auto';
+        btn.setAttribute('title', reason || 'ກະລຸນາເລືອກລາຍການຢາທີ່ມີໃນຖານຂໍ້ມູນກ່ອນ');
+        btn.innerHTML = '<i class="bi bi-slash-circle-fill text-danger fs-6"></i> <span>+ ເພີ່ມລາຍການ</span>';
+    }
+}
+window.updateRxAddButtonState = updateRxAddButtonState;
+
+// 🌟 ฟังก์ชันตรวจสอบว่ายานี้มีอยู่ในฐานข้อมูล (Database) จริงหรือไม่
+function findMedicineFromDatabase(rawVal) {
+    if (!rawVal) return null;
+    const clean = String(rawVal).trim();
+    if (!clean) return null;
+
+    const medId = clean.split(' - ')[0].trim().toLowerCase();
+    const namePart = (clean.includes(' - ') ? clean.split(' - ').slice(1).join(' - ') : clean).trim().toLowerCase();
+    const cleanLower = clean.toLowerCase();
+    const cleanNameOnly = namePart.replace(/\s*\(.*\)$/, '').trim();
+
+    const clinicMeds = Array.isArray(window.allMedicines) ? window.allMedicines : [];
+    const mlmMeds = Array.isArray(window.allMlmProducts) ? window.allMlmProducts : [];
+    const defaultMlm = Array.isArray(window.DEFAULT_MLM_PRODUCTS) ? window.DEFAULT_MLM_PRODUCTS : [];
+
+    const allCandidates = [...mlmMeds, ...clinicMeds, ...defaultMlm];
+
+    // 1. ค้นหาจาก ID / product_id / code (เทียบแบบ case-insensitive)
+    let med = allCandidates.find(m => {
+        const id = String(m.id || '').trim().toLowerCase();
+        const pId = String(m.product_id || '').trim().toLowerCase();
+        const code = String(m.code || '').trim().toLowerCase();
+        return id === medId || pId === medId || code === medId || id === cleanLower || pId === cleanLower;
+    });
+
+    // 2. ค้นหาจากชื่อ (Name)
+    if (!med) {
+        med = allCandidates.find(m => {
+            const name = String(m.name || '').trim().toLowerCase();
+            return name === namePart || name === cleanNameOnly || name === cleanLower;
+        });
+    }
+
+    if (med) {
+        const isMlm = mlmMeds.includes(med) || defaultMlm.includes(med) || med.source === 'mlm' || (med.type && med.type.includes('อาหารเสริม'));
+        const stockVal = Number(med.current_stock ?? med.stock ?? med.quantity ?? 0);
+        return {
+            ...med,
+            stock: stockVal,
+            source: isMlm ? 'mlm' : 'clinic',
+            sourceLabel: isMlm ? 'คลังสินค้า (STK Groupe)' : 'คลังยา'
+        };
+    }
+
+    return null;
+}
+window.findMedicineFromDatabase = findMedicineFromDatabase;
+
 function onMedSelectChange() {
     const select = document.getElementById('rxMedSelect');
     const tierSelect = document.getElementById('rxPriceTierSelect');
     if (!select || !tierSelect) return;
 
-    const rawVal = select.value;
+    const rawVal = (select.value || '').trim();
     if (!rawVal) {
         tierSelect.innerHTML = `
             <option value="normal">ราคาปกติ</option>
@@ -3399,32 +3474,41 @@ function onMedSelectChange() {
             <option value="high">ราคาส่ง/สมาชิก</option>
             <option value="free">แถมฟรี</option>
         `;
+        select.classList.remove('is-invalid', 'is-valid');
+        updateRxAddButtonState(false, 'ກະລຸນາເລືອກລາຍການຢາ ຫຼື ອາຫານເສີມ');
         return;
     }
 
-    // 🌟 จุดที่แก้ไข: ตัดเอาเฉพาะ "รหัส" ที่อยู่ด้านหน้าสุดมาใช้ค้นหา
-    const medId = rawVal.split(' - ')[0].trim();
+    // 🌟 ตรวจสอบว่ามีรายการยานี้ใน Database หรือไม่
+    const med = findMedicineFromDatabase(rawVal);
 
-    let med = null;
-    let itemSource = 'clinic';
-
-    // ค้นหาในคลัง MLM ก่อน ถ้าไม่เจอค่อยไปหาในคลังคลินิก
-    med = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
-    if (med) {
-        itemSource = 'mlm';
-    } else {
-        med = (window.allMedicines || []).find(m => m.id === medId);
-        itemSource = 'clinic';
-    }
-
-    if (!med) return;
-
-    // ดักจับการเลือกสินค้าที่หมดสต็อก
-    if (med.stock <= 0) {
-        Swal.fire('แจ้งเตือน', 'รายการนี้สต็อกหมด ไม่สามารถเลือกได้ครับ', 'warning');
-        select.value = '';
+    if (!med) {
+        // หากไม่มีใน Database -> ล็อคปุ่มเพิ่มทันที (ไอคอนห้ามสีแดง)
+        tierSelect.innerHTML = `
+            <option value="normal">ราคาปกติ</option>
+            <option value="promo">ราคาโปร</option>
+            <option value="high">ราคาส่ง/สมาชิก</option>
+            <option value="free">แถมฟรี</option>
+        `;
+        select.classList.add('is-invalid');
+        select.classList.remove('is-valid');
+        updateRxAddButtonState(false, 'ລາຍການນີ້ບໍ່ມີຢູ່ໃນຖານຂໍ້ມູນ');
         return;
     }
+
+    // หากพบยาใน Database -> ตรวจสอบสต็อก
+    const stockQty = Number(med.stock != null ? med.stock : 0);
+    if (stockQty <= 0) {
+        select.classList.add('is-invalid');
+        select.classList.remove('is-valid');
+        updateRxAddButtonState(false, `ລາຍການ "${med.name}" ສະຕັອກໝົດ (0)`);
+        return;
+    }
+
+    // มียาใน Database และมีสต็อก -> ปลดล็อคปุ่มเพิ่มให้กดได้ (ไอคอนบวกสีขาว)
+    select.classList.remove('is-invalid');
+    select.classList.add('is-valid');
+    updateRxAddButtonState(true);
 
     const priceNormal = parseFloat(med.price_normal || med.price_full || med.price || 0);
     const pricePromo = parseFloat(med.price_promo || 0);
@@ -12099,6 +12183,14 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     // 3. เรนเดอร์ตารางและเปิด Modal ทันที 0ms
     renderRxMedsTable();
     populateRxMedDropdown();
+    const rxMedSelect = document.getElementById('rxMedSelect');
+    if (rxMedSelect) {
+        rxMedSelect.value = '';
+        rxMedSelect.classList.remove('is-valid', 'is-invalid');
+    }
+    if (typeof updateRxAddButtonState === 'function') {
+        updateRxAddButtonState(false, 'ກະລຸນາເລືອກລາຍການຢາທີ່ມີໃນຖານຂໍ້ມູນກ່ອນ');
+    }
     bootstrap.Modal.getOrCreateInstance(document.getElementById('prescribeModal')).show();
 
     // 4. ดึงข้อมูลผู้ช่วย / ผู้แนะนำ (Assistant / ReferredBy)
@@ -12497,42 +12589,70 @@ function addMedToRx() {
     const select = document.getElementById('rxMedSelect');
     const tierSelect = document.getElementById('rxPriceTierSelect');
     const qtyInput = document.getElementById('rxMedQty');
+    const addBtn = document.getElementById('btnRxAddMed');
     if (!select) return;
 
     const rawVal = (select.value || '').trim();
     if (!rawVal) {
-        Swal.fire('แจ้งเตือน', 'กรุณาเลือกรายการยาหรืออาหารเสริมที่ต้องการเพิ่ม', 'warning');
+        Swal.fire({
+            target: document.getElementById('prescribeModal') || 'body',
+            icon: 'warning',
+            title: 'ແຈ້ງເຕືອນ',
+            text: 'ກະລຸນາເລືອກລາຍການຢາ ຫຼື ອາຫານເສີມທີ່ຕ້ອງການເພີ່ມ',
+            confirmButtonColor: '#0284c7'
+        });
         return;
     }
 
-    const medId = rawVal.split(' - ')[0].trim();
+    // 🌟 ตรวจสอบว่ามีรายการยานี้ใน Database จริงหรือไม่ (ถ้าไม่มีจริง บล็อคไม่ให้เพิ่มเด็ดขาด)
+    const med = findMedicineFromDatabase(rawVal);
+    if (!med) {
+        if (addBtn) {
+            addBtn.disabled = true;
+            addBtn.classList.add('disabled', 'opacity-50');
+            addBtn.setAttribute('title', 'ກະລຸນາເລືອກລາຍການຢາທີ່ມີໃນຖານຂໍ້ມູນກ່ອນ');
+        }
+        select.classList.add('is-invalid');
+        select.classList.remove('is-valid');
+        Swal.fire({
+            target: document.getElementById('prescribeModal') || 'body',
+            icon: 'error',
+            title: 'ບໍ່ພົບລາຍການຢາ',
+            text: 'ລາຍການຢານີ້ບໍ່ມີຢູ່ໃນຖານຂໍ້ມູນ (Database) ກະລຸນາເລືອກລາຍການຢາທີ່ມີຢູ່ໃນລະບົບເທົ່ານັ້ນ',
+            confirmButtonText: 'ຕົກລົງ',
+            confirmButtonColor: '#0284c7'
+        });
+        return;
+    }
+
+    // ตรวจสอบสต็อก
+    const stockQty = Number(med.stock != null ? med.stock : 0);
+    if (stockQty <= 0) {
+        if (addBtn) {
+            addBtn.disabled = true;
+            addBtn.classList.add('disabled', 'opacity-50');
+        }
+        select.classList.add('is-invalid');
+        select.classList.remove('is-valid');
+        Swal.fire({
+            target: document.getElementById('prescribeModal') || 'body',
+            icon: 'warning',
+            title: 'ສິນຄ້າໝົດ',
+            text: `ລາຍການ "${med.name}" ສະຕັອກໝົດ ບໍ່ສາມາດສັ່ງຈ່າຍໄດ້`,
+            confirmButtonText: 'ຕົກລົງ',
+            confirmButtonColor: '#0284c7'
+        });
+        return;
+    }
+
+    const medId = med.id || rawVal.split(' - ')[0].trim();
     const qty = parseInt(qtyInput ? qtyInput.value : 1, 10) || 1;
     const tier = tierSelect ? tierSelect.value : 'normal';
 
-    let med = null;
-    let itemSource = 'clinic';
-    let sourceLabel = 'คลังยา';
+    const itemSource = med.source || 'clinic';
+    const sourceLabel = med.sourceLabel || (itemSource === 'mlm' ? 'คลังสินค้า (STK Groupe)' : 'คลังยา');
+    const itemName = med.name;
 
-    med = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
-    if (med) {
-        itemSource = 'mlm';
-        sourceLabel = 'คลังสินค้า (STK Groupe)';
-    } else {
-        med = (window.allMedicines || []).find(m => m.id === medId);
-        itemSource = 'clinic';
-        sourceLabel = 'คลังยา';
-    }
-
-    if (!med) {
-        const namePart = rawVal.includes(' - ') ? rawVal.split(' - ').slice(1).join(' - ').trim() : rawVal;
-        med = (window.allMlmProducts || []).find(m => m.name === namePart) || (window.allMedicines || []).find(m => m.name === namePart);
-        if (med) {
-            itemSource = med.source || (window.allMlmProducts.includes(med) ? 'mlm' : 'clinic');
-            sourceLabel = (itemSource === 'mlm') ? 'คลังสินค้า (STK Groupe)' : 'คลังยา';
-        }
-    }
-
-    const itemName = med ? med.name : (rawVal.includes(' - ') ? rawVal.split(' - ').slice(1).join(' - ').trim() : rawVal);
     let price = 0;
     let priceTypeLabel = 'ราคาปกติ';
 
@@ -12540,13 +12660,13 @@ function addMedToRx() {
         price = 0;
         priceTypeLabel = 'แถมฟรี';
     } else if (tier === 'promo') {
-        price = med ? (parseFloat(med.price_promo) || parseFloat(med.price_normal) || parseFloat(med.price) || 0) : 0;
+        price = (parseFloat(med.price_promo) || parseFloat(med.price_normal) || parseFloat(med.price) || 0);
         priceTypeLabel = 'ราคาโปร';
     } else if (tier === 'high') {
-        price = med ? (parseFloat(med.price_high) || parseFloat(med.price_member) || parseFloat(med.price_normal) || parseFloat(med.price) || 0) : 0;
+        price = (parseFloat(med.price_high) || parseFloat(med.price_member) || parseFloat(med.price_normal) || parseFloat(med.price) || 0);
         priceTypeLabel = 'สมาชิก';
     } else {
-        price = med ? (parseFloat(med.price_normal) || parseFloat(med.price_full) || parseFloat(med.price) || 0) : 0;
+        price = (parseFloat(med.price_normal) || parseFloat(med.price_full) || parseFloat(med.price) || 0);
         priceTypeLabel = 'ราคาปกติ';
     }
 
@@ -12557,7 +12677,7 @@ function addMedToRx() {
         window.currentRxMeds[existingIndex].qty += qty;
     } else {
         window.currentRxMeds.push({
-            id: medId || ('MED-' + Math.random().toString(36).substr(2, 6)),
+            id: medId,
             name: itemName,
             source: itemSource,
             sourceLabel: sourceLabel,
@@ -12570,7 +12690,11 @@ function addMedToRx() {
     }
 
     select.value = '';
+    select.classList.remove('is-valid', 'is-invalid');
     if (qtyInput) qtyInput.value = 1;
+    if (typeof updateRxAddButtonState === 'function') {
+        updateRxAddButtonState(false, 'ກະລຸນາເລືອກລາຍການຢາທີ່ມີໃນຖານຂໍ້ມູນກ່ອນ');
+    }
     renderRxMedsTable();
 }
 window.addMedToRx = addMedToRx;

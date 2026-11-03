@@ -285,7 +285,7 @@ if (loginForm) {
         const remEl = document.getElementById('rememberMe');
         const btn = document.getElementById('loginBtn');
 
-        const email = emailEl ? emailEl.value.trim() : '';
+        const email = emailEl ? emailEl.value.trim().toLowerCase() : '';
         const password = passEl ? passEl.value.trim() : '';
         const rememberMe = remEl ? remEl.checked : false;
 
@@ -293,6 +293,16 @@ if (loginForm) {
             await showLoginErrorAlert({
                 title: 'ຂໍ້ມູນບໍ່ຄົບຖ້ວນ',
                 subtitle: 'ກະລຸນາປ້ອນ ອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຄົບຖ້ວນ',
+                warningText: ''
+            });
+            return;
+        }
+
+        // 🛡️ ແຈ້ງເຕືອນຖ້າຜູ້ໃຊ້ປ້ອນຊື່ ຫຼື ລະຫັດພະນັກງານ ແທນທີ່ຈະເປັນ Email
+        if (!email.includes('@')) {
+            await showLoginErrorAlert({
+                title: 'ຮູບແບບອີເມວບໍ່ຖືກຕ້ອງ',
+                subtitle: 'ກະລຸນາປ້ອນເປັນ ອີເມວ (Email) ເຊັ່ນ: name@clinic.com ແທນການປ້ອນຊື່ ຫຼື ລະຫັດພະນັກງານ',
                 warningText: ''
             });
             return;

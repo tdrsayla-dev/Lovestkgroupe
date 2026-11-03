@@ -462,15 +462,24 @@
 
         try {
             // 1. บันทึกข้อมูลผลตรวจ CBC ทั้งหมด
-            const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
-            allCbc[visitId] = {
-                visit_id: visitId,
-                hn: currentVisitInfo.hn,
-                patient_name: currentVisitInfo.name,
-                updated_at: new Date().toISOString(),
-                items: data
-            };
-            localStorage.setItem('clinic_cbc_results', JSON.stringify(allCbc));
+            try {
+                const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
+                allCbc[visitId] = {
+                    visit_id: visitId,
+                    hn: currentVisitInfo.hn,
+                    patient_name: currentVisitInfo.name,
+                    updated_at: new Date().toISOString(),
+                    items: data
+                };
+                // Prune old cbc cache if > 25
+                const cbcKeys = Object.keys(allCbc);
+                if (cbcKeys.length > 25) {
+                    cbcKeys.slice(0, cbcKeys.length - 20).forEach(k => delete allCbc[k]);
+                }
+                localStorage.setItem('clinic_cbc_results', JSON.stringify(allCbc));
+            } catch (quotaErr) {
+                console.warn('CBC LocalStorage quota warning (cloud sync will continue):', quotaErr);
+            }
 
             // 2. บันทึกลง clinic_lab_files_meta เพื่อให้ระบบห้องแล็บดึงไปแสดงในคอลัมน์ผลตรวจทั้งหมด
             try {
