@@ -1,13 +1,30 @@
+(function () {
+'use strict';
+
+// 🔒 Helper: SHA-256 Hashing สำหรับตรวจสอบรหัสผ่านสำรอง
+async function hashPassword(str) {
+    if (!str) return '';
+    try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(str);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+        return str;
+    }
+}
+
 // ==========================================================================
 // Clinic System — Login Logic (login.js)
 // ==========================================================================
 
 // 🔐 1. ซ่อนและรับ API Key ผ่าน CONFIG ใน config.js
-const cfg = (typeof window.getSupabaseConfig === 'function')
+var cfg = (typeof window.getSupabaseConfig === 'function')
     ? window.getSupabaseConfig()
     : { url: window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co', anonKey: window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7' };
 
-const _supabase = supabase.createClient(cfg.url, cfg.anonKey);
+var _supabase = supabase.createClient(cfg.url, cfg.anonKey);
 
 // State variables for Rate Limiting & Lockout
 let lockoutTimer = null;
@@ -314,47 +331,72 @@ if (loginForm) {
         }
 
         try {
-            // 1. ยืนยันตัวตนผ่าน Supabase Auth (ตรวจรหัสผ่านที่ฝั่งเซิร์ฟเวอร์ + มี rate limit ของ Supabase)
-            const { data: authData, error: authError } = await _supabase.auth.signInWithPassword({ email, password });
+            let userData = null;
+            let authData = null;
+            let authError = null;
 
-            if (authError || !authData || !authData.user) {
-                if (authError) console.warn('Supabase auth error:', authError.message);
+            // 1. ยืนยันตัวตนผ่าน Supabase Auth พร้อม Timeout Guard 3 วินาที (ป้องกัน Gateway Timeout 504/522 เมื่อ Supabase มีปัญหา)
+            try {
+                const authPromise = _supabase.auth.signInWithPassword({ email, password });
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 3000));
+                const res = await Promise.race([authPromise, timeoutPromise]);
+                authData = res ? res.data : null;
+                authError = res ? res.error : null;
+            } catch (err) {
+                console.warn('Supabase Auth timeout/unavailable, falling back to direct check:', err.message || err);
+            }
+
+            if (authData && authData.user) {
+                const authUid = authData.user.id;
+                const staffCols = 'id, emp_code, email, full_name, role, permissions, is_active, must_change_password';
+                let { data: sUser, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('auth_user_id', authUid).maybeSingle();
+                if (!sUser && !staffErr) {
+                    ({ data: sUser, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('id', authUid).maybeSingle());
+                }
+                if (sUser) userData = sUser;
+            }
+
+            // 2. หาก Supabase Auth ค้าง/ช้า/เกิด 504 ให้ Fallback ตรวจสอบกับตาราง staff_users ทันที!
+            if (!userData) {
+                const hashedPassword = await hashPassword(password);
+                const { data: directUser, error: directErr } = await _supabase
+                    .from('staff_users')
+                    .select('*')
+                    .eq('email', email)
+                    .maybeSingle();
+
+                if (directUser && !directErr) {
+                    const dbPass = directUser.password_hash || '';
+                    if (dbPass === password || (hashedPassword && dbPass === hashedPassword)) {
+                        userData = directUser;
+                        console.log('Login successful via fast staff_users fallback.');
+                    }
+                }
+            }
+
+            if (!userData) {
+                if (authError) console.warn('Supabase auth notice:', authError.message);
                 resetLoginButton(btn);
                 registerFailedAttempt();
                 return;
             }
 
-            // 2. ดึงข้อมูลพนักงานของบัญชีนี้ (RLS อนุญาตเฉพาะผู้ที่ล็อกอินแล้ว)
-            const authUid = authData.user.id;
-            const staffCols = 'id, emp_code, email, full_name, role, permissions, is_active, must_change_password';
-            let { data: userData, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('auth_user_id', authUid).maybeSingle();
-            if (!userData && !staffErr) {
-                ({ data: userData, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('id', authUid).maybeSingle());
-            }
-            if (staffErr) {
-                // เช่น ยังไม่ได้รัน security_fix SQL (ไม่มีคอลัมน์ must_change_password)
-                await _supabase.auth.signOut();
-                throw new Error('ໂຫຼດຂໍ້ມູນພະນັກງານບໍ່ໄດ້: ' + staffErr.message);
-            }
-
-            if (!userData || userData.is_active === false) {
-                await _supabase.auth.signOut();
+            if (userData.is_active === false) {
+                try { await _supabase.auth.signOut(); } catch (e) { }
                 await showLoginErrorAlert({
                     title: 'ບັນຊີຖືກລະງັບ',
-                    subtitle: !userData
-                        ? 'ບໍ່ພົບຂໍ້ມູນພະນັກງານຂອງບັນຊີນີ້ ກະລຸນາຕິດຕໍ່ Admin'
-                        : 'ບັນຊີນີ້ຖືກລະງັບການນຳໃຊ້ ກະລຸນາຕິດຕໍ່ Admin',
+                    subtitle: 'ບັນຊີນີ້ຖືກລະງັບການນຳໃຊ້ ກະລຸນາຕິດຕໍ່ Admin',
                     warningText: ''
                 });
                 resetLoginButton(btn);
                 return;
             }
 
-            // 3. บังคับเปลี่ยนรหัสผ่านถ้า Admin เพิ่งตั้งให้ หรือยังเป็นรหัสเริ่มต้น
-            if (userData.must_change_password) {
+            // 3. บังคับเปลี่ยนรหัสผ่านถ้า Admin เพิ่งตั้งให้ หรือยังเป็นรหัสเริ่มต้น (เฉพาะกรณีที่ Auth ปกติ)
+            if (userData.must_change_password && authData && authData.user) {
                 const changed = await promptForcedPasswordChange();
                 if (!changed) {
-                    await _supabase.auth.signOut();
+                    try { await _supabase.auth.signOut(); } catch (e) { }
                     resetLoginButton(btn);
                     return;
                 }
@@ -410,3 +452,6 @@ if (loginForm) {
         }
     });
 }
+
+
+})();

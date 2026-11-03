@@ -2,7 +2,7 @@
 <html lang="lo">
 
 <head>
-    <meta charset="UTF-8"><script src="auth-guard.js"></script><script src="deleted-sync.js?v=1"></script>
+    <meta charset="UTF-8"><script src="auth-guard.js"></script><script src="deleted-sync.js?v=2.2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Booking - Timeline</title>
     <link rel="icon" type="image/png" href="favicon.png?v=1.0">
@@ -2540,47 +2540,44 @@
 
     <!-- บังคับแยก Layout คอมพิวเตอร์และสมาร์ตโฟนอย่างชัดเจน -->
     <style id="responsive-history-layout-fix">
-        /* ปุ่มจัดการแบบมีชื่อและคำอธิบายขนาดเล็ก */
+        /* ปุ่มจัดการแบบมีชื่อและคำอธิบายขนาดเล็ก (จัดเป็นระเบียบ 2x2 สวยงามสมดุล) */
         #content-history .history-action-group {
             display: grid;
-            grid-template-columns: minmax(82px, 1.15fr) repeat(2, minmax(56px, .8fr));
+            grid-template-columns: repeat(2, 1fr);
             align-items: stretch;
             justify-content: center;
-            gap: 5px;
+            gap: 6px;
             width: 100%;
-            max-width: 228px;
+            max-width: 220px;
             min-width: 0;
             margin: 0 auto;
-        }
-
-        #content-history .history-action-group:not(:has(.history-action-delete)) {
-            grid-template-columns: minmax(90px, 1.15fr) minmax(70px, .85fr);
-            max-width: 170px;
         }
 
         #content-history .history-action-btn {
             width: 100%;
             min-width: 0;
-            min-height: 39px;
-            padding: 4px 6px;
+            min-height: 38px;
+            padding: 4px 7px;
             border: 1px solid transparent;
-            border-radius: 9px;
+            border-radius: 8px;
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            gap: 4px;
+            justify-content: flex-start;
+            gap: 6px;
             text-decoration: none;
             cursor: pointer;
-            transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+            transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease;
         }
 
         #content-history .history-action-btn:hover {
             transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
         }
 
         #content-history .history-action-icon {
             flex: 0 0 auto;
-            font-size: 14px;
+            font-size: 16px;
             line-height: 1;
         }
 
@@ -2589,60 +2586,77 @@
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            line-height: 1.1;
+            line-height: 1.15;
+            overflow: hidden;
         }
 
         #content-history .history-action-title {
-            font-size: 10.5px;
-            font-weight: 800;
+            font-size: 11px;
+            font-weight: 700;
             white-space: nowrap;
         }
 
         #content-history .history-action-desc {
-            margin-top: 2px;
-            font-size: 7.5px;
+            margin-top: 1px;
+            font-size: 8px;
             font-weight: 500;
-            opacity: .78;
+            opacity: .82;
             white-space: nowrap;
         }
 
-        #content-history .history-action-timeline {
-            min-width: 0;
-            color: #ffffff;
-            background: linear-gradient(135deg, #0d6efd, #0754c8);
-            border-color: #0d6efd;
-            box-shadow: 0 4px 10px rgba(13, 110, 253, .2);
+        /* 🪪 ບັດຄົນໄຂ້ */
+        #content-history .history-action-pass {
+            color: #0284c7;
+            background: #f0f9ff;
+            border-color: #bae6fd;
+        }
+        #content-history .history-action-pass:hover {
+            color: #0369a1;
+            background: #e0f2fe;
+            border-color: #7dd3fc;
         }
 
+        /* 📈 Timeline */
+        #content-history .history-action-timeline {
+            color: #ffffff;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            border-color: #0284c7;
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+        }
         #content-history .history-action-timeline:hover {
             color: #ffffff;
-            box-shadow: 0 7px 15px rgba(13, 110, 253, .27);
+            background: linear-gradient(135deg, #0369a1, #075985);
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.35);
         }
 
+        /* 👁️ ເບິ່ງລາຍລະອຽດ */
         #content-history .history-action-view {
-            min-width: 0;
             color: #334155;
             background: #f8fafc;
             border-color: #cbd5e1;
         }
-
         #content-history .history-action-view:hover {
-            color: #0b3c73;
-            background: #eff6ff;
-            border-color: #93c5fd;
+            color: #0f172a;
+            background: #f1f5f9;
+            border-color: #94a3b8;
         }
 
+        /* 🗑️ ລຶບຂໍ້ມູນ */
         #content-history .history-action-delete {
-            min-width: 0;
-            color: #dc3545;
-            background: #fff7f8;
-            border-color: #fda4af;
+            color: #dc2626;
+            background: #fef2f2;
+            border-color: #fecaca;
         }
-
         #content-history .history-action-delete:hover {
             color: #ffffff;
-            background: #dc3545;
-            border-color: #dc3545;
+            background: #dc2626;
+            border-color: #dc2626;
+            box-shadow: 0 3px 8px rgba(220, 38, 38, 0.25);
+        }
+
+        #content-history .history-action-full {
+            grid-column: 1 / -1;
+            justify-content: center;
         }
 
         /* COMPUTER / TABLET LANDSCAPE: แสดงเป็นตารางปกติ */
@@ -2827,12 +2841,12 @@
             #content-history .history-action-group {
                 grid-column: 1 / -1;
                 display: grid;
-                grid-template-columns: minmax(82px, 1.15fr) repeat(2, minmax(56px, .8fr));
+                grid-template-columns: repeat(2, 1fr);
                 width: 100%;
                 max-width: none;
                 min-width: 0;
-                gap: 5px;
-                margin-top: 3px;
+                gap: 6px;
+                margin-top: 6px;
             }
 
             #content-history .history-action-group:not(:has(.history-action-delete)) {
@@ -2843,8 +2857,8 @@
             #content-history .history-action-btn {
                 min-width: 0;
                 width: 100%;
-                min-height: 40px;
-                padding: 4px 5px;
+                min-height: 38px;
+                padding: 4px 6px;
             }
 
             #content-history .history-action-btn:only-child {
@@ -2852,15 +2866,15 @@
             }
 
             #content-history .history-action-copy {
-                align-items: center;
+                align-items: flex-start;
             }
 
             #content-history .history-action-title {
-                font-size: 10.5px;
+                font-size: 11px;
             }
 
             #content-history .history-action-desc {
-                font-size: 7.5px;
+                font-size: 8px;
             }
         }
     </style>
@@ -3272,7 +3286,7 @@
                             <th width="150">ວັນທີກວດ</th>
                             <th>ອາການສຳຄັນ / ອາການວິນິດໄສ</th>
                             <th class="text-center" width="130">ສະຖານະ</th>
-                            <th class="text-center" width="170">ຈັດການ</th>
+                            <th class="text-center" width="230">ຈັດການ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -4142,7 +4156,7 @@
                         </td>
                         <td class="text-center">
                             <div class="history-action-group">
-                                <button type="button" class="history-action-btn" style="color: #0284c7; background: #f0f9ff; border-color: #bae6fd;" onclick="openPatientCard('${p.hn}')" title="ເບິ່ງກະດານບັດຄົນໄຂ້ (Patient Pass)">
+                                <button type="button" class="history-action-btn history-action-pass" onclick="openPatientCard('${p.hn}')" title="ເບິ່ງກະດານບັດຄົນໄຂ້ (Patient Pass)">
                                     <i class="ph ph-identification-card history-action-icon"></i>
                                     <span class="history-action-copy">
                                         <span class="history-action-title">ບັດຄົນໄຂ້</span>
@@ -4156,7 +4170,7 @@
                                         <small class="history-action-desc">ຕິດຕາມຂັ້ນຕອນ</small>
                                     </span>
                                 </button>
-                                <button type="button" class="history-action-btn history-action-view" onclick="viewVisit('${visitId}', '${p.hn || ''}', '${encodeURIComponent(p.patient_name || '')}')" title="ເບິ່ງລາຍລະອຽດ">
+                                <button type="button" class="history-action-btn history-action-view ${!checkIsAdmin() ? 'history-action-full' : ''}" onclick="viewVisit('${visitId}', '${p.hn || ''}', '${encodeURIComponent(p.patient_name || '')}')" title="ເບິ່ງລາຍລະອຽດ">
                                     <i class="ph ph-eye history-action-icon"></i>
                                     <span class="history-action-copy">
                                         <span class="history-action-title">ເບິ່ງ</span>

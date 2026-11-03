@@ -54,13 +54,21 @@
             pendingPush.push([listKey, ids]);
             return;
         }
-        var rows = ids.map(function (id) { return { list_key: listKey, record_id: id }; });
-        for (var i = 0; i < rows.length; i += 500) {
-            var res = await c.from(TABLE).upsert(rows.slice(i, i + 500), { onConflict: 'list_key,record_id', ignoreDuplicates: true });
-            if (res.error) {
-                console.warn('Deleted records sync (push) error:', res.error.message);
-                return;
+        try {
+            var rows = ids.map(function (id) { return { list_key: listKey, record_id: id }; });
+            for (var i = 0; i < rows.length; i += 500) {
+                var chunk = rows.slice(i, i + 500);
+                var res = await Promise.race([
+                    c.from(TABLE).upsert(chunk, { onConflict: 'list_key,record_id', ignoreDuplicates: true }),
+                    new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, 5000); })
+                ]);
+                if (res && res.error) {
+                    console.debug('Deleted records sync push notice:', res.error.message);
+                    return;
+                }
             }
+        } catch (err) {
+            console.debug('Deleted records sync push skipped:', err && err.message ? err.message : err);
         }
     }
 
@@ -82,45 +90,52 @@
         var c = getClient();
         if (!c) return;
 
-        while (pendingPush.length) {
-            var p = pendingPush.shift();
-            await push(p[0], p[1]);
-        }
-        if (window !== window.top) return;
-
-        var serverRows = [];
-        for (var from = 0; ; from += 1000) {
-            var res = await c.from(TABLE).select('list_key, record_id').range(from, from + 999);
-            if (res.error) {
-                console.warn('Deleted records sync (pull) error:', res.error.message);
-                return;
+        try {
+            while (pendingPush.length) {
+                var p = pendingPush.shift();
+                await push(p[0], p[1]);
             }
-            serverRows = serverRows.concat(res.data || []);
-            if (!res.data || res.data.length < 1000) break;
-        }
+            if (window !== window.top) return;
 
-        var changed = false;
-        for (var i = 0; i < KEYS.length; i++) {
-            var key = KEYS[i];
-            var local = readList(key);
-            var server = {};
-            serverRows.forEach(function (r) { if (r.list_key === key) server[r.record_id] = true; });
-
-            var localOnly = local.filter(function (id) { return !server[id]; });
-            if (localOnly.length) await push(key, localOnly);
-
-            var merged = local.slice();
-            var seen = {};
-            local.forEach(function (id) { seen[id] = true; });
-            Object.keys(server).forEach(function (id) { if (!seen[id]) { merged.push(id); seen[id] = true; } });
-            if (merged.length !== local.length) {
-                originalSetItem.call(localStorage, key, JSON.stringify(merged));
-                changed = true;
+            var serverRows = [];
+            for (var from = 0; from < 5000; from += 1000) {
+                var res = await Promise.race([
+                    c.from(TABLE).select('list_key, record_id').range(from, from + 999),
+                    new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, 5000); })
+                ]);
+                if (res && res.error) {
+                    console.debug('Deleted records sync (pull) notice:', res.error.message);
+                    return;
+                }
+                serverRows = serverRows.concat((res && res.data) || []);
+                if (!res || !res.data || res.data.length < 1000) break;
             }
-        }
 
-        if (changed) {
-            try { window.dispatchEvent(new CustomEvent('clinic-deleted-records-synced')); } catch (e) { }
+            var changed = false;
+            for (var i = 0; i < KEYS.length; i++) {
+                var key = KEYS[i];
+                var local = readList(key);
+                var server = {};
+                serverRows.forEach(function (r) { if (r.list_key === key) server[r.record_id] = true; });
+
+                var localOnly = local.filter(function (id) { return !server[id]; });
+                if (localOnly.length) await push(key, localOnly);
+
+                var merged = local.slice();
+                var seen = {};
+                local.forEach(function (id) { seen[id] = true; });
+                Object.keys(server).forEach(function (id) { if (!seen[id]) { merged.push(id); seen[id] = true; } });
+                if (merged.length !== local.length) {
+                    originalSetItem.call(localStorage, key, JSON.stringify(merged));
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                try { window.dispatchEvent(new CustomEvent('clinic-deleted-records-synced')); } catch (e) { }
+            }
+        } catch (err) {
+            console.debug('Deleted records syncDown skipped:', err && err.message ? err.message : err);
         }
     }
 
