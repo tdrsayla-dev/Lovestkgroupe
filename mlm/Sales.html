@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -7151,7 +7151,8 @@
                 priceFull: Number(p.price_full ?? p.priceFull ?? 0) || 0,
                 priceMember: Number(p.price_member ?? p.priceMember ?? 0) || 0,
                 pricePromo: Number(p.price_promo ?? p.pricePromo ?? 0) || 0,
-                stock: parseInt(p.current_stock ?? p.stock ?? 0) || 0
+                stock: parseInt(p.current_stock ?? p.stock ?? 0) || 0,
+                frontStock: (p.frontStock !== undefined && p.frontStock !== null) ? Number(p.frontStock) : (parseInt(p.current_stock ?? p.stock ?? 0) || 0)
             })) : []);
             const [customerTypes, setCustomerTypes] = useState(() => initialCache && Array.isArray(initialCache.customerTypes) ? initialCache.customerTypes.map(c => ({ ...c, id: c.id || c.type_id, name: c.name || c.type_name })) : fallbackCustomerTypes);
             const [closers, setClosers] = useState(() => initialCache && Array.isArray(initialCache.closers) ? initialCache.closers.map(c => ({ ...c, id: c.id || c.closer_id, name: c.name || c.closer_name })) : []);
@@ -7254,8 +7255,17 @@
                         supabaseSelect('stk_customers', 'order=customer_id.desc&limit=1500').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
                         supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
                         supabaseSelect('stk_business_teams').catch(e => { console.warn('stk_business_teams fetch:', e); return []; }),
-                        (typeof window.fetchClinicDoctors === 'function' ? window.fetchClinicDoctors() : Promise.resolve([])).catch(e => { console.warn('clinicDoctors fetch:', e); return []; })
-                    ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, docRes]) => {
+                        (typeof window.fetchClinicDoctors === 'function' ? window.fetchClinicDoctors() : Promise.resolve([])).catch(e => { console.warn('clinicDoctors fetch:', e); return []; }),
+                        supabaseSelect('stk_daily_balance', 'order=balance_date.desc&limit=300').catch(e => { console.warn('stk_daily_balance fetch:', e); return []; })
+                    ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, docRes, balRes]) => {
+                        const frontStockMap = {};
+                        if (Array.isArray(balRes)) {
+                            balRes.forEach(b => {
+                                if (b.product_id && frontStockMap[b.product_id] === undefined) {
+                                    frontStockMap[b.product_id] = Number(b.system_closing_qty ?? b.physical_count_qty ?? 0);
+                                }
+                            });
+                        }
                         const resObj = {
                             products: pRes,
                             customerTypes: typeRes,
@@ -7264,7 +7274,8 @@
                             customers: custRes,
                             sales: saleRes,
                             businessTeams: teamRes,
-                            clinicDoctors: docRes
+                            clinicDoctors: docRes,
+                            frontStockMap: frontStockMap
                         };
                         applyDataToStates(resObj);
                         try {
@@ -7303,17 +7314,26 @@
             }, []);
 
             const applyDataToStates = (response) => {
-                if (Array.isArray(response.products)) setProducts(response.products.map(x => ({
-                    ...x,
-                    id: x.id || x.product_id,
-                    name: x.name || x.product_name || "",
-                    product_name: x.product_name || x.name || "",
-                    stock: parseInt(x.current_stock ?? x.stock ?? 0) || 0,
-                    imageUrl: x.image_url ?? x.imageUrl ?? "",
-                    priceFull: Number(x.price_full ?? x.priceFull ?? 0) || 0,
-                    priceMember: Number(x.price_member ?? x.priceMember ?? 0) || 0,
-                    pricePromo: Number(x.price_promo ?? x.pricePromo ?? 0) || 0
-                })));
+                const fMap = response.frontStockMap || {};
+                if (Array.isArray(response.products)) setProducts(response.products.map(x => {
+                    const pid = x.id || x.product_id;
+                    const curStock = parseInt(x.current_stock ?? x.stock ?? 0) || 0;
+                    const fStock = (x.frontStock !== undefined && x.frontStock !== null)
+                        ? Number(x.frontStock)
+                        : (fMap[pid] !== undefined ? Number(fMap[pid]) : curStock);
+                    return {
+                        ...x,
+                        id: pid,
+                        name: x.name || x.product_name || "",
+                        product_name: x.product_name || x.name || "",
+                        stock: curStock,
+                        frontStock: Math.max(0, fStock),
+                        imageUrl: x.image_url ?? x.imageUrl ?? "",
+                        priceFull: Number(x.price_full ?? x.priceFull ?? 0) || 0,
+                        priceMember: Number(x.price_member ?? x.priceMember ?? 0) || 0,
+                        pricePromo: Number(x.price_promo ?? x.pricePromo ?? 0) || 0
+                    };
+                }));
                 if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes.map(x => ({ ...x, id: x.id || x.type_id })));
                 if (Array.isArray(response.closers)) setClosers(response.closers.map(x => ({ ...x, id: x.id || x.closer_id })));
                 if (Array.isArray(response.clinicDoctors) && response.clinicDoctors.length > 0) setClinicDoctors(response.clinicDoctors);

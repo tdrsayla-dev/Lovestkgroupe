@@ -34,11 +34,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="config.js?v=2026.10.17.02"></script>
+  <script src="config.js?v=2026.11.03.04"></script>
   <script src="companySettings.js?v=2026.10.17.02"></script>
   <script src="dictionary.js?v=2026.10.17.02"></script>
   <script src="CommonComponents.js?v=2026.10.17.02"></script>
-  <script src="reportReferralLogic.js?v=2026.10.17.02"></script>
+  <script src="reportReferralLogic.js?v=2026.11.03.03"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -259,19 +259,36 @@
         const startDate = subTab === 'referral_payout' ? dailyStartDate : (subTab === 'monthly_self' ? currentSelfMonth.start : (subTab === 'monthly_team' ? currentTeamMonth.start : summaryStartDate));
         const endDate = subTab === 'referral_payout' ? dailyEndDate : (subTab === 'monthly_self' ? currentSelfMonth.end : (subTab === 'monthly_team' ? currentTeamMonth.end : summaryEndDate));
         const setStartDate = (val) => {
-            if (subTab === 'referral_payout') setDailyStartDate(val);
-            else setSummaryStartDate(val);
+            setDailyStartDate(val);
+            setSummaryStartDate(val);
+            if (val && val.length >= 7) {
+                const ym = val.substring(0, 7);
+                setMonthlySelfPeriod(ym);
+                setMonthlyTeamPeriod(ym);
+            }
         };
         const setEndDate = (val) => {
-            if (subTab === 'referral_payout') setDailyEndDate(val);
-            else setSummaryEndDate(val);
+            setDailyEndDate(val);
+            setSummaryEndDate(val);
+            if (val && val.length >= 7) {
+                const ym = val.substring(0, 7);
+                setMonthlySelfPeriod(ym);
+                setMonthlyTeamPeriod(ym);
+            }
+        };
+        const handleMonthPeriodChange = (ym) => {
+            setMonthlySelfPeriod(ym);
+            setMonthlyTeamPeriod(ym);
+            if (ym && ym.length >= 7) {
+                const rng = getMonthRange(ym);
+                setSummaryStartDate(rng.start);
+                setSummaryEndDate(rng.end);
+                setDailyStartDate(rng.start);
+                setDailyEndDate(rng.end);
+            }
         };
 
         const handleSubTabChange = (id) => {
-            if (id === 'referral_payout') {
-                setDailyStartDate(todayStr);
-                setDailyEndDate(todayStr);
-            }
             setSelectedPayoutKeys(new Set());
             setSubTab(id);
         };
@@ -312,11 +329,16 @@
                 // ข้ามแคมเปญที่ถูกลบ (deleted)
                 if (String(parentCamp.status || '').toLowerCase() === 'deleted') return;
 
-                // ตรวจสอบว่าช่วงเวลาของแคมเปญหรือผลลัพธ์ ซ้อนทับกับรอบที่เปิดดูรายงานหรือไม่
-                const cStart = cr.period_start || parentCamp.start_date;
-                const cEnd = cr.period_end || parentCamp.end_date;
+                // ตรวจสอบว่าช่วงเวลาของแคมเปญหรือผลลัพธ์ ซ้อนทับกับรอบวันที่หรือรอบเดือนที่เปิดดูรายงานหรือไม่
+                const cStart = String(cr.period_start || parentCamp.start_date || '').substring(0, 10);
+                const cEnd = String(cr.period_end || parentCamp.end_date || '').substring(0, 10);
                 if (cStart && cEnd && currentPeriodStart && currentPeriodEnd) {
-                    const overlaps = (cStart <= currentPeriodEnd && cEnd >= currentPeriodStart);
+                    const cStartMonth = cStart.substring(0, 7);
+                    const cEndMonth = cEnd.substring(0, 7);
+                    const pStartMonth = currentPeriodStart.substring(0, 7);
+                    const pEndMonth = currentPeriodEnd.substring(0, 7);
+                    const overlaps = (cStart <= currentPeriodEnd && cEnd >= currentPeriodStart) ||
+                                     (cStartMonth <= pEndMonth && cEndMonth >= pStartMonth);
                     if (!overlaps) return;
                 }
 
@@ -647,7 +669,8 @@
         useEffect(() => {
             if (!startDate || !endDate || startDate > endDate) return;
 
-            const rangeKey = `${startDate}_${endDate}`;
+            const fetchStart = startDate.length >= 7 ? `${startDate.substring(0, 7)}-01` : startDate;
+            const rangeKey = `${fetchStart}_${endDate}`;
             if (loadedRangeKeysRef.current.has(rangeKey)) return;
 
             // 1. Check in sessionStorage first (0ms Instant + 0 Egress)
@@ -682,7 +705,7 @@
                 isRangeFetchingRef.current = true;
                 try {
                     const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
-                    const query = `date=gte.${startDate}&date=lte.${endDate}&select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&order=order_id.desc`;
+                    const query = `date=gte.${fetchStart}&date=lte.${endDate}&select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&order=order_id.desc`;
                     const res = await selectFn('stk_sales', query);
                     if (isCancelled) return;
 
@@ -837,7 +860,10 @@
                 });
             }
 
-            // 4. บันทึกสำรองลง localStorage เฉพาะเมื่อมีข้อมูล (ป้องกันการเขียนทับด้วย object ว่าง {})
+            // 4. ล้างรายการซ้ำซ้อนที่เคยเกิดจากบั๊ก monthly_self ทับกับ daily (M95587916_self_2026-10-01_2026-10-31)
+            delete currentRecords['M95587916_self_2026-10-01_2026-10-31'];
+
+            // 5. บันทึกสำรองลง localStorage เฉพาะเมื่อมีข้อมูล (ป้องกันการเขียนทับด้วย object ว่าง {})
             try {
                 if (Object.keys(currentRecords).length > 0) {
                     localStorage.setItem('stk_payout_history', JSON.stringify(currentRecords));
@@ -899,6 +925,7 @@
         // Unfolded Sales for date range
         const effectiveStartDate = startDate;
         const effectiveEndDate = endDate;
+        const effectiveMonthStart = (effectiveStartDate && effectiveStartDate.length >= 7) ? `${effectiveStartDate.substring(0, 7)}-01` : effectiveStartDate;
 
         const unfoldedSalesData = useMemo(() => {
             if (!unfoldSales) return [];
@@ -906,13 +933,28 @@
                 sales,
                 members,
                 customers,
-                products, // 👈 1. เพิ่มบรรทัดนี้เข้ามา
+                products,
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate,
                 permittedMemberSet,
                 businessTeams
             });
         }, [sales, members, customers, products, effectiveStartDate, effectiveEndDate, permittedMemberSet, businessTeams]);
+
+        const unfoldedMonthSalesData = useMemo(() => {
+            if (!unfoldSales) return [];
+            if (effectiveMonthStart === effectiveStartDate) return unfoldedSalesData;
+            return unfoldSales({
+                sales,
+                members,
+                customers,
+                products,
+                startDate: effectiveMonthStart,
+                endDate: effectiveEndDate,
+                permittedMemberSet,
+                businessTeams
+            });
+        }, [sales, members, customers, products, effectiveMonthStart, effectiveStartDate, effectiveEndDate, permittedMemberSet, businessTeams, unfoldedSalesData]);
 
         // 1. Referral Summary Data
         const referralReportData = useMemo(() => {
@@ -940,7 +982,7 @@
         const referralDailyPayoutData = useMemo(() => {
             if (!calculateReferralDailyPayoutData) return [];
             return calculateReferralDailyPayoutData({
-                unfoldedSales: unfoldedSalesData,
+                unfoldedSales: unfoldedMonthSalesData,
                 members,
                 products,
                 businessTeams,
@@ -957,7 +999,7 @@
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate
             });
-        }, [unfoldedSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, payoutStatusFilter, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
+        }, [unfoldedMonthSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, payoutStatusFilter, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
 
         // 3. Referral Monthly Self Data (ปันผลขายเอง รอบเดือน)
         const referralMonthlySelfData = useMemo(() => {
@@ -1066,7 +1108,9 @@
 
                 const [mId, pDate] = key.split('_');
                 const memberId = payoutItem?.memberId || mId;
-                const dateLabel = payoutItem?.date || (subTab === 'monthly_self' ? monthlySelfPeriod : (subTab === 'monthly_team' ? monthlyTeamPeriod : (startDate === endDate ? startDate : `${startDate} ถึง ${endDate}`)));
+                const dateLabel = payoutItem?.date || (subTab === 'monthly_self' ? monthlySelfPeriod : (subTab === 'monthly_team' ? monthlyTeamPeriod : (pDate || startDate)));
+                const itemStart = (subTab === 'referral_payout') ? (payoutItem?.date || pDate || startDate) : startDate;
+                const itemEnd = (subTab === 'referral_payout') ? (payoutItem?.date || pDate || endDate) : endDate;
                 const payoutType = subTab === 'monthly_self' ? 'monthly_self' : (subTab === 'monthly_team' ? 'monthly_team' : 'daily');
                 const payAmt = subTab === 'monthly_self' ? (payoutItem?.remainingSelf || payoutItem?.selfEarn || 0) : (subTab === 'monthly_team' ? (payoutItem?.remainingTeam || payoutItem?.teamEarn || 0) : (payoutItem?.netEarn ?? payoutItem?.totalEarn ?? 0));
 
@@ -1081,8 +1125,8 @@
                     memberName: payoutItem?.memberName || payoutItem?.name || '',
                     team: payoutItem?.team || '',
                     date: dateLabel,
-                    startDate: startDate,
-                    endDate: endDate,
+                    startDate: itemStart,
+                    endDate: itemEnd,
                     payoutType: payoutType,
                     type: payoutType,
                     promoDeductBoxes: payoutItem?.promoDeductBoxes || 0,
@@ -1124,8 +1168,13 @@
                         const payoutType = subTab === 'monthly_self' ? 'monthly_self' : (subTab === 'monthly_team' ? 'monthly_team' : 'daily');
                         const payAmt = subTab === 'monthly_self' ? (payoutItem?.remainingSelf || payoutItem?.selfEarn || 0) : (subTab === 'monthly_team' ? (payoutItem?.remainingTeam || payoutItem?.teamEarn || 0) : (payoutItem?.netEarn !== undefined ? payoutItem.netEarn : (payoutItem?.totalEarn || 0)));
 
-                        const pStart = startDate || todayNow.substring(0, 10);
-                        const pEnd = endDate || startDate || todayNow.substring(0, 10);
+                        const kDate = k.split('_')[1] || '';
+                        const itemDateStr = (subTab === 'referral_payout') ? (payoutItem?.date || kDate || startDate) : startDate;
+                        const itemEndStr = (subTab === 'referral_payout') ? (payoutItem?.date || kDate || endDate) : endDate;
+                        const pStart = itemDateStr || todayNow.substring(0, 10);
+                        const pEnd = itemEndStr || pStart || todayNow.substring(0, 10);
+                        const _unusedOldStart = startDate || todayNow.substring(0, 10);
+                        const _unusedOldEnd = endDate || startDate || todayNow.substring(0, 10);
                         let refNoteStr = payoutNote || '';
                         if (payoutItem?.promoDeductBoxes) {
                             try {
@@ -1385,7 +1434,7 @@
             activeLevelCols.forEach(col => levelSums[col.level] = 0);
 
             referralReportData.forEach((r, idx) => {
-                const selfVal = Math.round(convertVal(r.selfEarn || 0));
+                const selfVal = Math.round(convertVal(r.netSelfEarn !== undefined ? r.netSelfEarn : (r.selfEarn || 0)));
                 const totVal = Math.round(convertVal(r.grandTotal || 0));
                 const paidVal = Math.round(convertVal(r.totalPaid || 0));
                 const remVal = Math.round(convertVal(r.remainingToPay || 0));
@@ -1400,12 +1449,13 @@
                     r.id,
                     r.name,
                     r.team,
-                    r.selfBoxes || 0,
-                    r.teamBoxes || 0,
+                    r.netSelfBoxes !== undefined ? r.netSelfBoxes : (r.selfBoxes || 0),
+                    r.netTeamBoxes !== undefined ? r.netTeamBoxes : (r.teamBoxes || 0),
                     selfVal
                 ];
                 activeLevelCols.forEach(col => {
-                    const lvVal = Math.round(convertVal(r[`level${col.level}Earn`] || 0));
+                    const rawLvEarn = (col.level === 1 && r.netLevel1Earn !== undefined) ? r.netLevel1Earn : (r[`level${col.level}Earn`] || 0);
+                    const lvVal = Math.round(convertVal(rawLvEarn));
                     levelSums[col.level] += lvVal;
                     row.push(lvVal);
                 });
@@ -1962,10 +2012,13 @@
                 activeLevelCols.forEach(c => levelSums[c.level] = 0);
 
                 tableRowsHtml = referralReportData.map((r, idx) => {
-                    const selfVal = convertVal(r.selfEarn || 0);
+                    const rawSelfEarn = r.netSelfEarn !== undefined ? r.netSelfEarn : (r.selfEarn || 0);
+                    const selfVal = convertVal(rawSelfEarn);
                     const totVal = convertVal(r.grandTotal || 0);
                     const paidVal = convertVal(r.totalPaid || 0);
                     const remVal = convertVal(r.remainingToPay || 0);
+                    const netSelfB = r.netSelfBoxes !== undefined ? r.netSelfBoxes : (r.selfBoxes || 0);
+                    const netTeamB = r.netTeamBoxes !== undefined ? r.netTeamBoxes : (r.teamBoxes || 0);
 
                     grandSelf += selfVal;
                     grandTotal += totVal;
@@ -1978,13 +2031,14 @@
                             <td style="text-align: center; font-family: monospace; font-weight: 700; color: #2563eb;">${escapeHtml(r.id)}</td>
                             <td style="font-weight: 700; color: #0f172a;">${escapeHtml(r.name)}</td>
                             <td style="text-align: center; color: #334155; font-size: 10px;">${escapeHtml(r.team || '-')}</td>
-                            <td style="text-align: center; font-weight: 700; color: #3b82f6;">${(r.selfBoxes || 0).toLocaleString()}</td>
-                            <td style="text-align: center; font-weight: 700; color: #10b981;">${(r.teamBoxes || 0).toLocaleString()}</td>
-                            <td class="num-cell" style="color: #2563eb;">${formatValDisplay(r.selfEarn)}</td>
+                            <td style="text-align: center; font-weight: 700; color: #3b82f6;">${netSelfB.toLocaleString()}${r.promoDeductBoxes > 0 ? `<div style="font-size: 8.5px; color: #dc2626;">(เดิม ${r.selfBoxes} ตัดโปร -${r.promoDeductBoxes})</div>` : ''}</td>
+                            <td style="text-align: center; font-weight: 700; color: #10b981;">${netTeamB.toLocaleString()}${r.promoDeductTeamBoxes > 0 ? `<div style="font-size: 8.5px; color: #dc2626;">(เดิม ${r.teamBoxes} ตัดโปร -${r.promoDeductTeamBoxes})</div>` : ''}</td>
+                            <td class="num-cell" style="color: #2563eb;">${formatValDisplay(rawSelfEarn)}${r.promoDeductSelfComm > 0 ? `<div style="font-size: 8.5px; color: #dc2626;">(-${formatValDisplay(r.promoDeductSelfComm)} โปรฯ)</div>` : ''}</td>
                             ${activeLevelCols.map(c => {
-                                const lvVal = convertVal(r[`level${c.level}Earn`] || 0);
+                                const rawLv = (c.level === 1 && r.netLevel1Earn !== undefined) ? r.netLevel1Earn : (r[`level${c.level}Earn`] || 0);
+                                const lvVal = convertVal(rawLv);
                                 levelSums[c.level] += lvVal;
-                                return `<td class="num-cell" style="color: #059669;">${formatValDisplay(r[`level${c.level}Earn`])}</td>`;
+                                return `<td class="num-cell" style="color: #059669;">${formatValDisplay(rawLv)}${(c.level === 1 && r.promoDeductTeamEarn > 0) ? `<div style="font-size: 8.5px; color: #dc2626;">(-${formatValDisplay(r.promoDeductTeamEarn)} โปรฯ)</div>` : ''}</td>`;
                             }).join('')}
                             <td class="num-cell" style="font-weight: 800; color: #0f172a; background: #f8fafc;">${formatValDisplay(r.grandTotal)}</td>
                             <td class="num-cell" style="color: #059669;">${formatValDisplay(r.totalPaid)}</td>
@@ -2631,12 +2685,12 @@
                                 {subTab === 'monthly_self' ? (
                                     <div className="sm:col-span-2">
                                         <label className={labelClassHud}>เลือกเดือนที่ต้องการคำนวณ (ปันผลขายเอง)</label>
-                                        <input type="month" className={inputClassHud} value={monthlySelfPeriod} onChange={e => setMonthlySelfPeriod(e.target.value)} />
+                                        <input type="month" className={inputClassHud} value={monthlySelfPeriod} onChange={e => handleMonthPeriodChange(e.target.value)} />
                                     </div>
                                 ) : subTab === 'monthly_team' ? (
                                     <div className="sm:col-span-2">
                                         <label className={labelClassHud}>เลือกเดือนที่ต้องการคำนวณ (ปันผลสายงาน)</label>
-                                        <input type="month" className={inputClassHud} value={monthlyTeamPeriod} onChange={e => setMonthlyTeamPeriod(e.target.value)} />
+                                        <input type="month" className={inputClassHud} value={monthlyTeamPeriod} onChange={e => handleMonthPeriodChange(e.target.value)} />
                                     </div>
                                 ) : (
                                     <>
@@ -3287,6 +3341,9 @@
                                             </thead>
                                             <tbody>
                                                 {referralReportData.map((r, index) => {
+                                                    const netSelfB = r.netSelfBoxes !== undefined ? r.netSelfBoxes : (r.selfBoxes || 0);
+                                                    const netTeamB = r.netTeamBoxes !== undefined ? r.netTeamBoxes : (r.teamBoxes || 0);
+                                                    const netSelfE = r.netSelfEarn !== undefined ? r.netSelfEarn : (r.selfEarn || 0);
                                                     return (
                                                         <tr key={index} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                                             <td className="p-4 text-sm font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">{r.id}</td>
@@ -3296,10 +3353,41 @@
                                                                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 w-fit mt-1">ทีม: {r.team}</span>
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4 text-sm font-medium"><span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-black shadow-sm">{r.selfBoxes.toLocaleString()}</span></td>
-                                                            <td className="p-4 text-sm font-medium">{r.teamBoxes > 0 ? <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-black shadow-sm">{r.teamBoxes.toLocaleString()}</span> : <span className="text-slate-300 dark:text-slate-600">-</span>}</td>
-                                                            <td className="p-4 text-sm text-right font-black text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-950/20 whitespace-nowrap">{formatValDisplay(r.selfEarn)}</td>
-                                                            {activeLevelCols.map(col => <td key={col.level} className="p-4 text-sm text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{formatValDisplay(r[`level${col.level}Earn`] || 0)}</td>)}
+                                                            <td className="p-4 text-sm font-medium">
+                                                                <div className="flex flex-col items-start gap-0.5">
+                                                                    <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-black shadow-sm">{netSelfB.toLocaleString()}</span>
+                                                                    {r.promoDeductBoxes > 0 && (
+                                                                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">เดิม {r.selfBoxes} (-{r.promoDeductBoxes} โปรฯ)</span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 text-sm font-medium">
+                                                                {r.teamBoxes > 0 ? (
+                                                                    <div className="flex flex-col items-start gap-0.5">
+                                                                        <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-black shadow-sm">{netTeamB.toLocaleString()}</span>
+                                                                        {r.promoDeductTeamBoxes > 0 && (
+                                                                            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">เดิม {r.teamBoxes} (-{r.promoDeductTeamBoxes} โปรฯ)</span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : <span className="text-slate-300 dark:text-slate-600">-</span>}
+                                                            </td>
+                                                            <td className="p-4 text-sm text-right font-black text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-950/20 whitespace-nowrap">
+                                                                <div>{formatValDisplay(netSelfE)}</div>
+                                                                {r.promoDeductSelfComm > 0 && (
+                                                                    <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400">-{formatValDisplay(r.promoDeductSelfComm)} โปรฯ</div>
+                                                                )}
+                                                            </td>
+                                                            {activeLevelCols.map(col => {
+                                                                const rawLv = (col.level === 1 && r.netLevel1Earn !== undefined) ? r.netLevel1Earn : (r[`level${col.level}Earn`] || 0);
+                                                                return (
+                                                                    <td key={col.level} className="p-4 text-sm text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                                                        <div>{formatValDisplay(rawLv)}</div>
+                                                                        {(col.level === 1 && r.promoDeductTeamEarn > 0) && (
+                                                                            <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400">-{formatValDisplay(r.promoDeductTeamEarn)} โปรฯ</div>
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
                                                             <td className="p-4 text-sm text-right font-black bg-slate-50 dark:bg-slate-800/30 text-slate-900 dark:text-white whitespace-nowrap">{formatValDisplay(r.grandTotal)}</td>
                                                             <td className="p-4 text-sm text-right font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/20 whitespace-nowrap">{formatValDisplay(r.totalPaid)}</td>
                                                             <td className="p-4 text-sm text-right font-black text-rose-600 dark:text-rose-400 bg-rose-50/30 dark:bg-rose-950/20 whitespace-nowrap">{formatValDisplay(r.remainingToPay)}</td>
@@ -3307,6 +3395,10 @@
                                                                 {r.payoutStatus === 'จ่ายปันผลแล้ว' ? (
                                                                     <span className="whitespace-nowrap px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-[10px] font-bold inline-flex items-center gap-1">
                                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> จ่ายแล้ว
+                                                                    </span>
+                                                                ) : r.payoutStatus === 'บางส่วน' ? (
+                                                                    <span className="whitespace-nowrap px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[10px] font-bold inline-flex items-center gap-1">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> จ่ายบางส่วน
                                                                     </span>
                                                                 ) : r.payoutStatus === 'รอปันผล' ? (
                                                                     <span className="whitespace-nowrap px-2.5 py-1 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg text-[10px] font-bold inline-flex items-center gap-1">
@@ -3324,7 +3416,9 @@
                                             </tbody>
                                             <tfoot className="bg-slate-900 dark:bg-slate-950 text-white border-t-4 border-slate-950 dark:border-slate-800 sticky bottom-0 shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
                                                 <tr>
-                                                    <td colSpan="4" className="p-4 text-right align-middle border-r border-slate-800"><span className="text-sm font-bold text-slate-400">ยอดรวม:</span></td>
+                                                    <td colSpan="2" className="p-4 text-right align-middle border-r border-slate-800"><span className="text-sm font-bold text-slate-400">ยอดรวม:</span></td>
+                                                    <td className="p-4 text-center align-middle border-r border-slate-800"><span className="text-lg font-black text-indigo-300 block">{(referralTotals.selfBoxes || 0).toLocaleString()}</span></td>
+                                                    <td className="p-4 text-center align-middle border-r border-slate-800"><span className="text-lg font-black text-slate-300 block">{(referralTotals.teamBoxes || 0).toLocaleString()}</span></td>
                                                     <td className="p-4 text-right align-middle border-r border-slate-800 bg-blue-950/40"><span className="text-xl font-black text-blue-400 block">{formatValDisplay(referralTotals.Self)}</span></td>
                                                     {activeLevelCols.map(col => <td key={col.level} className="p-4 text-right align-middle border-r border-slate-800"><span className="text-xl font-black text-emerald-400 block">{formatValDisplay(col.total)}</span></td>)}
                                                     <td className="p-4 text-right align-middle bg-slate-950"><span className="text-xl font-black text-white block">{formatValDisplay(referralTotals.grandTotal)}</span></td>

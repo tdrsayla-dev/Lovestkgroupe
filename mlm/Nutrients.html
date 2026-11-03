@@ -1,72 +1,74 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
-<script>
-  (function() {
-    try {
-      var theme = localStorage.getItem('stk_theme');
-      if (theme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        document.documentElement.style.backgroundColor = '#0f172a';
-      } else {
-        document.documentElement.setAttribute('data-theme', 'light');
-        document.documentElement.style.backgroundColor = '#f8fafc';
-      }
-    } catch (e) {}
-  })();
-</script>
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('stk_theme');
+        if (theme === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          document.documentElement.style.backgroundColor = '#0f172a';
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+          document.documentElement.style.backgroundColor = '#f8fafc';
+        }
+      } catch (e) { }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>สั่งจ่ายยา - LOVE STK GROUPE</title>
   <link rel="stylesheet" href="mainstyle.css?v=2026.10.24.03">
   <script>(function () {
-    ['warn', 'info', 'error', 'log'].forEach(function(fn) {
-      var orig = console[fn];
-      if (!orig) return;
-      console[fn] = function () {
-        var m = arguments[0] ? String(arguments[0]) : '';
-        if (
-          m.includes('cdn.tailwindcss.com') ||
-          m.includes('in-browser Babel transformer') ||
-          m.includes('[BABEL]') ||
-          m.includes('code generator has deoptimised')
-        ) return;
-        orig.apply(console, arguments);
-      };
-    });
-  })();</script>
+      ['warn', 'info', 'error', 'log'].forEach(function (fn) {
+        var orig = console[fn];
+        if (!orig) return;
+        console[fn] = function () {
+          var m = arguments[0] ? String(arguments[0]) : '';
+          if (
+            m.includes('cdn.tailwindcss.com') ||
+            m.includes('in-browser Babel transformer') ||
+            m.includes('[BABEL]') ||
+            m.includes('code generator has deoptimised')
+          ) return;
+          orig.apply(console, arguments);
+        };
+      });
+    })();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="config.js?v=2026.10.24.03"></script>
-  <script src="dictionary.js?v=2026.10.24.03"></script>
-  <script src="CommonComponents.js?v=2026.10.24.03"></script>
+  <script src="config.js?v=2026.11.03.02"></script>
+  <script src="dictionary.js?v=2026.11.03.02"></script>
+  <script src="CommonComponents.js?v=2026.11.03.02"></script>
 </head>
+
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
 
-  
+
 
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useMemo, useEffect } = React;
     const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput } = window;
-    
-    
+
+
 
     const IconProps = { fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
-    const SearchIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-    const FilterIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-    const CalendarIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
-    const PillIcon = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>;
-    const CheckCircle = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
-    const RefreshCw = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>;
-    const InboxIcon = ({ size = 48 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>;
-    const PhoneIcon = ({ size = 12 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
-    const ClockIcon = ({ size = 12 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+    const SearchIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
+    const FilterIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>;
+    const CalendarIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>;
+    const PillIcon = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" /><path d="m8.5 8.5 7 7" /></svg>;
+    const CheckCircle = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
+    const RefreshCw = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /></svg>;
+    const InboxIcon = ({ size = 48 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>;
+    const PhoneIcon = ({ size = 12 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>;
+    const ClockIcon = ({ size = 12 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
 
     // ฟังก์ชันจัดรูปแบบ วันที่ และ เวลา
     function formatOrderDateTime(rawDate) {
@@ -144,7 +146,7 @@
         return window.resolveOrderCloser(ord);
       }
       if (!ord) return { orderByType: 'หมอสั่งจ่าย', closerTeam: 'Center', closerName: 'หมอผู้เชี่ยวชาญ (Center)', isSelf: false, badgeText: '🩺 หมอปิด (Center)', badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200' };
-      
+
       const typeStr = String(ord.order_by_type || ord.prescribe_type || ord.closer_type || ord.closer_team || '').trim().toLowerCase();
       const closerDrStr = String(ord.closer_dr || '').trim();
       const recordedByStr = String(ord.recorded_by || '').trim();
@@ -173,27 +175,27 @@
     }
     // 🛡️ ฟังก์ชันช่วยวิเคราะห์และป้องกันการดีดกลับของประเภทลูกค้า (เคารพค่าจากระบบคลินิกต้นทาง 100%)
     function getAccurateCustomerTypeLocally(visitId, explicitType, isExisting) {
-        let baseType = String(explicitType || '').trim();
-        if (baseType && baseType !== '-' && baseType !== '--') {
-            if (typeof window.normalizeCustomerType === 'function') {
-                return window.normalizeCustomerType(baseType).name || baseType;
-            }
-            return baseType;
+      let baseType = String(explicitType || '').trim();
+      if (baseType && baseType !== '-' && baseType !== '--') {
+        if (typeof window.normalizeCustomerType === 'function') {
+          return window.normalizeCustomerType(baseType).name || baseType;
         }
+        return baseType;
+      }
 
-        const vUp = String(visitId || '').toUpperCase();
-        // กฎเหล็ก 1: ถ้าเป็น VIS-ORD หรือ ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์)
-        if (vUp.includes('VIS-ORD') || vUp.includes('VISIT-ORD') || vUp.startsWith('ORD-')) {
-            return isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่';
-        }
+      const vUp = String(visitId || '').toUpperCase();
+      // กฎเหล็ก 1: ถ้าเป็น VIS-ORD หรือ ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์)
+      if (vUp.includes('VIS-ORD') || vUp.includes('VISIT-ORD') || vUp.startsWith('ORD-')) {
+        return isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่';
+      }
 
-        // กฎเหล็ก 2: ถ้าเป็น VIS-ตัวเลข แสดงว่าเป็นคนไข้คลินิกจริง
-        if (/VIS(?:IT)?[:\s\-]+(?:VIS[-:\s]*)?\d+/i.test(vUp) || /VIS-\d+/i.test(vUp)) {
-            return isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ';
-        }
-
-        // Fallback
+      // กฎเหล็ก 2: ถ้าเป็น VIS-ตัวเลข แสดงว่าเป็นคนไข้คลินิกจริง
+      if (/VIS(?:IT)?[:\s\-]+(?:VIS[-:\s]*)?\d+/i.test(vUp) || /VIS-\d+/i.test(vUp)) {
         return isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ';
+      }
+
+      // Fallback
+      return isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ';
     }
     // ฟังก์ชันช่วยสกัด ID / Visit ID ทุกรูปแบบที่เป็นไปได้เพื่อใช้เทียบและลบข้อมูลถาวร
     function getNormalizedIds(val) {
@@ -248,17 +250,35 @@
     }
 
     function NutrientsView() {
-      const [orders, setOrders] = useState([]);
+      const [orders, setOrders] = useState(() => {
+        try {
+          const cached = sessionStorage.getItem('stk_nutrient_orders_view_cache');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+        } catch (e) { }
+        return [];
+      });
       const [searchTerm, setSearchTerm] = useState('');
       const [startDate, setStartDate] = useState('');
       const [endDate, setEndDate] = useState('');
       const [quickFilter, setQuickFilter] = useState('all'); // 'today', 'month', 'all', 'custom'
-      const [loading, setLoading] = useState(true);
+      const [loading, setLoading] = useState(() => {
+        try {
+          const cached = sessionStorage.getItem('stk_nutrient_orders_view_cache');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return false;
+          }
+        } catch (e) { }
+        return true;
+      });
       const [currentLang, setCurrentLang] = useState(window.getCurrentLang ? window.getCurrentLang() : 'th');
       const [customTypeOverrides, setCustomTypeOverrides] = useState(() => {
         try {
           return JSON.parse(localStorage.getItem('stk_nutrient_custom_types') || '{}');
-        } catch(e) { return {}; }
+        } catch (e) { return {}; }
       });
       const [existingCustomersData, setExistingCustomersData] = useState({
         hns: new Set(),
@@ -295,7 +315,7 @@
           const mId = String(x.user_id || x.id || '').toUpperCase();
           const mName = String(x.name || '').toUpperCase();
           return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
-                 (mName && (sUp === mName || sUp.includes(mName)));
+            (mName && (sUp === mName || sUp.includes(mName)));
         });
         if (m) {
           const mId = String(m.user_id || m.id || '').toUpperCase();
@@ -368,7 +388,7 @@
 
       // โหลดข้อมูลจาก Supabase เป็นหลัก + sync LocalStorage → Supabase อัตโนมัติ
       const fetchOrders = async (showLoading = true, forceRefresh = false) => {
-        if (showLoading && typeof showLoading !== 'object') setLoading(true);
+        if (showLoading && typeof showLoading !== 'object' && orders.length === 0) setLoading(true);
         let dbList = [];
         let localList = [];
         const salesVisitMap = new Map();
@@ -395,17 +415,79 @@
             const cacheParam = isForce ? '&nocache=true' : '';
 
             // ⚡ ดึงข้อมูลคู่ขนาน: ใบสั่งยา + บิลขายล่าสุด + ลูกค้าเดิมพร้อมผู้ดูแล + สมาชิกการตลาด + ฐานข้อมูลคลินิก + ทีมผู้ปิดการขาย + แพทย์คลินิก + ข้อมูลการตรวจคลินิก
-            const [data, salesRes, custRes, membersRes, clinicPatientsRes, closersRes, teamsRes, fetchedClinicDocs, clinicVisitsRes] = await Promise.all([
-              window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
-              window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id,seller_id,memberId,total_bottles,total_amount&order=created_at.desc&limit=1000' + cacheParam).catch(() => []),
-              window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=1000').catch(() => []),
-              window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status,permission_role,role,username&order=user_id.asc').catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone,customer_type&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
-              window.supabaseSelect('stk_closers').catch(() => []),
-              window.supabaseSelect('stk_business_teams').catch(() => []),
-              (window.fetchClinicDoctors ? window.fetchClinicDoctors() : Promise.resolve([])).catch(() => []),
-              (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('visits', 'select=visit_id,hn,doctor_name,disease&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => [])
-            ]);
+            const withTimeout = (p, ms, fallback = []) => Promise.race([p, new Promise(res => setTimeout(() => res(fallback), ms))]);
+            const pNutrientOrders = window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []);
+            const pMembers = window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status,permission_role,role,username&order=user_id.asc').catch(() => []);
+            const pClosers = window.supabaseSelect('stk_closers').catch(() => []);
+            const pTeams = window.supabaseSelect('stk_business_teams').catch(() => []);
+            const pSales = window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id,seller_id,memberId,total_bottles,total_amount,status,customer_phone&order=created_at.desc&limit=500' + cacheParam).catch(() => []);
+            const pCustomers = window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=500').catch(() => []);
+            const pClinicPatients = withTimeout((window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone,customer_type&order=created_at.desc&limit=500') : Promise.resolve([])).catch(() => []), 3500, []);
+            const pClinicDocs = withTimeout((window.fetchClinicDoctors ? window.fetchClinicDoctors(isForce) : Promise.resolve([])).catch(() => []), 3000, []);
+            const pClinicVisits = withTimeout((window.clinicSupabaseSelect ? window.clinicSupabaseSelect('visits', 'select=visit_id,hn,doctor_name,disease,diagnosis,icd10_name&order=created_at.desc&limit=500') : Promise.resolve([])).catch(() => []), 3500, []);
+
+            // ⚡ Tier 1: ปลดล็อกหน้าจอและแสดงรายการใบสั่งยาทันทีโดยไม่ต้องรอฐานข้อมูลคลินิกหรือตารางบิลขายขนาดใหญ่
+            const [data, membersRes, closersRes, teamsRes] = await Promise.all([pNutrientOrders, pMembers, pClosers, pTeams]);
+            if (Array.isArray(closersRes) && closersRes.length > 0) window.STK_CLOSERS_CACHE = closersRes;
+            if (Array.isArray(teamsRes) && teamsRes.length > 0) window.STK_TEAMS_CACHE = teamsRes;
+            if (Array.isArray(membersRes) && membersRes.length > 0) {
+              window.STK_MEMBERS_CACHE = membersRes;
+              setMembersList(membersRes);
+            }
+            if (Array.isArray(data) && data.length > 0 && orders.length === 0) {
+              const quickMap = new Map();
+              data.forEach(item => {
+                const vKey = String(item.visit_id || '').trim().toUpperCase();
+                if (!vKey || vKey === '-' || quickMap.has(vKey) || isOrderDeleted(item, deletedIdsSet)) return;
+                const closerInfo = (typeof window.resolveOrderCloser === 'function')
+                  ? window.resolveOrderCloser(item, closersRes || window.STK_CLOSERS_CACHE, membersRes || window.STK_MEMBERS_CACHE, teamsRes || window.STK_TEAMS_CACHE, clinicDoctors)
+                  : resolveOrderCloserInfo(item);
+                quickMap.set(vKey, {
+                  id: item.order_id || String(item.id),
+                  visit_id: item.visit_id || '-',
+                  hn: item.hn || item.customer_id || '-',
+                  customer_name: item.customer_name || item.customerName || '-',
+                  phone: item.phone || item.customer_phone || '-',
+                  disease: item.disease || item.disease_name || (!/^\d+(\.\d+)?$/.test(String(item.symptom || '').trim()) ? item.symptom : '') || '-',
+                  customer_type: item.customer_type || 'ลูกค้าใหม่มาตรวจ',
+                  order_by_type: closerInfo.orderByType || item.order_by_type,
+                  closer_team: closerInfo.closerTeam || item.closer_team,
+                  recorded_by: item.recorded_by || '-',
+                  closer_dr: closerInfo.closerName || item.closer_dr || '-',
+                  date: item.created_at || item.date || new Date().toISOString(),
+                  status: item.status || 'รอดำเนินการ',
+                  sale_order_id: item.sale_order_id || null,
+                  items: (() => {
+                    try {
+                      let parsed = item.items_json || item.items || item.products;
+                      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                      return Array.isArray(parsed) ? parsed : [];
+                    } catch (e) { return []; }
+                  })()
+                });
+              });
+              if (quickMap.size > 0) {
+                setOrders(Array.from(quickMap.values()));
+                setLoading(false);
+              }
+            }
+
+            // ⚡ Tier 2: รอข้อมูลเสริมในพื้นหลังเพื่ออัปเดตสถานะบิลขายสำเร็จและผู้แนะนำ
+            const [salesRes, custRes, clinicPatientsRes, fetchedClinicDocs, clinicVisitsRes] = await Promise.all([pSales, pCustomers, pClinicPatients, pClinicDocs, pClinicVisits]);
+
+            if (false) {
+              Promise.all([
+                window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200' + cacheParam).catch(() => []),
+                window.supabaseSelect('stk_sales', 'select=order_id,payment_note,customer_id,seller_id,memberId,total_bottles,total_amount&order=created_at.desc&limit=1000' + cacheParam).catch(() => []),
+                window.supabaseSelect('stk_customers', 'select=customer_id,phone,name,owner_member_id&order=created_at.desc&limit=1000').catch(() => []),
+                window.supabaseSelect('stk_members', 'select=user_id,name,business_team,status,permission_role,role,username&order=user_id.asc').catch(() => []),
+                (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('patients', 'select=hn,referred_by,phone,customer_type&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => []),
+                window.supabaseSelect('stk_closers').catch(() => []),
+                window.supabaseSelect('stk_business_teams').catch(() => []),
+                (window.fetchClinicDoctors ? window.fetchClinicDoctors() : Promise.resolve([])).catch(() => []),
+                (window.clinicSupabaseSelect ? window.clinicSupabaseSelect('visits', 'select=visit_id,hn,doctor_name,disease,diagnosis,icd10_name&order=created_at.desc&limit=1000') : Promise.resolve([])).catch(() => [])
+              ]);
+            }
 
             if (Array.isArray(closersRes) && closersRes.length > 0) {
               window.STK_CLOSERS_CACHE = closersRes;
@@ -424,11 +506,16 @@
 
             // 🩺 แมปข้อมูลแพทย์ผู้ตรวจจริง และ นับจำนวน Visit ต่อ HN จากตาราง visits ของระบบคลินิกภายนอก
             // clinicVisitsDoctorMap declared at top of fetchOrders
+            const clinicVisitsDiseaseMap = new Map();
             const clinicVisitsCountByHn = new Map();
             if (Array.isArray(clinicVisitsRes)) {
               clinicVisitsRes.forEach(v => {
                 if (v && v.visit_id && v.doctor_name) {
                   clinicVisitsDoctorMap.set(String(v.visit_id).trim().toUpperCase(), String(v.doctor_name).trim());
+                }
+                const diag = v && (v.diagnosis || v.icd10_name || v.disease || '');
+                if (v && v.visit_id && diag && diag !== '-' && diag !== '--') {
+                  clinicVisitsDiseaseMap.set(String(v.visit_id).trim().toUpperCase(), String(diag).trim());
                 }
                 if (v && v.hn) {
                   const hList = (typeof window.normalizeHnCandidates === 'function')
@@ -443,6 +530,7 @@
               });
             }
             window.clinicVisitsDoctorMap = clinicVisitsDoctorMap;
+            window.clinicVisitsDiseaseMap = clinicVisitsDiseaseMap;
             window.clinicVisitsCountByHn = clinicVisitsCountByHn;
 
             // สร้าง Map ของ visit_id ที่เปิดบิลขายสำเร็จแล้วใน stk_sales และจำนวนขวดที่ขายจริง รวมถึงผู้ขายเดิม
@@ -545,11 +633,16 @@
             }
 
             // 2. จากตาราง patients ของระบบคลินิก (ดึง referred_by และ customer_type เก็บเข้า Index Map)
+            const clinicPhoneByHn = new Map();
             if (Array.isArray(clinicPatientsRes)) {
               clinicPatientsRes.forEach(p => {
                 if (p && p.hn) {
                   if (p.referred_by && p.referred_by !== '-' && p.referred_by !== '--') {
                     registerHnReferrer(clinicReferrerByHn, p.hn, p.referred_by);
+                  }
+                  const rawP = String(p.phone || p.phone_number || '').trim();
+                  if (rawP && rawP !== '-' && rawP !== '--') {
+                    registerHnReferrer(clinicPhoneByHn, p.hn, rawP);
                   }
                   if (p.customer_type && p.customer_type !== '-' && p.customer_type !== '--') {
                     registerHnReferrer(clinicCustTypeByHn, p.hn, p.customer_type);
@@ -559,6 +652,10 @@
                 if (pPhone.length >= 7) {
                   if (p.referred_by && p.referred_by !== '-' && p.referred_by !== '--') {
                     clinicReferrerByPhone.set(pPhone, p.referred_by);
+                  }
+                  const rawP = String(p.phone || p.phone_number || '').trim();
+                  if (rawP && rawP !== '-' && rawP !== '--') {
+                    registerHnReferrer(clinicPhoneByHn, p.hn, rawP);
                   }
                   if (p.customer_type && p.customer_type !== '-' && p.customer_type !== '--') {
                     clinicCustTypeByPhone.set(pPhone, p.customer_type);
@@ -598,7 +695,10 @@
             };
 
             // 🛡️ Helper: ตรวจสอบว่ารหัส/ชื่อนี้เป็นบัญชีผู้ดูแลระบบ (Admin) หรือไม่ (ห้ามไม่ให้แอดมินเป็นผู้แนะนำการตลาดเด็ดขาด)
+            const adminMemo = new Map();
             const isMemberAdmin = (rawStr) => {
+              if (!rawStr || rawStr === '-' || rawStr === '--') return false;
+              if (adminMemo.has(rawStr)) return adminMemo.get(rawStr);
               if (!rawStr || rawStr === '-' || rawStr === '--') return false;
               const sUp = String(rawStr).trim().toUpperCase();
               if (sUp.includes('U001') || sUp.startsWith('U001') || sUp === 'ADMIN' || sUp.includes('แอดมิน') || sUp.includes('ผู้ดูแลระบบ')) return true;
@@ -608,7 +708,7 @@
                 const mId = String(x.user_id || x.id || '').toUpperCase();
                 const mName = String(x.name || '').toUpperCase();
                 return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
-                       (mName && (sUp === mName || sUp.includes(mName)));
+                  (mName && (sUp === mName || sUp.includes(mName)));
               });
               if (m) {
                 const mId = String(m.user_id || m.id || '').toUpperCase();
@@ -620,7 +720,10 @@
             };
 
             // 🛡️ Helper: ค้นหาและแปลงรหัสผู้แนะนำ/พนักงานการตลาดให้ตรงกับฐานข้อมูล stk_members
+            const refMemberMemo = new Map();
             const resolveReferrerMember = (rawStr) => {
+              if (!rawStr || rawStr === '-' || rawStr === '--') return '';
+              if (refMemberMemo.has(rawStr)) return refMemberMemo.get(rawStr);
               if (!rawStr || rawStr === '-' || rawStr === '--') return '';
               const s = String(rawStr).trim();
               const sUp = s.toUpperCase();
@@ -631,12 +734,15 @@
                 const mName = String(m.name || '').toUpperCase();
                 const mCombined = `${mId} - ${mName}`;
                 return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
-                       (mName && (sUp === mName || sUp.includes(mName))) ||
-                       (sUp === mCombined);
+                  (mName && (sUp === mName || sUp.includes(mName))) ||
+                  (sUp === mCombined);
               });
               if (matched) {
-                return `${matched.user_id || matched.id} - ${matched.name}`;
+                const res = `${matched.user_id || matched.id} - ${matched.name}`;
+                refMemberMemo.set(rawStr, res);
+                return res;
               }
+              refMemberMemo.set(rawStr, s);
               return s;
             };
 
@@ -653,7 +759,7 @@
               const isClinicRefDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
                 ? window.isClinicDoctorIdentifier(clinicRef, clinicDocsRes || clinicDoctors)
                 : false;
-              if (clinicRef && !isClinicRefDoctor && !isMemberAdmin(clinicRef)) return resolveReferrerMember(clinicRef);
+              if (clinicRef && clinicRef !== '-' && clinicRef !== '--' && !isMemberAdmin(clinicRef)) return resolveReferrerMember(clinicRef);
 
               // 2. ⚡ ตรวจสอบจากประวัติการซื้อจริงของคนไข้รายนี้ (stk_sales) - แม่นยำที่สุดสำหรับเคสต่อยา
               // 2.1 ตรวจจับจากหมายเหตุ เช่น "ต่อยา ชุดที่ 3 (จาก VIS-ORD-53868)"
@@ -682,7 +788,7 @@
               const isDoctor = (typeof window.isClinicDoctorIdentifier === 'function')
                 ? window.isClinicDoctorIdentifier(cleanExisting, clinicDocsRes || clinicDoctors)
                 : false;
-              if (isRecordedValid && !isDoctor && !isMemberAdmin(cleanExisting)) return resolveReferrerMember(cleanExisting);
+              if (isRecordedValid && !isMemberAdmin(cleanExisting)) return resolveReferrerMember(cleanExisting);
 
               return '-';
             };
@@ -705,7 +811,7 @@
 
                 const clinicSourceType = hCandidates.map(c => clinicCustTypeByHn.get(c)).find(Boolean) || (pClean.length >= 7 ? clinicCustTypeByPhone.get(pClean) : '') || '';
                 const rawExplicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
-                
+
                 // 🛡️ ลำดับความสำคัญที่ถูกต้อง 100%:
                 // 1. หากในระบบคลินิก (ตาราง patients) ระบุ customer_type มาชัดเจน -> ยึดตามคลินิกเป็นอันดับ 1 เสมอ
                 // 2. หากใน stk_nutrient_orders มี customer_type ระบุอยู่แล้ว -> ยึดตามนั้น 100%
@@ -719,11 +825,11 @@
 
                 const resolvedCustType = (typeof window.resolveVisitCustomerType === 'function')
                   ? window.resolveVisitCustomerType(item.visit_id, isExisting, explicit, 'th', {
-                      disease: item.disease || item.disease_name || '',
-                      symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
-                      customer_name: item.customer_name || item.customerName || '',
-                      hn: item.hn || item.customer_id || ''
-                    }).name
+                    disease: item.disease || item.disease_name || '',
+                    symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
+                    customer_name: item.customer_name || item.customerName || '',
+                    hn: item.hn || item.customer_id || ''
+                  }).name
                   : (explicit || (vUpper.startsWith('VIS-ORD-') ? (isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
 
                 // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง ชื่อแพทย์อาจไปตกอยู่ใน recorded_by
@@ -754,7 +860,7 @@
                     const dCode = String(d.emp_code || d.id || '').toLowerCase();
                     const cLow = String(clinicDocFromVisits).toLowerCase();
                     return (dName && (cLow.includes(dName) || dName.includes(cLow))) ||
-                           (dCode && (cLow.includes(dCode) || dCode === cLow));
+                      (dCode && (cLow.includes(dCode) || dCode === cLow));
                   });
                   if (foundDoc) {
                     matchedClinicDocStr = `${foundDoc.emp_code || foundDoc.id} - ${foundDoc.name || foundDoc.full_name}`;
@@ -777,9 +883,15 @@
                   };
                 }
                 const resolvedRecordedBy = getBestReferrer(item.hn || item.customer_id, item.phone || item.customer_phone, itemRecorded || item.seller_id, item.notes || item.symptom);
+                const rawSymptom = String(item.symptom || item.symptoms || item.chief_complaint || '').trim();
+                const isSymptomJustNumber = /^\d+(\.\d+)?$/.test(rawSymptom);
+                const diagFromVisit = (typeof clinicVisitsDiseaseMap !== 'undefined' && clinicVisitsDiseaseMap) ? clinicVisitsDiseaseMap.get(vUpper) : null;
+                const resolvedDisease = diagFromVisit || item.disease || item.disease_name || (!isSymptomJustNumber && rawSymptom ? rawSymptom : '') || item.diag || '-';
+                const clinicPhone = hCandidates.map(c => clinicPhoneByHn.get(c)).find(Boolean) || (pClean.length >= 7 ? clinicPhoneByHn.get(pClean) : '') || '';
+                const resolvedPhone = (item.phone && item.phone !== '-' && item.phone !== '--') ? item.phone : (clinicPhone || item.customer_phone || '-');
 
                 // ซิงค์สถานะบิลขายสำเร็จ, ประเภทลูกค้า และทีมผู้สั่งจ่ายที่ถูกต้องกลับ Supabase อัตโนมัติในพื้นหลังหากยังไม่ได้อัปเดต
-                if (typeof window.supabaseUpdate === 'function' && item.visit_id && item.visit_id !== '-') {
+                if (typeof window.supabaseUpdate === 'function' && item.visit_id && item.visit_id !== '-' && item.status !== 'ขายสำเร็จแล้ว' && item.status !== 'บิลถูกยกเลิก') {
                   const syncUpdates = {};
                   if (matchingSaleId && item.status !== 'ขายสำเร็จแล้ว') {
                     syncUpdates.status = 'ขายสำเร็จแล้ว';
@@ -789,6 +901,12 @@
                   // จะอัปเดตเฉพาะเมื่อในตาราง stk_nutrient_orders ยังเป็นค่าว่าง แล้วระบบคลินิกมี clinicSourceType ระบุมาชัดเจนเท่านั้น
                   if ((!item.customer_type || item.customer_type === '-' || item.customer_type === '--') && clinicSourceType) {
                     syncUpdates.customer_type = clinicSourceType;
+                  }
+                  if ((!item.customer_phone || item.customer_phone === '-' || item.customer_phone === '--') && clinicPhone) {
+                    syncUpdates.customer_phone = clinicPhone;
+                  }
+                  if (resolvedDisease && resolvedDisease !== '-' && (isSymptomJustNumber || !item.symptom || item.symptom === '-')) {
+                    syncUpdates.symptom = resolvedDisease;
                   }
 
                   if (isClinicVisit && matchedClinicDocStr && item.closer_dr !== matchedClinicDocStr) {
@@ -809,7 +927,14 @@
                     syncUpdates.recorded_by = resolvedRecordedBy;
                   }
                   if (Object.keys(syncUpdates).length > 0) {
-                    window.supabaseUpdate('stk_nutrient_orders', item.visit_id, syncUpdates, 'visit_id').catch(() => {});
+                    window._stkSyncedNutrientVisits = window._stkSyncedNutrientVisits || new Set();
+                    const syncKey = `${vUpper}:${JSON.stringify(syncUpdates)}`;
+                    if (!window._stkSyncedNutrientVisits.has(syncKey)) {
+                      window._stkSyncedNutrientVisits.add(syncKey);
+                      setTimeout(() => {
+                        window.supabaseUpdate('stk_nutrient_orders', item.visit_id, syncUpdates, 'visit_id').catch(() => { });
+                      }, 1500);
+                    }
                   }
                 }
 
@@ -818,8 +943,8 @@
                   visit_id: item.visit_id || '-',
                   hn: item.hn || item.customer_id || item.customerId || item.patient_hn || item.patientHn || '-',
                   customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || item.customer || '-',
-                  phone: item.phone || item.customer_phone || item.customerPhone || item.patientPhone || item.patient_phone || item.tel || item.mobile || '-',
-                  disease: item.disease || item.disease_name || item.symptom || item.symptoms || item.chief_complaint || item.diag || '-',
+                  phone: resolvedPhone,
+                  disease: resolvedDisease,
                   customer_type: resolvedCustType,
                   order_by_type: resolvedCloserInfo.orderByType || item.order_by_type,
                   closer_team: resolvedCloserInfo.closerTeam || item.closer_team,
@@ -833,7 +958,7 @@
                       let parsed = item.items_json || item.items || item.products;
                       if (typeof parsed === "string") parsed = JSON.parse(parsed);
                       return Array.isArray(parsed) ? parsed : [];
-                    } catch(e) { return []; }
+                    } catch (e) { return []; }
                   })()
                 };
               });
@@ -856,7 +981,7 @@
             try {
               parsedItems = typeof item.items === 'string' ? JSON.parse(item.items) : (item.items || item.products || item.items_json || []);
               if (typeof parsedItems === 'string') parsedItems = JSON.parse(parsedItems);
-            } catch(e) { parsedItems = []; }
+            } catch (e) { parsedItems = []; }
 
             const vId = item.visit_id || (item.payment_note && item.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? item.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : null) || item.rxVisitId || `VIS-${item.id}`;
             const orderId = item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`;
@@ -868,9 +993,9 @@
 
             let finalLocalStatus = item.status || 'รอดำเนินการ';
             if (finalLocalStatus === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet) || isOrderDeleted({ id: orderId, visit_id: vId }, deletedIdsSet)) {
-                finalLocalStatus = 'บิลถูกยกเลิก';
+              finalLocalStatus = 'บิลถูกยกเลิก';
             } else if (isCompleted) {
-                finalLocalStatus = 'ขายสำเร็จแล้ว';
+              finalLocalStatus = 'ขายสำเร็จแล้ว';
             }
 
             const normalizedItems = Array.isArray(parsedItems) ? parsedItems.map(it => ({
@@ -890,7 +1015,7 @@
               : [String(item.hn || '').trim().toUpperCase()];
             const pCleanLocal = String(item.phone || '').replace(/[^0-9]/g, '');
             const isExistingLocal = hCandidatesLocal.some(c => c && c !== '-' && salesHnSet.has(c)) ||
-                                    Boolean(pCleanLocal && pCleanLocal.length >= 7 && salesPhoneSet.has(pCleanLocal));
+              Boolean(pCleanLocal && pCleanLocal.length >= 7 && salesPhoneSet.has(pCleanLocal));
 
             const clinicSourceTypeLocal = (window.clinicCustTypeByHn ? hCandidatesLocal.map(c => window.clinicCustTypeByHn.get(c)).find(Boolean) : '') || (pCleanLocal.length >= 7 && window.clinicCustTypeByPhone ? window.clinicCustTypeByPhone.get(pCleanLocal) : '') || '';
             const rawExplicitLocal = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
@@ -903,11 +1028,11 @@
 
             const resolvedLocalCustType = (typeof window.resolveVisitCustomerType === 'function')
               ? window.resolveVisitCustomerType(vId, isExistingLocal, explicitLocal, 'th', {
-                  disease: item.disease || item.disease_name || '',
-                  symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
-                  customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
-                  hn: item.hn || item.customer_id || ''
-                }).name
+                disease: item.disease || item.disease_name || '',
+                symptom: item.symptom || item.symptoms || item.chief_complaint || item.diag || '',
+                customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
+                hn: item.hn || item.customer_id || ''
+              }).name
               : (explicitLocal || (vUpper.startsWith('VIS-ORD-') ? (isExistingLocal ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExistingLocal ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
 
             // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง
@@ -938,7 +1063,7 @@
                 const dCode = String(d.emp_code || d.id || '').toLowerCase();
                 const cLow = String(clinicDocFromVisitsLocal).toLowerCase();
                 return (dName && (cLow.includes(dName) || dName.includes(cLow))) ||
-                       (dCode && (cLow.includes(dCode) || dCode === cLow));
+                  (dCode && (cLow.includes(dCode) || dCode === cLow));
               });
               if (foundDoc) {
                 matchedLocalDocStr = `${foundDoc.emp_code || foundDoc.id} - ${foundDoc.name || foundDoc.full_name}`;
@@ -998,10 +1123,14 @@
                   items_json: JSON.stringify(normalizedItems)
                 };
                 if (typeof window.supabaseInsert === 'function') {
-                  await window.supabaseInsert('stk_nutrient_orders', upsertPayload);
+                  window._stkSyncedLocalVisits = window._stkSyncedLocalVisits || new Set();
+                  if (!window._stkSyncedLocalVisits.has(vUpper) && localEntry.status !== 'ขายสำเร็จแล้ว' && localEntry.status !== 'บิลถูกยกเลิก') {
+                    window._stkSyncedLocalVisits.add(vUpper);
+                    window.supabaseInsert('stk_nutrient_orders', upsertPayload).catch(() => { });
+                  }
                 }
                 dbVisitSet.add(vUpper);
-              } catch(syncErr) {
+              } catch (syncErr) {
                 console.warn('Sync to Supabase failed:', syncErr);
               }
               localList.push(localEntry);
@@ -1030,15 +1159,21 @@
           }
         });
 
-        setOrders(Array.from(visitMap.values()));
+        const finalOrdersList = Array.from(visitMap.values());
+        setOrders(finalOrdersList);
+        try {
+          sessionStorage.setItem('stk_nutrient_orders_view_cache', JSON.stringify(finalOrdersList));
+        } catch (e) { }
         setLoading(false);
       };
 
       useEffect(() => {
-        fetchOrders(true, true);
+        fetchOrders(true, false);
         const handleStorageChange = (e) => {
           if (!e || !e.key || e.key === 'stk_nutrient_orders' || e.key === 'clinic_mlm_orders' || e.key === 'stk_refresh_trigger') {
-            fetchOrders(false, true);
+            if (typeof document !== 'undefined' && !document.hidden) {
+              fetchOrders(false, false);
+            }
           }
         };
         window.addEventListener('storage', handleStorageChange);
@@ -1050,7 +1185,7 @@
             bc.onmessage = (msg) => {
               if (msg && msg.data) fetchOrders(false, true);
             };
-          } catch(ex) {}
+          } catch (ex) { }
         }
 
         // ปรับการดึงซ้ำสำรองเป็น 60 วินาที และหยุดดึงเมื่อแท็บถูกซ่อน (document.hidden) หรือออกจากระบบ เพื่อประหยัด Egress
@@ -1063,7 +1198,9 @@
         const handleVisibilityChange = () => {
           if (!localStorage.getItem('stk_current_user')) return;
           if (typeof document !== 'undefined' && !document.hidden) {
-            fetchOrders(false, true);
+            if (typeof document !== 'undefined' && !document.hidden) {
+              fetchOrders(false, false);
+            }
           }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -1080,7 +1217,7 @@
       const filteredOrders = useMemo(() => {
         return orders.filter(ord => {
           const search = searchTerm.trim().toLowerCase();
-          const matchSearch = !search || 
+          const matchSearch = !search ||
             (ord.visit_id && ord.visit_id.toLowerCase().includes(search)) ||
             (ord.hn && ord.hn.toLowerCase().includes(search)) ||
             (ord.customer_name && ord.customer_name.toLowerCase().includes(search)) ||
@@ -1107,7 +1244,7 @@
         try {
           localStorage.setItem('stk_pending_nutrient_count', String(count));
           window.dispatchEvent(new CustomEvent('stk_nutrient_count_update', { detail: { count } }));
-        } catch(e) {}
+        } catch (e) { }
       }, [orders]);
 
       const completedOrders = useMemo(() => {
@@ -1131,12 +1268,12 @@
               const pName = (item.name || '').trim();
               if (!pName) continue;
               let currentStock = null;
-              
+
               // 1. ค้นหาใน stk_products
               let pData = null;
               try {
                 pData = await window.supabaseSelect('stk_products', `name=eq.${encodeURIComponent(pName)}&select=current_stock`);
-              } catch (e) {}
+              } catch (e) { }
 
               if (pData && pData.length > 0) {
                 currentStock = parseInt(pData[0].current_stock) || 0;
@@ -1185,10 +1322,10 @@
 
         const closerInfo = resolveOrderCloserInfo(order);
         const normCustType = (typeof window.resolveVisitCustomerType === 'function')
-            ? window.resolveVisitCustomerType(order.visit_id, isExistingCustomer, effectiveOrderType, currentLang)
-            : ((typeof window.normalizeCustomerType === 'function')
-                ? window.normalizeCustomerType(effectiveOrderType)
-                : { id: 'T001', name: effectiveOrderType || 'ลูกค้าใหม่มาตรวจ', display: effectiveOrderType || 'ลูกค้าใหม่มาตรวจ', isOld: isExistingCustomer, lo: 'ລູກຄ້າໃໝ່ມາກວດ', th: 'ลูกค้าใหม่มาตรวจ', en: 'New Customer - Clinic Visit' });
+          ? window.resolveVisitCustomerType(order.visit_id, isExistingCustomer, effectiveOrderType, currentLang)
+          : ((typeof window.normalizeCustomerType === 'function')
+            ? window.normalizeCustomerType(effectiveOrderType)
+            : { id: 'T001', name: effectiveOrderType || 'ลูกค้าใหม่มาตรวจ', display: effectiveOrderType || 'ลูกค้าใหม่มาตรวจ', isOld: isExistingCustomer, lo: 'ລູກຄ້າໃໝ່ມາກວດ', th: 'ลูกค้าใหม่มาตรวจ', en: 'New Customer - Clinic Visit' });
         const custTypeDisplay = normCustType.display;
         const isOldCustomer = normCustType.isOld;
 
@@ -1232,15 +1369,26 @@
           prevSellerFromSales = hnCand.map(c => window.salesSellerByHn.get(c)).find(Boolean) || '';
         }
 
-        // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง เมื่อแพทย์หมอหรือแอดมินเป็นคนสั่งจ่ายมาเอง
-        let rawSellerCandidate = clinicMatch || prevSellerFromSales || '';
         const existingRecStr = String(order.recorded_by || '').trim();
-        if (!rawSellerCandidate && existingRecStr && existingRecStr !== '-' && existingRecStr !== '--' && !isMemberAdmin(existingRecStr)) {
-          rawSellerCandidate = existingRecStr;
-        }
+
+        let rawSellerCandidate = (existingRecStr && existingRecStr !== '-' && existingRecStr !== '--' && !isMemberAdmin(existingRecStr))
+          ? existingRecStr
+          : (clinicMatch || prevSellerFromSales || '');
+
+
+
         let rawDoctorCandidate = String(closerInfo.closerName || order.closer_dr || order.closer || '').trim();
 
-        const isSellerCandidateDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+        const isCandidateMarketingMember = (membersList || []).some(m => {
+          if (!m || isMemberAdmin(m)) return false;
+          const mId = String(m.user_id || m.id || '').trim().toUpperCase();
+          const mName = String(m.name || '').trim().toUpperCase();
+          const sUp = String(rawSellerCandidate || '').trim().toUpperCase();
+          return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
+                 (mName && (sUp === mName || sUp.includes(mName)));
+        });
+
+        const isSellerCandidateDoc = (!isCandidateMarketingMember && typeof window.isClinicDoctorIdentifier === 'function')
           ? window.isClinicDoctorIdentifier(rawSellerCandidate, doctorsList)
           : false;
         const isDoctorCandidateDoc = (typeof window.isClinicDoctorIdentifier === 'function')
@@ -1269,7 +1417,7 @@
               const dCode = String(d.emp_code || d.id || '').toLowerCase();
               const cLow = String(clinicDocFromVisitsModal).toLowerCase();
               return (dName && (cLow.includes(dName) || dName.includes(cLow))) ||
-                     (dCode && (cLow.includes(dCode) || dCode === cLow));
+                (dCode && (cLow.includes(dCode) || dCode === cLow));
             });
             if (foundDocModal) {
               rawDoctorCandidate = foundDocModal.full_name || foundDocModal.name;
@@ -1290,22 +1438,22 @@
         const sellerOptionsHtml = (membersList || [])
           .filter(m => !isMemberAdmin(m)) // 🛡️ คัดกรองบัญชีแอดมินออก เพื่อป้องกันการระบุผิดพลาด 100%
           .map(m => {
-          const mId = m.user_id || m.id;
-          const val = `${mId} - ${m.name}`;
-          const isSelected = currentSellerStr && (
-            currentSellerStr.toUpperCase() === val.toUpperCase() ||
-            currentSellerStr.toUpperCase() === String(mId).toUpperCase() ||
-            currentSellerStr.toUpperCase().startsWith(String(mId).toUpperCase()) ||
-            val.toUpperCase().startsWith(currentSellerStr.toUpperCase())
-          );
-          if (isSelected) sellerFoundInList = true;
-          return `<option value="${val}" ${isSelected ? 'selected' : ''}>👤 ${val}</option>`;
-        }).join('');
+            const mId = m.user_id || m.id;
+            const val = `${mId} - ${m.name}`;
+            const isSelected = currentSellerStr && (
+              currentSellerStr.toUpperCase() === val.toUpperCase() ||
+              currentSellerStr.toUpperCase() === String(mId).toUpperCase() ||
+              currentSellerStr.toUpperCase().startsWith(String(mId).toUpperCase()) ||
+              val.toUpperCase().startsWith(currentSellerStr.toUpperCase())
+            );
+            if (isSelected) sellerFoundInList = true;
+            return `<option value="${val}" ${isSelected ? 'selected' : ''}>👤 ${val}</option>`;
+          }).join('');
 
         let fullSellerSelectHtml = '';
         if (sellerFoundInList) {
           fullSellerSelectHtml = sellerOptionsHtml;
-        } else if (currentSellerStr && currentSellerStr !== '-' && currentSellerStr !== '--' && !isSellerCandidateDoc) {
+        } else if (currentSellerStr && currentSellerStr !== '-' && currentSellerStr !== '--' && !isMemberAdmin(currentSellerStr)) {
           fullSellerSelectHtml = `<option value="${currentSellerStr}" selected>👤 ${currentSellerStr} (จากใบสั่งยาคลินิก)</option>` + sellerOptionsHtml;
         } else {
           fullSellerSelectHtml = `<option value="" disabled selected>⚠️ กรุณาเลือกผู้แนะนำ / การตลาด</option>` + sellerOptionsHtml;
@@ -1397,18 +1545,18 @@
               <p class="font-bold text-slate-700">รายการยา:</p>
               <ul class="list-disc pl-5 text-[11px] text-slate-600 space-y-1">
   ${(order.items || []).map(i => {
-      const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
-      const qty = Number(i.qty || 1);
-      return `<li>${i.name} (${getItemTypeLabel(i)}) x ${qty} = ${(price * qty).toLocaleString()} ฿</li>`;
-  }).join('')}
+            const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
+            const qty = Number(i.qty || 1);
+            return `<li>${i.name} (${getItemTypeLabel(i)}) x ${qty} = ${(price * qty).toLocaleString()} ฿</li>`;
+          }).join('')}
 </ul>
 <div class="mt-3 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex justify-between items-center font-bold text-emerald-800">
   <span>ราคารวมทั้งหมด:</span>
   <span>${(order.items || []).reduce((s, i) => {
-      const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
-      const qty = Number(i.qty || 1);
-      return s + (price * qty);
-  }, 0).toLocaleString()} ฿</span>
+            const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
+            const qty = Number(i.qty || 1);
+            return s + (price * qty);
+          }, 0).toLocaleString()} ฿</span>
 </div>
           `,
           icon: 'question',
@@ -1478,7 +1626,7 @@
                   }
                 });
               }
-            } catch (err) {}
+            } catch (err) { }
           },
           preConfirm: () => {
             const selectType = document.getElementById('swal-select-customer-type');
@@ -1541,12 +1689,21 @@
               ? window.normalizeCustomerType(selectedCustTypeName)
               : { id: normCustType.id, name: selectedCustTypeName, lo: selectedCustTypeName, th: selectedCustTypeName, en: selectedCustTypeName };
 
-            // 🛡️ ป้องกันชื่อหมอหลุดเข้าไปใน recorded_by (ผู้แนะนำการตลาด)
+            // 🛡️ ป้องกันชื่อหมอที่ไม่ใช่สมาชิกการตลาดหลุดเข้าไปใน recorded_by (ผู้แนะนำการตลาด)
             let safeFinalSeller = selectedSeller;
-            if (typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(safeFinalSeller, doctorsList)) {
+            const isFinalSellerMarketingMember = (membersList || []).some(m => {
+              if (!m || isMemberAdmin(m)) return false;
+              const mId = String(m.user_id || m.id || '').trim().toUpperCase();
+              const mName = String(m.name || '').trim().toUpperCase();
+              const sUp = String(safeFinalSeller || '').trim().toUpperCase();
+              return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
+                     (mName && (sUp === mName || sUp.includes(mName)));
+            });
+
+            if (!isFinalSellerMarketingMember && typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(safeFinalSeller, doctorsList)) {
               safeFinalSeller = (clinicMatch && !window.isClinicDoctorIdentifier(clinicMatch, doctorsList)) ? clinicMatch : '-';
             }
-            const fallbackRecorded = (order.recorded_by && (typeof window.isClinicDoctorIdentifier !== 'function' || !window.isClinicDoctorIdentifier(order.recorded_by, doctorsList))) ? order.recorded_by : '-';
+            const fallbackRecorded = (order.recorded_by && !isMemberAdmin(order.recorded_by)) ? order.recorded_by : '-';
             const finalDraftRecorded = (safeFinalSeller && safeFinalSeller !== '-') ? safeFinalSeller : fallbackRecorded;
 
             // บันทึก override เก็บไว้ใน localStorage เพื่อไม่ให้เด้งกลับไปเป็นลูกค้าใหม่
@@ -1556,7 +1713,7 @@
               if (order.visit_id) currentOverrides[order.visit_id] = finalCustTypeObj.name;
               localStorage.setItem('stk_nutrient_custom_types', JSON.stringify(currentOverrides));
               setCustomTypeOverrides(currentOverrides);
-            } catch(e) {}
+            } catch (e) { }
 
             // 🚀 อัปเดตประเภทลูกค้าและผู้สั่งจ่ายลง stk_nutrient_orders ใน Supabase ทันที
             if (typeof window.supabaseUpdate === 'function' && order.visit_id && order.visit_id !== '-') {
@@ -1676,7 +1833,7 @@
                 if (id && !deletedList.includes(id)) deletedList.push(id);
               });
               localStorage.setItem('stk_deleted_nutrient_orders', JSON.stringify(deletedList));
-            } catch (e) {}
+            } catch (e) { }
 
             const newDeletedList = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
             const newDeletedSet = new Set();
@@ -1689,15 +1846,16 @@
 
             // ⚡ 2. อัปเดต React State ให้สถานะเปลี่ยนเป็นบิลยกเลิกทันที (0ms) เพื่อเด้งเข้าแท็บยกเลิก
             setOrders(prev => prev.map(o => {
-                if (isOrderDeleted(o, newDeletedSet)) {
-                    return { ...o, status: 'บิลถูกยกเลิก' };
-                }
-                return o;
+              if (isOrderDeleted(o, newDeletedSet)) {
+                return { ...o, status: 'บิลถูกยกเลิก' };
+              }
+              return o;
             }));
 
             // ⚡ 3. กวาดล้างแคช LocalStorage & SessionStorage ทันที
             try {
               sessionStorage.removeItem('stk_db_cache');
+              sessionStorage.removeItem('stk_nutrient_orders_view_cache');
               if (typeof window.top !== 'undefined') window.top.stkDbCache = {};
 
               const keysToClean = ['stk_nutrient_orders', 'clinic_mlm_orders', 'clinic_orders', 'rx_orders'];
@@ -1710,7 +1868,7 @@
                       const updated = list.filter(o => !isOrderDeleted(o, newDeletedSet));
                       localStorage.setItem(key, JSON.stringify(updated));
                     }
-                  } catch(e) {}
+                  } catch (e) { }
                 }
               });
 
@@ -1721,11 +1879,11 @@
                   if (isOrderDeleted(pendingSale, newDeletedSet)) {
                     localStorage.removeItem('stk_pending_sale');
                   }
-                } catch(e) {}
+                } catch (e) { }
               }
 
               localStorage.setItem('stk_refresh_trigger', Date.now().toString());
-            } catch (ex) {}
+            } catch (ex) { }
 
             // Broadcast refresh
             if (typeof BroadcastChannel !== 'undefined') {
@@ -1733,7 +1891,7 @@
                 const bc = new BroadcastChannel('stk_mlm_channel');
                 bc.postMessage({ action: 'delete_order', visit_id: order.visit_id, order_id: order.id });
                 bc.close();
-              } catch(e) {}
+              } catch (e) { }
             }
 
             // แสดงแจ้งเตือนลบสำเร็จทันที
@@ -1784,10 +1942,10 @@
                     executedSet.add(key);
 
                     if (typeof window.supabaseDelete === 'function') {
-                      promises.push(window.supabaseDelete('stk_nutrient_orders', req.val, req.pk).catch(() => {}));
+                      promises.push(window.supabaseDelete('stk_nutrient_orders', req.val, req.pk).catch(() => { }));
                     }
                     if (typeof window.supabaseUpdate === 'function') {
-                      promises.push(window.supabaseUpdate('stk_nutrient_orders', req.val, { status: 'บิลถูกยกเลิก' }, req.pk).catch(() => {}));
+                      promises.push(window.supabaseUpdate('stk_nutrient_orders', req.val, { status: 'บิลถูกยกเลิก' }, req.pk).catch(() => { }));
                     }
                   }
                 }
@@ -1802,267 +1960,267 @@
       };
 
       return (
-      <div className="w-full flex-1 flex flex-col">
-        {/* Header Bar */}
-        <div className="bg-white border-b border-slate-200 px-6 py-5 shadow-xs">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 w-full">
-            <div className="flex flex-wrap items-center gap-4">
-              <div>
-                <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
-                  <span className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                    <PillIcon size={26} />
+        <div className="w-full flex-1 flex flex-col">
+          {/* Header Bar */}
+          <div className="bg-white border-b border-slate-200 px-6 py-5 shadow-xs">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 w-full">
+              <div className="flex flex-wrap items-center gap-4">
+                <div>
+                  <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+                    <span className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                      <PillIcon size={26} />
+                    </span>
+                    สั่งจ่ายยา
+                  </h1>
+                  <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                    รายการคำสั่งจ่ายยาเสริมจากระบบคลินิก (Clinic System Integration)
+                  </p>
+                </div>
+
+                {/* Search Box */}
+                <div className="relative min-w-[220px] self-center">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <SearchIcon size={18} />
                   </span>
-                  สั่งจ่ายยา
-                </h1>
-                <p className="text-[11px] font-semibold text-slate-500 mt-1">
-                  รายการคำสั่งจ่ายยาเสริมจากระบบคลินิก (Clinic System Integration)
-                </p>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="ค้นหารายการ..."
+                    className="pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full shadow-xs"
+                  />
+                </div>
               </div>
 
-              {/* Search Box */}
-              <div className="relative min-w-[220px] self-center">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <SearchIcon size={18} />
-                </span>
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="ค้นหารายการ..."
-                  className="pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full shadow-xs"
-                />
+              {/* Filtering Controls */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs gap-1">
+                  <button onClick={() => setFilterPeriod('today')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'today' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>วันนี้</button>
+                  <button onClick={() => setFilterPeriod('month')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'month' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>เดือนนี้</button>
+                  <button onClick={() => setFilterPeriod('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'all' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>ทั้งหมด</button>
+                </div>
+
+                <div className="flex items-center bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-xs gap-2">
+                  <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">ช่วงเวลาตามสาย:</span>
+                  <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setQuickFilter('custom'); }} className="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none" />
+                  <span className="text-slate-400 text-[11px]">-</span>
+                  <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setQuickFilter('custom'); }} className="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none" />
+                </div>
+
+                <button onClick={fetchOrders} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold transition-colors border border-slate-200 shadow-xs cursor-pointer" title="รีเฟรชข้อมูล">
+                  <RefreshCw size={16} />
+                  <span>รีเฟรช</span>
+                </button>
               </div>
             </div>
 
-            {/* Filtering Controls */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs gap-1">
-                <button onClick={() => setFilterPeriod('today')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'today' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>วันนี้</button>
-                <button onClick={() => setFilterPeriod('month')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'month' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>เดือนนี้</button>
-                <button onClick={() => setFilterPeriod('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'all' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>ทั้งหมด</button>
+            {/* Main Table Content - TABS */}
+            <div className="flex-1 w-full p-4 sm:p-6">
+              <div className="flex border-b border-slate-200 mb-6 gap-2 sm:gap-6 overflow-x-auto custom-scrollbar">
+                <button onClick={() => setActiveTab('pending')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'pending' ? 'text-amber-600 border-amber-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>รอดำเนินการ <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{pendingOrders.length}</span>
+                </button>
+                <button onClick={() => setActiveTab('completed')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'completed' ? 'text-emerald-600 border-emerald-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>สำเร็จแล้ว <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{completedOrders.length}</span>
+                </button>
+                <button onClick={() => setActiveTab('canceled')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'canceled' ? 'text-rose-600 border-rose-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>บิลถูกยกเลิก <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'canceled' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>{canceledOrders.length}</span>
+                </button>
               </div>
 
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-xs gap-2">
-                <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">ช่วงเวลาตามสาย:</span>
-                <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setQuickFilter('custom'); }} className="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none" />
-                <span className="text-slate-400 text-[11px]">-</span>
-                <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setQuickFilter('custom'); }} className="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none" />
-              </div>
-
-              <button onClick={fetchOrders} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold transition-colors border border-slate-200 shadow-xs cursor-pointer" title="รีเฟรชข้อมูล">
-                <RefreshCw size={16} />
-                <span>รีเฟรช</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Main Table Content - TABS */}
-          <div className="flex-1 w-full p-4 sm:p-6">
-            <div className="flex border-b border-slate-200 mb-6 gap-2 sm:gap-6 overflow-x-auto custom-scrollbar">
-              <button onClick={() => setActiveTab('pending')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'pending' ? 'text-amber-600 border-amber-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>รอดำเนินการ <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{pendingOrders.length}</span>
-              </button>
-              <button onClick={() => setActiveTab('completed')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'completed' ? 'text-emerald-600 border-emerald-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>สำเร็จแล้ว <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{completedOrders.length}</span>
-              </button>
-              <button onClick={() => setActiveTab('canceled')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'canceled' ? 'text-rose-600 border-rose-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>บิลถูกยกเลิก <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'canceled' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>{canceledOrders.length}</span>
-              </button>
-            </div>
-
-            {/* Table Area */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-700">
-                      <th className="py-3 px-3 border-r border-slate-200/60">รหัส VISIT</th>
-                      <th className="py-3 px-3 border-r border-slate-200/60">HN</th>
-                      <th className="py-3 px-3 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
-                      <th className="py-3 px-3 border-r border-slate-200/60">โรค/อาการ</th>
-                      <th className="py-3 px-3 border-r border-slate-200/60">ผู้แนะนำ</th>
-                      <th className="py-3 px-3 border-r border-slate-200/60">ผู้สั่งจ่าย / ผู้ปิดบิล</th>
-                      <th className="py-3 px-3 border-r border-slate-200/60 w-[35%]">รายการจัดสั่งจ่ายยา / จำนวน</th>
-                      <th className="py-3 px-3 text-center">{activeTab === 'pending' ? 'ดำเนินการ' : 'สถานะการขาย'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 text-[11px] font-medium text-slate-800">
-                    {loading ? (
-                      <tr>
-                        <td colSpan="8" className="py-12 text-center text-slate-400 font-semibold">
-                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
-                          <p>กำลังดึงข้อมูลจากระบบ...</p>
-                        </td>
+              {/* Table Area */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-700">
+                        <th className="py-3 px-3 border-r border-slate-200/60">รหัส VISIT</th>
+                        <th className="py-3 px-3 border-r border-slate-200/60">HN</th>
+                        <th className="py-3 px-3 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
+                        <th className="py-3 px-3 border-r border-slate-200/60">โรค/อาการ</th>
+                        <th className="py-3 px-3 border-r border-slate-200/60">ผู้แนะนำ</th>
+                        <th className="py-3 px-3 border-r border-slate-200/60">ผู้สั่งจ่าย / ผู้ปิดบิล</th>
+                        <th className="py-3 px-3 border-r border-slate-200/60 w-[35%]">รายการจัดสั่งจ่ายยา / จำนวน</th>
+                        <th className="py-3 px-3 text-center">{activeTab === 'pending' ? 'ดำเนินการ' : 'สถานะการขาย'}</th>
                       </tr>
-                    ) : (() => {
-                      const displayData = activeTab === 'pending' ? pendingOrders : activeTab === 'completed' ? completedOrders : canceledOrders;
-                      if (displayData.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan="8" className="py-16 text-center text-slate-400 font-semibold">
-                              <div className="flex flex-col items-center justify-center gap-2">
-                                <div className="p-3 bg-slate-100 text-slate-400 rounded-full mb-1"><InboxIcon size={36} /></div>
-                                <p className="text-sm font-bold text-slate-600">{activeTab === 'pending' ? 'ไม่มีรายการรอดำเนินการ' : activeTab === 'completed' ? 'ยังไม่มีประวัติการทำรายการสำเร็จ' : 'ไม่มีประวัติบิลถูกยกเลิก'}</p>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      }
-                      return displayData.map((ord, index) => (
-                        <tr key={ord.id || index} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-2 px-3 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
-                            <div>{ord.visit_id}</div>
-                            {ord.date && (
-                              <div className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
-                                <ClockIcon size={11} />
-                                <span>{formatOrderDateTime(ord.date)}</span>
-                              </div>
-                            )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-[11px] font-medium text-slate-800">
+                      {loading ? (
+                        <tr>
+                          <td colSpan="8" className="py-12 text-center text-slate-400 font-semibold">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
+                            <p>กำลังดึงข้อมูลจากระบบ...</p>
                           </td>
-                          <td className="py-2 px-3 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">{ord.hn}</td>
-                          <td className="py-2 px-3 font-bold text-slate-900 align-middle border-r border-slate-100 ">
-                            <div>{ord.customer_name}</div>
-                            {ord.phone && ord.phone !== '-' && ord.phone !== '--' && (
-                              <div className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
-                                <PhoneIcon size={11} />
-                                <span>{ord.phone}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1 mt-1 flex-wrap">
-                              {(() => {
-                                const currentEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
-                                const normType = (typeof window.normalizeCustomerType === 'function' && currentEffectiveType)
-                                  ? window.normalizeCustomerType(currentEffectiveType, currentLang, {
+                        </tr>
+                      ) : (() => {
+                        const displayData = activeTab === 'pending' ? pendingOrders : activeTab === 'completed' ? completedOrders : canceledOrders;
+                        if (displayData.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="8" className="py-16 text-center text-slate-400 font-semibold">
+                                <div className="flex flex-col items-center justify-center gap-2">
+                                  <div className="p-3 bg-slate-100 text-slate-400 rounded-full mb-1"><InboxIcon size={36} /></div>
+                                  <p className="text-sm font-bold text-slate-600">{activeTab === 'pending' ? 'ไม่มีรายการรอดำเนินการ' : activeTab === 'completed' ? 'ยังไม่มีประวัติการทำรายการสำเร็จ' : 'ไม่มีประวัติบิลถูกยกเลิก'}</p>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        return displayData.map((ord, index) => (
+                          <tr key={ord.id || index} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-2 px-3 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
+                              <div>{ord.visit_id}</div>
+                              {ord.date && (
+                                <div className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
+                                  <ClockIcon size={11} />
+                                  <span>{formatOrderDateTime(ord.date)}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">{ord.hn}</td>
+                            <td className="py-2 px-3 font-bold text-slate-900 align-middle border-r border-slate-100 ">
+                              <div>{ord.customer_name}</div>
+                              {ord.phone && ord.phone !== '-' && ord.phone !== '--' && (
+                                <div className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                  <PhoneIcon size={11} />
+                                  <span>{ord.phone}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                {(() => {
+                                  const currentEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
+                                  const normType = (typeof window.normalizeCustomerType === 'function' && currentEffectiveType)
+                                    ? window.normalizeCustomerType(currentEffectiveType, currentLang, {
                                       disease: ord.disease,
                                       symptom: ord.disease,
                                       customer_name: ord.customer_name,
                                       hn: ord.hn
                                     })
-                                  : { name: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', display: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', isOld: false };
-                                
+                                    : { name: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', display: currentEffectiveType || 'ลูกค้าใหม่มาตรวจ', isOld: false };
+
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCreateDraftOrder({ ...ord, customer_type: normType.name });
+                                      }}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black cursor-pointer hover:opacity-80 transition-all ${normType.isOld ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200'}`}
+                                      title="คลิกเพื่อตรวจสอบหรือเปลี่ยนประเภทลูกค้า"
+                                    >
+                                      🏷️ {normType.display}
+                                      <span className="text-[8px] opacity-60">✏️</span>
+                                    </button>
+                                  );
+                                })()}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-slate-700 align-middle border-r border-slate-100">
+                              <div className="font-semibold text-slate-800 text-[11px] max-w-[140px] truncate" title={ord.disease && ord.disease !== '-' ? ord.disease : (ord.symptom && ord.symptom !== '-' ? ord.symptom : '-')}>
+                                {ord.disease && ord.disease !== '-' ? ord.disease : (ord.symptom && ord.symptom !== '-' ? ord.symptom : '-')}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 font-bold text-slate-700 align-middle border-r border-slate-100 ">
+                              {(() => {
+                                const recStr = String(ord.recorded_by || '').trim();
+                                if (!recStr || recStr === '-' || recStr === '--') return '-';
+                                if (isMemberAdmin(recStr)) return '-';
+                                return recStr;
+                              })()}
+                            </td>
+                            <td className="py-2 px-3 align-middle border-r border-slate-100 ">
+                              {(() => {
+                                const cInfo = resolveOrderCloserInfo(ord);
                                 return (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleCreateDraftOrder({ ...ord, customer_type: normType.name });
-                                    }}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black cursor-pointer hover:opacity-80 transition-all ${normType.isOld ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200'}`}
-                                    title="คลิกเพื่อตรวจสอบหรือเปลี่ยนประเภทลูกค้า"
-                                  >
-                                    🏷️ {normType.display}
-                                    <span className="text-[8px] opacity-60">✏️</span>
-                                  </button>
+                                  <div className="space-y-1">
+                                    <div className="font-bold text-slate-800 text-[11px]">{cInfo.closerName}</div>
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black ${cInfo.badgeClass || (cInfo.closerTeam === 'Center' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200')}`}>
+                                      {cInfo.badgeText || (cInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิด (Center)' : '👤 สั่งเอง (Marketing)')}
+                                    </span>
+                                  </div>
                                 );
                               })()}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3 text-slate-700 align-middle border-r border-slate-100">
-                            <div className="font-semibold text-slate-800 text-[11px] max-w-[140px] truncate" title={ord.disease && ord.disease !== '-' ? ord.disease : (ord.symptom && ord.symptom !== '-' ? ord.symptom : '-')}>
-                              {ord.disease && ord.disease !== '-' ? ord.disease : (ord.symptom && ord.symptom !== '-' ? ord.symptom : '-')}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3 font-bold text-slate-700 align-middle border-r border-slate-100 ">
-                            {(() => {
-                              const recStr = String(ord.recorded_by || '').trim();
-                              if (!recStr || recStr === '-' || recStr === '--') return '-';
-                              if (typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(recStr, clinicDoctors)) return '-';
-                              return recStr;
-                            })()}
-                          </td>
-                          <td className="py-2 px-3 align-middle border-r border-slate-100 ">
-                            {(() => {
-                              const cInfo = resolveOrderCloserInfo(ord);
-                              return (
-                                <div className="space-y-1">
-                                  <div className="font-bold text-slate-800 text-[11px]">{cInfo.closerName}</div>
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black ${cInfo.badgeClass || (cInfo.closerTeam === 'Center' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200')}`}>
-                                    {cInfo.badgeText || (cInfo.orderByType === 'หมอสั่งจ่าย' ? '🩺 หมอปิด (Center)' : '👤 สั่งเอง (Marketing)')}
-                                  </span>
-                                </div>
-                              );
-                            })()}
-                          </td>
-                          <td className="p-3 align-middle border-r border-slate-100">
-                            <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
-                              <table className="w-full text-left border-collapse">
-                                <thead>
-                                  <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-700">
-                                    <th className="py-1.5 px-2 border-r border-slate-200/60">ชื่อยา/อาหารเสริม</th>
-                                    <th className="py-1.5 px-2 text-center border-r border-slate-200/60">ประเภท</th>
-                                    <th className="py-1.5 px-2 text-center border-r border-slate-200/60">จำนวน</th>
-                                    <th className="py-1.5 px-2 text-right border-r border-slate-200/60">ราคา</th>
-                                    <th className="py-1.5 px-2 text-right">รวมราคา</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 text-[11px] font-semibold text-slate-700">
-                                  {ord.items && ord.items.map((item, idx) => {
-                                    const unitPrice = (item.price !== undefined && item.price !== null && item.price !== '') ? Number(item.price) : 1300;
-                                    const qty = Number(item.qty || 1);
-                                    const subtotal = (item.total !== undefined && item.total !== null && item.total !== '') ? Number(item.total) : (unitPrice * qty);
-                                    const itemSource = item.source || 'คลังยา';
-                                    const priceTypeBadge = getItemTypeLabel(item);
-                                    return (
-                                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="py-1.5 px-2 border-r border-slate-100 align-middle">
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-800">{item.name}</span>
-                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{itemSource}</span>
-                                          </div>
-                                        </td>
-                                        <td className="py-1.5 px-2 text-center border-r border-slate-100 align-middle">
-                                          <span className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold shadow-2xs ${priceTypeBadge === 'ราคาส่ง/สมาชิก' ? 'bg-amber-100 text-amber-800 border border-amber-200' : priceTypeBadge === 'ราคาโปร' ? 'bg-purple-100 text-purple-800 border border-purple-200' : priceTypeBadge === 'แถมฟรี' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>{priceTypeBadge}</span>
-                                        </td>
-                                        <td className="py-1.5 px-2 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">{qty}</td>
-                                        <td className="py-1.5 px-2 text-right text-slate-600 border-r border-slate-100 align-middle">{unitPrice.toLocaleString()}</td>
-                                        <td className="py-1.5 px-2 text-right font-bold text-slate-900 align-middle">{subtotal.toLocaleString()}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-center align-middle whitespace-nowrap">
-                            {activeTab === 'pending' ? (
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button onClick={() => handleCreateDraftOrder(ord)} className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] shadow-xs shadow-emerald-200 transition-all transform active:scale-95 cursor-pointer" title="สร้างร่างใบสั่งซื้อ"><CheckCircle size={14} />ร่างใบสั่งซื้อ</button>
-                                <button onClick={() => handleDeleteOrder(ord)} className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 font-bold rounded-xl text-[11px] shadow-2xs transition-all transform active:scale-95 cursor-pointer" title="ลบรายการนี้"><Trash2 size={14} />ลบ</button>
+                            </td>
+                            <td className="p-3 align-middle border-r border-slate-100">
+                              <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
+                                <table className="w-full text-left border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-700">
+                                      <th className="py-1.5 px-2 border-r border-slate-200/60">ชื่อยา/อาหารเสริม</th>
+                                      <th className="py-1.5 px-2 text-center border-r border-slate-200/60">ประเภท</th>
+                                      <th className="py-1.5 px-2 text-center border-r border-slate-200/60">จำนวน</th>
+                                      <th className="py-1.5 px-2 text-right border-r border-slate-200/60">ราคา</th>
+                                      <th className="py-1.5 px-2 text-right">รวมราคา</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 text-[11px] font-semibold text-slate-700">
+                                    {ord.items && ord.items.map((item, idx) => {
+                                      const unitPrice = (item.price !== undefined && item.price !== null && item.price !== '') ? Number(item.price) : 1300;
+                                      const qty = Number(item.qty || 1);
+                                      const subtotal = (item.total !== undefined && item.total !== null && item.total !== '') ? Number(item.total) : (unitPrice * qty);
+                                      const itemSource = item.source || 'คลังยา';
+                                      const priceTypeBadge = getItemTypeLabel(item);
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                          <td className="py-1.5 px-2 border-r border-slate-100 align-middle">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-bold text-slate-800">{item.name}</span>
+                                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{itemSource}</span>
+                                            </div>
+                                          </td>
+                                          <td className="py-1.5 px-2 text-center border-r border-slate-100 align-middle">
+                                            <span className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold shadow-2xs ${priceTypeBadge === 'ราคาส่ง/สมาชิก' ? 'bg-amber-100 text-amber-800 border border-amber-200' : priceTypeBadge === 'ราคาโปร' ? 'bg-purple-100 text-purple-800 border border-purple-200' : priceTypeBadge === 'แถมฟรี' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>{priceTypeBadge}</span>
+                                          </td>
+                                          <td className="py-1.5 px-2 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">{qty}</td>
+                                          <td className="py-1.5 px-2 text-right text-slate-600 border-r border-slate-100 align-middle">{unitPrice.toLocaleString()}</td>
+                                          <td className="py-1.5 px-2 text-right font-bold text-slate-900 align-middle">{subtotal.toLocaleString()}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
                               </div>
-                            ) : (
-                              <span className="inline-flex flex-col items-center gap-1.5">
-                                {ord.status === 'บิลถูกยกเลิก' ? <span className="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-xl text-[11px] border border-rose-200 shadow-xs">บิลถูกยกเลิก</span> : <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-[11px] border border-emerald-200 shadow-xs">ขายสำเร็จแล้ว</span>}
-                                {ord.sale_order_id && <a href={window.resolvePageUrl ? window.resolvePageUrl(`Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`) : `Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`} className="text-[10px] text-blue-600 font-bold hover:underline" title="กดเพื่อดูประวัติการขายบิลนี้">บิลเลขที่: {ord.sale_order_id}</a>}
-                                {(() => {
-                                  if (!window.salesOrderBottlesMap) return null;
-                                  const prescribedBottles = (ord.items || []).reduce((sum, it) => sum + (parseInt(it.qty) || 1), 0);
-                                  const vK = ord.visit_id ? String(ord.visit_id).trim().toUpperCase() : '';
-                                  const sK = ord.sale_order_id ? String(ord.sale_order_id).trim().toUpperCase() : '';
-                                  const soldBottles = (sK && window.salesOrderBottlesMap.has(sK)) ? window.salesOrderBottlesMap.get(sK) : (vK && window.salesOrderBottlesMap.has(vK) ? window.salesOrderBottlesMap.get(vK) : null);
-                                  if (soldBottles !== null && soldBottles > 0 && prescribedBottles > 0 && soldBottles !== prescribedBottles) {
-                                    return (
-                                      <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 font-bold rounded-md text-[9px] shadow-2xs mt-0.5 text-center" title={`สั่งจ่าย: ${prescribedBottles} กล่อง / บิลขาย: ${soldBottles} กล่อง`}>
-                                        ⚠️ จำนวนต่างกัน (บิล {soldBottles} / สั่ง {prescribedBottles} กล่อง)
-                                      </span>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ));
-                    })()}
-                  </tbody>
-                </table>
+                            </td>
+                            <td className="py-3 px-3 text-center align-middle whitespace-nowrap">
+                              {activeTab === 'pending' ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button onClick={() => handleCreateDraftOrder(ord)} className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] shadow-xs shadow-emerald-200 transition-all transform active:scale-95 cursor-pointer" title="สร้างร่างใบสั่งซื้อ"><CheckCircle size={14} />ร่างใบสั่งซื้อ</button>
+                                  <button onClick={() => handleDeleteOrder(ord)} className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 font-bold rounded-xl text-[11px] shadow-2xs transition-all transform active:scale-95 cursor-pointer" title="ลบรายการนี้"><Trash2 size={14} />ลบ</button>
+                                </div>
+                              ) : (
+                                <span className="inline-flex flex-col items-center gap-1.5">
+                                  {ord.status === 'บิลถูกยกเลิก' ? <span className="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-xl text-[11px] border border-rose-200 shadow-xs">บิลถูกยกเลิก</span> : <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-[11px] border border-emerald-200 shadow-xs">ขายสำเร็จแล้ว</span>}
+                                  {ord.sale_order_id && <a href={window.resolvePageUrl ? window.resolvePageUrl(`Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`) : `Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`} className="text-[10px] text-blue-600 font-bold hover:underline" title="กดเพื่อดูประวัติการขายบิลนี้">บิลเลขที่: {ord.sale_order_id}</a>}
+                                  {(() => {
+                                    if (!window.salesOrderBottlesMap) return null;
+                                    const prescribedBottles = (ord.items || []).reduce((sum, it) => sum + (parseInt(it.qty) || 1), 0);
+                                    const vK = ord.visit_id ? String(ord.visit_id).trim().toUpperCase() : '';
+                                    const sK = ord.sale_order_id ? String(ord.sale_order_id).trim().toUpperCase() : '';
+                                    const soldBottles = (sK && window.salesOrderBottlesMap.has(sK)) ? window.salesOrderBottlesMap.get(sK) : (vK && window.salesOrderBottlesMap.has(vK) ? window.salesOrderBottlesMap.get(vK) : null);
+                                    if (soldBottles !== null && soldBottles > 0 && prescribedBottles > 0 && soldBottles !== prescribedBottles) {
+                                      return (
+                                        <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 font-bold rounded-md text-[9px] shadow-2xs mt-0.5 text-center" title={`สั่งจ่าย: ${prescribedBottles} กล่อง / บิลขาย: ${soldBottles} กล่อง`}>
+                                          ⚠️ จำนวนต่างกัน (บิล {soldBottles} / สั่ง {prescribedBottles} กล่อง)
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        </div>
-    );
-}
+      );
+    }
 
     // Root App Wrapper Component with Sidebar & Navigation
     function App() {
@@ -2073,17 +2231,17 @@
         try {
           const userStr = localStorage.getItem('stk_current_user') || localStorage.getItem('stk_user');
           if (userStr) return JSON.parse(userStr);
-        } catch(e) {}
+        } catch (e) { }
         return { name: 'Administrator', role: 'ผู้ดูแลระบบ' };
       });
       const [isLoggedIn, setIsLoggedIn] = useState(true);
       const [showLoginModal, setShowLoginModal] = useState(false);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-        try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
+        try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
       });
 
       const SCRIPT_URL = (() => {
-        try { if (window.top && window.top.location && window.top.location.href.startsWith('http')) return window.top.location.href.split('?')[0]; } catch(e){}
+        try { if (window.top && window.top.location && window.top.location.href.startsWith('http')) return window.top.location.href.split('?')[0]; } catch (e) { }
         return "";
       })();
 
@@ -2147,10 +2305,5 @@
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
+
 </html>
-
-
-
-
-
-

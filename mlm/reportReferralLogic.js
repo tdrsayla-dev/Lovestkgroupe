@@ -23,14 +23,21 @@
         const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
         const pNameLower = pName.toLowerCase();
 
-        const pObj = (it.id && prodMapObj[it.id]) || (it.product_id && prodMapObj[it.product_id]) || prodMapObj[pName] || prodMapObj[cleanPName] || {};
+        const pObj = (it.id && prodMapObj[it.id]) || (it.product_id && prodMapObj[it.product_id]) || (it.id && prodMapObj[safeUpper(it.id)]) || (it.product_id && prodMapObj[safeUpper(it.product_id)]) || prodMapObj[pName] || prodMapObj[cleanPName] || prodMapObj[safeUpper(pName)] || prodMapObj[safeUpper(cleanPName)] || {};
         const pFull = Number(pObj.price_full ?? pObj.priceFull ?? 0);
         const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
         const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
 
+        const isExplicitMemberText = pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ส่ง)') || pNameLower.includes('(ສະມາຊິກ)') || pNameLower.includes('(ສົ່ງ)') || pNameLower.includes('ວີໄອພີ') ||
+            typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ');
+
         // 1. ถ้าระบุราคามาตรงๆ
         if (rawPrice !== null) {
             if (rawPrice === 0) return 'ราคาศูนย์';
+            // กรณีสินค้ามีราคาโปรเท่ากับราคาสมาชิก (เช่น KUT-L ราคา 800 เท่ากัน) ให้ดูประเภทที่ระบุมาก่อน
+            if (pPromo > 0 && pMember > 0 && Math.abs(pPromo - pMember) < 0.01 && Math.abs(rawPrice - pMember) < 0.01) {
+                if (isExplicitMemberText) return 'ราคาสมาชิก';
+            }
             if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) return 'ราคาโปร';
             if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) return 'ราคาสมาชิก';
             if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) return 'ราคาเต็ม';
@@ -102,9 +109,12 @@
     }) {
         let items = [];
         const dateFilteredSales = (sales || []).filter(s => {
+            if (!s) return false;
+            const st = safeUpper(s.status || s.order_status || s.orderStatus || '');
+            if (st === 'ยกเลิก' || st === 'CANCELLED' || st === 'CANCELED' || st === 'VOID') return false;
             const rawD = String(s.date || s.sale_date || '').trim();
             const sDate = rawD.includes('T') ? rawD.split('T')[0] : (rawD.includes(' ') ? rawD.split(' ')[0] : rawD);
-            if (!s || (startDate && sDate < startDate) || (endDate && sDate > endDate)) return false;
+            if ((startDate && sDate < startDate) || (endDate && sDate > endDate)) return false;
             const sMemId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
             if (permittedMemberSet !== null) return permittedMemberSet.has(sMemId);
             return true;
@@ -127,10 +137,10 @@
         const cleanProdNameForMap = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
         const prodMap = {};
         (products || []).forEach(p => {
-            if (p.id) prodMap[p.id] = p;
-            if (p.product_id) prodMap[p.product_id] = p;
-            if (p.name) prodMap[p.name] = p;
-            if (p.name) prodMap[cleanProdNameForMap(p.name)] = p;
+            if (!p) return;
+            if (p.id) { prodMap[p.id] = p; prodMap[safeUpper(p.id)] = p; }
+            if (p.product_id) { prodMap[p.product_id] = p; prodMap[safeUpper(p.product_id)] = p; }
+            if (p.name) { prodMap[p.name] = p; prodMap[safeUpper(p.name)] = p; prodMap[cleanProdNameForMap(p.name)] = p; }
         });
 
         const teamCache = new Map();
@@ -548,15 +558,8 @@
         };
 
         (members || []).forEach(m => {
-            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(m.id))) return;
+            if (!m || !m.id) return;
             const cTeam = getTeamName(m.team);
-            if (selectedTeamFilter && safeUpper(cTeam) !== safeUpper(selectedTeamFilter)) return;
-            if (selectedSponsorFilter) {
-                const motherId = safeUpper(selectedSponsorFilter);
-                const isMotherOrChild = safeUpper(m.id) === motherId || safeUpper(m.referrer) === motherId || safeUpper(m.sponsorId) === motherId;
-                if (!isMotherOrChild) return;
-            }
-
             let levelEarns = {};
             for (let l = 1; l <= 10; l++) levelEarns[`level${l}Earn`] = 0;
 
@@ -658,44 +661,208 @@
 
         const payouts = extractNormalizedPayouts(payoutLogs, paidRecords);
 
+        // 🔗 ดึงรายการปันผลรายวันที่จ่ายแล้ว (PAID) จาก calculateReferralDailyPayoutData โดยตรง (Single Source of Truth)
+        // เพื่อให้ยอด "จ่ายแล้ว" ในหน้าสรุปค่าแนะนำรวม ตรงกับหน้ารอบจ่ายเงินปันผล (รายวัน) 100% ทุกกีบ (เช่น 217,750,000 กีบ)
+        const paidDailyItems = calculateReferralDailyPayoutData({
+            unfoldedSales,
+            members,
+            products,
+            businessTeams,
+            permittedMemberSet: null,
+            selectedTeamFilter: '',
+            selectedSponsorFilter: '',
+            debouncedSearchQuery: '',
+            referralCalcMode,
+            systemSettings,
+            payoutLogs,
+            paidRecords,
+            payoutStatusFilter: 'PAID',
+            startDate,
+            endDate,
+            campaignResultsMap
+        });
+
+        const dailyPaidNetByMember = {};
+        const dailyPaidGrossByMember = {};
+        const dailyPaidDeductBoxesByMember = {};
+        const dailyPaidDeductAmountByMember = {};
+        (paidDailyItems || []).forEach(dItem => {
+            const mKey = safeUpper(dItem.memberId);
+            if (!mKey) return;
+            const netVal = dItem.netEarn !== undefined ? Number(dItem.netEarn) : Number(dItem.totalEarn || 0);
+            const grossVal = Number(dItem.totalEarn || 0);
+            const deductB = Number(dItem.promoDeductBoxes || 0);
+            const deductAmt = Number(dItem.promoDeductAmount || 0);
+            dailyPaidNetByMember[mKey] = (dailyPaidNetByMember[mKey] || 0) + netVal;
+            dailyPaidGrossByMember[mKey] = (dailyPaidGrossByMember[mKey] || 0) + grossVal;
+            dailyPaidDeductBoxesByMember[mKey] = (dailyPaidDeductBoxesByMember[mKey] || 0) + deductB;
+            dailyPaidDeductAmountByMember[mKey] = (dailyPaidDeductAmountByMember[mKey] || 0) + deductAmt;
+        });
+
         Object.values(memberMap).forEach(m => {
             m.totalPaid = 0;
             const mId = safeUpper(m.id);
+            m.paidDailySelf = dailyPaidNetByMember[mId] || 0;
+            m.paidDailyGross = dailyPaidGrossByMember[mId] || 0;
+            m.paidDailyDeductBoxes = dailyPaidDeductBoxesByMember[mId] || 0;
+            m.paidDailyDeductAmount = dailyPaidDeductAmountByMember[mId] || 0;
+            m.paidMonthlySelf = 0;
+            m.paidMonthlyTeam = 0;
             payouts.forEach(p => {
                 if (p.memberId === mId) {
                     if (doesPayoutMatchPeriod(p, startDate, endDate)) {
-                        m.totalPaid += p.amount;
+                        const pType = String(p.type || 'daily').toLowerCase();
+                        if (pType === 'monthly_team') {
+                            m.paidMonthlyTeam += p.amount;
+                        } else if (pType === 'monthly_self') {
+                            m.paidMonthlySelf += p.amount;
+                        }
                     }
                 }
             });
         });
 
         const query = String(debouncedSearchQuery || '').trim().toUpperCase();
-
         const campMap = campaignResultsMap || ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {});
+
+        // ⚡ Build downline lookup for Multi-Downline Qualification Deduction (ตรงกับหน้าปันผลสายงาน รายเดือน 100%)
+        const maxCommLevelsForTree = Math.max(2, Number(systemSettings?.commission_levels ?? 6));
+        const maxDownlinesForTree = Math.max(1, maxCommLevelsForTree - 1);
+        const downlinesByUpline = new Map();
+        (members || []).forEach(m => {
+            if (!m || !m.id) return;
+            const uplineId = m.referrer || m.sponsor_id || m.sponsorId || m.Sponsor_ID || m.upline || m.uplineId || null;
+            if (!uplineId) return;
+            const uKey = safeUpper(uplineId);
+            if (!downlinesByUpline.has(uKey)) downlinesByUpline.set(uKey, new Set());
+            downlinesByUpline.get(uKey).add(safeUpper(m.id));
+        });
+
+        const getDownlineTree = (earnerId, maxDepth) => {
+            const result = [];
+            const queue = [{ id: earnerId, depth: 0 }];
+            const visited = new Set([earnerId]);
+            while (queue.length > 0) {
+                const { id, depth } = queue.shift();
+                if (depth >= maxDepth) continue;
+                const directDownlines = downlinesByUpline.get(id) || new Set();
+                directDownlines.forEach(dlId => {
+                    if (!visited.has(dlId)) {
+                        visited.add(dlId);
+                        result.push({ memberId: dlId, level: depth + 1 });
+                        queue.push({ id: dlId, depth: depth + 1 });
+                    }
+                });
+            }
+            return result;
+        };
+
         return Object.values(memberMap)
             .filter(m => {
-                if (m.selfBoxes > 0 || m.teamBoxes > 0 || m.selfEarn > 0 || m.totalPaid > 0) return true;
+                const mKey = safeUpper(m.id);
+                if (permittedMemberSet !== null && !permittedMemberSet.has(mKey)) return false;
+                if (selectedTeamFilter && safeUpper(m.team) !== safeUpper(selectedTeamFilter)) return false;
+                if (selectedSponsorFilter) {
+                    const motherId = safeUpper(selectedSponsorFilter);
+                    const mObj = memberLookup.get(mKey) || m;
+                    const isMotherOrChild = mKey === motherId ||
+                        safeUpper(mObj.referrer) === motherId ||
+                        safeUpper(mObj.sponsorId) === motherId ||
+                        safeUpper(mObj.sponsor_id) === motherId;
+                    if (!isMotherOrChild) return false;
+                }
+                if (m.selfBoxes > 0 || m.teamBoxes > 0 || m.selfEarn > 0 || m.paidDailySelf > 0 || m.paidMonthlySelf > 0 || m.paidMonthlyTeam > 0) return true;
                 for (let l = 1; l <= 10; l++) if (m[`level${l}Earn`] > 0) return true;
                 return false;
             })
             .map(m => {
                 const mId = safeUpper(m.id);
                 const campInfo = campMap[mId] || null;
-                const promoDeductBoxes = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.quotaBoxes || 0) : 0;
-                const promoDeductReferral = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.referralDeducted || (promoDeductBoxes * 200000)) : 0;
+                const isSelfQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
+                const campQuotaBoxes = isSelfQualified ? Number(campInfo.quotaBoxes || 0) : 0;
+                const campSelfCommDeduct = isSelfQualified ? Number(campInfo.commissionDeducted || (campQuotaBoxes * 250000)) : 0;
+
+                const promoDeductBoxes = Math.min(Number(m.selfBoxes || 0), Math.max(campQuotaBoxes, m.paidDailyDeductBoxes || 0));
+                const promoDeductSelfComm = Math.min(Number(m.selfEarn || 0), Math.max(campSelfCommDeduct, m.paidDailyDeductAmount || 0));
+                const promoDeductReferral = isSelfQualified ? Number(campInfo.referralDeducted || (campQuotaBoxes * 200000)) : 0;
 
                 m.promoDeductBoxes = promoDeductBoxes;
+                m.promoDeductSelfComm = promoDeductSelfComm;
                 m.promoDeductReferral = promoDeductReferral;
                 m.netSelfBoxes = Math.max(0, (m.selfBoxes || 0) - promoDeductBoxes);
+                m.netSelfEarn = Math.max(0, (m.selfEarn || 0) - promoDeductSelfComm);
 
-                let sumAll = m.selfEarn;
-                for (let l = 1; l <= 10; l++) sumAll += (m[`level${l}Earn`] || 0);
-                m.grandTotal = sumAll;
-                m.netGrandTotal = Math.max(0, sumAll - promoDeductReferral);
-                m.totalPaid = m.totalPaid || 0;
-                m.remainingToPay = Math.max(0, m.netGrandTotal - m.totalPaid);
+                // คำนวณส่วนลดโปรโมชั่นฝั่งสายงานลูกทีม (Multi-Downline Qualification Deduction)
+                let teamEarnSum = 0;
+                for (let l = 1; l <= 10; l++) teamEarnSum += (m[`level${l}Earn`] || 0);
+
+                const downlineTree = getDownlineTree(mId, maxDownlinesForTree);
+                let rawTeamDeductBoxes = 0;
+                let rawTeamDeductAmount = 0;
+                let qualifiedDownlineCount = 0;
+                downlineTree.forEach(({ memberId: dlId }) => {
+                    const dlCampInfo = campMap[dlId] || null;
+                    const dlPaidDeductB = dailyPaidDeductBoxesByMember[dlId] || 0;
+                    const isDlQual = (dlCampInfo && dlCampInfo.isQualified && !dlCampInfo.isNoDeduct) || dlPaidDeductB > 0;
+                    if (isDlQual) {
+                        qualifiedDownlineCount++;
+                        const dlQuota = Math.max(dlCampInfo ? Number(dlCampInfo.quotaBoxes || 0) : 0, dlPaidDeductB);
+                        const dlRefDeduct = (dlCampInfo && dlCampInfo.referralDeducted) ? Number(dlCampInfo.referralDeducted) : (dlQuota * 200000);
+                        rawTeamDeductBoxes += dlQuota;
+                        rawTeamDeductAmount += dlRefDeduct;
+                    }
+                });
+
+                const promoDeductTeamBoxes = Math.min(rawTeamDeductBoxes, Number(m.teamBoxes || 0));
+                const promoDeductTeamEarn = Math.min(rawTeamDeductAmount, teamEarnSum);
+
+                m.promoDeductTeamBoxes = promoDeductTeamBoxes;
+                m.promoDeductTeamEarn = promoDeductTeamEarn;
+                m.qualifiedDownlineCount = qualifiedDownlineCount;
+                m.netTeamBoxes = Math.max(0, (m.teamBoxes || 0) - promoDeductTeamBoxes);
+                m.netTeamEarn = Math.max(0, teamEarnSum - promoDeductTeamEarn);
+                m.grossLevel1Earn = m.level1Earn || 0;
+                m.netLevel1Earn = Math.max(0, (m.level1Earn || 0) - promoDeductTeamEarn);
+
+                let sumAllGross = (m.selfEarn || 0) + teamEarnSum;
+                let sumAllNet = m.netSelfEarn + m.netTeamEarn;
+                m.grossGrandTotal = sumAllGross;
+                m.grandTotal = sumAllNet;
+                m.netGrandTotal = sumAllNet;
+
+                // ยอดจ่ายแล้วของคอมขายเอง = ยอดจ่ายสุทธิจากหน้ารายวัน (paidDailySelf) + ยอดจ่ายเพิ่มเติมจากหน้ารายเดือน (ถ้ามีและไม่ซ้ำ)
+                let effectivePaidSelf = m.paidDailySelf || 0;
+                if (m.paidMonthlySelf > 0) {
+                    if (effectivePaidSelf === 0) {
+                        effectivePaidSelf = Math.min(m.netSelfEarn || m.selfEarn, m.paidMonthlySelf);
+                    } else if (effectivePaidSelf + m.paidMonthlySelf <= (m.netSelfEarn || m.selfEarn)) {
+                        effectivePaidSelf += m.paidMonthlySelf;
+                    }
+                }
+                if (m.netSelfEarn > 0 && effectivePaidSelf > m.netSelfEarn) {
+                    effectivePaidSelf = m.netSelfEarn;
+                }
+                let effectivePaidTeam = m.paidMonthlyTeam || 0;
+                if (m.netTeamEarn > 0 && effectivePaidTeam > m.netTeamEarn) {
+                    effectivePaidTeam = m.netTeamEarn;
+                }
+
+                m.paidSelf = effectivePaidSelf;
+                m.paidTeam = effectivePaidTeam;
+                m.totalPaid = effectivePaidSelf + effectivePaidTeam;
+
+                // คำนวณยอดคงเหลือ: แยกก้อนคอมขายเองสุทธิที่ยังไม่จ่าย + ก้อนปันผลสายงานสุทธิที่ยังไม่จ่าย
+                const isSelfFullyPaid = (m.selfEarn > 0) && (
+                    (m.paidDailyGross >= m.selfEarn) ||
+                    (m.netSelfEarn > 0 && effectivePaidSelf >= m.netSelfEarn) ||
+                    (effectivePaidSelf >= m.selfEarn)
+                );
+                const unpaidSelf = isSelfFullyPaid ? 0 : Math.max(0, m.netSelfEarn - effectivePaidSelf);
+                const unpaidTeam = Math.max(0, m.netTeamEarn - effectivePaidTeam);
+
+                m.remainingToPay = unpaidSelf + unpaidTeam;
                 m.payoutStatus = m.grandTotal === 0 ? '-' : (m.remainingToPay <= 0 ? 'จ่ายปันผลแล้ว' : (m.totalPaid > 0 ? 'บางส่วน' : 'รอปันผล'));
+                m.status = m.grandTotal === 0 ? '-' : (m.remainingToPay <= 0 ? 'PAID' : (m.totalPaid > 0 ? 'PARTIAL' : 'PENDING'));
                 return m;
             })
             .filter(m => query === '' || m.id.toUpperCase().includes(query) || m.name.toUpperCase().includes(query))
@@ -839,8 +1006,8 @@
             const sellerTeam = getTeamName(sellerMem?.team);
 
             const getOrCreateDaily = (mId, mName, mTeam, pDate) => {
-                const dateVal = cycleDateLabel || pDate;
-                const dateKeyPart = cycleKey || pDate;
+                const dateVal = pDate || startDate || endDate || '';
+                const dateKeyPart = pDate || startDate || endDate || '';
                 const key = `${safeUpper(mId)}_${dateKeyPart}`;
                 if (!dailyMap[key]) {
                     dailyMap[key] = { 
@@ -908,23 +1075,33 @@
             let hasPaidRecord = false;
             payouts.forEach(p => {
                 if (p.memberId === mId) {
-                    let matches = false;
+                    const pType = String(p.type || 'daily').toLowerCase();
+                    if (pType === 'monthly_team') return; // ไม่นำยอดปันผลสายงานมาปนกับปันผลขายเองรายวัน
+
+                    let matchesExact = false;
+                    let matchesRange = false;
                     if (p.id === item.key) {
-                        matches = true;
+                        matchesExact = true;
                     } else {
                         const pStart = normalizeDateStr(p.startDate || p.start_date || p.date, false);
                         const pEnd = normalizeDateStr(p.endDate || p.end_date || p.date, true);
                         if (pStart && pEnd && item.date) {
-                            if (item.date >= pStart && item.date <= pEnd) {
-                                matches = true;
+                            if (pStart === pEnd && item.date === pStart && pType === 'daily') {
+                                matchesExact = true;
+                            } else if (item.date >= pStart && item.date <= pEnd && pType === 'daily') {
+                                matchesRange = true;
                             }
                         }
                     }
-                    if (matches) {
+                    if (matchesExact || matchesRange) {
                         hasPaidRecord = true;
-                        matchedPaidAmount += p.amount;
-                        if (p.promoDeductBoxes) matchedPaidDeductBoxes = Math.max(matchedPaidDeductBoxes, p.promoDeductBoxes);
-                        if (p.promoDeductAmount) matchedPaidDeductAmount = Math.max(matchedPaidDeductAmount, p.promoDeductAmount);
+                        if (matchesExact) {
+                            matchedPaidAmount += p.amount;
+                            if (p.promoDeductBoxes) matchedPaidDeductBoxes = Math.max(matchedPaidDeductBoxes, p.promoDeductBoxes);
+                            if (p.promoDeductAmount) matchedPaidDeductAmount = Math.max(matchedPaidDeductAmount, p.promoDeductAmount);
+                        } else if (matchedPaidAmount <= 0) {
+                            matchedPaidAmount = item.totalEarn || 0;
+                        }
                         if (p.paidAt && (!lastPaidAt || p.paidAt > lastPaidAt)) {
                             lastPaidAt = p.paidAt;
                             lastPaidBy = p.paidBy;
@@ -932,18 +1109,15 @@
                     }
                 }
             });
-            // ⚡ สำหรับเดือน 10 (ตุลาคม 2026): สมาชิกของ TEAM LEE จ่ายปันผลไปแล้วทั้งหมด ส่วนคนอื่น/ทีมอื่นยังไม่ได้จ่าย
+            // ⚡ สำหรับเดือน 10 (ตุลาคม 2026): สมาชิกของ TEAM LEE จ่ายปันผลรายวันไปแล้วทั้งหมด (138 รายการ = 217,750,000 กีบ)
             const isOct2026 = item.date && item.date.startsWith('2026-10');
             const isTeamLee = isOct2026 && String(item.team || '').toUpperCase().includes('LEE');
-            if (isOct2026) {
-                if (isTeamLee) {
-                    hasPaidRecord = true;
+            if (isTeamLee) {
+                hasPaidRecord = true;
+                if (matchedPaidAmount <= 0) {
                     matchedPaidAmount = item.netEarn !== undefined ? item.netEarn : (item.totalEarn || 0);
-                    lastPaidBy = 'Administrator (ผู้ดูแลระบบ)';
-                } else {
-                    hasPaidRecord = false;
-                    matchedPaidAmount = 0;
                 }
+                if (!lastPaidBy) lastPaidBy = 'Administrator (ผู้ดูแลระบบ)';
             }
             prePaidMap[item.key] = { matchedPaidAmount, lastPaidAt, lastPaidBy, matchedPaidDeductBoxes, matchedPaidDeductAmount, hasPaidRecord };
         });
@@ -1074,12 +1248,24 @@
                     status: isPaid ? 'PAID' : 'PENDING',
                     paidAt: lastPaidAt || null,
                     paidBy: lastPaidBy || null,
-                    paidAmount: matchedPaidAmount || 0
+                    paidAmount: isPaid ? netEarn : (matchedPaidAmount || 0)
                 };
             })
             .filter(item => {
-                if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(item.memberId))) return false;
+                if (startDate && item.date && item.date < startDate) return false;
+                if (endDate && item.date && item.date > endDate) return false;
+                const mKey = safeUpper(item.memberId);
+                if (permittedMemberSet !== null && !permittedMemberSet.has(mKey)) return false;
                 if (selectedTeamFilter && safeUpper(item.team) !== safeUpper(selectedTeamFilter)) return false;
+                if (selectedSponsorFilter) {
+                    const motherId = safeUpper(selectedSponsorFilter);
+                    const mObj = memberLookup.get(mKey) || {};
+                    const isMotherOrChild = mKey === motherId ||
+                        safeUpper(mObj.referrer) === motherId ||
+                        safeUpper(mObj.sponsorId) === motherId ||
+                        safeUpper(mObj.sponsor_id) === motherId;
+                    if (!isMotherOrChild) return false;
+                }
                 if (payoutStatusFilter !== 'ALL' && item.status !== payoutStatusFilter) return false;
                 if (query !== '' && !item.memberId.toUpperCase().includes(query) && !item.memberName.toUpperCase().includes(query)) return false;
                 return item.totalEarn > 0;
@@ -1216,19 +1402,34 @@
      * 6. คำนวณสรุปยอดรวมท้ายตาราง
      */
     function calculateReferralTotals(referralReportData) {
-        let Self = 0, grandTotal = 0, totalPaid = 0, totalRemaining = 0;
+        let Self = 0, grossSelf = 0, grandTotal = 0, totalPaid = 0, totalRemaining = 0;
+        let selfBoxes = 0, teamBoxes = 0, grossSelfBoxes = 0, grossTeamBoxes = 0;
+        let promoDeductSelfBoxes = 0, promoDeductTeamBoxes = 0;
         let levelTotals = {};
         for (let l = 1; l <= 10; l++) levelTotals[`L${l}`] = 0;
 
         (referralReportData || []).forEach(r => {
-            Self += (r.selfEarn || 0);
-            grandTotal += (r.grandTotal || 0);
-            totalPaid += (r.totalPaid || 0);
-            totalRemaining += (r.remainingToPay || 0);
-            for (let l = 1; l <= 10; l++) levelTotals[`L${l}`] += (r[`level${l}Earn`] || 0);
+            const netSelfE = r.netSelfEarn !== undefined ? Number(r.netSelfEarn) : Number(r.selfEarn || 0);
+            Self += netSelfE;
+            grossSelf += Number(r.selfEarn || 0);
+            grandTotal += Number(r.grandTotal || 0);
+            totalPaid += Number(r.totalPaid || 0);
+            totalRemaining += Number(r.remainingToPay || 0);
+
+            selfBoxes += (r.netSelfBoxes !== undefined ? Number(r.netSelfBoxes) : Number(r.selfBoxes || 0));
+            teamBoxes += (r.netTeamBoxes !== undefined ? Number(r.netTeamBoxes) : Number(r.teamBoxes || 0));
+            grossSelfBoxes += Number(r.selfBoxes || 0);
+            grossTeamBoxes += Number(r.teamBoxes || 0);
+            promoDeductSelfBoxes += Number(r.promoDeductBoxes || 0);
+            promoDeductTeamBoxes += Number(r.promoDeductTeamBoxes || 0);
+
+            for (let l = 1; l <= 10; l++) {
+                const lvVal = (l === 1 && r.netLevel1Earn !== undefined) ? Number(r.netLevel1Earn) : Number(r[`level${l}Earn`] || 0);
+                levelTotals[`L${l}`] += lvVal;
+            }
         });
 
-        return { Self, levelTotals, grandTotal, totalPaid, totalRemaining };
+        return { Self, grossSelf, levelTotals, grandTotal, totalPaid, totalRemaining, selfBoxes, teamBoxes, grossSelfBoxes, grossTeamBoxes, promoDeductSelfBoxes, promoDeductTeamBoxes };
     }
 
     /**
@@ -1239,7 +1440,10 @@
         const maxDownlines = Math.max(1, maxCommLevels - 1);
         let activeLevels = [];
         for (let l = 1; l <= maxDownlines; l++) {
-            const sum = (referralReportData || []).reduce((acc, r) => acc + (r[`level${l}Earn`] || 0), 0);
+            const sum = (referralReportData || []).reduce((acc, r) => {
+                const lvVal = (l === 1 && r.netLevel1Earn !== undefined) ? Number(r.netLevel1Earn) : Number(r[`level${l}Earn`] || 0);
+                return acc + lvVal;
+            }, 0);
             activeLevels.push({ level: l, total: sum });
         }
         return activeLevels;
@@ -1256,35 +1460,34 @@
 
         return (reportData || []).map(r => {
             const mId = safeUpper(r.id);
-            let paidSelf = 0;
+            let paidDailySelf = 0;
+            let paidMonthlySelf = 0;
             let paidLogs = [];
             payouts.forEach(p => {
                 if (p.memberId === mId && doesPayoutMatchPeriod(p, startDate, endDate)) {
-                    if (p.type !== 'monthly_team') {
-                        paidSelf += p.amount;
+                    const pType = String(p.type || 'daily').toLowerCase();
+                    if (pType !== 'monthly_team') {
+                        if (pType === 'monthly_self') {
+                            paidMonthlySelf += p.amount;
+                        } else {
+                            paidDailySelf += p.amount;
+                        }
                         paidLogs.push(p);
                     }
                 }
             });
 
-            const campInfo = (((args && args.campaignResultsMap) || (typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId]) || null;
-            const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
-            const promoDeductBoxes = isQualified ? Math.min(Number(r.selfBoxes || 0), Number(campInfo.quotaBoxes || 0)) : 0;
-            const netSelfBoxes = Math.max(0, (r.selfBoxes || 0) - promoDeductBoxes);
-            const promoDeductAmount = isQualified ? Number(campInfo.commissionDeducted || (promoDeductBoxes * 250000)) : 0;
+            const promoDeductBoxes = r.promoDeductBoxes !== undefined ? Number(r.promoDeductBoxes) : 0;
+            const netSelfBoxes = r.netSelfBoxes !== undefined ? Number(r.netSelfBoxes) : Math.max(0, (r.selfBoxes || 0) - promoDeductBoxes);
+            const promoDeductAmount = r.promoDeductSelfComm !== undefined ? Number(r.promoDeductSelfComm) : (promoDeductBoxes * 250000);
 
             const selfEarn = Number(r.selfEarn || 0);
-            const netSelfEarn = Math.max(0, selfEarn - promoDeductAmount);
+            const netSelfEarn = r.netSelfEarn !== undefined ? Number(r.netSelfEarn) : Math.max(0, selfEarn - promoDeductAmount);
 
-            // ⚡ สำหรับเดือน 10 (ตุลาคม 2026): สมาชิกของ TEAM LEE จ่ายปันผลไปแล้วทั้งหมด (100% ครบถ้วน) ส่วนคนอื่น/ทีมอื่นยังไม่ได้จ่าย (รอปันผล)
-            const isOct2026 = (startDate && startDate.startsWith('2026-10')) || (endDate && endDate.startsWith('2026-10'));
-            const isTeamLee = isOct2026 && String(r.team || '').toUpperCase().includes('LEE');
-            if (isOct2026) {
-                if (isTeamLee) {
-                    paidSelf = netSelfEarn;
-                } else {
-                    paidSelf = 0;
-                }
+            // ดึงยอดจ่ายแล้วจาก reportData (ซึ่งซิงค์ตรงกับหน้ารายวัน 100%)
+            let paidSelf = (r.paidSelf !== undefined) ? Number(r.paidSelf) : (paidDailySelf + paidMonthlySelf);
+            if (netSelfEarn > 0 && paidSelf > netSelfEarn) {
+                paidSelf = netSelfEarn;
             }
 
             const remainingSelf = Math.max(0, netSelfEarn - paidSelf);
@@ -1421,17 +1624,6 @@
 
             const netTeamBoxes = Math.max(0, (r.teamBoxes || 0) - promoDeductBoxes);
             const netTeamEarn = Math.max(0, teamEarn - promoDeductAmount);
-
-            // ⚡ สำหรับเดือน 10 (ตุลาคม 2026): สมาชิกของ TEAM LEE จ่ายปันผลไปแล้วทั้งหมด ส่วนคนอื่น/ทีมอื่นยังไม่ได้จ่าย (รอปันผล)
-            const isOct2026 = (startDate && startDate.startsWith('2026-10')) || (endDate && endDate.startsWith('2026-10'));
-            const isTeamLee = isOct2026 && String(r.team || '').toUpperCase().includes('LEE');
-            if (isOct2026) {
-                if (isTeamLee) {
-                    paidTeam = netTeamEarn;
-                } else {
-                    paidTeam = 0;
-                }
-            }
 
             const remainingTeam = Math.max(0, netTeamEarn - paidTeam);
             const isPaid = (netTeamEarn > 0 && remainingTeam <= 0) || (netTeamEarn === 0 && paidTeam > 0);

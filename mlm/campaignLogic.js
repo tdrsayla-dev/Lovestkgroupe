@@ -367,7 +367,8 @@
             memberCode: mCode,
             visitKey: vK,
             itemDetails: '',
-            date: logDate
+            date: logDate,
+            savedPoints: log._savedPoints
           };
         }
         if (log.item_details) {
@@ -378,7 +379,7 @@
       Object.values(visitGroup).forEach(function (vg) {
         var mCode = vg.memberCode;
         var check = window.CampaignEngine.parseClinicItemCheckup(vg.itemDetails);
-        var pVal = check.points || 0; // 0, 1, 2 (ถ้าไม่มีตรวจครบวงจรและไม่มี ABI/ASI ให้ 0 แต้ม)
+        var pVal = (vg.savedPoints !== undefined && vg.savedPoints > (check.points || 0)) ? Number(vg.savedPoints) : (check.points || 0); // 0, 1, 2 (ถ้าไม่มีตรวจครบวงจรและไม่มี ABI/ASI ให้ 0 แต้ม)
         if (pVal > 0) {
           clinicPointsByMember[mCode] = (clinicPointsByMember[mCode] || 0) + pVal;
         }
@@ -652,13 +653,171 @@
         query += '&select=id,referrer_id,referrer_name,patient_name,visit_id,item_details,created_at';
         var logs = await window.clinicSupabaseSelect('commission_logs', query);
         var res = Array.isArray(logs) ? logs : [];
-        if (!window.__stkClinicLogsCache) window.__stkClinicLogsCache = {};
-        window.__stkClinicLogsCache[cacheKey] = res;
-        try {
-          var cachePayload = JSON.stringify({ ts: Date.now(), data: res });
-          sessionStorage.setItem('stk_clinic_logs_' + cacheKey, cachePayload);
-          localStorage.setItem('stk_clinic_logs_' + cacheKey, cachePayload);
-        } catch (e) {}
+
+        // 🛡️ Fallback: หากตาราง commission_logs คืนค่าว่างเปล่า (เช่น ติด RLS ฝั่งคลินิก)
+        // ให้ดึงจากตาราง visits ของคลินิกโดยตรง แล้วจับคู่ผู้แนะนำจาก stk_nutrient_orders และ stk_customers
+        if (res.length === 0) {
+          try {
+            var vQuery = 'order=created_at.asc&select=visit_id,hn,patient_name,lab_tests,created_at';
+            if (forceLive) vQuery += '&nocache=true';
+            if (startDate) vQuery += '&created_at=gte.' + encodeURIComponent(startDate + 'T00:00:00');
+            if (endDate) vQuery += '&created_at=lte.' + encodeURIComponent(endDate + 'T23:59:59');
+
+            var visitsPromise = window.clinicSupabaseSelect('visits', vQuery).catch(function () { return []; });
+            var patBatch0Promise = window.clinicSupabaseSelect('patients', 'select=hn,patient_name,referred_by&order=created_at.desc&limit=1000&offset=0').catch(function () { return []; });
+            var patBatch1Promise = window.clinicSupabaseSelect('patients', 'select=hn,patient_name,referred_by&order=created_at.desc&limit=1000&offset=1000').catch(function () { return []; });
+            var patBatch2Promise = window.clinicSupabaseSelect('patients', 'select=hn,patient_name,referred_by&order=created_at.desc&limit=1000&offset=2000').catch(function () { return []; });
+            var memPromise = (typeof window.supabaseSelect === 'function')
+              ? window.supabaseSelect('stk_members', 'select=user_id,name&limit=5000').catch(function () { return []; })
+              : Promise.resolve([]);
+            var nutPromise = (typeof window.supabaseSelect === 'function')
+              ? window.supabaseSelect('stk_nutrient_orders', 'select=visit_id,hn,customer_name,recorded_by&limit=5000').catch(function () { return []; })
+              : Promise.resolve([]);
+            var custPromise = (typeof window.supabaseSelect === 'function')
+              ? window.supabaseSelect('stk_customers', 'select=customer_id,name,owner_member_id&limit=5000').catch(function () { return []; })
+              : Promise.resolve([]);
+
+            var fallbackData = await Promise.all([visitsPromise, patBatch0Promise, patBatch1Promise, patBatch2Promise, memPromise, nutPromise, custPromise]);
+            var visitsList = Array.isArray(fallbackData[0]) ? fallbackData[0] : [];
+            var patList = [].concat(
+              Array.isArray(fallbackData[1]) ? fallbackData[1] : [],
+              Array.isArray(fallbackData[2]) ? fallbackData[2] : [],
+              Array.isArray(fallbackData[3]) ? fallbackData[3] : []
+            );
+            var memList = Array.isArray(fallbackData[4]) ? fallbackData[4] : [];
+            var nutList = Array.isArray(fallbackData[5]) ? fallbackData[5] : [];
+            var custList = Array.isArray(fallbackData[6]) ? fallbackData[6] : [];
+
+            if (visitsList.length > 0) {
+              var byVisitId = {};
+              var byHn = {};
+              var byName = {};
+              var normN = function (s) { return String(s || '').trim().toUpperCase().replace(/\s+/g, ' '); };
+              var normH = function (s) { return String(s || '').trim().toUpperCase().replace(/^HN-?/, ''); };
+              var selfRef = this;
+
+              var memById = {};
+              var memByName = {};
+              memList.forEach(function (m) {
+                if (!m) return;
+                if (m.user_id) memById[safeUp(m.user_id)] = safeUp(m.user_id);
+                if (m.name) memByName[normN(m.name)] = safeUp(m.user_id);
+              });
+
+              var resolveMId = function (raw) {
+                if (!raw) return '';
+                var clean = normN(raw);
+                if (!clean || clean === '-' || clean === '--' || clean === 'NONE' || clean === 'DR' || clean.indexOf('DR.') === 0) return '';
+                if (memById[clean]) return memById[clean];
+                if (memByName[clean]) return memByName[clean];
+                var m = clean.match(/^([A-Z0-9_-]+)\s*[-:]\s*(.+)$/);
+                if (m) {
+                  var cId = m[1].trim();
+                  var cName = m[2].trim();
+                  if (memById[cId]) return memById[cId];
+                  if (memByName[cName]) return memByName[cName];
+                }
+                var ext = selfRef.extractMemberIdFromReferrer(raw);
+                if (ext && memById[ext]) return memById[ext];
+                var idKeys = Object.keys(memById);
+                for (var i = 0; i < idKeys.length; i++) {
+                  if (idKeys[i].length >= 5 && clean.indexOf(idKeys[i]) !== -1) return memById[idKeys[i]];
+                }
+                var nameKeys = Object.keys(memByName);
+                for (var j = 0; j < nameKeys.length; j++) {
+                  if (nameKeys[j].length >= 4 && clean.indexOf(nameKeys[j]) !== -1) return memByName[nameKeys[j]];
+                }
+                return ext && ext !== 'DR' && ext.indexOf('DR.') !== 0 ? ext : '';
+              };
+
+              patList.forEach(function (p) {
+                if (!p) return;
+                var refId = resolveMId(p.referred_by);
+                if (!refId) return;
+                if (p.hn) {
+                  var h = safeUp(p.hn);
+                  var hc = normH(h);
+                  if (!byHn[h]) byHn[h] = refId;
+                  if (hc && !byHn[hc]) byHn[hc] = refId;
+                  if (hc && !byHn['HN-' + hc]) byHn['HN-' + hc] = refId;
+                }
+                if (p.patient_name) {
+                  var pn = normN(p.patient_name);
+                  if (pn && !byName[pn]) byName[pn] = refId;
+                }
+              });
+
+              nutList.forEach(function (no) {
+                if (!no) return;
+                var refId = resolveMId(no.recorded_by || no.referrer_name);
+                if (!refId) return;
+                if (no.visit_id) byVisitId[safeUp(no.visit_id)] = refId;
+                if (no.hn) {
+                  var h = safeUp(no.hn);
+                  var hc = normH(h);
+                  if (!byHn[h]) byHn[h] = refId;
+                  if (hc && !byHn[hc]) byHn[hc] = refId;
+                }
+                var cName = normN(no.customer_name || no.patient_name);
+                if (cName && !byName[cName]) byName[cName] = refId;
+              });
+
+              custList.forEach(function (c) {
+                if (!c) return;
+                var refId = resolveMId(c.owner_member_id || c.referrer_id || c.closer_id);
+                if (!refId) return;
+                if (c.customer_id) {
+                  var h = safeUp(c.customer_id);
+                  var hc = normH(h);
+                  if (!byHn[h]) byHn[h] = refId;
+                  if (hc && !byHn[hc]) byHn[hc] = refId;
+                }
+                if (c.name && !byName[normN(c.name)]) byName[normN(c.name)] = refId;
+              });
+
+              visitsList.forEach(function (v) {
+                if (!v) return;
+                var vId = safeUp(v.visit_id);
+                var hn = safeUp(v.hn);
+                var hc = normH(hn);
+                var pName = normN(v.patient_name);
+                var refCode = (vId && byVisitId[vId]) || (hn && byHn[hn]) || (hc && byHn[hc]) || (pName && byName[pName]) || '';
+                if (!refCode) return;
+
+                var itemDetailsStr = '';
+                if (Array.isArray(v.lab_tests)) {
+                  itemDetailsStr = v.lab_tests.map(function (lt) {
+                    return typeof lt === 'string' ? lt : (lt && (lt.name || lt.service_name) ? (lt.name || lt.service_name) : '');
+                  }).filter(Boolean).join(', ');
+                } else if (typeof v.lab_tests === 'string') {
+                  itemDetailsStr = v.lab_tests;
+                }
+
+                res.push({
+                  id: v.visit_id,
+                  visit_id: v.visit_id,
+                  referrer_id: refCode,
+                  referrer_name: refCode,
+                  patient_name: v.patient_name || 'คนไข้',
+                  item_details: itemDetailsStr,
+                  created_at: v.created_at
+                });
+              });
+            }
+          } catch (fbErr) {
+            console.warn('⚠️ [CampaignEngine] visits fallback error:', fbErr);
+          }
+        }
+
+        if (res.length > 0) {
+          if (!window.__stkClinicLogsCache) window.__stkClinicLogsCache = {};
+          window.__stkClinicLogsCache[cacheKey] = res;
+          try {
+            var cachePayload = JSON.stringify({ ts: Date.now(), data: res });
+            sessionStorage.setItem('stk_clinic_logs_' + cacheKey, cachePayload);
+            localStorage.setItem('stk_clinic_logs_' + cacheKey, cachePayload);
+          } catch (e) {}
+        }
         return res;
       } catch (e) {
         console.warn('⚠️ [CampaignEngine] fetchClinicLogs error:', e);
@@ -676,7 +835,7 @@
       var upper = text.toUpperCase();
 
       var hasAbi = upper.indexOf('ABI') !== -1 || upper.indexOf('ASI') !== -1;
-      var hasComp = upper.indexOf('19') !== -1 || 
+      var hasComp = /(?:^|[^0-9])19(?:[^0-9]|$)/.test(upper) || 
                     text.indexOf('ครบวงจร') !== -1 || text.indexOf('คบวงจอน') !== -1 ||
                     text.indexOf('ຄົບວົງຈອນ') !== -1 ||
                     text.indexOf('บริบูรณ์') !== -1 || text.indexOf('บริบูน') !== -1 ||
@@ -781,6 +940,18 @@
 
       var self = this;
 
+      // ดึงผลลัพธ์เดิมที่บันทึกไว้ใน stk_campaign_results เพื่อป้องกันการทับแต้มคลินิกเป็น 0 หากฝั่งคลินิกคืนค่าไม่ครบ
+      var savedResultsMap = {};
+      try {
+        var cIdForSaved = campaign.id || campaign.campaign_id;
+        var savedList = opt.savedResults || (cIdForSaved ? await this.fetchSavedCampaignResults(cIdForSaved) : []);
+        (savedList || []).forEach(function (sr) {
+          if (sr && sr.member_id) {
+            savedResultsMap[safeUp(sr.member_id)] = sr;
+          }
+        });
+      } catch (e) {}
+
       // จัดกลุ่มคลินิก Logs ตามรหัสการตลาด และกรองช่วงวันที่
       var clinicLogsByMember = {};
       (clinicLogs || []).forEach(function (log) {
@@ -792,6 +963,38 @@
         if (!mCode) return;
         if (!clinicLogsByMember[mCode]) clinicLogsByMember[mCode] = [];
         clinicLogsByMember[mCode].push(log);
+      });
+
+      // เติม patientVisits ที่เคยบันทึกไว้แล้วใน stk_campaign_results หากใน clinicLogsByMember ยังไม่มี visitId นั้น
+      Object.keys(savedResultsMap).forEach(function (mKey) {
+        var sr = savedResultsMap[mKey];
+        var savedVisits = (sr && sr.details_json && Array.isArray(sr.details_json.patientVisits)) ? sr.details_json.patientVisits : [];
+        if (savedVisits.length > 0) {
+          if (!clinicLogsByMember[mKey]) clinicLogsByMember[mKey] = [];
+          var existingVIds = {};
+          clinicLogsByMember[mKey].forEach(function (l) {
+            var vk = safeUp(l.visit_id || l.patient_name || l.id);
+            if (vk) existingVIds[vk] = true;
+          });
+          savedVisits.forEach(function (sv) {
+            if (!sv) return;
+            var svKey = safeUp(sv.visitId || sv.patientName);
+            if (svKey && !existingVIds[svKey]) {
+              existingVIds[svKey] = true;
+              clinicLogsByMember[mKey].push({
+                id: sv.visitId,
+                visit_id: sv.visitId,
+                referrer_id: mKey,
+                referrer_name: mKey,
+                patient_name: sv.patientName || 'คนไข้',
+                item_details: sv.itemDetails || '',
+                created_at: sv.date || startDate,
+                _savedPoints: sv.points,
+                _savedCheckType: sv.checkType
+              });
+            }
+          });
+        }
       });
 
       // กรองบิลขาย MLM ให้อยู่ในช่วงวันที่ของแคมเปญ และไม่นับบิลยกเลิก
@@ -820,10 +1023,14 @@
       });
 
       // ดึงผลการตัดสินจาก Dashboard Engine หลัก (เพื่อให้ผลลัพธ์คนที่ผ่าน และลำดับการผ่านเกณฑ์ตรงกัน 100%)
+      var mergedClinicLogs = [];
+      Object.values(clinicLogsByMember).forEach(function (arr) {
+        if (Array.isArray(arr)) mergedClinicLogs = mergedClinicLogs.concat(arr);
+      });
       var dashResults = [];
       try {
         if (typeof self.calcCampaignResults === 'function') {
-          dashResults = self.calcCampaignResults(campaign, salesInRange, allMembers, [], allBusinessTeams, clinicLogs);
+          dashResults = self.calcCampaignResults(campaign, salesInRange, allMembers, [], allBusinessTeams, mergedClinicLogs);
         }
       } catch(e) {
         console.warn('evaluateCampaignCrossDB: calcCampaignResults error', e);
@@ -857,7 +1064,9 @@
               visitId: log.visit_id || log.id,
               patientName: log.patient_name || 'คนไข้',
               rawDetails: '',
-              date: log.created_at ? log.created_at.substring(0, 10) : ''
+              date: log.created_at ? log.created_at.substring(0, 10) : '',
+              savedPoints: log._savedPoints,
+              savedCheckType: log._savedCheckType
             };
           }
           if (log.item_details) {
@@ -869,7 +1078,7 @@
           var check = self.parseClinicItemCheckup(vItem.rawDetails);
           // แต้มตรวจ: ABI/ASI = 1 แต้ม, 19 รายการ/ครบวงจร/บริบูรณ์ = 1 แต้ม, ตรวจทั้งคู่ = 2 แต้ม
           // ⚠️ รายการตรวจอื่นๆ (เช่น H-pylori, Pap smear ฯลฯ) ให้ 0 แต้ม (ห้ามให้แต้มเด็ดขาด)
-          var pVal = check.points || 0;
+          var pVal = (vItem.savedPoints !== undefined && vItem.savedPoints > (check.points || 0)) ? Number(vItem.savedPoints) : (check.points || 0);
           totalClinicPoints += pVal;
           if (check.hasAbi && check.hasComp) {
             abiPoints += 1;
@@ -878,6 +1087,8 @@
             abiPoints += 1;
           } else if (check.hasComp) {
             compPoints += 1;
+          } else if (pVal > 0) {
+            compPoints += pVal;
           }
           patientVisits.push({
             visitId: vItem.visitId,
@@ -885,7 +1096,7 @@
             itemDetails: self.cleanClinicItemDetails(vItem.rawDetails),
             date: vItem.date,
             points: pVal,
-            checkType: check.checkType
+            checkType: vItem.savedCheckType || check.checkType
           });
         });
 

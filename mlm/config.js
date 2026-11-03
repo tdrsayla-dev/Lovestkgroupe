@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.10.27.03';
+  const APP_VERSION = '2026.11.03.08';
   window.APP_VERSION = APP_VERSION;
 
   // 🛡️ Global QuotaExceeded Protection for localStorage & sessionStorage
@@ -120,14 +120,15 @@
       localStorage.removeItem('stk_clinic_doctors_cache');
       sessionStorage.removeItem('stk_admin_products_full');
       sessionStorage.removeItem('stk_warehouse_audit_cache');
+      sessionStorage.removeItem('stk_nutrient_orders_view_cache');
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const k = sessionStorage.key(i);
         if (k && (k.startsWith('stk_qc_') || k.startsWith('stk_warehouse_'))) sessionStorage.removeItem(k);
-        if (k && k.startsWith('stk_campaign_eval_')) sessionStorage.removeItem(k);
+        if (k && (k.startsWith('stk_campaign_eval_') || k.startsWith('stk_rep_campaign_eval_') || k.startsWith('stk_clinic_logs_'))) sessionStorage.removeItem(k);
       }
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('stk_campaign_eval_')) localStorage.removeItem(k);
+        if (k && (k.startsWith('stk_campaign_eval_') || k.startsWith('stk_rep_campaign_eval_') || k.startsWith('stk_clinic_logs_'))) localStorage.removeItem(k);
       }
     }
     localStorage.setItem('stk_app_version', APP_VERSION);
@@ -504,7 +505,7 @@
 
   // 4.2 Helper ดึงรายชื่อหมอ/แพทย์จากฝั่งคลินิก (ตาราง staff_users พร้อม Stale-While-Revalidate & Persistent Cache)
   // 🛡️ ทำงานแบบ Fault-Tolerant: ดึงจากตาราง staff_users คัดกรอง role = 'doctor' ตรงตามโครงสร้างฐานข้อมูลคลินิก
-  window.fetchClinicDoctors = async function () {
+  window.fetchClinicDoctors = async function (forceRefresh) {
     const CACHE_KEY = 'stk_clinic_doctors_cache_v2';
     let cachedDoctors = [];
     try {
@@ -516,7 +517,7 @@
     // ถ้ามีฟังก์ชัน clinicSupabaseSelect ให้ดึงข้อมูลล่าสุดจากตาราง staff_users ของคลินิก
     if (typeof window.clinicSupabaseSelect === 'function') {
       try {
-        const staffUsers = await window.clinicSupabaseSelect('staff_users', 'select=id,emp_code,full_name,role,email&order=emp_code.asc&nocache=true');
+        const staffUsers = await window.clinicSupabaseSelect('staff_users', 'select=id,emp_code,full_name,role,email&order=emp_code.asc' + (forceRefresh ? '&nocache=true' : ''));
         if (Array.isArray(staffUsers) && staffUsers.length > 0) {
           const docs = staffUsers
             .filter(s => {

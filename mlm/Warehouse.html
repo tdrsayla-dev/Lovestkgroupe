@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
@@ -2048,6 +2048,9 @@
             totalStockQty: Number(item.totalStock || 0),
             physicalCount: physCount,
             diff: diff,
+            hasLateSales: hasLateSales,
+            lateSalesQty: lateSalesQty,
+            liveSalesQty: dateSales,
             prevDate: prevDate,
             prevPhysicalCount: prevPhysicalCount,
             prevSystemClosing: prevSystemClosing,
@@ -5310,6 +5313,62 @@
                             <span className="font-semibold text-slate-800 dark:text-slate-200">ยังไม่มีการบันทึกปิดยอดวันที่ {auditDate}</span>
                             <span className="text-slate-400 ml-1.5">— กรอกยอดนับจริงแล้วกดบันทึกด้านล่างเพื่อบันทึกประวัติการกระทบยอด</span>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Late Sales Warning & Sync Banner */}
+                      {Boolean(dailyReconciliation && dailyReconciliation.some(r => r.hasLateSales)) && (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-pulse">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                              <AlertTriangle size={18} />
+                            </div>
+                            <div>
+                              <p className="font-black text-xs text-amber-900 dark:text-amber-200">
+                                à¸•à¸£à¸§à¸ˆà¸žà¸šà¸šà¸´à¸¥à¸‚à¸²à¸¢à¸—à¸µà¹ˆà¸šà¸±à¸™à¸—à¸¶à¸à¸«à¸¥à¸±à¸‡à¸à¸²à¸£à¸›à¸´à¸”à¸¢à¸­à¸” ({dailyReconciliation.filter(r => r.hasLateSales).length} à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²)
+                              </p>
+                              <p className="text-[11px] text-amber-700 dark:text-amber-300/90 mt-0.5">
+                                à¸¡à¸µà¸à¸²à¸£à¹€à¸›à¸´à¸”à¸šà¸´à¸¥à¸‚à¸²à¸¢à¸«à¸£à¸·à¸­à¸›à¸£à¸±à¸šà¸¢à¸­à¸”à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸à¸à¸”à¸›à¸´à¸”à¸¢à¸­à¸”à¹„à¸›à¹à¸¥à¹‰à¸§ à¸—à¸³à¹ƒà¸«à¹‰à¸¢à¸­à¸”à¸‚à¸²à¸¢à¹à¸¥à¸°à¸ªà¸•à¹Šà¸­à¸à¸•à¸²à¸¡à¸£à¸°à¸šà¸šà¸„à¸¥à¸²à¸”à¹€à¸„à¸¥à¸·à¹ˆà¸­à¸™
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSyncLateSales}
+                            disabled={isSavingAudit}
+                            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                          >
+                            <RefreshCw size={13} className={isSavingAudit ? "animate-spin" : ""} />
+                            <span>à¸‹à¸´à¸‡à¸„à¹Œà¸¢à¸­à¸”à¸‚à¸²à¸¢à¸šà¸´à¸¥à¸•à¸à¸„à¹‰à¸²à¸‡à¸—à¸±à¸™à¸—à¸µ</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Late Sales Warning & Sync Banner */}
+                      {Boolean(dailyReconciliation && dailyReconciliation.some(r => r.hasLateSales)) && (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-pulse">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                              <AlertTriangle size={18} />
+                            </div>
+                            <div>
+                              <p className="font-black text-xs text-amber-900 dark:text-amber-200">
+                                à¸•à¸£à¸§à¸ˆà¸žà¸šà¸šà¸´à¸¥à¸‚à¸²à¸¢à¸—à¸µà¹ˆà¸šà¸±à¸™à¸—à¸¶à¸à¸«à¸¥à¸±à¸‡à¸à¸²à¸£à¸›à¸´à¸”à¸¢à¸­à¸” ({dailyReconciliation.filter(r => r.hasLateSales).length} à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²)
+                              </p>
+                              <p className="text-[11px] text-amber-700 dark:text-amber-300/90 mt-0.5">
+                                à¸¡à¸µà¸à¸²à¸£à¹€à¸›à¸´à¸”à¸šà¸´à¸¥à¸‚à¸²à¸¢à¸«à¸£à¸·à¸­à¸›à¸£à¸±à¸šà¸¢à¸­à¸”à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸à¸à¸”à¸›à¸´à¸”à¸¢à¸­à¸”à¹„à¸›à¹à¸¥à¹‰à¸§ à¸—à¸³à¹ƒà¸«à¹‰à¸¢à¸­à¸”à¸‚à¸²à¸¢à¹à¸¥à¸°à¸ªà¸•à¹Šà¸­à¸à¸•à¸²à¸¡à¸£à¸°à¸šà¸šà¸„à¸¥à¸²à¸”à¹€à¸„à¸¥à¸·à¹ˆà¸­à¸™
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSyncLateSales}
+                            disabled={isSavingAudit}
+                            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                          >
+                            <RefreshCw size={13} className={isSavingAudit ? "animate-spin" : ""} />
+                            <span>à¸‹à¸´à¸‡à¸„à¹Œà¸¢à¸­à¸”à¸‚à¸²à¸¢à¸šà¸´à¸¥à¸•à¸à¸„à¹‰à¸²à¸‡à¸—à¸±à¸™à¸—à¸µ</span>
+                          </button>
                         </div>
                       )}
 
