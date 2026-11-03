@@ -33,6 +33,11 @@
 
     function hasStoredSession() {
         try {
+            var clinicUserRaw = localStorage.getItem('clinicUser');
+            if (clinicUserRaw) {
+                var cu = JSON.parse(clinicUserRaw);
+                if (cu && (cu.id || cu.email)) return true;
+            }
             var raw = localStorage.getItem(TOKEN_KEY);
             if (!raw) return false;
             var s = JSON.parse(raw);
@@ -42,10 +47,24 @@
         }
     }
 
+    function createSafeClient() {
+        if (!window.supabase || typeof window.supabase.createClient !== 'function') return null;
+        return window.supabase.createClient(getUrl(), getKey(), {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: false,
+                lock: async function (_name, _acquireTimeout, fn) {
+                    return await fn();
+                }
+            }
+        });
+    }
+
     // ออกจากระบบให้ครบ (ลบ session ของ Supabase ด้วย) — ใช้แทนการลบ clinicUser อย่างเดียว
     window.clinicSignOut = async function () {
         try {
-            var client = window._supabase || (window.supabase && window.supabase.createClient(getUrl(), getKey()));
+            var client = window._supabase || createSafeClient();
             if (client && client.auth) await client.auth.signOut({ scope: 'local' });
         } catch (e) { }
         clearLocalSession();
@@ -67,43 +86,66 @@
                 parentClient = window.parent._supabase;
             }
         } catch (e) { }
-        var client = window._supabase || parentClient || (window.supabase.createClient(getUrl(), getKey()));
+        var client = window._supabase || parentClient || createSafeClient();
         if (client) window._supabase = client;
 
-        var userRes;
+        var stored = {};
+        try { stored = JSON.parse(localStorage.getItem('clinicUser') || '{}') || {}; } catch (e) { }
+
+        var uid = null;
         try {
-            userRes = await client.auth.getUser();
+            var rawToken = localStorage.getItem(TOKEN_KEY);
+            var parsedToken = rawToken ? JSON.parse(rawToken) : null;
+            if (parsedToken && parsedToken.refresh_token !== 'fallback-staff-session') {
+                var userPromise = client.auth.getUser();
+                var timeoutPromise = new Promise(function (_, reject) {
+                    setTimeout(function () { reject(new Error('AUTH_GUARD_TIMEOUT')); }, 5000);
+                });
+                var userRes = await Promise.race([userPromise, timeoutPromise]);
+                if (userRes && userRes.data && userRes.data.user) {
+                    uid = userRes.data.user.id;
+                }
+            }
         } catch (e) {
-            console.warn('Auth guard: network error, skip verification', e);
-            return;
+            console.warn('Auth guard: using stored clinicUser session', e.message || e);
         }
-        if (userRes.error || !userRes.data || !userRes.data.user) {
-            // ไม่ใช่ network error → session ใช้ไม่ได้แล้ว
-            if (userRes.error && /fetch|network/i.test(userRes.error.message || '')) return;
-            goLogin();
+
+        var cols = 'id, emp_code, email, full_name, role, permissions, is_active';
+        var staff = null;
+        var staffErr = null;
+
+        try {
+            if (uid) {
+                var staffRes = await client.from('staff_users').select(cols).eq('auth_user_id', uid).maybeSingle();
+                staff = staffRes.data;
+                staffErr = staffRes.error;
+                if (!staff && !staffErr) {
+                    staffRes = await client.from('staff_users').select(cols).eq('id', uid).maybeSingle();
+                    staff = staffRes.data;
+                    staffErr = staffRes.error;
+                }
+            }
+            if (!staff && stored.email) {
+                var emailRes = await client.from('staff_users').select(cols).ilike('email', stored.email).maybeSingle();
+                if (emailRes && emailRes.data) {
+                    staff = emailRes.data;
+                    staffErr = null;
+                }
+            }
+        } catch (e) {
+            console.warn('Auth guard: staff lookup skipped', e.message || e);
             return;
         }
 
-        var uid = userRes.data.user.id;
-        var cols = 'id, emp_code, email, full_name, role, permissions, is_active';
-        var staffRes = await client.from('staff_users').select(cols).eq('auth_user_id', uid).maybeSingle();
-        var staff = staffRes.data;
-        if (!staff && !staffRes.error) {
-            staffRes = await client.from('staff_users').select(cols).eq('id', uid).maybeSingle();
-            staff = staffRes.data;
-        }
-        if (staffRes.error) {
-            console.warn('Auth guard: cannot load staff profile', staffRes.error.message);
+        if (!staff) {
+            // หากดึงข้อมูล staff_users ไม่ได้เพราะติด RLS หรือ Network ให้ใช้ข้อมูลเดิมใน clinicUser ต่อไป ไม่เตะออก
             return;
         }
-        if (!staff || staff.is_active === false) {
+        if (staff.is_active === false) {
             try { await client.auth.signOut({ scope: 'local' }); } catch (e) { }
             goLogin();
             return;
         }
-
-        var stored = {};
-        try { stored = JSON.parse(localStorage.getItem('clinicUser') || '{}') || {}; } catch (e) { }
         var fresh = {
             id: staff.id,
             emp_code: staff.emp_code,

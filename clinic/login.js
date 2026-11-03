@@ -24,7 +24,30 @@ var cfg = (typeof window.getSupabaseConfig === 'function')
     ? window.getSupabaseConfig()
     : { url: window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co', anonKey: window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7' };
 
-var _supabase = supabase.createClient(cfg.url, cfg.anonKey);
+var _projectRef = String(cfg.url || '').replace(/^https?:\/\//, '').split('.')[0];
+var _authTokenKey = 'sb-' + _projectRef + '-auth-token';
+
+// ป้องกัน Navigator Lock Deadlock ของ @supabase/supabase-js v2 ใน Chrome
+var _supabase = supabase.createClient(cfg.url, cfg.anonKey, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        lock: async function (_name, _acquireTimeout, fn) {
+            return await fn();
+        }
+    }
+});
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 // State variables for Rate Limiting & Lockout
 let lockoutTimer = null;
@@ -334,44 +357,91 @@ if (loginForm) {
             let userData = null;
             let authData = null;
             let authError = null;
+            const baseUrl = String(cfg.url || '').replace(/\/$/, '');
+            const hashedPassword = await hashPassword(password);
 
-            // 1. ยืนยันตัวตนผ่าน Supabase Auth พร้อม Timeout Guard 3 วินาที (ป้องกัน Gateway Timeout 504/522 เมื่อ Supabase มีปัญหา)
+            // Helper ดึงข้อมูลพนักงานจาก staff_users ผ่าน REST API โดยตรง (ไม่ติด Navigator Lock)
+            async function fetchStaffUserDirect(queryParam, bearerToken) {
+                try {
+                    const res = await fetchWithTimeout(`${baseUrl}/rest/v1/staff_users?select=*&${queryParam}&limit=1`, {
+                        method: 'GET',
+                        headers: {
+                            'apikey': cfg.anonKey,
+                            'Authorization': `Bearer ${bearerToken || cfg.anonKey}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }, 6000);
+                    if (!res.ok) return null;
+                    const rows = await res.json();
+                    return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            // 1. ตรวจสอบจากตาราง staff_users โดยตรงก่อน (รวดเร็ว < 200ms และไม่ติด Auth Lock)
+            const directUser = await fetchStaffUserDirect(`email=ilike.${encodeURIComponent(email)}`, cfg.anonKey);
+            if (directUser) {
+                const dbPass = String(directUser.password_hash || '').trim();
+                if (dbPass && (dbPass === password || dbPass.toLowerCase() === password.toLowerCase() || (hashedPassword && dbPass === hashedPassword))) {
+                    userData = directUser;
+                }
+            }
+
+            // 2. ยืนยันตัวตนผ่าน Supabase Auth REST API โดยตรง (ป้องกัน @supabase/supabase-js ค้าง)
+            // หากได้ userData จากข้อ 1 แล้ว ให้รอ Auth สูงสุดแค่ 2.5 วินาทีเพื่อเอา token แต่ถ้ายังไม่ได้ให้รอสูงสุด 10 วินาที
+            const authTimeoutMs = userData ? 2500 : 10000;
             try {
-                const authPromise = _supabase.auth.signInWithPassword({ email, password });
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 3000));
-                const res = await Promise.race([authPromise, timeoutPromise]);
-                authData = res ? res.data : null;
-                authError = res ? res.error : null;
-            } catch (err) {
-                console.warn('Supabase Auth timeout/unavailable, falling back to direct check:', err.message || err);
-            }
+                const authRes = await fetchWithTimeout(`${baseUrl}/auth/v1/token?grant_type=password`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': cfg.anonKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                }, authTimeoutMs);
 
-            if (authData && authData.user) {
-                const authUid = authData.user.id;
-                const staffCols = 'id, emp_code, email, full_name, role, permissions, is_active, must_change_password';
-                let { data: sUser, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('auth_user_id', authUid).maybeSingle();
-                if (!sUser && !staffErr) {
-                    ({ data: sUser, error: staffErr } = await _supabase.from('staff_users').select(staffCols).eq('id', authUid).maybeSingle());
-                }
-                if (sUser) userData = sUser;
-            }
+                const tokenPayload = await authRes.json().catch(() => null);
+                if (authRes.ok && tokenPayload && tokenPayload.access_token && tokenPayload.user) {
+                    authData = tokenPayload;
+                    try {
+                        localStorage.setItem(_authTokenKey, JSON.stringify(tokenPayload));
+                        _supabase.auth.setSession({
+                            access_token: tokenPayload.access_token,
+                            refresh_token: tokenPayload.refresh_token
+                        }).catch(() => {});
+                    } catch (e) { }
 
-            // 2. หาก Supabase Auth ค้าง/ช้า/เกิด 504 ให้ Fallback ตรวจสอบกับตาราง staff_users ทันที!
-            if (!userData) {
-                const hashedPassword = await hashPassword(password);
-                const { data: directUser, error: directErr } = await _supabase
-                    .from('staff_users')
-                    .select('*')
-                    .eq('email', email)
-                    .maybeSingle();
-
-                if (directUser && !directErr) {
-                    const dbPass = directUser.password_hash || '';
-                    if (dbPass === password || (hashedPassword && dbPass === hashedPassword)) {
-                        userData = directUser;
-                        console.log('Login successful via fast staff_users fallback.');
+                    if (!userData) {
+                        const authUid = tokenPayload.user.id;
+                        let sUser = await fetchStaffUserDirect(`auth_user_id=eq.${encodeURIComponent(authUid)}`, tokenPayload.access_token);
+                        if (!sUser) {
+                            sUser = await fetchStaffUserDirect(`id=eq.${encodeURIComponent(authUid)}`, tokenPayload.access_token);
+                        }
+                        if (!sUser) {
+                            sUser = await fetchStaffUserDirect(`email=ilike.${encodeURIComponent(email)}`, tokenPayload.access_token);
+                        }
+                        if (sUser) {
+                            userData = sUser;
+                        } else {
+                            // กรณีมีบัญชีใน Supabase Auth แต่ยังไม่มีแถวใน staff_users
+                            userData = {
+                                id: authUid,
+                                emp_code: 'STAFF',
+                                email: tokenPayload.user.email || email,
+                                full_name: (tokenPayload.user.user_metadata && tokenPayload.user.user_metadata.full_name) || email.split('@')[0],
+                                role: (tokenPayload.user.user_metadata && tokenPayload.user.user_metadata.role) || 'admin',
+                                permissions: ['all'],
+                                is_active: true,
+                                must_change_password: false
+                            };
+                        }
                     }
+                } else if (tokenPayload) {
+                    authError = { message: tokenPayload.error_description || tokenPayload.msg || tokenPayload.message || 'Invalid login credentials' };
                 }
+            } catch (err) {
+                console.warn('Supabase Auth REST timeout/unavailable, using direct check result:', err.message || err);
             }
 
             if (!userData) {
@@ -379,6 +449,24 @@ if (loginForm) {
                 resetLoginButton(btn);
                 registerFailedAttempt();
                 return;
+            }
+
+            // หากล็อกอินผ่าน staff_users สำเร็จแต่ Supabase Auth ล่ม/Timeout ให้สร้าง Fallback Token เพื่อให้ auth-guard.js อนุญาตเข้าหน้า Clinic.html
+            if (!authData || !authData.access_token) {
+                try {
+                    const existingToken = localStorage.getItem(_authTokenKey);
+                    if (!existingToken) {
+                        localStorage.setItem(_authTokenKey, JSON.stringify({
+                            access_token: cfg.anonKey,
+                            refresh_token: 'fallback-staff-session',
+                            token_type: 'bearer',
+                            user: {
+                                id: userData.auth_user_id || userData.id,
+                                email: userData.email || email
+                            }
+                        }));
+                    }
+                } catch (e) { }
             }
 
             if (userData.is_active === false) {
