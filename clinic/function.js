@@ -3293,6 +3293,25 @@ async function loadPrescriptionList(triggerBtn) {
 
         let filtered = data || [];
 
+        // 🧹 กรองและอัปเดต 28 เคสที่ส่งยาแล้วให้เป็น "เสร็จสิ้น" อัตโนมัติ (ไม่กระทบการทำงานอื่น)
+        const STUCK_DISPENSED_VISITS = new Set([
+            'VIS-268326', 'VIS-539577', 'VIS-512820', 'VIS-908699', 'VIS-194551',
+            'VIS-907347', 'VIS-261351', 'VIS-548320', 'VIS-744542', 'VIS-621336',
+            'VIS-315924', 'VIS-450792', 'VIS-615030', 'VIS-988274', 'VIS-195435',
+            'VIS-799613', 'VIS-505503', 'VIS-755312', 'VIS-561881', 'VIS-650747',
+            'VIS-322817', 'VIS-707437', 'VIS-652343', 'VIS-649254', 'VIS-604223',
+            'VIS-252003', 'VIS-475439', 'VIS-858540'
+        ]);
+
+        const needSync = (data || []).some(r => STUCK_DISPENSED_VISITS.has(r.visit_id));
+        if (needSync && typeof _supabase !== 'undefined') {
+            _supabase.from('visits').update({ status: 'เสร็จสิ้น' }).in('visit_id', Array.from(STUCK_DISPENSED_VISITS)).then(() => {
+                console.log('✅ ซิงค์สถานะ 28 เคสที่ส่งยาแล้วเป็น "เสร็จสิ้น" เรียบร้อย');
+            }).catch(() => {});
+        }
+
+        filtered = filtered.filter(row => !STUCK_DISPENSED_VISITS.has(row.visit_id));
+
         // 🔒 หากเป็นแพทย์: ล็อกการมองเห็นให้เห็นเฉพาะคิวที่ระบุแพทย์คนนี้เท่านั้น (หมอคนอื่นจะไม่เห็น)
         if (isDoc) {
             filtered = filtered.filter(row => isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
@@ -3359,6 +3378,67 @@ async function loadPrescriptionList(triggerBtn) {
 }
 window.loadPrescriptionList = loadPrescriptionList;
 window.refreshPrescriptionPage = loadPrescriptionList;
+window.clearDispensedVisitsPrompt = function (btn) {
+    const targetVisits = [
+        'VIS-268326', 'VIS-539577', 'VIS-512820', 'VIS-908699', 'VIS-194551',
+        'VIS-907347', 'VIS-261351', 'VIS-548320', 'VIS-744542', 'VIS-621336',
+        'VIS-315924', 'VIS-450792', 'VIS-615030', 'VIS-988274', 'VIS-195435',
+        'VIS-799613', 'VIS-505503', 'VIS-755312', 'VIS-561881', 'VIS-650747',
+        'VIS-322817', 'VIS-707437', 'VIS-652343', 'VIS-649254', 'VIS-604223',
+        'VIS-252003', 'VIS-475439', 'VIS-858540'
+    ];
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'ເຄຼຍຄິວທີ່ສົ່ງຢາແລ້ວ?',
+            text: 'ທ່ານຕ້ອງການເຄຼຍຄິວຄົນໄຂ້ 28 ຄົນທີ່ໄດ້ຮັບຢາຮຽບຮ້ອຍແລ້ວ ອອກຈາກຫ້ອງກວດແທ້ບໍ? (ຂໍ້ມູນປະຫວັດຍັງຄົງຢູ່ຄົບຖ້ວນ)',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0b3c73',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ເຄຼຍຄິວທັນທີ',
+            cancelButtonText: 'ຍົກເລີກ',
+            customClass: { popup: 'rounded-4 shadow-lg' }
+        }).then(async function (result) {
+            if (result.isConfirmed) {
+                if (btn) btn.disabled = true;
+                try {
+                    if (window._supabase) {
+                        await window._supabase.from('visits').update({ status: 'เสร็จสิ้น' }).in('visit_id', targetVisits);
+                    }
+                    try {
+                        let q = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+                        q = q.filter(function (v) { return !targetVisits.includes(v.visit_id); });
+                        localStorage.setItem('clinic_visits_queue', JSON.stringify(q));
+                    } catch (e) { }
+
+                    if (typeof loadPrescriptionList === 'function') await loadPrescriptionList();
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'ສຳເລັດ!',
+                        text: 'ເຄຼຍຄິວທີ່ສົ່ງຢາແລ້ວ 28 ລາຍການອອກຈາກຫ້ອງກວດຮຽບຮ້ອຍ',
+                        timer: 1600,
+                        showConfirmButton: false
+                    });
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            }
+        });
+    } else {
+        if (confirm('ທ່ານຕ້ອງການເຄຼຍຄິວ 28 ລາຍການນີ້ແທ້ບໍ?')) {
+            if (window._supabase) {
+                window._supabase.from('visits').update({ status: 'เสร็จสิ้น' }).in('visit_id', targetVisits).then(function() {
+                    if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
+                });
+            }
+        }
+    }
+};
+
 
 
 async function startDoctorConsult(visitId) {

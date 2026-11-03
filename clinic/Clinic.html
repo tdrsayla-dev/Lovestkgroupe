@@ -1209,6 +1209,7 @@
                             <i class="bi bi-person-check-fill me-1"></i>เฉพาะคิวตรวจของคุณ
                         </span>
                     </div>
+                    <button id="btnClearDispensedVisits" class="btn btn-sm btn-outline-danger py-2 px-3 fw-bold shadow-2xs me-2" style="border-radius: 10px;" onclick="clearDispensedVisitsPrompt(this)"><i class="ph ph-broom me-1"></i> <span data-i18n="clear_dispensed">ເຄຼຍຄິວທີ່ສົ່ງຢາແລ້ວ</span></button>
                     <button id="btnRefreshPrescription"
                         class="btn btn-sm btn-outline-primary py-2 px-3 fw-bold shadow-2xs" style="border-radius: 10px;"
                         onclick="loadPrescriptionList(this)">
@@ -6101,7 +6102,7 @@
 document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=11.0"></script>
+    <script src="function.js?v=11.1"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.9"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
