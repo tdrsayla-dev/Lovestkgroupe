@@ -290,51 +290,76 @@ if (loginForm) {
             const hashedPassword = await hashPassword(password);
             let userData = null;
 
-            // 1. ดึงข้อมูลพนักงานจากตาราง staff_users
+            // 1. ตรวจสอบยืนยันตัวตนผ่าน Supabase Auth (มาตรฐานความปลอดภัยสูงสุด)
+            let authUser = null;
+            try {
+                const authPromise = _supabase.auth.signInWithPassword({ email: email, password: password });
+                const authRes = await withTimeout(authPromise, 6000);
+                if (authRes && authRes.data && authRes.data.user) {
+                    authUser = authRes.data.user;
+                    console.info('[login] ✅ เข้าสู่ระบบ Supabase Auth สำเร็จ');
+                }
+            } catch (authErr) {
+                console.warn('[login] signInWithPassword error:', authErr.message || authErr);
+            }
+
+            // 2. ถ้า signIn ไม่ผ่าน ลองตรวจดูว่าเป็นบัญชีเดิมที่ยังไม่ได้โอนย้ายหรือไม่ (Auto-migrate)
+            if (!authUser) {
+                try {
+                    const { data: migrated } = await _supabase.rpc('migrate_legacy_staff_on_login', {
+                        p_email: email,
+                        p_password: password
+                    });
+                    if (migrated) {
+                        const retryRes = await _supabase.auth.signInWithPassword({ email: email, password: password });
+                        if (retryRes && retryRes.data && retryRes.data.user) {
+                            authUser = retryRes.data.user;
+                            console.info('[login] ✅ Auto-migrate บัญชีเข้า Supabase Auth สำเร็จ');
+                        }
+                    }
+                } catch (migErr) {
+                    console.warn('[login] auto-migrate notice:', migErr.message || migErr);
+                }
+            }
+
+            // 3. ตรวจสอบว่าพบผู้ใช้ที่ยืนยันตัวตนสำเร็จหรือไม่
+            if (!authUser) {
+                resetLoginButton(btn);
+                registerFailedAttempt();
+                return false;
+            }
+
+            // 4. ดึงข้อมูลสิทธิ์และโปรไฟล์จากตาราง staff_users
+            const uid = authUser.id;
             try {
                 const queryPromise = _supabase
                     .from('staff_users')
                     .select('*')
-                    .ilike('email', email)
+                    .or(`auth_user_id.eq.${uid},id.eq.${uid},email.ilike.${email}`)
                     .maybeSingle();
 
-                const { data, error } = await withTimeout(queryPromise, 8000);
-                if (data && !error) {
-                    const dbPass = String(data.password_hash || '').trim();
-                    // ตรวจสอบรหัสผ่านตรงกับในตาราง หรือรหัสผ่านตั้งต้น
-                    const isValid = (dbPass && (dbPass === password || dbPass.toLowerCase() === password.toLowerCase() || (hashedPassword && dbPass === hashedPassword)))
-                        || (password === '112233' || password === '123456');
-
-                    if (isValid) {
-                        userData = data;
-                        console.info('[login] ✅ ยืนยันข้อมูลสำเร็จจาก staff_users');
+                const { data: sData } = await withTimeout(queryPromise, 6000);
+                if (sData) {
+                    userData = sData;
+                    if (!userData.auth_user_id || userData.auth_user_id !== uid) {
+                        await _supabase.from('staff_users').update({ auth_user_id: uid }).eq('id', userData.id);
+                        userData.auth_user_id = uid;
                     }
                 }
             } catch (dbErr) {
-                console.warn('[login] staff_users check notice:', dbErr.message || dbErr);
+                console.warn('[login] fetch staff_users notice:', dbErr.message || dbErr);
             }
 
-            // 2. ถ้ายังไม่พบ ให้ลองตรวจสอบผ่าน Supabase Auth (Timeout 4 วิ)
             if (!userData) {
-                try {
-                    const authPromise = _supabase.auth.signInWithPassword({ email, password });
-                    const authRes = await withTimeout(authPromise, 4000);
-                    if (authRes && authRes.data && authRes.data.user) {
-                        const uid = authRes.data.user.id;
-                        const { data: sData } = await _supabase.from('staff_users').select('*').or(`auth_user_id.eq.${uid},id.eq.${uid},email.ilike.${email}`).maybeSingle();
-                        userData = sData || {
-                            id: uid,
-                            emp_code: 'STAFF',
-                            email: email,
-                            full_name: email.split('@')[0],
-                            role: 'admin',
-                            permissions: ['all'],
-                            is_active: true
-                        };
-                    }
-                } catch (authErr) {
-                    console.warn('[login] auth check notice:', authErr.message || authErr);
-                }
+                userData = {
+                    id: uid,
+                    emp_code: 'STAFF',
+                    email: email,
+                    full_name: email.split('@')[0],
+                    role: 'admin',
+                    permissions: ['all'],
+                    is_active: true
+                };
             }
 
             // 3. ตรวจสอบสถานะและสิทธิ์
@@ -378,15 +403,8 @@ if (loginForm) {
             localStorage.setItem('clinicUser', JSON.stringify(clinicSession));
             localStorage.setItem('clinic_last_activity', Date.now().toString());
 
-            // บันทึก Token ให้พร้อมสำหรับ auth-guard
-            const dummyToken = {
-                access_token: cfg.anonKey,
-                refresh_token: 'clinic-session-' + Date.now(),
-                user: { id: userData.id, email: userData.email }
-            };
-            try {
-                localStorage.setItem(_authTokenKey, JSON.stringify(dummyToken));
-            } catch (e) { }
+            // 🔒 คง Session จริงของ Supabase Auth ไว้ (ไม่เขียนทับด้วย Anon Token)
+            // Supabase client ได้จัดเก็บ JWT Token ที่สมบูรณ์ไว้ใน _authTokenKey เรียบร้อยแล้ว
 
             console.info('[login] ✅ เข้าสู่ระบบสำเร็จ กำลังเปิดหน้า Clinic.html');
             Swal.fire({
