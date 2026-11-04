@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
@@ -1962,6 +1962,11 @@
             }
           }
 
+          const lateSalesQty = (existingAudit && existingAudit.sales_qty !== undefined && existingAudit.sales_qty !== null)
+            ? (Number(dateSales || 0) - Number(existingAudit.sales_qty || 0))
+            : 0;
+          const hasLateSales = Boolean(existingAudit && lateSalesQty !== 0);
+
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
             : (existingAudit && existingAudit.physical_count_qty !== null && existingAudit.physical_count_qty !== undefined
@@ -2247,6 +2252,58 @@
           showToast('เกิดข้อผิดพลาดในการปรับสต็อก: ' + (err.message || String(err)), 'error');
         } finally {
           setIsAdjustingStock(false);
+        }
+      };
+
+      // ฟังก์ชันซิงค์บิลตกค้างหลังปิดยอด (Late Sales Auto-Sync)
+      const handleSyncLateSales = async () => {
+        if (!dailyReconciliation || dailyReconciliation.length === 0) return;
+        const lateItems = dailyReconciliation.filter(r => r.hasLateSales);
+        if (lateItems.length === 0) {
+          showToast('ไม่พบบิลขายที่บันทึกหลังปิดยอด ยอดขายตรงตามระบบแล้ว', 'info');
+          return;
+        }
+
+        const confirmMsg = `ตรวจพบบิลขายหลังปิดยอดวันที่ ${auditDate} จำนวน ${lateItems.length} รายการ:\n\n` +
+          lateItems.map(it => `• ${it.name}: ยอดขายเดิมที่ปิด ${it.salesQty} ➔ ยอดขายจริงล่าสุด ${it.liveSalesQty} (ต่าง ${it.lateSalesQty > 0 ? '+' : ''}${it.lateSalesQty})`).join('\n') +
+          `\n\nต้องการอัปเดตยอดขายและยอดคงเหลือตามระบบให้ตรงกับบิลขายจริงล่าสุดหรือไม่?`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsSavingAudit(true);
+        try {
+          let updatedCount = 0;
+          for (const item of lateItems) {
+            const balId = `BAL-FRONT_STORE-${auditDate}-${item.productId}`;
+            const newSales = Number(item.liveSalesQty || 0);
+            const newClosing = Math.max(0, Number(item.openingQty || 0) + Number(item.transferInQty || 0) - newSales);
+            const newDiff = item.physicalCount !== null ? (item.physicalCount - newClosing) : 0;
+            const newStatus = (item.physicalCount !== null && newDiff === 0) ? 'BALANCED' : (newDiff !== 0 ? 'DISCREPANCY' : 'PENDING');
+
+            if (typeof window.supabaseUpdate === 'function') {
+              await window.supabaseUpdate('stk_daily_balance', balId, {
+                sales_qty: newSales,
+                system_closing_qty: newClosing,
+                diff_qty: newDiff,
+                audit_status: newStatus,
+                audit_notes: `ซิงค์บิลขายหลังปิดยอด (+${item.lateSalesQty} ชิ้น)`
+              }, 'id').catch(e => console.warn('Sync late sales error:', e));
+            }
+            updatedCount++;
+          }
+
+          if (typeof window.invalidateTableCache === 'function') {
+            window.invalidateTableCache('stk_daily_balance');
+          }
+
+          showToast(`✅ ซิงค์ยอดขายบิลตกค้างเรียบร้อยแล้ว (${updatedCount} รายการ)`, 'success');
+          await loadLedgerBalances(auditDate);
+          await loadWarehouseData(true);
+        } catch (err) {
+          console.error('handleSyncLateSales error:', err);
+          showToast('เกิดข้อผิดพลาดในการซิงค์: ' + (err.message || String(err)), 'error');
+        } finally {
+          setIsSavingAudit(false);
         }
       };
 
@@ -5328,7 +5385,7 @@
                                 à¸•à¸£à¸§à¸ˆà¸žà¸šà¸šà¸´à¸¥à¸‚à¸²à¸¢à¸—à¸µà¹ˆà¸šà¸±à¸™à¸—à¸¶à¸à¸«à¸¥à¸±à¸‡à¸à¸²à¸£à¸›à¸´à¸”à¸¢à¸­à¸” ({dailyReconciliation.filter(r => r.hasLateSales).length} à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²)
                               </p>
                               <p className="text-[11px] text-amber-700 dark:text-amber-300/90 mt-0.5">
-                                à¸¡à¸µà¸à¸²à¸£à¹€à¸›à¸´à¸”à¸šà¸´à¸¥à¸‚à¸²à¸¢à¸«à¸£à¸·à¸­à¸›à¸£à¸±à¸šà¸¢à¸­à¸”à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸à¸à¸”à¸›à¸´à¸”à¸¢à¸­à¸”à¹„à¸›à¹à¸¥à¹‰à¸§ à¸—à¸³à¹ƒà¸«à¹‰à¸¢à¸­à¸”à¸‚à¸²à¸¢à¹à¸¥à¸°à¸ªà¸•à¹Šà¸­à¸à¸•à¸²à¸¡à¸£à¸°à¸šà¸šà¸„à¸¥à¸²à¸”à¹€à¸„à¸¥à¸·à¹ˆà¸­à¸™
+                                à¸¡à¸µà¸à¸²à¸£à¹€à¸›à¸´à¸”à¸šà¸´à¸¥à¸‚à¸²à¸¢à¸«à¸£à¸·à¸­à¸›à¸£à¸±à¸šà¸¢à¸­à¸”à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸à¸à¸”à¸›à¸´à¸”à¸¢à¸­à¸”à¹„à¸›à¹à¸¥à¹‰à¸§ à¸—à¸³à¹ƒà¸«à¹‰à¸¢à¸­à¸”à¸‚à¸²à¸¢à¹à¸¥à¸°à¸ªà¸•à¹‡à¸­à¸à¸•à¸²à¸¡à¸£à¸°à¸šà¸šà¸„à¸¥à¸²à¸”à¹€à¸„à¸¥à¸·à¹ˆà¸­à¸™
                               </p>
                             </div>
                           </div>
@@ -5343,35 +5400,6 @@
                           </button>
                         </div>
                       )}
-
-                      {/* Late Sales Warning & Sync Banner */}
-                      {Boolean(dailyReconciliation && dailyReconciliation.some(r => r.hasLateSales)) && (
-                        <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-pulse">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-                              <AlertTriangle size={18} />
-                            </div>
-                            <div>
-                              <p className="font-black text-xs text-amber-900 dark:text-amber-200">
-                                à¸•à¸£à¸§à¸ˆà¸žà¸šà¸šà¸´à¸¥à¸‚à¸²à¸¢à¸—à¸µà¹ˆà¸šà¸±à¸™à¸—à¸¶à¸à¸«à¸¥à¸±à¸‡à¸à¸²à¸£à¸›à¸´à¸”à¸¢à¸­à¸” ({dailyReconciliation.filter(r => r.hasLateSales).length} à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²)
-                              </p>
-                              <p className="text-[11px] text-amber-700 dark:text-amber-300/90 mt-0.5">
-                                à¸¡à¸µà¸à¸²à¸£à¹€à¸›à¸´à¸”à¸šà¸´à¸¥à¸‚à¸²à¸¢à¸«à¸£à¸·à¸­à¸›à¸£à¸±à¸šà¸¢à¸­à¸”à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸à¸à¸”à¸›à¸´à¸”à¸¢à¸­à¸”à¹„à¸›à¹à¸¥à¹‰à¸§ à¸—à¸³à¹ƒà¸«à¹‰à¸¢à¸­à¸”à¸‚à¸²à¸¢à¹à¸¥à¸°à¸ªà¸•à¹Šà¸­à¸à¸•à¸²à¸¡à¸£à¸°à¸šà¸šà¸„à¸¥à¸²à¸”à¹€à¸„à¸¥à¸·à¹ˆà¸­à¸™
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleSyncLateSales}
-                            disabled={isSavingAudit}
-                            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-                          >
-                            <RefreshCw size={13} className={isSavingAudit ? "animate-spin" : ""} />
-                            <span>à¸‹à¸´à¸‡à¸„à¹Œà¸¢à¸­à¸”à¸‚à¸²à¸¢à¸šà¸´à¸¥à¸•à¸à¸„à¹‰à¸²à¸‡à¸—à¸±à¸™à¸—à¸µ</span>
-                          </button>
-                        </div>
-                      )}
-
                       {/* Weekend / Non-Audit Gap Banner */}
                       {Boolean(dailyReconciliation && dailyReconciliation[0]?.hasGap) && (
                         <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start sm:items-center gap-3 shadow-xs">
