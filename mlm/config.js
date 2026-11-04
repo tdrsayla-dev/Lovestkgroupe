@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.11.03.08';
+  const APP_VERSION = '2026.11.04.01';
   window.APP_VERSION = APP_VERSION;
 
   // 🛡️ Global QuotaExceeded Protection for localStorage & sessionStorage
