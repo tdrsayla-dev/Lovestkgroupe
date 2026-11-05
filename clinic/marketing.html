@@ -2905,11 +2905,11 @@
                 <!-- Toggle Mode สำหรับสลับดูทั้งหมด หรือเฉพาะของฉัน (ซ่อนเป็นค่าเริ่มต้น จะแสดงเฉพาะเมื่อเป็น Admin) -->
                 <div id="adminViewToggle" class="btn-group btn-group-sm ms-2 shadow-sm"
                     style="display: inline-flex; border-radius: 20px; overflow: hidden;">
-                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 active fw-semibold"
-                        id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px;">
+                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-semibold"
+                        id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px; display: none;">
                         <i class="ph ph-globe me-1"></i>ທັງໝົດ
                     </button>
-                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-semibold"
+                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 active fw-semibold"
                         id="btnAdminViewMy" onclick="setAdminPatientView('my')" style="font-size: 12px;">
                         <i class="ph ph-user me-1"></i>ສະເພາະຂອງຂ້ອຍ
                     </button>
@@ -4958,6 +4958,10 @@
         let allOrdersData = [];
 
         function setAdminPatientView(mode) {
+            // ป้องกันผู้ใช้ทั่วไปที่ไม่ใช่ Admin สลับไปดู 'all' (ທັງໝົດ)
+            if (mode === 'all' && !isCurrentUserAdmin && !checkIsAdmin()) {
+                mode = 'my';
+            }
             currentAdminViewMode = mode;
             const btnAll = document.getElementById('btnAdminViewAll');
             const btnMy = document.getElementById('btnAdminViewMy');
@@ -5081,22 +5085,37 @@
                 const btnMy = document.getElementById('btnAdminViewMy');
                 const subtitleEl = document.getElementById('page-patient-subtitle');
 
-                // แสดง Toggle และปุ่มสลับ "ທັງໝົດ" / "ສະເພາະຂອງຂ້ອຍ" ให้พนักงานทุกคนสามารถสลับดูได้
-                if (toggleEl) toggleEl.style.display = 'inline-flex';
-                if (btnAll) btnAll.style.display = 'inline-flex';
-                if (btnMy) btnMy.style.display = 'inline-flex';
-
+                // จัดการแสดง/ซ่อนปุ่ม "ທັງໝົດ" ตามสิทธิ์ Admin
                 if (isCurrentUserAdmin) {
+                    if (toggleEl) toggleEl.style.display = 'inline-flex';
+                    if (btnAll) btnAll.style.display = 'inline-flex';
+                    if (btnMy) {
+                        btnMy.style.display = 'inline-flex';
+                        btnMy.style.borderRadius = '';
+                    }
                     if (subtitleEl) subtitleEl.textContent = 'ສະແດງລາຍຊື່ຜູ້ປ່ວຍທັງໝົດໃນລະບົບ (Admin)';
                 } else {
+                    // ผู้ใช้ทั่วไปที่ไม่ใช่ Admin: ซ่อนปุ่ม "ທັງໝົດ" ให้เห็นและใช้งานได้เฉพาะ "ສະເພາະຂອງຂ້ອຍ"
+                    if (btnAll) btnAll.style.display = 'none';
+                    if (btnMy) {
+                        btnMy.style.display = 'inline-flex';
+                        btnMy.style.borderRadius = '20px';
+                    }
+                    if (toggleEl) toggleEl.style.display = 'inline-flex';
                     if (subtitleEl) subtitleEl.textContent = 'ສະແດງລາຍຊື່ຜູ້ປ່ວຍໃນລະບົບ';
                 }
 
-                // ค่าเริ่มต้น: หากในโหมดของฉันไม่มีข้อมูล หรือผู้ใช้เลือกดูทั้งหมด ให้สลับเป็น 'all' เพื่อไม่ให้หน้าจอว่างเปล่า
-                if (currentAdminViewMode === 'my' && rawMyPatients && rawMyPatients.length > 0) {
+                // ค่าเริ่มต้น:
+                // - ถ้าไม่ใช่ Admin บังคับให้เป็นโหมด 'my' (ສະເພາະຂອງຂ້ອຍ) เสมอ
+                // - ถ้าเป็น Admin ให้ดูตามโหมดเดิมหรือค่าเริ่มต้น 'all'
+                if (!isCurrentUserAdmin) {
                     setAdminPatientView('my');
                 } else {
-                    setAdminPatientView('all');
+                    if (currentAdminViewMode === 'my') {
+                        setAdminPatientView('my');
+                    } else {
+                        setAdminPatientView('all');
+                    }
                 }
 
                 const titleEl = document.getElementById('page-patient-title');
