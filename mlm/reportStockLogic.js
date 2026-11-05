@@ -137,7 +137,7 @@
         });
 
         return saleRes.map(s => {
-            let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
+            let sumF = 0, sumM = 0, sumB = 0, sumP = 0, sumZ = 0;
             let itemsList = [];
             if (s.items_json) {
                 try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
@@ -149,29 +149,37 @@
                     const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
                     const price = it.price !== undefined ? it.price : (it.unit_price ?? it.rate);
                     const amt = it.amount !== undefined ? it.amount : (it.total_amount ?? it.totalPrice);
-                    const typeStr = classifyOrderItem(it, price, amt, prodMapObj);
+                    const isB2B = (String(s.sale_type || '').toUpperCase() === 'B2B') ||
+                                  String(s.order_id || s.id || '').toUpperCase().startsWith('B2B-') ||
+                                  Boolean(it.appliedTier) ||
+                                  String(it.priceType || it.type || '').toLowerCase().includes('b2b');
+                    const typeStr = isB2B ? 'ราคา B2B' : classifyOrderItem(it, price, amt, prodMapObj);
                     s[`${pName}_${typeStr}`] = qtyNum;
                     
-                    if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
-                    else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
+                    if (isB2B) sumB += qtyNum;
+                    else if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
                     else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
                     else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
                     else sumM += qtyNum;
                 });
             } else {
                 Object.keys(s).forEach(k => {
-                    if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาสมาชิก' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                    if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาสมาชิก' && k !== 'รวมชิ้นราคาB2B' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
                         const lastUnderscore = k.lastIndexOf('_');
                         if (lastUnderscore > 0) {
                             const rawPName = k.substring(0, lastUnderscore).trim();
                             const legacyType = k.substring(lastUnderscore + 1).trim();
                             const valQty = parseInt(s[k]) || 0;
                             if (valQty > 0) {
-                                const correctType = classifyOrderItem({ prod: rawPName, type: legacyType, qty: valQty }, null, null, prodMapObj);
-                                if (correctType === 'ราคาเต็ม') sumF += valQty;
-                                else if (correctType === 'ราคาสมาชิก') sumM += valQty;
+                                const isB2B = (String(s.sale_type || '').toUpperCase() === 'B2B') ||
+                                              String(s.order_id || s.id || '').toUpperCase().startsWith('B2B-') ||
+                                              legacyType.toLowerCase().includes('b2b');
+                                const correctType = isB2B ? 'ราคา B2B' : classifyOrderItem({ prod: rawPName, type: legacyType, qty: valQty }, null, null, prodMapObj);
+                                if (isB2B) sumB += valQty;
+                                else if (correctType === 'ราคาเต็ม') sumF += valQty;
                                 else if (correctType === 'ราคาโปร' || correctType === 'โปรโมชั่น') sumP += valQty;
                                 else if (correctType === 'ราคาศูนย์') sumZ += valQty;
+                                else sumM += valQty;
                             }
                         }
                     }
@@ -206,9 +214,10 @@
             
             copy['รวมชิ้นราคาเต็ม'] = sumF; 
             copy['รวมชิ้นราคาสมาชิก'] = sumM;
+            copy['รวมชิ้นราคาB2B'] = sumB;
             copy['รวมชิ้นราคาโปร'] = sumP; 
             copy['รวมชิ้นราคาศูนย์'] = sumZ;
-            copy['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
+            copy['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumB + sumP + sumZ;
             copy['_items'] = itemsList;
             copy['ยอดขายรวม'] = Number(s['ยอดขายรวม'] || s.total_amount || s.grand_total || s.totalAmount || s.grandTotal || s.amount || 0);
             
@@ -277,7 +286,11 @@
                     if (q > 0) {
                         const unitPrice = it.price !== undefined ? it.price : (it.unit_price ?? it.rate);
                         const amt = it.amount !== undefined ? it.amount : (it.total_amount ?? it.totalPrice);
-                        const resolvedType = classifyOrderItem(it, unitPrice, amt, prodMapObj);
+                        const isB2B = (String(record.sale_type || '').toUpperCase() === 'B2B') ||
+                                      String(record.order_id || record.id || '').toUpperCase().startsWith('B2B-') ||
+                                      Boolean(it.appliedTier) ||
+                                      String(it.priceType || it.type || '').toLowerCase().includes('b2b');
+                        const resolvedType = isB2B ? 'ราคา B2B' : classifyOrderItem(it, unitPrice, amt, prodMapObj);
                         items.push({
                             billId: record.id,
                             date: record.date || record.sale_date || '',
@@ -323,7 +336,7 @@
                 openingBalance: 0,   // ยอดยกมา
                 receivedInPeriod: 0, // รับเข้าช่วงเวลา
                 periodOut: 0,        // ขาย/เบิกออกช่วงเวลา
-                fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0
+                fullQty: 0, memberQty: 0, b2bQty: 0, promoQty: 0, zeroQty: 0
             };
 
             if (pId) prodMapObj[pId] = p;
@@ -386,7 +399,7 @@
             let foundKey = findKey(targetName);
             
             if (!foundKey) {
-                map[targetName] = { id: targetName, name: targetName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                map[targetName] = { id: targetName, name: targetName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, b2bQty: 0, promoQty: 0, zeroQty: 0 };
                 foundKey = targetName;
             }
 
@@ -472,7 +485,7 @@
 
                     if (!foundKey) {
                         const fallbackKey = String(targetKey || 'Unknown');
-                        map[fallbackKey] = { id: fallbackKey, name: rawName || fallbackKey, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                        map[fallbackKey] = { id: fallbackKey, name: rawName || fallbackKey, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, b2bQty: 0, promoQty: 0, zeroQty: 0 };
                         foundKey = fallbackKey;
                     }
 
@@ -482,13 +495,18 @@
                     if (linePrice === 0 && rawQty > 0 && lineTotal > 0) linePrice = Math.round(lineTotal / rawQty);
 
                     const unitAr = (actualQty > 0 && lineTotal > 0) ? (lineTotal / actualQty) : linePrice;
-                    const priceType = classifyOrderItem(it, unitAr, lineTotal, prodMapObj);
+                    const isB2B = (String(record.sale_type || '').toUpperCase() === 'B2B') ||
+                                  String(record.order_id || record.id || '').toUpperCase().startsWith('B2B-') ||
+                                  Boolean(it.appliedTier) ||
+                                  String(it.priceType || it.type || '').toLowerCase().includes('b2b');
+                    const priceType = isB2B ? 'ราคา B2B' : classifyOrderItem(it, unitAr, lineTotal, prodMapObj);
 
                     if (saleDate < startDate) {
                         map[foundKey].openingBalance -= actualQty;
                     } else if (saleDate >= startDate && saleDate <= endDate) {
                         map[foundKey].periodOut += actualQty;
-                        if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += actualQty;
+                        if (isB2B) map[foundKey].b2bQty += actualQty;
+                        else if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += actualQty;
                         else if (priceType === 'ราคาโปร' || priceType === 'โปรโมชั่น') map[foundKey].promoQty += actualQty;
                         else if (priceType === 'ราคาศูนย์') map[foundKey].zeroQty += actualQty;
                         else map[foundKey].memberQty += actualQty;
@@ -511,17 +529,21 @@
 
                             let foundKey = findKey(targetBaseId);
                             if (!foundKey) {
-                                map[targetBaseId] = { id: targetBaseId, name: rawPName || targetBaseId, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                                map[targetBaseId] = { id: targetBaseId, name: rawPName || targetBaseId, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, b2bQty: 0, promoQty: 0, zeroQty: 0 };
                                 foundKey = targetBaseId;
                             }
 
-                            const correctType = classifyOrderItem({ prod: rawPName, type: legacyType, qty: lineQty }, null, null, prodMapObj);
+                            const isB2B = (String(record.sale_type || '').toUpperCase() === 'B2B') ||
+                                          String(record.order_id || record.id || '').toUpperCase().startsWith('B2B-') ||
+                                          legacyType.toLowerCase().includes('b2b');
+                            const correctType = isB2B ? 'ราคา B2B' : classifyOrderItem({ prod: rawPName, type: legacyType, qty: lineQty }, null, null, prodMapObj);
 
                             if (saleDate < startDate) {
                                 map[foundKey].openingBalance -= actualQty;
                             } else if (saleDate >= startDate && saleDate <= endDate) {
                                 map[foundKey].periodOut += actualQty;
-                                if (correctType === 'ราคาเต็ม') map[foundKey].fullQty += actualQty;
+                                if (isB2B) map[foundKey].b2bQty += actualQty;
+                                else if (correctType === 'ราคาเต็ม') map[foundKey].fullQty += actualQty;
                                 else if (correctType === 'ราคาสมาชิก') map[foundKey].memberQty += actualQty;
                                 else if (correctType === 'ราคาโปร' || correctType === 'โปรโมชั่น') map[foundKey].promoQty += actualQty;
                                 else if (correctType === 'ราคาศูนย์') map[foundKey].zeroQty += actualQty;
@@ -538,7 +560,7 @@
         // ง. สรุปผล
         return Object.values(map)
             .map(item => {
-                const salesTierSum = item.fullQty + item.memberQty + item.promoQty + item.zeroQty;
+                const salesTierSum = item.fullQty + item.memberQty + (item.b2bQty || 0) + item.promoQty + item.zeroQty;
                 // ในมุมมองสรุปยอดขายแยกตามสินค้า (Tab 1): รวมเบิกขายทั้งหมด = fullQty + memberQty + promoQty + zeroQty
                 const displayTotalOut = (salesTierSum > 0 || !isBalanceView) ? salesTierSum : item.periodOut;
                 const closingBalance = item.openingBalance + item.receivedInPeriod - item.periodOut;

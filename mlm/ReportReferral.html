@@ -17,7 +17,11 @@
     } catch (e) {}
   })();
 </script>
-  <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+    <!-- ðŸŒŸ LOVE STK GROUPE Brand Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2026.11.04.03">
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2026.11.04.03">
+  <link rel="shortcut icon" href="favicon.ico?v=2026.11.04.03">
+  <link rel="apple-touch-icon" href="favicon-64.png?v=2026.11.04.03">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานค่าแนะนำและปันผล (Referral & Dividends) - LOVE STK GROUPE</title>
@@ -467,15 +471,40 @@
         const [isBgLoading, setIsBgLoading] = useState(false); // indicator ว่ายังโหลด Tier2/3 อยู่
 
         const fetchReferralData = useCallback(async () => {
-            // ── TIER 1: Critical Master Data (เร็วที่สุด — ปลดล็อก UI) ──────────────────
+            setIsBgLoading(true);
             try {
-                const [memRes, settingsRes, teamRes] = await Promise.all([
+                const dNow = new Date();
+                const prevM = new Date(dNow.getFullYear(), dNow.getMonth() - 1, 1);
+                const fetchStart = `${prevM.getFullYear()}-${String(prevM.getMonth() + 1).padStart(2, '0')}-01`;
+                const curMonthEnd = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-${String(new Date(dNow.getFullYear(), dNow.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+                const selectAllFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
+
+                // ⚡ PARALLEL HIGH-SPEED FETCH: ยิงคำขอทั้งหมดพร้อมกันในครั้งเดียว (Zero Waterfall)
+                const [
+                    memResS, settingsResS, teamResS, 
+                    pResS, payResS, campResS, campaignsResS, 
+                    saleResS
+                ] = await Promise.allSettled([
                     window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,bank_name,bank_account_no,bank_account_name')
                         .catch(() => window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status'))
                         .catch(() => []),
                     window.supabaseSelect('stk_system_settings').catch(() => []),
-                    window.supabaseSelect('stk_business_teams').catch(() => [])
+                    window.supabaseSelect('stk_business_teams').catch(() => []),
+                    window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,self_percent_member,level_1_percent_member').catch(() => []),
+                    window.supabaseSelect('stk_payout_logs', 'select=payout_id,member_id,member_name,team_name,amount,payout_type,payout_date,start_date,end_date,status,paid_at,paid_by,created_at,promo_deduct_boxes,promo_deduct_amount,reference_note&order=payout_id.desc&limit=1000').catch(() => []),
+                    window.supabaseSelect('stk_campaign_results').catch(() => []),
+                    window.supabaseSelect('stk_campaigns').catch(() => []),
+                    selectAllFn('stk_sales', `select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&date=gte.${fetchStart}&date=lte.${curMonthEnd}&order=order_id.desc`).catch(() => [])
                 ]);
+
+                const memRes = memResS.status === 'fulfilled' ? memResS.value : [];
+                const settingsRes = settingsResS.status === 'fulfilled' ? settingsResS.value : [];
+                const teamRes = teamResS.status === 'fulfilled' ? teamResS.value : [];
+                const pRes = pResS.status === 'fulfilled' ? pResS.value : [];
+                const payRes = payResS.status === 'fulfilled' ? payResS.value : [];
+                const campRes = campResS.status === 'fulfilled' ? campResS.value : [];
+                const campaignsRes = campaignsResS.status === 'fulfilled' ? campaignsResS.value : [];
+                const saleRes = saleResS.status === 'fulfilled' ? saleResS.value : [];
 
                 // ─ Process Members ─
                 let formattedMembers = members;
@@ -532,24 +561,7 @@
                     setBusinessTeams(formattedTeams);
                 }
 
-                // ✅ UI พร้อมแสดงผลแล้ว — ปลดล็อกทันที ไม่รอ Tier2/3
-                setIsAppLoading(false);
-                setIsBgLoading(true);
-
-                // ── TIER 2: Important Data (background, ไม่บล็อก render) ────────────────
-                // ใช้ Promise.allSettled เพื่อไม่ให้ error ของตารางใดตัดสายตาราง other
-                const [pResS, payResS, campResS, campaignsResS] = await Promise.allSettled([
-                    window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,self_percent_member,level_1_percent_member'),
-                    window.supabaseSelect('stk_payout_logs', 'select=payout_id,member_id,member_name,team_name,amount,payout_type,payout_date,start_date,end_date,status,paid_at,paid_by,created_at,promo_deduct_boxes,promo_deduct_amount,reference_note&order=payout_id.desc&limit=1000'),
-                    window.supabaseSelect('stk_campaign_results'),
-                    window.supabaseSelect('stk_campaigns')
-                ]);
-
-                const pRes = pResS.status === 'fulfilled' ? pResS.value : [];
-                const payRes = payResS.status === 'fulfilled' ? payResS.value : [];
-                const campRes = campResS.status === 'fulfilled' ? campResS.value : [];
-                const campaignsRes = campaignsResS.status === 'fulfilled' ? campaignsResS.value : [];
-
+                // ─ Process Products ─
                 let formattedProducts = products;
                 if (Array.isArray(pRes) && pRes.length > 0) {
                     formattedProducts = pRes.map(p => ({
@@ -563,80 +575,48 @@
                 if (Array.isArray(campRes)) setCampaignResults(campRes);
                 if (Array.isArray(campaignsRes)) setCampaigns(campaignsRes);
 
-                // ── TIER 3: Heavy Sales + Customers (defer off main thread) ─────────────
-                // โหลด sales แบบ non-blocking: ดึงเดือนปัจจุบันและเดือนก่อนหน้า (ต.ค. - พ.ย.) ครบถ้วน 100%
-                const dNow = new Date();
-                const prevM = new Date(dNow.getFullYear(), dNow.getMonth() - 1, 1);
-                const fetchStart = `${prevM.getFullYear()}-${String(prevM.getMonth() + 1).padStart(2, '0')}-01`;
-                const curMonthEnd = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-${String(new Date(dNow.getFullYear(), dNow.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
-                const selectAllFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : window.supabaseSelect;
-                selectAllFn('stk_sales', `select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&date=gte.${fetchStart}&date=lte.${curMonthEnd}&order=order_id.desc`)
-                    .then(saleRes => {
-                        if (!Array.isArray(saleRes) || saleRes.length === 0) return;
-                        // ⚡ แบ่ง batch parse items_json เพื่อไม่ให้ freeze main thread
-                        const BATCH = 200;
-                        const results = [];
-                        let idx = 0;
-                        const processBatch = () => {
-                            const end = Math.min(idx + BATCH, saleRes.length);
-                            for (; idx < end; idx++) {
-                                const s = saleRes[idx];
-                                let parsedItems = [];
-                                if (s.items_json) {
-                                    try { parsedItems = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e) {}
-                                }
-                                const rawD = String(s.sale_date || s.date || '').trim();
-                                const cleanDate = rawD.split('T')[0].split(' ')[0];
-                                results.push({ ...s, id: s.order_id || s.id, date: cleanDate, memberId: s.seller_id || s.member_id || s.memberId, customerId: s.customer_id || s.customerId, _items: parsedItems });
-                            }
-                            if (idx < saleRes.length) {
-                                // ยังมี batch ต่อไป → ใช้ requestIdleCallback หรือ setTimeout(0) เพื่อเปิดโอกาสให้ browser paint ก่อน
-                                if (typeof requestIdleCallback === 'function') {
-                                    requestIdleCallback(processBatch, { timeout: 500 });
-                                } else {
-                                    setTimeout(processBatch, 0);
-                                }
-                            } else {
-                                // ✅ Parse เสร็จหมดแล้ว → setState ครั้งเดียว
-                                setSales(results);
-                                // อัปเดต Cache ด้วยข้อมูลล่าสุด (Tier1+2+3 ครบ)
-                                try {
-                                    const freshCache = {
-                                        products: formattedProducts,
-                                        members: formattedMembers,
-                                        customers: [],
-                                        businessTeams: formattedTeams,
-                                        sales: results,
-                                        payoutLogs: Array.isArray(payRes) ? payRes : [],
-                                        campaignResults: Array.isArray(campRes) ? campRes : [],
-                                        campaigns: Array.isArray(campaignsRes) ? campaignsRes : [],
-                                        systemSettings: loadedSettings,
-                                        _cachedAt: Date.now()
-                                    };
-                                    localStorage.setItem('stk_reports_cache_data', JSON.stringify(freshCache));
-                                    localStorage.setItem('stk_app_cache_data', JSON.stringify(freshCache));
-                                } catch(e) {}
-                                setIsBgLoading(false);
-                            }
-                        };
-                        if (typeof requestIdleCallback === 'function') {
-                            requestIdleCallback(processBatch, { timeout: 1000 });
-                        } else {
-                            setTimeout(processBatch, 0);
+                // ─ Process Sales (⚡ Fast Instant Parse < 5ms) ─
+                let results = [];
+                if (Array.isArray(saleRes) && saleRes.length > 0) {
+                    for (let i = 0; i < saleRes.length; i++) {
+                        const s = saleRes[i];
+                        let parsedItems = [];
+                        if (s.items_json) {
+                            try { parsedItems = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e) {}
                         }
-                    })
-                    .catch(err => {
-                        console.warn('Sales fetch error (non-critical):', err);
-                        setIsBgLoading(false);
-                    });
+                        const rawD = String(s.sale_date || s.date || '').trim();
+                        const cleanDate = rawD.split('T')[0].split(' ')[0];
+                        results.push({ ...s, id: s.order_id || s.id, date: cleanDate, memberId: s.seller_id || s.member_id || s.memberId, customerId: s.customer_id || s.customerId, _items: parsedItems });
+                    }
+                    setSales(results);
+                }
 
-                // Customers โหลด last เพราะใช้แค่ display name เท่านั้น ไม่กระทบการคำนวณ
+                // อัปเดต Cache ด้วยข้อมูลล่าสุด
+                try {
+                    const freshCache = {
+                        products: formattedProducts,
+                        members: formattedMembers,
+                        customers: [],
+                        businessTeams: formattedTeams,
+                        sales: results,
+                        payoutLogs: Array.isArray(payRes) ? payRes : [],
+                        campaignResults: Array.isArray(campRes) ? campRes : [],
+                        campaigns: Array.isArray(campaignsRes) ? campaignsRes : [],
+                        systemSettings: loadedSettings,
+                        _cachedAt: Date.now()
+                    };
+                    localStorage.setItem('stk_reports_cache_data', JSON.stringify(freshCache));
+                    localStorage.setItem('stk_app_cache_data', JSON.stringify(freshCache));
+                } catch(e) {}
+
+                // Customers โหลด background ไม่บล็อก
                 window.supabaseSelect('stk_customers', 'select=customer_id,name,customer_type&order=created_at.desc&limit=1000')
                     .then(custRes => { if (Array.isArray(custRes)) setCustomers(custRes); })
                     .catch(() => {});
 
             } catch (err) {
-                console.error("Referral fetch (Tier1) error:", err);
+                console.error("Referral fetch error:", err);
+            } finally {
                 setIsAppLoading(false);
                 setIsBgLoading(false);
             }
@@ -994,12 +974,20 @@
                 systemSettings,
                 payoutLogs,
                 paidRecords,
-                payoutStatusFilter,
+                payoutStatusFilter: 'ALL',
                 campaignResultsMap,
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate
             });
-        }, [unfoldedMonthSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, payoutStatusFilter, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
+        }, [unfoldedMonthSalesData, members, products, businessTeams, permittedMemberSet, selectedTeamFilter, selectedSponsorFilter, debouncedSearchQuery, referralCalcMode, systemSettings, payoutLogs, paidRecords, campaignResultsMap, effectiveStartDate, effectiveEndDate]);
+
+        // Filtered daily list based on payoutStatusFilter
+        const displayedDailyPayoutData = useMemo(() => {
+            if (payoutStatusFilter === 'ALL') return referralDailyPayoutData;
+            if (payoutStatusFilter === 'PAID') return referralDailyPayoutData.filter(i => i.status === 'PAID');
+            if (payoutStatusFilter === 'PENDING') return referralDailyPayoutData.filter(i => i.status !== 'PAID');
+            return referralDailyPayoutData;
+        }, [referralDailyPayoutData, payoutStatusFilter]);
 
         // 3. Referral Monthly Self Data (ปันผลขายเอง รอบเดือน)
         const referralMonthlySelfData = useMemo(() => {
@@ -1337,7 +1325,8 @@
         };
 
         const handleExportDailyExcel = async () => {
-            if (!referralDailyPayoutData || referralDailyPayoutData.length === 0) {
+            const dataToExport = (displayedDailyPayoutData && displayedDailyPayoutData.length > 0) ? displayedDailyPayoutData : referralDailyPayoutData;
+            if (!dataToExport || dataToExport.length === 0) {
                 alert('ไม่พบข้อมูลสำหรับส่งออก Excel');
                 return;
             }
@@ -1349,6 +1338,7 @@
                 'รหัสพนักงาน', 
                 'ชื่อพนักงาน', 
                 'สังกัดทีม', 
+                'กล่อง (100,000)',
                 'กล่อง (150,000)',
                 'กล่อง (250,000)',
                 'รวมกล่องเดิม',
@@ -1362,8 +1352,8 @@
                 'เวลาที่บันทึกจ่าย'
             ];
             const rows = [headers];
-            let sumSelf = 0, sumPromoDeduct = 0, sumTotal = 0, sumBox150k = 0, sumBox250k = 0, sumBoxes = 0, sumPromoDeductBoxes = 0, sumNetBoxes = 0;
-            referralDailyPayoutData.forEach((item, idx) => {
+            let sumSelf = 0, sumPromoDeduct = 0, sumTotal = 0, sumBox100k = 0, sumBox150k = 0, sumBox250k = 0, sumBoxes = 0, sumPromoDeductBoxes = 0, sumNetBoxes = 0;
+            dataToExport.forEach((item, idx) => {
                 const selfVal = Math.round(convertVal(item.selfEarn || 0));
                 const promoDeductVal = Math.round(convertVal(item.promoDeductAmount || 0));
                 const netVal = Math.round(convertVal(item.netEarn !== undefined ? item.netEarn : (item.totalEarn || 0)));
@@ -1373,6 +1363,7 @@
                 sumSelf += selfVal;
                 sumPromoDeduct += promoDeductVal;
                 sumTotal += netVal;
+                sumBox100k += (item.box100k || 0);
                 sumBox150k += (item.box150k || 0);
                 sumBox250k += (item.box250k || 0);
                 sumBoxes += (item.boxes || 0);
@@ -1385,6 +1376,7 @@
                     item.memberId || '',
                     item.memberName || '',
                     item.team || '',
+                    item.box100k || 0,
                     item.box150k || 0,
                     item.box250k || 0,
                     item.boxes || 0,
@@ -1399,7 +1391,8 @@
                 ]);
             });
             rows.push([
-                '', '', '', 'ยอดรวมทั้งหมด (' + referralDailyPayoutData.length + ' รายการ)', '', 
+                '', '', '', 'ยอดรวมทั้งหมด (' + dataToExport.length + ' รายการ)', '', 
+                sumBox100k,
                 sumBox150k, 
                 sumBox250k, 
                 sumBoxes, 
@@ -1424,7 +1417,7 @@
             }
             await ensureXlsxLoaded();
             const curr = getCurrencySuffix();
-            const headers = ['ลำดับ', 'รหัสพนักงาน', 'ชื่อพนักงาน', 'สังกัดทีม', 'ยอดขายตัวเอง (กล่อง)', 'ยอดขายลูกทีม (กล่อง)', `คอมขายเอง (${curr})`];
+            const headers = ['ลำดับ', 'รหัสพนักงาน', 'ชื่อพนักงาน', 'สังกัดทีม', 'กล่องขายรวม', 'คิดค่าแนะนำ (กล่อง)', 'ไม่คิดค่าคอม (กล่อง)', 'ยอดขายลูกทีม (กล่อง)', `คอมขายเอง (${curr})`];
             activeLevelCols.forEach(col => headers.push(`ชั้น ${col.level} (${curr})`));
             headers.push(`รวมรับสุทธิ (${curr})`, `จ่ายแล้ว (${curr})`, `คงเหลือ (${curr})`, 'สถานะ');
 
@@ -1444,12 +1437,18 @@
                 grandPaid += paidVal;
                 grandRemain += remVal;
 
+                const netSelfB = r.netSelfBoxes !== undefined ? r.netSelfBoxes : (r.selfBoxes || 0);
+                const totSold = r.totalSoldBoxes || (netSelfB + (r.nonCommSelfBoxes || 0));
+                const nonCommB = r.nonCommSelfBoxes || 0;
+
                 const row = [
                     idx + 1,
                     r.id,
                     r.name,
                     r.team,
-                    r.netSelfBoxes !== undefined ? r.netSelfBoxes : (r.selfBoxes || 0),
+                    totSold,
+                    netSelfB,
+                    nonCommB,
                     r.netTeamBoxes !== undefined ? r.netTeamBoxes : (r.teamBoxes || 0),
                     selfVal
                 ];
@@ -1463,7 +1462,7 @@
                 rows.push(row);
             });
 
-            const sumRow = ['', '', 'ยอดรวมทั้งหมด (' + referralReportData.length + ' คน)', '', referralTotals?.selfBoxes || '', referralTotals?.teamBoxes || '', grandSelf];
+            const sumRow = ['', '', 'ยอดรวมทั้งหมด (' + referralReportData.length + ' คน)', '', referralTotals?.totalSoldBoxes || 0, referralTotals?.selfBoxes || 0, referralTotals?.nonCommSelfBoxes || 0, referralTotals?.teamBoxes || '', grandSelf];
             activeLevelCols.forEach(col => sumRow.push(levelSums[col.level]));
             sumRow.push(grandTotal, grandPaid, grandRemain, '');
             rows.push(sumRow);
@@ -1775,6 +1774,7 @@
                         <th style="width: 80px;">รหัส</th>
                         <th style="text-align: left;">ชื่อ-สกุล พนักงาน</th>
                         <th style="width: 90px;">สังกัดทีม</th>
+                        <th style="width: 70px; text-align: center; color: #0284c7;">กล่อง 100K</th>
                         <th style="width: 70px; text-align: center;">กล่อง 150K</th>
                         <th style="width: 70px; text-align: center;">กล่อง 250K</th>
                         <th style="width: 65px; text-align: center;">รวมเดิม</th>
@@ -1786,7 +1786,7 @@
                     </tr>
                 `;
 
-                let sumSelf = 0, sumPromoDeduct = 0, sumTotal = 0, sumBox150k = 0, sumBox250k = 0, sumBoxes = 0, sumPromoDeductBoxes = 0, sumNetBoxes = 0;
+                let sumSelf = 0, sumPromoDeduct = 0, sumTotal = 0, sumBox100k = 0, sumBox150k = 0, sumBox250k = 0, sumBoxes = 0, sumPromoDeductBoxes = 0, sumNetBoxes = 0;
 
                 tableRowsHtml = referralDailyPayoutData.map((item, idx) => {
                     const selfVal = convertVal(item.selfEarn || 0);
@@ -1798,7 +1798,8 @@
                     sumSelf += selfVal;
                     sumPromoDeduct += promoDeductVal;
                     sumTotal += netVal;
-                    sumBox150k += (item.box150k || 0);
+                    sumBox100k += (item.box100k || 0);
+                sumBox150k += (item.box150k || 0);
                     sumBox250k += (item.box250k || 0);
                     sumBoxes += (item.boxes || 0);
                     sumPromoDeductBoxes += promoDeductB;
@@ -1810,6 +1811,7 @@
                             <td style="text-align: center; font-family: monospace; font-weight: 700; color: #2563eb;">${escapeHtml(item.memberId)}</td>
                             <td style="font-weight: 700; color: #0f172a;">${escapeHtml(item.memberName)}</td>
                             <td style="text-align: center; font-size: 10px; color: #334155;">${escapeHtml(item.team || '-')}</td>
+                            <td style="text-align: center; font-weight: 700; color: #0284c7;">${item.box100k ? item.box100k.toLocaleString() : '-'}</td>
                             <td style="text-align: center; font-weight: 700; color: #d97706;">${item.box150k ? item.box150k.toLocaleString() : '-'}</td>
                             <td style="text-align: center; font-weight: 700; color: #059669;">${item.box250k ? item.box250k.toLocaleString() : '-'}</td>
                             <td style="text-align: center; font-weight: 700; color: #0f172a;">${(item.boxes || 0).toLocaleString()}</td>
@@ -1825,6 +1827,7 @@
                 tableFootHtml = `
                     <tr>
                         <td colspan="4" style="text-align: right; font-weight: 800; font-size: 11px;">ยอดรวมทั้งหมด (${referralDailyPayoutData.length} รายการ):</td>
+                        <td style="text-align: center; font-weight: 800; color: #0284c7; font-size: 11px;">${sumBox100k.toLocaleString()}</td>
                         <td style="text-align: center; font-weight: 800; color: #d97706; font-size: 11px;">${sumBox150k.toLocaleString()}</td>
                         <td style="text-align: center; font-weight: 800; color: #059669; font-size: 11px;">${sumBox250k.toLocaleString()}</td>
                         <td style="text-align: center; font-weight: 800; color: #0f172a; font-size: 11px;">${sumBoxes.toLocaleString()}</td>
@@ -1995,15 +1998,17 @@
                         <th style="width: 35px;">ลำดับ</th>
                         <th style="width: 70px;">รหัส</th>
                         <th style="text-align: left;">ชื่อ-สกุล พนักงาน</th>
-                        <th style="width: 90px;">สังกัดทีม</th>
-                        <th style="width: 65px; text-align: center;">ขายเอง (กล่อง)</th>
-                        <th style="width: 65px; text-align: center;">ทีม (กล่อง)</th>
-                        <th style="width: 95px; text-align: right;">คอมขายเอง (${curr})</th>
-                        ${activeLevelCols.map(c => `<th style="width: 75px; text-align: right;">ชั้น ${c.level}</th>`).join('')}
-                        <th style="width: 105px; text-align: right;">รวมรับสุทธิ (${curr})</th>
-                        <th style="width: 95px; text-align: right;">จ่ายแล้ว (${curr})</th>
-                        <th style="width: 95px; text-align: right;">คงเหลือ (${curr})</th>
-                        <th style="width: 75px; text-align: center;">สถานะ</th>
+                        <th style="width: 80px;">สังกัดทีม</th>
+                        <th style="width: 60px; text-align: center;">กล่องขายรวม</th>
+                        <th style="width: 60px; text-align: center;">คิดค่าแนะนำ</th>
+                        <th style="width: 60px; text-align: center;">ไม่คิดค่าคอม</th>
+                        <th style="width: 60px; text-align: center;">ทีม (กล่อง)</th>
+                        <th style="width: 90px; text-align: right;">คอมขายเอง (${curr})</th>
+                        ${activeLevelCols.map(c => `<th style="width: 70px; text-align: right;">ชั้น ${c.level}</th>`).join('')}
+                        <th style="width: 95px; text-align: right;">รวมรับสุทธิ (${curr})</th>
+                        <th style="width: 85px; text-align: right;">จ่ายแล้ว (${curr})</th>
+                        <th style="width: 85px; text-align: right;">คงเหลือ (${curr})</th>
+                        <th style="width: 70px; text-align: center;">สถานะ</th>
                     </tr>
                 `;
 
@@ -2018,6 +2023,8 @@
                     const paidVal = convertVal(r.totalPaid || 0);
                     const remVal = convertVal(r.remainingToPay || 0);
                     const netSelfB = r.netSelfBoxes !== undefined ? r.netSelfBoxes : (r.selfBoxes || 0);
+                    const totSold = r.totalSoldBoxes || (netSelfB + (r.nonCommSelfBoxes || 0));
+                    const nonCommB = r.nonCommSelfBoxes || 0;
                     const netTeamB = r.netTeamBoxes !== undefined ? r.netTeamBoxes : (r.teamBoxes || 0);
 
                     grandSelf += selfVal;
@@ -2031,7 +2038,9 @@
                             <td style="text-align: center; font-family: monospace; font-weight: 700; color: #2563eb;">${escapeHtml(r.id)}</td>
                             <td style="font-weight: 700; color: #0f172a;">${escapeHtml(r.name)}</td>
                             <td style="text-align: center; color: #334155; font-size: 10px;">${escapeHtml(r.team || '-')}</td>
-                            <td style="text-align: center; font-weight: 700; color: #3b82f6;">${netSelfB.toLocaleString()}${r.promoDeductBoxes > 0 ? `<div style="font-size: 8.5px; color: #dc2626;">(เดิม ${r.selfBoxes} ตัดโปร -${r.promoDeductBoxes})</div>` : ''}</td>
+                            <td style="text-align: center; font-weight: 800; color: #0f172a;">${totSold.toLocaleString()}</td>
+                            <td style="text-align: center; font-weight: 700; color: #2563eb; background: #eff6ff;">${netSelfB.toLocaleString()}${r.promoDeductBoxes > 0 ? `<div style="font-size: 8.5px; color: #dc2626;">(เดิม ${r.selfBoxes} ตัดโปร -${r.promoDeductBoxes})</div>` : ''}</td>
+                            <td style="text-align: center; font-weight: 600; color: #64748b;">${nonCommB > 0 ? nonCommB.toLocaleString() : '-'}</td>
                             <td style="text-align: center; font-weight: 700; color: #10b981;">${netTeamB.toLocaleString()}${r.promoDeductTeamBoxes > 0 ? `<div style="font-size: 8.5px; color: #dc2626;">(เดิม ${r.teamBoxes} ตัดโปร -${r.promoDeductTeamBoxes})</div>` : ''}</td>
                             <td class="num-cell" style="color: #2563eb;">${formatValDisplay(rawSelfEarn)}${r.promoDeductSelfComm > 0 ? `<div style="font-size: 8.5px; color: #dc2626;">(-${formatValDisplay(r.promoDeductSelfComm)} โปรฯ)</div>` : ''}</td>
                             ${activeLevelCols.map(c => {
@@ -2055,7 +2064,9 @@
                 tableFootHtml = `
                     <tr>
                         <td colspan="4" style="text-align: right; font-weight: 800; font-size: 11px;">ยอดรวมทั้งหมด (${referralReportData.length} คน):</td>
-                        <td style="text-align: center; font-weight: 800;">${(referralTotals?.selfBoxes || 0).toLocaleString()}</td>
+                        <td style="text-align: center; font-weight: 800;">${(referralTotals?.totalSoldBoxes || 0).toLocaleString()}</td>
+                        <td style="text-align: center; font-weight: 800; color: #2563eb; background: #dbeafe;">${(referralTotals?.selfBoxes || 0).toLocaleString()}</td>
+                        <td style="text-align: center; font-weight: 800; color: #64748b;">${(referralTotals?.nonCommSelfBoxes || 0).toLocaleString()}</td>
                         <td style="text-align: center; font-weight: 800;">${(referralTotals?.teamBoxes || 0).toLocaleString()}</td>
                         <td class="num-cell" style="font-size: 11px; color: #2563eb;">${currencyMode === 'THB' ? grandSelf.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : Math.round(grandSelf).toLocaleString()}</td>
                         ${activeLevelCols.map(c => `<td class="num-cell" style="font-size: 11px; color: #059669;">${currencyMode === 'THB' ? (levelSums[c.level]||0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : Math.round(levelSums[c.level]||0).toLocaleString()}</td>`).join('')}
@@ -2772,10 +2783,10 @@
                                                 type="checkbox" 
                                                 id="selectAllPayouts"
                                                 className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                checked={referralDailyPayoutData.length > 0 && selectedPayoutKeys.size > 0 && selectedPayoutKeys.size === referralDailyPayoutData.filter(i => i.status === 'PENDING').length}
+                                                checked={displayedDailyPayoutData.filter(i => i.status !== 'PAID').length > 0 && selectedPayoutKeys.size > 0 && selectedPayoutKeys.size === displayedDailyPayoutData.filter(i => i.status !== 'PAID').length}
                                                 onChange={(e) => {
                                                     if (e.target.checked) {
-                                                        const pendingKeys = new Set(referralDailyPayoutData.filter(i => i.status === 'PENDING').map(i => i.key));
+                                                        const pendingKeys = new Set(displayedDailyPayoutData.filter(i => i.status !== 'PAID').map(i => i.key));
                                                         setSelectedPayoutKeys(pendingKeys);
                                                     } else {
                                                         setSelectedPayoutKeys(new Set());
@@ -2790,7 +2801,7 @@
                                             <button type="button" onClick={() => setPayoutStatusFilter('ALL')} className={`px-3 py-1.5 rounded-lg transition-all ${payoutStatusFilter === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-300 hover:text-white'}`}>ทั้งหมด ({referralDailyPayoutData.length})</button>
                                             <button type="button" onClick={() => setPayoutStatusFilter('PENDING')} className={`px-3 py-1.5 rounded-lg transition-all inline-flex items-center gap-1.5 ${payoutStatusFilter === 'PENDING' ? 'bg-amber-500 text-slate-950 font-black shadow-sm' : 'text-amber-300 hover:text-white'}`}>
                                                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                                                รอปันผล ({referralDailyPayoutData.filter(i => i.status === 'PENDING').length})
+                                                รอปันผล ({referralDailyPayoutData.filter(i => i.status !== 'PAID').length})
                                             </button>
                                             <button type="button" onClick={() => setPayoutStatusFilter('PAID')} className={`px-3 py-1.5 rounded-lg transition-all inline-flex items-center gap-1.5 ${payoutStatusFilter === 'PAID' ? 'bg-emerald-500 text-slate-950 font-black shadow-sm' : 'text-emerald-300 hover:text-white'}`}>
                                                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -2834,10 +2845,10 @@
                                             <thead>
                                                 <tr className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
                                                     <th className={`${thBase} w-12 text-center`}>เลือก</th>
-                                                    <th className={thBase}>วันที่</th>
                                                     <th className={thBase}>รหัส</th>
                                                     <th className={thBase}>พนักงาน</th>
                                                     <th className={thBase}>สังกัดทีม</th>
+                                                    <th className={`${thBase} text-center text-sky-600 dark:text-sky-400 bg-sky-50/40 dark:bg-sky-950/20 whitespace-nowrap`}>กล่อง 100K</th>
                                                     <th className={`${thBase} text-center text-amber-600 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 whitespace-nowrap`}>กล่อง 150K</th>
                                                     <th className={`${thBase} text-center text-emerald-600 dark:text-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 whitespace-nowrap`}>กล่อง 250K</th>
                                                     <th className={`${thBase} text-center text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-800/60 whitespace-nowrap`}>กล่องขายรวม</th>
@@ -2850,7 +2861,7 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {referralDailyPayoutData.map((item) => {
+                                                {displayedDailyPayoutData.map((item) => {
                                                     const isSelected = selectedPayoutKeys.has(item.key);
                                                     const isPaid = item.status === 'PAID';
                                                     const hasDeduct = (item.promoDeductBoxes || 0) > 0;
@@ -2861,10 +2872,17 @@
                                                             <td className="p-4 text-center">
                                                                 <input type="checkbox" disabled={isPaid} checked={isSelected} onChange={(e) => { const next = new Set(selectedPayoutKeys); if (e.target.checked) next.add(item.key); else next.delete(item.key); setSelectedPayoutKeys(next); }} className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-40" />
                                                             </td>
-                                                            <td className="p-4 text-sm font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{item.date}</td>
                                                             <td className="p-4 text-sm font-bold text-blue-600 dark:text-blue-400 font-mono whitespace-nowrap">{item.memberId}</td>
-                                                            <td className="p-4 text-sm font-black text-slate-800 dark:text-white">{item.memberName}</td>
+                                                            <td className="p-4 text-sm font-black text-slate-800 dark:text-white">
+                                                                <div>{item.memberName}</div>
+                                                                <div className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                                                                    รอบวันที่: {item.date}
+                                                                </div>
+                                                            </td>
                                                             <td className="p-4 text-sm font-bold"><span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs border border-slate-200 dark:border-slate-700 whitespace-nowrap">{item.team}</span></td>
+                                                            <td className="p-4 text-center font-bold text-sky-600 dark:text-sky-400 bg-sky-50/30 dark:bg-sky-950/20">
+                                                                {item.box100k ? item.box100k.toLocaleString() : '-'}
+                                                            </td>
                                                             <td className="p-4 text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-950/20">
                                                                 {item.box150k ? item.box150k.toLocaleString() : '-'}
                                                             </td>
@@ -2907,37 +2925,53 @@
                                                         </tr>
                                                     );
                                                 })}
-                                                {referralDailyPayoutData.length === 0 && <tr><td colSpan="14" className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">ไม่พบรายการปันผลรายวันตามเงื่อนไขที่ระบุ</td></tr>}
+                                                {displayedDailyPayoutData.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="14" className="p-12 text-center font-bold">
+                                                            {isAppLoading || isBgLoading ? (
+                                                                <div className="inline-flex items-center justify-center gap-2 text-indigo-600 dark:text-indigo-400">
+                                                                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                                    <span>กำลังโหลดข้อมูลและประมวลผลยอดปันผล...</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-400 dark:text-slate-500">ไม่พบรายการปันผลรายวันตามเงื่อนไขที่ระบุ</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                )}
                                             </tbody>
-                                            {referralDailyPayoutData.length > 0 && (
+                                            {displayedDailyPayoutData.length > 0 && (
                                                 <tfoot className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/80 font-bold">
                                                     <tr>
-                                                        <td colSpan="5" className="p-4 text-right text-slate-800 dark:text-slate-200 font-extrabold text-xs">
-                                                            ยอดรวมทั้งหมด ({referralDailyPayoutData.length} รายการ):
+                                                        <td colSpan="4" className="p-4 text-right text-slate-800 dark:text-slate-200 font-extrabold text-xs">
+                                                            ยอดรวม ({displayedDailyPayoutData.length} รายการ):
+                                                        </td>
+                                                        <td className="p-4 text-center font-black text-sky-600 dark:text-sky-400 bg-sky-50/40 dark:bg-sky-950/20 text-sm">
+                                                            {displayedDailyPayoutData.reduce((acc, i) => acc + (i.box100k || 0), 0).toLocaleString()}
                                                         </td>
                                                         <td className="p-4 text-center font-black text-amber-600 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 text-sm">
-                                                            {referralDailyPayoutData.reduce((acc, i) => acc + (i.box150k || 0), 0).toLocaleString()}
+                                                            {displayedDailyPayoutData.reduce((acc, i) => acc + (i.box150k || 0), 0).toLocaleString()}
                                                         </td>
                                                         <td className="p-4 text-center font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 text-sm">
-                                                            {referralDailyPayoutData.reduce((acc, i) => acc + (i.box250k || 0), 0).toLocaleString()}
+                                                            {displayedDailyPayoutData.reduce((acc, i) => acc + (i.box250k || 0), 0).toLocaleString()}
                                                         </td>
                                                         <td className="p-4 text-center font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700/50 text-sm">
-                                                            {referralDailyPayoutData.reduce((acc, i) => acc + (i.boxes || 0), 0).toLocaleString()}
+                                                            {displayedDailyPayoutData.reduce((acc, i) => acc + (i.boxes || 0), 0).toLocaleString()}
                                                         </td>
                                                         <td className="p-4 text-center font-black text-rose-600 dark:text-rose-400 bg-rose-50/40 dark:bg-rose-950/20 text-sm">
-                                                            -{referralDailyPayoutData.reduce((acc, i) => acc + (i.promoDeductBoxes || 0), 0).toLocaleString()}
+                                                            -{displayedDailyPayoutData.reduce((acc, i) => acc + (i.promoDeductBoxes || 0), 0).toLocaleString()}
                                                         </td>
                                                         <td className="p-4 text-center font-black text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/20 text-sm">
-                                                            {referralDailyPayoutData.reduce((acc, i) => acc + (i.netBoxes !== undefined ? i.netBoxes : i.boxes || 0), 0).toLocaleString()}
+                                                            {displayedDailyPayoutData.reduce((acc, i) => acc + (i.netBoxes !== undefined ? i.netBoxes : i.boxes || 0), 0).toLocaleString()}
                                                         </td>
                                                         <td className="p-4 text-right font-black text-slate-700 dark:text-slate-300 text-sm">
-                                                            {formatValDisplay(referralDailyPayoutData.reduce((acc, i) => acc + (i.selfEarn || 0), 0))}
+                                                            {formatValDisplay(displayedDailyPayoutData.reduce((acc, i) => acc + (i.selfEarn || 0), 0))}
                                                         </td>
                                                         <td className="p-4 text-right font-black text-rose-600 dark:text-rose-400 bg-rose-50/40 dark:bg-rose-950/20 text-sm">
-                                                            -{formatValDisplay(referralDailyPayoutData.reduce((acc, i) => acc + (i.promoDeductAmount || 0), 0))}
+                                                            -{formatValDisplay(displayedDailyPayoutData.reduce((acc, i) => acc + (i.promoDeductAmount || 0), 0))}
                                                         </td>
                                                         <td className="p-4 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm bg-emerald-50/50 dark:bg-emerald-950/20">
-                                                            {formatValDisplay(referralDailyPayoutData.reduce((acc, i) => acc + (i.netEarn !== undefined ? i.netEarn : i.totalEarn || 0), 0))} <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{getCurrencySuffix()}</span>
+                                                            {formatValDisplay(displayedDailyPayoutData.reduce((acc, i) => acc + (i.netEarn !== undefined ? i.netEarn : i.totalEarn || 0), 0))} <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{getCurrencySuffix()}</span>
                                                         </td>
                                                         <td className="p-4 text-center text-xs text-slate-400">-</td>
                                                     </tr>
@@ -3328,7 +3362,9 @@
                                                 <tr className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
                                                     <th className={thBase}>รหัส</th>
                                                     <th className={thBase}>พนักงาน</th>
-                                                    <th className={thBase}>ยอดขายตัวเอง</th>
+                                                    <th className={`${thBase} text-center text-slate-700 dark:text-slate-200 bg-slate-100/70 dark:bg-slate-800/70 whitespace-nowrap`}>กล่องขายรวม</th>
+                                                    <th className={`${thBase} text-center text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/30 whitespace-nowrap`}>คิดค่าแนะนำ</th>
+                                                    <th className={`${thBase} text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 whitespace-nowrap`}>ไม่คิดค่าคอม</th>
                                                     <th className={thBase}>ยอดขายลูกทีม</th>
                                                     <th className={`${thBase} text-right text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/30`}>คอมขายเอง</th>
                                                     {activeLevelCols.map(col => <th key={col.level} className={`${thBase} text-right text-emerald-700 dark:text-emerald-400`}>ชั้น {col.level}</th>)}
@@ -3342,6 +3378,8 @@
                                             <tbody>
                                                 {referralReportData.map((r, index) => {
                                                     const netSelfB = r.netSelfBoxes !== undefined ? r.netSelfBoxes : (r.selfBoxes || 0);
+                                                    const totSold = r.totalSoldBoxes || (netSelfB + (r.nonCommSelfBoxes || 0));
+                                                    const nonCommB = r.nonCommSelfBoxes || 0;
                                                     const netTeamB = r.netTeamBoxes !== undefined ? r.netTeamBoxes : (r.teamBoxes || 0);
                                                     const netSelfE = r.netSelfEarn !== undefined ? r.netSelfEarn : (r.selfEarn || 0);
                                                     return (
@@ -3353,13 +3391,26 @@
                                                                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 w-fit mt-1">ทีม: {r.team}</span>
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4 text-sm font-medium">
-                                                                <div className="flex flex-col items-start gap-0.5">
+                                                            {/* 1. กล่องขายรวม */}
+                                                            <td className="p-4 text-center font-black text-slate-800 dark:text-slate-200 bg-slate-50/40 dark:bg-slate-800/30">
+                                                                <span className="text-sm">{totSold.toLocaleString()}</span>
+                                                            </td>
+                                                            {/* 2. คิดค่าแนะนำ */}
+                                                            <td className="p-4 text-sm font-medium bg-blue-50/20 dark:bg-blue-950/20 text-center">
+                                                                <div className="flex flex-col items-center gap-0.5">
                                                                     <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-black shadow-sm">{netSelfB.toLocaleString()}</span>
                                                                     {r.promoDeductBoxes > 0 && (
                                                                         <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">เดิม {r.selfBoxes} (-{r.promoDeductBoxes} โปรฯ)</span>
                                                                     )}
                                                                 </div>
+                                                            </td>
+                                                            {/* 3. ไม่คิดค่าคอม */}
+                                                            <td className="p-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-50/30 dark:bg-slate-900/30">
+                                                                {nonCommB > 0 ? (
+                                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                                                        {nonCommB.toLocaleString()}
+                                                                    </span>
+                                                                ) : <span className="text-slate-300 dark:text-slate-600">-</span>}
                                                             </td>
                                                             <td className="p-4 text-sm font-medium">
                                                                 {r.teamBoxes > 0 ? (
@@ -3412,12 +3463,14 @@
                                                         </tr>
                                                     );
                                                 })}
-                                                {referralReportData.length === 0 && <tr><td colSpan={11 + activeLevelCols.length} className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">ไม่พบข้อมูลตามเงื่อนไขที่ระบุ</td></tr>}
+                                                {referralReportData.length === 0 && <tr><td colSpan={13 + activeLevelCols.length} className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">ไม่พบข้อมูลตามเงื่อนไขที่ระบุ</td></tr>}
                                             </tbody>
                                             <tfoot className="bg-slate-900 dark:bg-slate-950 text-white border-t-4 border-slate-950 dark:border-slate-800 sticky bottom-0 shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
                                                 <tr>
                                                     <td colSpan="2" className="p-4 text-right align-middle border-r border-slate-800"><span className="text-sm font-bold text-slate-400">ยอดรวม:</span></td>
-                                                    <td className="p-4 text-center align-middle border-r border-slate-800"><span className="text-lg font-black text-indigo-300 block">{(referralTotals.selfBoxes || 0).toLocaleString()}</span></td>
+                                                    <td className="p-4 text-center align-middle border-r border-slate-800"><span className="text-lg font-black text-slate-200 block">{(referralTotals.totalSoldBoxes || 0).toLocaleString()}</span></td>
+                                                    <td className="p-4 text-center align-middle border-r border-slate-800 bg-blue-950/30"><span className="text-lg font-black text-blue-300 block">{(referralTotals.selfBoxes || 0).toLocaleString()}</span></td>
+                                                    <td className="p-4 text-center align-middle border-r border-slate-800"><span className="text-lg font-black text-slate-400 block">{(referralTotals.nonCommSelfBoxes || 0).toLocaleString()}</span></td>
                                                     <td className="p-4 text-center align-middle border-r border-slate-800"><span className="text-lg font-black text-slate-300 block">{(referralTotals.teamBoxes || 0).toLocaleString()}</span></td>
                                                     <td className="p-4 text-right align-middle border-r border-slate-800 bg-blue-950/40"><span className="text-xl font-black text-blue-400 block">{formatValDisplay(referralTotals.Self)}</span></td>
                                                     {activeLevelCols.map(col => <td key={col.level} className="p-4 text-right align-middle border-r border-slate-800"><span className="text-xl font-black text-emerald-400 block">{formatValDisplay(col.total)}</span></td>)}

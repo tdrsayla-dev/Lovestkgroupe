@@ -17,6 +17,11 @@
     })();
   </script>
   <meta charset="UTF-8">
+  <!-- ðŸŒŸ LOVE STK GROUPE Brand Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2026.11.04.03">
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2026.11.04.03">
+  <link rel="shortcut icon" href="favicon.ico?v=2026.11.04.03">
+  <link rel="apple-touch-icon" href="favicon-64.png?v=2026.11.04.03">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>สั่งจ่ายยา - LOVE STK GROUPE</title>
   <link rel="stylesheet" href="mainstyle.css?v=2026.10.24.03">
@@ -1385,7 +1390,7 @@
           const mName = String(m.name || '').trim().toUpperCase();
           const sUp = String(rawSellerCandidate || '').trim().toUpperCase();
           return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
-                 (mName && (sUp === mName || sUp.includes(mName)));
+            (mName && (sUp === mName || sUp.includes(mName)));
         });
 
         const isSellerCandidateDoc = (!isCandidateMarketingMember && typeof window.isClinicDoctorIdentifier === 'function')
@@ -1697,7 +1702,7 @@
               const mName = String(m.name || '').trim().toUpperCase();
               const sUp = String(safeFinalSeller || '').trim().toUpperCase();
               return (mId && (sUp === mId || sUp.startsWith(mId) || sUp.includes(mId))) ||
-                     (mName && (sUp === mName || sUp.includes(mName)));
+                (mName && (sUp === mName || sUp.includes(mName)));
             });
 
             if (!isFinalSellerMarketingMember && typeof window.isClinicDoctorIdentifier === 'function' && window.isClinicDoctorIdentifier(safeFinalSeller, doctorsList)) {

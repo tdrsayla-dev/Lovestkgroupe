@@ -565,21 +565,56 @@
 
             memberMap[safeUpper(m.id)] = {
                 id: m.id, name: m.name, team: cTeam, profileUrl: m.profileUrl || '', details: {},
+                totalSoldBoxes: 0, nonCommSelfBoxes: 0,
                 selfBoxes: 0, selfEarn: 0, selfPv: 0, teamBoxes: 0, teamPv: 0, totalPaid: 0, ...levelEarns
             };
         });
 
         (unfoldedSales || []).forEach(s => {
+            const sellerKey = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
+            const qty = Number(s.qty) || 1;
+
+            if (sellerKey) {
+                if (!memberMap[sellerKey]) {
+                    const mObj = memberLookup.get(sellerKey);
+                    const cTeam = mObj ? getTeamName(mObj.team) : 'N/A';
+                    let levelEarns = {};
+                    for (let l = 1; l <= 10; l++) levelEarns[`level${l}Earn`] = 0;
+                    memberMap[sellerKey] = {
+                        id: mObj ? mObj.id : sellerKey,
+                        name: mObj ? mObj.name : sellerKey,
+                        team: cTeam,
+                        profileUrl: mObj?.profileUrl || '',
+                        details: {},
+                        totalSoldBoxes: 0,
+                        nonCommSelfBoxes: 0,
+                        selfBoxes: 0,
+                        selfEarn: 0,
+                        selfPv: 0,
+                        teamBoxes: 0,
+                        teamPv: 0,
+                        totalPaid: 0,
+                        ...levelEarns
+                    };
+                }
+                memberMap[sellerKey].totalSoldBoxes = (memberMap[sellerKey].totalSoldBoxes || 0) + qty;
+            }
+
             const pTypeStr = String(s.priceType || '').trim();
             const pTypeLower = pTypeStr.toLowerCase();
             const isPromoOrZero = pTypeStr.includes('โปร') || pTypeStr.includes('ศูนย์') || pTypeLower.includes('promo') || pTypeLower.includes('zero') || pTypeLower.includes('free');
-            if (isPromoOrZero) return;
 
             const rawTarget = safeUpper(s.productId || s.product_id || s.product);
             const target = cleanProdName(s.product);
             const prodConfig = productLookup.get(rawTarget) || productLookup.get(target) || {};
 
-            if (!isProductEligibleForReferral(prodConfig)) return;
+            const isEligible = !isPromoOrZero && isProductEligibleForReferral(prodConfig);
+            if (!isEligible) {
+                if (sellerKey && memberMap[sellerKey]) {
+                    memberMap[sellerKey].nonCommSelfBoxes = (memberMap[sellerKey].nonCommSelfBoxes || 0) + qty;
+                }
+                return;
+            }
 
             const isMemberPrice = pTypeStr.includes('สมาชิก') || pTypeStr.toLowerCase().includes('member');
 
@@ -606,16 +641,18 @@
                 return boxEarn;
             };
 
-            const sellerKey = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
             if (memberMap[sellerKey]) {
                 const payAmt = computePayout(0);
-                memberMap[sellerKey].selfBoxes += s.qty;
-                memberMap[sellerKey].selfEarn += payAmt;
-                memberMap[sellerKey].details[s.product] = (memberMap[sellerKey].details[s.product] || 0) + s.qty;
                 if (payAmt > 0) {
+                    memberMap[sellerKey].selfBoxes += qty;
+                    memberMap[sellerKey].selfEarn += payAmt;
+                    memberMap[sellerKey].details[s.product] = (memberMap[sellerKey].details[s.product] || 0) + qty;
                     const sDate = s.date ? (typeof s.date === 'string' ? s.date.substring(0, 10) : s.date) : '';
                     if (!memberMap[sellerKey].dailyEarn) memberMap[sellerKey].dailyEarn = {};
                     memberMap[sellerKey].dailyEarn[sDate] = (memberMap[sellerKey].dailyEarn[sDate] || 0) + payAmt;
+                } else {
+                    // ขายได้แต่ไม่มีค่าแนะนำ (เช่น กาแฟราคาสมาชิก หรือเรท 0)
+                    memberMap[sellerKey].nonCommSelfBoxes = (memberMap[sellerKey].nonCommSelfBoxes || 0) + qty;
                 }
             }
 
@@ -786,10 +823,17 @@
                 const promoDeductSelfComm = Math.min(Number(m.selfEarn || 0), Math.max(campSelfCommDeduct, m.paidDailyDeductAmount || 0));
                 const promoDeductReferral = isSelfQualified ? Number(campInfo.referralDeducted || (campQuotaBoxes * 200000)) : 0;
 
+                const grossCommBoxes = Number(m.selfBoxes || 0);
+                const totalSold = Number(m.totalSoldBoxes || (grossCommBoxes + (m.nonCommSelfBoxes || 0)));
+                const nonCommBoxes = Math.max(0, totalSold - grossCommBoxes);
+
+                m.totalSoldBoxes = totalSold;
+                m.nonCommSelfBoxes = nonCommBoxes;
+                m.selfBoxes = grossCommBoxes;
                 m.promoDeductBoxes = promoDeductBoxes;
                 m.promoDeductSelfComm = promoDeductSelfComm;
                 m.promoDeductReferral = promoDeductReferral;
-                m.netSelfBoxes = Math.max(0, (m.selfBoxes || 0) - promoDeductBoxes);
+                m.netSelfBoxes = Math.max(0, grossCommBoxes - promoDeductBoxes);
                 m.netSelfEarn = Math.max(0, (m.selfEarn || 0) - promoDeductSelfComm);
 
                 // คำนวณส่วนลดโปรโมชั่นฝั่งสายงานลูกทีม (Multi-Downline Qualification Deduction)
@@ -1020,6 +1064,7 @@
                         teamEarn: 0, 
                         totalEarn: 0, 
                         boxes: 0,
+                        box100k: 0,
                         box150k: 0,
                         box250k: 0,
                         boxOther: 0
@@ -1036,9 +1081,11 @@
                 const qty = Number(s.qty) || 1;
                 item.boxes += qty;
 
-                // นับจำนวนกล่องแยกตามเรทค่าคอมขายเอง (150,000 หรือ 250,000 กีบ/กล่อง)
+                // นับจำนวนกล่องแยกตามเรทค่าคอมขายเอง (100,000, 150,000 หรือ 250,000 กีบ/กล่อง)
                 const feePerBox = Number(prodConfig.selfFee ?? prodConfig.self_fee ?? prodConfig.directFee ?? prodConfig.level0Fee ?? 0);
-                if (feePerBox === 150000) {
+                if (feePerBox === 100000) {
+                    item.box100k = (item.box100k || 0) + qty;
+                } else if (feePerBox === 150000) {
                     item.box150k = (item.box150k || 0) + qty;
                 } else if (feePerBox === 250000) {
                     item.box250k = (item.box250k || 0) + qty;
@@ -1404,6 +1451,7 @@
     function calculateReferralTotals(referralReportData) {
         let Self = 0, grossSelf = 0, grandTotal = 0, totalPaid = 0, totalRemaining = 0;
         let selfBoxes = 0, teamBoxes = 0, grossSelfBoxes = 0, grossTeamBoxes = 0;
+        let totalSoldBoxes = 0, nonCommSelfBoxes = 0;
         let promoDeductSelfBoxes = 0, promoDeductTeamBoxes = 0;
         let levelTotals = {};
         for (let l = 1; l <= 10; l++) levelTotals[`L${l}`] = 0;
@@ -1416,6 +1464,8 @@
             totalPaid += Number(r.totalPaid || 0);
             totalRemaining += Number(r.remainingToPay || 0);
 
+            totalSoldBoxes += Number(r.totalSoldBoxes || 0);
+            nonCommSelfBoxes += Number(r.nonCommSelfBoxes || 0);
             selfBoxes += (r.netSelfBoxes !== undefined ? Number(r.netSelfBoxes) : Number(r.selfBoxes || 0));
             teamBoxes += (r.netTeamBoxes !== undefined ? Number(r.netTeamBoxes) : Number(r.teamBoxes || 0));
             grossSelfBoxes += Number(r.selfBoxes || 0);
@@ -1429,7 +1479,7 @@
             }
         });
 
-        return { Self, grossSelf, levelTotals, grandTotal, totalPaid, totalRemaining, selfBoxes, teamBoxes, grossSelfBoxes, grossTeamBoxes, promoDeductSelfBoxes, promoDeductTeamBoxes };
+        return { Self, grossSelf, levelTotals, grandTotal, totalPaid, totalRemaining, selfBoxes, teamBoxes, grossSelfBoxes, grossTeamBoxes, promoDeductSelfBoxes, promoDeductTeamBoxes, totalSoldBoxes, nonCommSelfBoxes };
     }
 
     /**
@@ -1499,6 +1549,7 @@
             const lastPaid = paidLogs.length > 0 ? paidLogs[paidLogs.length - 1] : null;
 
             return {
+                ...r,
                 key: `${r.id}_self_${startDate}_${endDate}`,
                 memberId: r.id,
                 memberName: r.name,
@@ -1511,11 +1562,13 @@
                 netSelfEarn: netSelfEarn,
                 paidSelf: paidSelf,
                 remainingSelf: remainingSelf,
+                totalPaid: paidSelf,
+                remainingToPay: remainingSelf,
                 status: status,
                 statusLabel: statusLabel,
+                payoutStatus: statusLabel,
                 paidAt: lastPaid ? lastPaid.paidAt : null,
-                paidBy: lastPaid ? lastPaid.paidBy : null,
-                ...r
+                paidBy: lastPaid ? lastPaid.paidBy : null
             };
         }).filter(item => item.selfBoxes > 0 || item.selfEarn > 0 || item.paidSelf > 0);
     }
@@ -1634,6 +1687,7 @@
             const lastPaid = paidLogs.length > 0 ? paidLogs[paidLogs.length - 1] : null;
 
             return {
+                ...r,
                 key: `${r.id}_team_${startDate}_${endDate}`,
                 memberId: r.id,
                 memberName: r.name,
@@ -1646,15 +1700,17 @@
                 netTeamEarn: netTeamEarn,
                 paidTeam: paidTeam,
                 remainingTeam: remainingTeam,
+                totalPaid: paidTeam,
+                remainingToPay: remainingTeam,
                 status: status,
                 statusLabel: statusLabel,
+                payoutStatus: statusLabel,
                 paidAt: lastPaid ? lastPaid.paidAt : null,
                 paidBy: lastPaid ? lastPaid.paidBy : null,
                 // ข้อมูลเพิ่มเติม: จำนวนลูกทีมที่ผ่านเกณฑ์ และรายละเอียด (สำหรับ tooltip/modal)
                 qualifiedDownlineCount: qualifiedDownlineCount,
                 qualifiedDownlineList: qualifiedDownlineList,
-                totalDownlineCount: downlineTree.length,
-                ...r
+                totalDownlineCount: downlineTree.length
             };
         }).filter(item => item.teamBoxes > 0 || item.teamEarn > 0 || item.paidTeam > 0);
     }
