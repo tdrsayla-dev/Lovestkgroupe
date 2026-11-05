@@ -364,6 +364,7 @@
         return () => window.removeEventListener('stk_lang_change', onLangChange);
       }, []);
 
+      const cleanMojibake = (text) => { if (!text || typeof text !== 'string') return text || ''; if (text.indexOf('à') !== -1 || text.indexOf('Ã') !== -1 || text.indexOf('Â') !== -1) { try { const decoded = decodeURIComponent(escape(text)); if (decoded && decoded !== text) return decoded; } catch(e) {} } return text; };
       const t = (key, fallback) => (typeof window.t === 'function' ? window.t(key, fallback) : (fallback || key));
 
       const showToast = (message, type = 'info') => {
@@ -703,7 +704,7 @@
                   date: row.balance_date,
                   warehouseId: row.warehouse_id || 'FRONT_STORE',
                   auditedBy: row.audited_by || 'ADMIN',
-                  notes: row.audit_notes || '',
+                  notes: cleanMojibake(row.audit_notes || ''),
                   createdAt: row.created_at,
                   totalItems: 0,
                   countedItems: 0,
@@ -847,7 +848,7 @@
                   countMap[b.product_id] = b.physical_count_qty;
                 }
                 if (b.audit_notes && !loadedNotes) {
-                  loadedNotes = b.audit_notes;
+                  loadedNotes = cleanMojibake(b.audit_notes);
                 }
               });
               setPhysicalCounts(countMap);
@@ -963,7 +964,7 @@
                 date: row.balance_date,
                 warehouseId: row.warehouse_id || 'FRONT_STORE',
                 auditedBy: row.audited_by || 'ADMIN',
-                notes: row.audit_notes || '',
+                notes: cleanMojibake(row.audit_notes || ''),
                 createdAt: row.created_at,
                 totalItems: 0,
                 countedItems: 0,
@@ -1003,7 +1004,7 @@
                   date: row.balance_date,
                   warehouseId: row.warehouse_id || 'FRONT_STORE',
                   auditedBy: row.audited_by || 'ADMIN',
-                  notes: row.audit_notes || '',
+                  notes: cleanMojibake(row.audit_notes || ''),
                   createdAt: row.created_at,
                   totalItems: 0,
                   countedItems: 0,
@@ -5744,8 +5745,8 @@
                                       <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300 text-xs">
                                         {s.auditedBy || 'ADMIN'}
                                       </td>
-                                      <td className="py-2.5 px-4 text-slate-400 text-xs max-w-[150px] truncate" title={s.notes}>
-                                        {s.notes || '-'}
+                                      <td className="py-2.5 px-4 text-slate-400 text-xs max-w-[150px] truncate" title={cleanMojibake(s.notes)}>
+                                        {cleanMojibake(s.notes) || '-'}
                                       </td>
                                       <td className="py-2.5 px-4 text-center font-mono">
                                         <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">

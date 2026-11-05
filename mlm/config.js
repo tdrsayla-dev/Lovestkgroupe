@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.11.04.12';
+  const APP_VERSION = '2026.11.05.04';
 
   // ðŸŒŸ Global Favicon Manager (à¸£à¸±à¸šà¸›à¸£à¸°à¸à¸±à¸™à¹‚à¸¥à¹‚à¸à¹‰à¸‚à¸¶à¹‰à¸™à¸šà¸™à¹à¸—à¹‡à¸šà¸šà¸£à¸²à¸§à¹€à¸‹à¸­à¸£à¹Œà¸—à¸¸à¸à¸«à¸™à¹‰à¸² 100%)
   (function installGlobalFavicon() {
@@ -215,6 +215,18 @@
     'Prefer': 'return=representation'
   };
 
+
+  // Global cleanMojibake Helper (ถอดรหัสภาษาเอเลี่ยน Latin-1/UTF-8)
+  window.cleanMojibake = function(text) {
+    if (!text || typeof text !== 'string') return text || '';
+    if (text.indexOf('à') !== -1 || text.indexOf('Ã') !== -1 || text.indexOf('Â') !== -1) {
+      try {
+        var decoded = decodeURIComponent(escape(text));
+        if (decoded && decoded !== text) return decoded;
+      } catch (e) {}
+    }
+    return text;
+  };
   // 1.1 Clinic Database Config (Supabase à¸„à¸¥à¸´à¸™à¸´à¸à¸ à¸²à¸¢à¸™à¸­à¸)
   const CLINIC_CONFIG = {
     SUPABASE_URL: 'https://fpmstumpobbjozflkola.supabase.co',
@@ -575,7 +587,7 @@
               if (!s) return false;
               const role = String(s.role || '').trim().toLowerCase();
               // à¸„à¸±à¸”à¸à¸£à¸­à¸‡à¹€à¸‰à¸žà¸²à¸° role à¸—à¸µà¹ˆà¹€à¸›à¹‡à¸™ doctor à¸«à¸£à¸·à¸­à¸¡à¸µà¸„à¸³à¸§à¹ˆà¸²à¹à¸žà¸—à¸¢à¹Œ/à¸«à¸¡à¸­
-              return role === 'doctor' || role.includes('doctor') || role.includes('à¹à¸žà¸—à¸¢à¹Œ') || role.includes('à¸«à¸¡à¸­');
+              return role === 'doctor' || role.includes('doctor') || role.includes('แพทย์') || role.includes('หมอ');
             })
             .map(s => {
               const empCode = String(s.emp_code || s.id || '').trim();
@@ -715,7 +727,7 @@
         let isDeactivated = false;
         try {
           const parsed = JSON.parse(existingUser);
-          if (parsed && (parsed.status === 'à¸£à¸°à¸‡à¸±à¸š' || parsed.status === 'deactivated' || parsed.status === 'inactive')) {
+          if (parsed && (parsed.status === 'ระงับ' || parsed.status === 'deactivated' || parsed.status === 'inactive')) {
             isDeactivated = true;
           }
         } catch (e) {}
@@ -804,8 +816,8 @@
       ].join(';');
 
       warningBannerEl.innerHTML = `
-        <span style="font-size: 16px;">â³</span>
-        <span>à¹„à¸¡à¹ˆà¸¡à¸µà¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸™à¸²à¸™à¹€à¸à¸´à¸™à¹„à¸› à¸£à¸°à¸šà¸šà¸ˆà¸°à¸­à¸­à¸à¸ˆà¸²à¸à¸£à¸°à¸šà¸šà¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¹ƒà¸™à¸­à¸µà¸ ${minutesRemaining} à¸™à¸²à¸—à¸µ (à¸„à¸¥à¸´à¸à¸—à¸µà¹ˆà¸™à¸µà¹ˆà¹€à¸žà¸·à¹ˆà¸­à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸•à¹ˆà¸­)</span>
+        <span style="font-size: 16px;">⏳</span>
+        <span>ไม่มีการใช้งานนานเกินไป ระบบจะออกจากระบบอัตโนมัติในอีก ${minutesRemaining} นาที (คลิกที่นี่เพื่อใช้งานต่อ)</span>
       `;
 
       warningBannerEl.addEventListener('click', () => {
@@ -841,11 +853,11 @@
       if (document.getElementById('stk-timeout-overlay')) return;
 
       const isCrossDay = reason === 'cross_day';
-      const icon = isCrossDay ? 'ðŸŒ…' : 'â³';
-      const title = isCrossDay ? 'à¸‚à¸¶à¹‰à¸™à¸§à¸±à¸™à¹ƒà¸«à¸¡à¹ˆ (à¸£à¸°à¸šà¸šà¸£à¸µà¹€à¸‹à¹‡à¸•à¹€à¸‹à¸ªà¸Šà¸±à¸™)' : 'à¸«à¸¡à¸”à¹€à¸§à¸¥à¸²à¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™';
+      const icon = isCrossDay ? '🌅' : '⏳';
+      const title = isCrossDay ? 'ขึ้นวันใหม่ (ระบบรีเซ็ตเซสชัน)' : 'หมดเวลาการใช้งาน';
       const msg = isCrossDay
-        ? 'à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸§à¸±à¸™à¹ƒà¸«à¸¡à¹ˆà¹€à¸£à¸µà¸¢à¸šà¸£à¹‰à¸­à¸¢à¹à¸¥à¹‰à¸§<br>à¸£à¸°à¸šà¸šà¹„à¸”à¹‰à¸­à¸­à¸à¸ˆà¸²à¸à¸£à¸°à¸šà¸šà¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´<br>à¸à¸£à¸¸à¸“à¸²à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸šà¹ƒà¸«à¸¡à¹ˆà¹€à¸žà¸·à¹ˆà¸­à¸„à¸§à¸²à¸¡à¸–à¸¹à¸à¸•à¹‰à¸­à¸‡à¸‚à¸­à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥'
-        : 'à¸—à¹ˆà¸²à¸™à¹„à¸¡à¹ˆà¸¡à¸µà¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸£à¸°à¸šà¸šà¹€à¸à¸´à¸™ 60 à¸™à¸²à¸—à¸µ<br>à¸£à¸°à¸šà¸šà¹„à¸”à¹‰à¸­à¸­à¸à¸ˆà¸²à¸à¸£à¸°à¸šà¸šà¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´<br>à¹€à¸žà¸·à¹ˆà¸­à¸„à¸§à¸²à¸¡à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸‚à¸­à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥';
+        ? 'เข้าสู่วันใหม่เรียบร้อยแล้ว<br>ระบบได้ออกจากระบบอัตโนมัติ<br>กรุณาเข้าสู่ระบบใหม่เพื่อความถูกต้องของข้อมูล'
+        : 'ท่านไม่มีการใช้งานระบบเกิน 60 นาที<br>ระบบได้ออกจากระบบอัตโนมัติ<br>เพื่อความปลอดภัยของข้อมูล';
 
       const overlay = document.createElement('div');
       overlay.id = 'stk-timeout-overlay';
@@ -859,7 +871,7 @@
         <div style="width: 72px; height: 72px; background: #fff1f2; color: #f43f5e; border-radius: 24px; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 20px auto; box-shadow: inset 0 0 0 2px #ffe4e6;">${icon}</div>
         <h3 style="font-size: 22px; font-weight: 900; color: #0f172a; margin: 0 0 12px 0; font-family: sans-serif; letter-spacing: -0.5px;">${title}</h3>
         <p style="font-size: 14px; color: #64748b; margin: 0 0 28px 0; line-height: 1.6; font-weight: 500; font-family: sans-serif;">${msg}</p>
-        <button id="stk-timeout-btn" style="width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 14px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸šà¹ƒà¸«à¸¡à¹ˆ</button>
+        <button id="stk-timeout-btn" style="width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 14px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">เข้าสู่ระบบใหม่</button>
       `;
 
       overlay.appendChild(popup);
