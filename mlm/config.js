@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.11.05.04';
+  const APP_VERSION = '2026.11.06.01';
 
   // ðŸŒŸ Global Favicon Manager (à¸£à¸±à¸šà¸›à¸£à¸°à¸à¸±à¸™à¹‚à¸¥à¹‚à¸à¹‰à¸‚à¸¶à¹‰à¸™à¸šà¸™à¹à¸—à¹‡à¸šà¸šà¸£à¸²à¸§à¹€à¸‹à¸­à¸£à¹Œà¸—à¸¸à¸à¸«à¸™à¹‰à¸² 100%)
   (function installGlobalFavicon() {
