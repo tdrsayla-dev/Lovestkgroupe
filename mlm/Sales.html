@@ -3,11 +3,6 @@
 
 <head>
     <meta charset="UTF-8">
-  <!-- LOVE STK GROUPE Brand Favicon -->
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2026.11.04.03">
-  <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2026.11.04.03">
-  <link rel="shortcut icon" href="favicon.ico?v=2026.11.04.03">
-  <link rel="apple-touch-icon" href="favicon-64.png?v=2026.11.04.03">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ป้อนข้อมูลขาย (Sales) - LOVE STK GROUPE</title>
     <link rel="stylesheet" href="mainstyle.css?v=2026.10.27.01">
@@ -32,7 +27,7 @@
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=2026.11.07.02"></script>
+    <script src="config.js?v=2026.10.27.01"></script>
     <script src="dictionary.js?v=2026.10.27.01"></script>
     <script src="CommonComponents.js?v=2026.10.27.01"></script>
     <script src="companySettings.js?v=2026.10.27.01"></script>
@@ -1535,15 +1530,28 @@
                         setCustMode(resolvedCustType);
                     }
 
-                    // ðŸ›¡ï¸ à¸«à¸²à¸à¹ƒà¸šà¸ªà¸±à¹ˆà¸‡à¸¢à¸²à¸«à¸£à¸·à¸­ pending à¸¡à¸µà¸£à¸°à¸šà¸¸à¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³à¸à¸²à¸£à¸•à¸¥à¸²à¸” (recorded_by / seller_id / member_id) à¸¡à¸²à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§
-                    // à¹ƒà¸«à¹‰à¹€à¸„à¸²à¸£à¸žà¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³à¹ƒà¸™à¸šà¸´à¸¥à¸™à¸±à¹‰à¸™à¹€à¸›à¹‡à¸™à¸­à¸±à¸™à¸”à¸±à¸š 1 à¹à¸¥à¸°à¸«à¹‰à¸²à¸¡à¸”à¸¶à¸‡à¸Šà¸·à¹ˆà¸­à¸„à¸™à¸­à¸·à¹ˆà¸™à¸¡à¸²à¸—à¸±à¸šà¹€à¸”à¹‡à¸”à¸‚à¸²à¸”!
-                    let rawPendingSeller = String(pending.recorded_by || pending.seller_id || pending.member_id || pending.seller_name || '').trim();
-                    let pendingSeller = rawPendingSeller.replace(/^[^a-zA-Z0-9\u0E00-\u0E7F]+/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
-                    let explicitPendingMatched = null;
+                    // 🛡️ หากใบสั่งยาหรือ pending มีระบุผู้แนะนำการตลาด (recorded_by / seller_id) มาอยู่แล้ว
+                    // หรือเป็นเคสของคลินิก ให้เคารพผู้แนะนำในบิลนั้น ห้ามเขียนทับด้วย owner_member_id เดิมเด็ดขาด!
+                    let pendingSeller = String(pending.recorded_by || pending.seller_id || '').trim();
+                    const isSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                        ? window.isClinicDoctorIdentifier(pendingSeller, effectiveClinicDoctors || clinicDoctors)
+                        : false;
+                    if (isSellerDoc || isSellerAdmin(pendingSeller)) pendingSeller = '';
 
-                    // 1. à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸à¹ˆà¸­à¸™à¸§à¹ˆà¸² pendingSeller à¸—à¸µà¹ˆà¸ªà¹ˆà¸‡à¸¡à¸²à¸ˆà¸²à¸ draft à¹à¸¡à¸›à¸à¸±à¸šà¸ªà¸¡à¸²à¸Šà¸´à¸à¸à¸²à¸£à¸•à¸¥à¸²à¸”à¹ƒà¸™ members à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
-                    if (pendingSeller && pendingSeller !== '-' && pendingSeller !== '--' && !isSellerAdmin(pendingSeller)) {
-                        explicitPendingMatched = (members || []).find(m => m && !isSellerAdmin(m) && (
+                    // ⚡ ตรวจสอบประวัติบิลเดิมจาก sales หากยังไม่มีผู้แนะนำหรือผู้แนะนำเดิมเป็นหมอ/แอดมิน
+                    if (!pendingSeller) {
+                        const targetHn = pending.hn || foundExistingCust.id || foundExistingCust.customer_id;
+                        if (targetHn) {
+                            const prevSale = (sales || []).find(s => s && (safeUpper(s.customerId) === safeUpper(targetHn) || safeUpper(s.customer_id) === safeUpper(targetHn)) && !isSellerAdmin(s.memberId || s.seller_id));
+                            if (prevSale) {
+                                pendingSeller = String(prevSale.memberId || prevSale.seller_id || '').trim();
+                            }
+                        }
+                    }
+
+                    const isClinicVisitCase = Boolean(pending.visit_id && pending.visit_id !== '-');
+                    if (pendingSeller && pendingSeller !== '-' && pendingSeller !== '--') {
+                        const matchedPendingM = (members || []).find(m => m && (
                             safeUpper(m.id) === safeUpper(pendingSeller) ||
                             safeUpper(m.user_id) === safeUpper(pendingSeller) ||
                             safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(pendingSeller) ||
@@ -1552,49 +1560,15 @@
                             safeUpper(m.name).includes(safeUpper(pendingSeller)) ||
                             safeUpper(pendingSeller).includes(safeUpper(m.name))
                         ));
-                    }
-
-                    if (explicitPendingMatched) {
-                        // ðŸ›¡ï¸ à¸«à¸²à¸à¸£à¸°à¸šà¸¸à¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³/à¸œà¸¹à¹‰à¸‚à¸²à¸¢à¸à¸²à¸£à¸•à¸¥à¸²à¸”à¸¡à¸²à¹ƒà¸™à¸šà¸´à¸¥ à¹à¸¥à¸°à¸•à¸£à¸‡à¸à¸±à¸šà¸ªà¸¡à¸²à¸Šà¸´à¸ à¹ƒà¸«à¹‰à¸¥à¹‡à¸­à¸à¸„à¸™à¸™à¸µà¹‰ 100% à¸«à¹‰à¸²à¸¡à¸¥à¸šà¸«à¸£à¸·à¸­à¹€à¸‚à¸µà¸¢à¸™à¸—à¸±à¸šà¹€à¸”à¹‡à¸”à¸‚à¸²à¸”
-                        setMemberIdInput(`${explicitPendingMatched.id || explicitPendingMatched.user_id} - ${explicitPendingMatched.name}`);
-                    } else {
-                        const isSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
-                            ? window.isClinicDoctorIdentifier(pendingSeller, effectiveClinicDoctors || clinicDoctors)
-                            : false;
-                        if (isSellerDoc || isSellerAdmin(pendingSeller)) pendingSeller = '';
-
-                        // âš¡ à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸›à¸£à¸°à¸§à¸±à¸•à¸´à¸šà¸´à¸¥à¹€à¸”à¸´à¸¡à¸ˆà¸²à¸ sales à¸«à¸²à¸à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µà¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³à¸«à¸£à¸·à¸­à¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³à¹€à¸”à¸´à¸¡à¹€à¸›à¹‡à¸™à¸«à¸¡à¸­/à¹à¸­à¸”à¸¡à¸´à¸™
-                        if (!pendingSeller) {
-                            const targetHn = pending.hn || foundExistingCust.id || foundExistingCust.customer_id;
-                            if (targetHn) {
-                                const prevSale = (sales || []).find(s => s && (safeUpper(s.customerId) === safeUpper(targetHn) || safeUpper(s.customer_id) === safeUpper(targetHn)) && !isSellerAdmin(s.memberId || s.seller_id));
-                                if (prevSale) {
-                                    pendingSeller = String(prevSale.memberId || prevSale.seller_id || '').trim();
-                                }
-                            }
-                        }
-
-                        const isClinicVisitCase = Boolean(pending.visit_id && pending.visit_id !== '-');
-                        if (pendingSeller && pendingSeller !== '-' && pendingSeller !== '--') {
-                            const matchedPendingM = (members || []).find(m => m && (
-                                safeUpper(m.id) === safeUpper(pendingSeller) ||
-                                safeUpper(m.user_id) === safeUpper(pendingSeller) ||
-                                safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(pendingSeller) ||
-                                pendingSeller.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
-                                safeUpper(m.name) === safeUpper(pendingSeller) ||
-                                safeUpper(m.name).includes(safeUpper(pendingSeller)) ||
-                                safeUpper(pendingSeller).includes(safeUpper(m.name))
-                            ));
-                            const sellerDisplay = matchedPendingM ? `${matchedPendingM.id || matchedPendingM.user_id} - ${matchedPendingM.name}` : pendingSeller;
-                            setMemberIdInput(sellerDisplay);
-                        } else if (!isClinicVisitCase) {
-                            // à¹€à¸‰à¸žà¸²à¸°à¸à¸£à¸“à¸µà¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¹€à¸„à¸ªà¸„à¸¥à¸´à¸™à¸´à¸à¹à¸¥à¸°à¹„à¸¡à¹ˆà¸¡à¸µà¸à¸²à¸£à¸£à¸°à¸šà¸¸à¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³à¸¡à¸²à¹ƒà¸™à¸šà¸´à¸¥ à¸ˆà¸¶à¸‡à¸ˆà¸°à¸‹à¸´à¸‡à¸„à¹Œà¸œà¸¹à¹‰à¸”à¸¹à¹à¸¥à¹€à¸”à¸´à¸¡
-                            const existingOwnerId = String(foundExistingCust.owner_member_id || foundExistingCust.ownerMemberId || foundExistingCust.memberId || '').trim();
-                            if (existingOwnerId && !isSellerAdmin(existingOwnerId)) {
-                                const matchedM = (members || []).find(m => m && (safeUpper(m.id) === safeUpper(existingOwnerId) || safeUpper(m.user_id) === safeUpper(existingOwnerId)));
-                                const ownerDisplay = matchedM ? `${matchedM.id || matchedM.user_id} - ${matchedM.name}` : existingOwnerId;
-                                setMemberIdInput(ownerDisplay);
-                            }
+                        const sellerDisplay = matchedPendingM ? `${matchedPendingM.id || matchedPendingM.user_id} - ${matchedPendingM.name}` : pendingSeller;
+                        setMemberIdInput(sellerDisplay);
+                    } else if (!isClinicVisitCase) {
+                        // เฉพาะกรณีไม่ใช่เคสคลินิกและไม่มีการระบุผู้แนะนำมาในบิล จึงจะซิงค์ผู้ดูแลเดิม
+                        const existingOwnerId = String(foundExistingCust.owner_member_id || foundExistingCust.ownerMemberId || foundExistingCust.memberId || '').trim();
+                        if (existingOwnerId && !isSellerAdmin(existingOwnerId)) {
+                            const matchedM = (members || []).find(m => m && (safeUpper(m.id) === safeUpper(existingOwnerId) || safeUpper(m.user_id) === safeUpper(existingOwnerId)));
+                            const ownerDisplay = matchedM ? `${matchedM.id || matchedM.user_id} - ${matchedM.name}` : existingOwnerId;
+                            setMemberIdInput(ownerDisplay);
                         }
                     }
                 }
@@ -1644,76 +1618,55 @@
                         customerName: pending.customer_name || ''
                     };
 
-                    let rawInitSeller = String(pending.recorded_by || pending.seller_id || pending.member_id || pending.seller_name || '').trim();
-                    let initSeller = rawInitSeller.replace(/^[^a-zA-Z0-9\u0E00-\u0E7F]+/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
-                    let explicitMemberMatched = null;
+                    let initSeller = String(pending.recorded_by || pending.seller_id || '').trim();
+                    // 🛡️ ป้องกันชื่อหมอและแอดมินหลุดเข้ามาเป็นผู้ขาย (Seller/Marketer)
+                    const isInitSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                        ? window.isClinicDoctorIdentifier(initSeller, effectiveClinicDoctors || clinicDoctors)
+                        : false;
+                    if (isInitSellerDoc || isSellerAdmin(initSeller)) {
+                        initSeller = '';
+                    }
 
-                    // 1. à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸à¹ˆà¸­à¸™à¸§à¹ˆà¸² initSeller à¸—à¸µà¹ˆà¸ªà¹ˆà¸‡à¸¡à¸²à¸ˆà¸²à¸ draft à¹à¸¡à¸›à¸à¸±à¸šà¸ªà¸¡à¸²à¸Šà¸´à¸à¸à¸²à¸£à¸•à¸¥à¸²à¸”à¹ƒà¸™ members à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
-                    if (initSeller && initSeller !== '-' && initSeller !== '--' && !isSellerAdmin(initSeller)) {
-                        explicitMemberMatched = (members || []).find(m => m && !isSellerAdmin(m) && (
+                    // ⚡ ตรวจสอบประวัติบิลเดิมจาก sales (สำหรับเคสต่อยา หรือคนไข้เก่าที่บิลก่อนหน้ามีผู้ขายตัวจริง)
+                    if (!initSeller && pending.hn) {
+                        const prevSale = (sales || []).find(s => s && (safeUpper(s.customerId) === safeUpper(pending.hn) || safeUpper(s.customer_id) === safeUpper(pending.hn)) && !isSellerAdmin(s.memberId || s.seller_id));
+                        if (prevSale) {
+                            initSeller = String(prevSale.memberId || prevSale.seller_id || '').trim();
+                        }
+                    }
+
+                    if (initSeller && initSeller !== '-' && initSeller !== '--') {
+                        const matchedInitM = (members || []).find(m => m && (
                             safeUpper(m.id) === safeUpper(initSeller) ||
                             safeUpper(m.user_id) === safeUpper(initSeller) ||
                             safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(initSeller) ||
                             initSeller.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
-                            safeUpper(m.name) === safeUpper(initSeller) ||
-                            safeUpper(m.name).includes(safeUpper(initSeller)) ||
-                            safeUpper(initSeller).includes(safeUpper(m.name))
+                            safeUpper(m.name) === safeUpper(initSeller)
                         ));
-                    }
-
-                    if (explicitMemberMatched) {
-                        // ðŸ›¡ï¸ à¸«à¸²à¸à¸£à¸°à¸šà¸¸à¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³/à¸œà¸¹à¹‰à¸‚à¸²à¸¢à¸à¸²à¸£à¸•à¸¥à¸²à¸”à¸¡à¸²à¹ƒà¸™à¸šà¸´à¸¥ à¹à¸¥à¸°à¸•à¸£à¸‡à¸à¸±à¸šà¸ªà¸¡à¸²à¸Šà¸´à¸ à¹ƒà¸«à¹‰à¸¥à¹‡à¸­à¸à¸„à¸™à¸™à¸µà¹‰ 100% à¸«à¹‰à¸²à¸¡à¸¥à¸šà¸«à¸£à¸·à¸­à¸”à¸¶à¸‡à¸Šà¸·à¹ˆà¸­à¸„à¸™à¸­à¸·à¹ˆà¸™à¸¡à¸²à¸—à¸±à¸šà¹€à¸”à¹‡à¸”à¸‚à¸²à¸”
-                        setMemberIdInput(`${explicitMemberMatched.id || explicitMemberMatched.user_id} - ${explicitMemberMatched.name}`);
+                        setMemberIdInput(matchedInitM ? `${matchedInitM.id || matchedInitM.user_id} - ${matchedInitM.name}` : initSeller);
                     } else {
-                        // ðŸ›¡ï¸ à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¸Šà¸·à¹ˆà¸­à¸«à¸¡à¸­à¹à¸¥à¸°à¹à¸­à¸”à¸¡à¸´à¸™à¸«à¸¥à¸¸à¸”à¹€à¸‚à¹‰à¸²à¸¡à¸²à¹€à¸›à¹‡à¸™à¸œà¸¹à¹‰à¸‚à¸²à¸¢ (Seller/Marketer)
-                        const isInitSellerDoc = (typeof window.isClinicDoctorIdentifier === 'function')
-                            ? window.isClinicDoctorIdentifier(initSeller, effectiveClinicDoctors || clinicDoctors)
-                            : false;
-                        if (isInitSellerDoc || isSellerAdmin(initSeller)) {
-                            initSeller = '';
-                        }
-
-                        // âš¡ à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸›à¸£à¸°à¸§à¸±à¸•à¸´à¸šà¸´à¸¥à¹€à¸”à¸´à¸¡à¸ˆà¸²à¸ sales (à¸ªà¸³à¸«à¸£à¸±à¸šà¹€à¸„à¸ªà¸•à¹ˆà¸­à¸¢à¸² à¸«à¸£à¸·à¸­à¸„à¸™à¹„à¸‚à¹‰à¹€à¸à¹ˆà¸²à¸—à¸µà¹ˆà¸šà¸´à¸¥à¸à¹ˆà¸­à¸™à¸«à¸™à¹‰à¸²à¸¡à¸µà¸œà¸¹à¹‰à¸‚à¸²à¸¢à¸•à¸±à¸§à¸ˆà¸£à¸´à¸‡)
-                        if (!initSeller && pending.hn) {
-                            const prevSale = (sales || []).find(s => s && (safeUpper(s.customerId) === safeUpper(pending.hn) || safeUpper(s.customer_id) === safeUpper(pending.hn)) && !isSellerAdmin(s.memberId || s.seller_id));
-                            if (prevSale) {
-                                initSeller = String(prevSale.memberId || prevSale.seller_id || '').trim();
-                            }
-                        }
-
-                        if (initSeller && initSeller !== '-' && initSeller !== '--') {
-                            const matchedInitM = (members || []).find(m => m && (
-                                safeUpper(m.id) === safeUpper(initSeller) ||
-                                safeUpper(m.user_id) === safeUpper(initSeller) ||
-                                safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(initSeller) ||
-                                initSeller.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
-                                safeUpper(m.name) === safeUpper(initSeller)
-                            ));
-                            setMemberIdInput(matchedInitM ? `${matchedInitM.id || matchedInitM.user_id} - ${matchedInitM.name}` : initSeller);
-                        } else {
-                            setMemberIdInput('');
-                        }
-                        if (pending.visit_id && pending.hn && typeof window.clinicSupabaseSelect === 'function') {
-                            // à¸ªà¸³à¸«à¸£à¸±à¸šà¸šà¸´à¸¥à¸—à¸µà¹ˆà¸¡à¸²à¸ˆà¸²à¸à¸„à¸¥à¸´à¸™à¸´à¸à¹à¸¥à¸°à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µà¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³ à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸œà¸¹à¹‰à¹à¸™à¸°à¸™à¸³à¸ˆà¸²à¸à¸£à¸°à¸šà¸šà¸„à¸¥à¸´à¸™à¸´à¸à¹€à¸žà¸·à¹ˆà¸­à¸„à¸§à¸²à¸¡à¸–à¸¹à¸à¸•à¹‰à¸­à¸‡à¸ªà¸¹à¸‡à¸ªà¸¸à¸”
-                            window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(pending.hn)}&select=referred_by&limit=1`).then(pRes => {
-                                if (Array.isArray(pRes) && pRes.length > 0 && pRes[0].referred_by && pRes[0].referred_by !== '-' && pRes[0].referred_by !== '--') {
-                                    const refStr = pRes[0].referred_by;
-                                    const isRefDoc = (typeof window.isClinicDoctorIdentifier === 'function')
-                                        ? window.isClinicDoctorIdentifier(refStr, effectiveClinicDoctors || clinicDoctors)
-                                        : false;
-                                    if (!isRefDoc && !isSellerAdmin(refStr)) {
-                                        const matchedRefM = (members || []).find(m => m && (
-                                            safeUpper(m.id) === safeUpper(refStr) ||
-                                            safeUpper(m.user_id) === safeUpper(refStr) ||
-                                            safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(refStr) ||
-                                            refStr.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
-                                            safeUpper(m.name) === safeUpper(refStr)
-                                        ));
-                                        setMemberIdInput(matchedRefM ? `${matchedRefM.id || matchedRefM.user_id} - ${matchedRefM.name}` : refStr);
-                                    }
+                        setMemberIdInput('');
+                    }
+                    if (pending.visit_id && pending.hn && typeof window.clinicSupabaseSelect === 'function') {
+                        // สำหรับบิลที่มาจากคลินิก ตรวจสอบผู้แนะนำจากระบบคลินิกเพื่อความถูกต้องสูงสุด
+                        window.clinicSupabaseSelect('patients', `hn=eq.${encodeURIComponent(pending.hn)}&select=referred_by&limit=1`).then(pRes => {
+                            if (Array.isArray(pRes) && pRes.length > 0 && pRes[0].referred_by && pRes[0].referred_by !== '-' && pRes[0].referred_by !== '--') {
+                                const refStr = pRes[0].referred_by;
+                                const isRefDoc = (typeof window.isClinicDoctorIdentifier === 'function')
+                                    ? window.isClinicDoctorIdentifier(refStr, effectiveClinicDoctors || clinicDoctors)
+                                    : false;
+                                if (!isRefDoc && !isSellerAdmin(refStr)) {
+                                    const matchedRefM = (members || []).find(m => m && (
+                                        safeUpper(m.id) === safeUpper(refStr) ||
+                                        safeUpper(m.user_id) === safeUpper(refStr) ||
+                                        safeUpper(`${m.id || m.user_id} - ${m.name}`) === safeUpper(refStr) ||
+                                        refStr.toUpperCase().startsWith(safeUpper(m.id || m.user_id)) ||
+                                        safeUpper(m.name) === safeUpper(refStr)
+                                    ));
+                                    setMemberIdInput(matchedRefM ? `${matchedRefM.id || matchedRefM.user_id} - ${matchedRefM.name}` : refStr);
                                 }
-                            }).catch(() => {});
-                        }
+                            }
+                        }).catch(() => {});
                     }
 
                     if (pending && pending.visit_id) {
@@ -2162,120 +2115,13 @@
                 }
             };
 
-            // 🛡️ Helper: คำนวณสต๊อกจริงของสินค้าและสินค้าเซ็ตโปรโมชั่น (Bundle) จากสินค้าหลัก
-            const resolveProductStockInfo = (prodObj, productsList) => {
-                if (!prodObj) return { isBundle: false, stock: 0, frontStock: 0, mainStock: 0, baseProduct: null, bundleQty: 1, unit: 'กล่อง', baseFrontStock: 0, baseMainStock: 0 };
-                const isBundle = Boolean(
-                    prodObj.is_bundle || 
-                    prodObj.isBundle || 
-                    prodObj.category === 'Promotion' || 
-                    String(prodObj.category || '').toLowerCase().includes('promotion') || 
-                    String(prodObj.category || '').includes('โปร') ||
-                    String(prodObj.id || prodObj.product_id || '').toUpperCase().startsWith('PRO')
-                );
-                if (!isBundle) {
-                    const front = prodObj.frontStock !== undefined ? Number(prodObj.frontStock || 0) : Number(prodObj.stock || 0);
-                    const main = Number(prodObj.stock || 0);
-                    return { isBundle: false, stock: main, frontStock: front, mainStock: main, baseProduct: null, bundleQty: 1, unit: 'กล่อง', baseFrontStock: front, baseMainStock: main };
-                }
-
-                let targetBase = String(prodObj.base_product || prodObj.baseProduct || '').trim();
-                let bQty = parseInt(prodObj.bundle_qty || prodObj.bundleQty, 10) || 0;
-
-                // Fallback: หากยังไม่ได้ระบุ targetBase หรือ bQty ให้ดึงจากชื่อ เช่น "LipoC : 3 กล่อง"
-                if (!targetBase || bQty <= 0) {
-                    const colonMatch = String(prodObj.name || '').match(/^(.*?)\s*[:：]\s*(\d+)\s*(?:กล่อง|ชิ้น|ขวด|กระปุก|ชุด|เซ็ต)?/i);
-                    if (colonMatch) {
-                        if (!targetBase) targetBase = colonMatch[1].trim();
-                        if (bQty <= 0) bQty = parseInt(colonMatch[2], 10) || 1;
-                    }
-                }
-                if (bQty <= 0) bQty = 1;
-
-                const baseP = (productsList || []).find(bp => {
-                    if (!bp) return false;
-                    const bpName = String(bp.name || bp.product_name || '').trim();
-                    const bpId = String(bp.id || bp.product_id || '').trim();
-                    return Boolean(targetBase && (bpName === targetBase || bpId === targetBase || bpName.toLowerCase() === targetBase.toLowerCase() || bpId.toLowerCase() === targetBase.toLowerCase()));
-                });
-
-                if (baseP) {
-                    const baseFront = baseP.frontStock !== undefined ? Number(baseP.frontStock || 0) : Number(baseP.stock || 0);
-                    const baseMain = Number(baseP.stock || 0);
-                    const bundleFront = Math.floor(baseFront / bQty);
-                    const bundleMain = Math.floor(baseMain / bQty);
-                    return {
-                        isBundle: true,
-                        stock: bundleMain,
-                        frontStock: bundleFront,
-                        mainStock: bundleMain,
-                        baseProduct: baseP,
-                        bundleQty: bQty,
-                        unit: 'ชุด',
-                        baseFrontStock: baseFront,
-                        baseMainStock: baseMain
-                    };
-                }
-
-                const selfFront = prodObj.frontStock !== undefined ? Number(prodObj.frontStock || 0) : Number(prodObj.stock || 0);
-                return {
-                    isBundle: true,
-                    stock: Number(prodObj.stock || 0),
-                    frontStock: selfFront,
-                    mainStock: Number(prodObj.stock || 0),
-                    baseProduct: null,
-                    bundleQty: bQty,
-                    unit: 'ชุด',
-                    baseFrontStock: selfFront,
-                    baseMainStock: Number(prodObj.stock || 0)
-                };
-            };
-            window.resolveProductStockInfo = resolveProductStockInfo;
-
             const handleAddToCart = (productName, priceType = 'ราคาโปร', forceQty = null) => {
                 const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(productName, products) : null) || (products || []).find(p => p && (p.name === productName || p.product_name === productName)) || {};
-                const info = resolveProductStockInfo(prodObj, products);
-                const availableStock = info.frontStock;
-                const mainStock = info.mainStock;
-                const unit = info.unit;
-
-                // คำนวณจำนวนสต๊อกสินค้าหลักที่ถูกจองไปแล้วในตะกร้า
-                let baseQtyAlreadyInCart = 0;
-                cart.forEach(item => {
-                    const itP = (typeof findMatchingProduct === 'function' ? findMatchingProduct(item.productName, products) : null) || (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName));
-                    const itQty = parseInt(item.qty) || 0;
-                    if (itQty <= 0) return;
-
-                    if (info.isBundle && info.baseProduct) {
-                        const itInfo = resolveProductStockInfo(itP, products);
-                        const itBaseId = itInfo.baseProduct ? (itInfo.baseProduct.id || itInfo.baseProduct.product_id) : (itP ? (itP.id || itP.product_id) : null);
-                        const myBaseId = info.baseProduct.id || info.baseProduct.product_id;
-                        if (itBaseId && myBaseId && itBaseId === myBaseId) {
-                            baseQtyAlreadyInCart += itQty * (itInfo.isBundle ? itInfo.bundleQty : 1);
-                        }
-                    } else if (!info.isBundle) {
-                        const myId = prodObj.id || prodObj.product_id;
-                        const itInfo = resolveProductStockInfo(itP, products);
-                        const itBaseId = itInfo.baseProduct ? (itInfo.baseProduct.id || itInfo.baseProduct.product_id) : (itP ? (itP.id || itP.product_id) : null);
-                        if (itBaseId && myId && itBaseId === myId) {
-                            baseQtyAlreadyInCart += itQty * (itInfo.isBundle ? itInfo.bundleQty : 1);
-                        }
-                    }
-                });
-
+                const currentQtyInCart = cart.filter(item => item.productName === productName).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
                 const addAmount = forceQty !== null ? forceQty : 1;
-                const addBaseAmount = addAmount * (info.isBundle ? info.bundleQty : 1);
-                const rawBaseFront = info.isBundle ? info.baseFrontStock : availableStock;
 
-                if (availableStock <= 0 || rawBaseFront <= 0) {
-                    const baseDesc = info.isBundle && info.baseProduct ? ` (สินค้าหลัก ${info.baseProduct.name}: หน้าร้านเหลือ ${info.baseFrontStock} กล่อง)` : '';
-                    showToast(`❌ สินค้า ${productName} หน้าร้านไม่มีสินค้า (เหลือ 0 ${unit} ${mainStock > 0 ? `| คลังใหญ่มี ${mainStock} ${unit}` : ''})${baseDesc} กรุณาเบิกของเข้าหน้าร้านก่อน`, 'error');
-                    return;
-                }
-
-                if (rawBaseFront < baseQtyAlreadyInCart + addBaseAmount) {
-                    const maxCanAdd = Math.floor(Math.max(0, rawBaseFront - baseQtyAlreadyInCart) / (info.isBundle ? info.bundleQty : 1));
-                    showToast(`⚠️ สต๊อกหน้าร้าน ${info.isBundle && info.baseProduct ? `(สินค้าหลัก ${info.baseProduct.name}) ` : ''}มีไม่พอขาย (สามารถเพิ่มได้อีกสูงสุด ${maxCanAdd} ${unit})`, 'error');
+                if (prodObj.stock < currentQtyInCart + addAmount) {
+                    showToast(`ไม่สามารถเพิ่มได้ สต๊อก ${productName} มีไม่พอ (เหลือ ${prodObj.stock} ชิ้น)`, 'error');
                     return;
                 }
 
@@ -2307,38 +2153,10 @@
 
             const handleUpdateCartQty = (productName, priceType, delta) => {
                 if (delta > 0) {
-                    const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(productName, products) : null) || (products || []).find(p => p && (p.name === productName || p.product_name === productName)) || {};
-                    const info = resolveProductStockInfo(prodObj, products);
-                    const availableStock = info.frontStock;
-
-                    let baseQtyAlreadyInCart = 0;
-                    cart.forEach(item => {
-                        const itP = (typeof findMatchingProduct === 'function' ? findMatchingProduct(item.productName, products) : null) || (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName));
-                        const itQty = parseInt(item.qty) || 0;
-                        if (itQty <= 0) return;
-
-                        if (info.isBundle && info.baseProduct) {
-                            const itInfo = resolveProductStockInfo(itP, products);
-                            const itBaseId = itInfo.baseProduct ? (itInfo.baseProduct.id || itInfo.baseProduct.product_id) : (itP ? (itP.id || itP.product_id) : null);
-                            const myBaseId = info.baseProduct.id || info.baseProduct.product_id;
-                            if (itBaseId && myBaseId && itBaseId === myBaseId) {
-                                baseQtyAlreadyInCart += itQty * (itInfo.isBundle ? itInfo.bundleQty : 1);
-                            }
-                        } else if (!info.isBundle) {
-                            const myId = prodObj.id || prodObj.product_id;
-                            const itInfo = resolveProductStockInfo(itP, products);
-                            const itBaseId = itInfo.baseProduct ? (itInfo.baseProduct.id || itInfo.baseProduct.product_id) : (itP ? (itP.id || itP.product_id) : null);
-                            if (itBaseId && myId && itBaseId === myId) {
-                                baseQtyAlreadyInCart += itQty * (itInfo.isBundle ? itInfo.bundleQty : 1);
-                            }
-                        }
-                    });
-
-                    const addBaseAmount = delta * (info.isBundle ? info.bundleQty : 1);
-                    const rawBaseFront = info.isBundle ? info.baseFrontStock : availableStock;
-
-                    if (rawBaseFront < baseQtyAlreadyInCart + addBaseAmount) {
-                        showToast(`สต๊อกหน้าร้าน ${info.isBundle && info.baseProduct ? `(สินค้าหลัก ${info.baseProduct.name}) ` : ''}มีจำกัดแค่ ${availableStock} ${info.unit}`, 'error');
+                    const prodObj = (products || []).find(p => p.name === productName) || {};
+                    const currentQtyInCart = cart.filter(item => item.productName === productName).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+                    if (prodObj.stock <= currentQtyInCart) {
+                        showToast(`สต๊อก ${productName} มีจำกัดแค่ ${prodObj.stock} ชิ้น`, 'error');
                         return;
                     }
                 }
@@ -2360,41 +2178,12 @@
                 let parsedQty = parseInt(newQtyVal, 10);
                 if (isNaN(parsedQty)) return;
 
-                const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(productName, products) : null) || (products || []).find(p => p && (p.name === productName || p.product_name === productName)) || {};
-                const info = resolveProductStockInfo(prodObj, products);
-                const availableStock = info.frontStock;
+                const prodObj = findMatchingProduct(productName, products) || (products || []).find(p => p.name === productName) || {};
+                const currentQtyInCartOtherTypes = cart.filter(item => item.productName === productName && item.priceType !== priceType).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
 
-                let otherBaseInCart = 0;
-                cart.forEach(item => {
-                    if (item.productName === productName && item.priceType === priceType) return;
-                    const itP = (typeof findMatchingProduct === 'function' ? findMatchingProduct(item.productName, products) : null) || (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName));
-                    const itQty = parseInt(item.qty) || 0;
-                    if (itQty <= 0) return;
-
-                    if (info.isBundle && info.baseProduct) {
-                        const itInfo = resolveProductStockInfo(itP, products);
-                        const itBaseId = itInfo.baseProduct ? (itInfo.baseProduct.id || itInfo.baseProduct.product_id) : (itP ? (itP.id || itP.product_id) : null);
-                        const myBaseId = info.baseProduct.id || info.baseProduct.product_id;
-                        if (itBaseId && myBaseId && itBaseId === myBaseId) {
-                            otherBaseInCart += itQty * (itInfo.isBundle ? itInfo.bundleQty : 1);
-                        }
-                    } else if (!info.isBundle) {
-                        const myId = prodObj.id || prodObj.product_id;
-                        const itInfo = resolveProductStockInfo(itP, products);
-                        const itBaseId = itInfo.baseProduct ? (itInfo.baseProduct.id || itInfo.baseProduct.product_id) : (itP ? (itP.id || itP.product_id) : null);
-                        if (itBaseId && myId && itBaseId === myId) {
-                            otherBaseInCart += itQty * (itInfo.isBundle ? itInfo.bundleQty : 1);
-                        }
-                    }
-                });
-
-                const rawBaseFront = info.isBundle ? info.baseFrontStock : availableStock;
-                const multiplier = info.isBundle ? info.bundleQty : 1;
-                const maxCanSet = Math.floor(Math.max(0, rawBaseFront - otherBaseInCart) / multiplier);
-
-                if (parsedQty > maxCanSet) {
-                    showToast(`สต๊อกหน้าร้าน ${info.isBundle && info.baseProduct ? `(สินค้าหลัก ${info.baseProduct.name}) ` : ''}มีจำกัด สามารถใส่ได้สูงสุด ${maxCanSet} ${info.unit}`, 'error');
-                    parsedQty = Math.max(0, maxCanSet);
+                if (prodObj.stock < currentQtyInCartOtherTypes + parsedQty) {
+                    showToast(`สต๊อก ${productName} มีจำกัดแค่ ${prodObj.stock} ชิ้น`, 'error');
+                    parsedQty = Math.max(1, prodObj.stock - currentQtyInCartOtherTypes);
                 }
 
                 setCart(prev => prev.map(item => {
@@ -2451,9 +2240,11 @@
                 return (products || [])
                     .filter(p => p && p.status !== 'เลิกขาย')
                     .map(p => {
-                        const info = resolveProductStockInfo(p, products);
-                        if (info.isBundle && info.baseProduct) {
-                            return { ...p, stock: info.stock, frontStock: info.frontStock };
+                        if (p.isBundle || p.is_bundle) {
+                            const baseP = (products || []).find(bp => bp.name === (p.baseProduct || p.base_product));
+                            const bQty = Number(p.bundleQty || p.bundle_qty) || 1;
+                            const realStock = baseP ? Math.floor((baseP.stock || 0) / bQty) : 0;
+                            return { ...p, stock: realStock };
                         }
                         return p;
                     })
@@ -2469,23 +2260,16 @@
                 const search = catalogSearch.trim().toLowerCase();
                 if (!search) return;
 
-                let matchedProd = (filteredProductsList || []).find(p => p && p.status !== 'เลิกขาย' && (String(p.id || '').toLowerCase() === search || String(p.name || '').toLowerCase() === search || String(p.barcode || '').toLowerCase() === search));
-                if (!matchedProd) {
-                    matchedProd = (products || []).find(p => p && p.status !== 'เลิกขาย' && (String(p.id || '').toLowerCase() === search || String(p.name || '').toLowerCase() === search || String(p.barcode || '').toLowerCase() === search));
-                }
+                let matchedProd = (products || []).find(p => p && p.status !== 'เลิกขาย' && (String(p.id || '').toLowerCase() === search || String(p.name || '').toLowerCase() === search || String(p.barcode || '').toLowerCase() === search));
                 if (!matchedProd) {
                     const matches = filteredProductsList;
                     if (matches.length === 1) matchedProd = matches[0];
                 }
 
                 if (matchedProd) {
-                    const info = resolveProductStockInfo(matchedProd, products);
-                    if (info.frontStock <= 0) {
-                        showToast(`❌ สินค้า ${matchedProd.name} หน้าร้านไม่มีสินค้า (เหลือ 0 ${info.unit}) กรุณาเบิกของเข้าหน้าร้านก่อน`, 'error');
-                        return;
-                    }
                     handleAddToCart(matchedProd.name, 'ราคาโปร');
                     setCatalogSearch('');
+                    showToast(`เพิ่ม ${matchedProd.name} ลงตะกร้าแล้ว`, 'success');
                 } else {
                     showToast(`ไม่พบสินค้า: "${search}"`, 'error');
                 }
@@ -3364,13 +3148,8 @@
 
                 for (const pid of Object.keys(qtyMap)) {
                     const p = (products || []).find(prod => prod && (prod.id === pid || prod.product_id === pid));
-                    const availableStock = p && p.frontStock !== undefined ? Number(p.frontStock || 0) : Number(p ? p.stock : 0);
-                    if (!isHistoryBypass && !editingSaleId && p && availableStock < qtyMap[pid]) {
-                        if (availableStock <= 0) {
-                            showToast(`❌ สินค้า ${p.name} หน้าร้านไม่มีสินค้า (เหลือ 0 กล่อง) ไม่สามารถบันทึกขายได้ กรุณาเบิกของเข้าหน้าร้านก่อน`, 'error');
-                        } else {
-                            showToast(`⚠️ สินค้า ${p.name} สต๊อกหน้าร้านไม่พอขาย (ต้องการ ${qtyMap[pid]}, หน้าร้านเหลือ ${availableStock} กล่อง)`, 'error');
-                        }
+                    if (!isHistoryBypass && !editingSaleId && p && p.stock < qtyMap[pid]) {
+                        showToast(`สินค้า ${p.name} มีสต๊อกไม่พอ (ต้องการ ${qtyMap[pid]}, เหลือ ${p.stock} ชิ้น)`, 'error');
                         return;
                     }
                 }
@@ -3626,8 +3405,7 @@
                                     if (k.endsWith('_ราคาเต็ม') && k !== 'รวมชิ้นราคาเต็ม') oldCart.push({ productName: k.replace('_ราคาเต็ม', ''), priceType: 'ราคาเต็ม', qty });
                                     else if (k.endsWith('_ราคาสมาชิก') && k !== 'รวมชิ้นราคาสมาชิก') oldCart.push({ productName: k.replace('_ราคาสมาชิก', ''), priceType: 'ราคาสมาชิก', qty });
                                 }
-                            })
-                            ;
+                            });
                             oldPv = calculateBillPV(oldCart, products);
                         }
                         pvChange = newPv - oldPv;
@@ -3781,27 +3559,10 @@
                                 billDate: newRecord.date
                             });
                             if (stockChangeRes && stockChangeRes.details && setProducts) {
-                                setProducts(prev => {
-                                    const nextList = (prev || []).map(p => {
-                                        const matched = stockChangeRes.details.find(d => d.productId === (p.id || p.product_id));
-                                        if (!matched) return p;
-                                        const deductQty = matched.diff || 0;
-                                        return {
-                                            ...p,
-                                            stock: matched.newStock,
-                                            current_stock: matched.newStock,
-                                            frontStock: Math.max(0, (p.frontStock !== undefined ? p.frontStock : p.stock) - deductQty)
-                                        };
-                                    });
-                                    return nextList.map(p => {
-                                        const resolveFn = window.resolveProductStockInfo || (typeof resolveProductStockInfo === 'function' ? resolveProductStockInfo : null);
-                                        const info = resolveFn ? resolveFn(p, nextList) : null;
-                                        if (info && info.isBundle && info.baseProduct) {
-                                            return { ...p, stock: info.stock, frontStock: info.frontStock };
-                                        }
-                                        return p;
-                                    });
-                                });
+                                setProducts(prev => (prev || []).map(p => {
+                                    const matched = stockChangeRes.details.find(d => d.productId === p.id);
+                                    return matched ? { ...p, stock: matched.newStock } : p;
+                                }));
                             }
                         }
                         const oldQtyMap = {};
@@ -4087,27 +3848,10 @@
                                 billDate: newRecord.date
                             });
                             if (stockChangeRes && stockChangeRes.details && setProducts) {
-                                setProducts(prev => {
-                                    const nextList = (prev || []).map(p => {
-                                        const matched = stockChangeRes.details.find(d => d.productId === (p.id || p.product_id));
-                                        if (!matched) return p;
-                                        const deductQty = matched.diff || 0;
-                                        return {
-                                            ...p,
-                                            stock: matched.newStock,
-                                            current_stock: matched.newStock,
-                                            frontStock: Math.max(0, (p.frontStock !== undefined ? p.frontStock : p.stock) - deductQty)
-                                        };
-                                    });
-                                    return nextList.map(p => {
-                                        const resolveFn = window.resolveProductStockInfo || (typeof resolveProductStockInfo === 'function' ? resolveProductStockInfo : null);
-                                        const info = resolveFn ? resolveFn(p, nextList) : null;
-                                        if (info && info.isBundle && info.baseProduct) {
-                                            return { ...p, stock: info.stock, frontStock: info.frontStock };
-                                        }
-                                        return p;
-                                    });
-                                });
+                                setProducts(prev => (prev || []).map(p => {
+                                    const matched = stockChangeRes.details.find(d => d.productId === p.id);
+                                    return matched ? { ...p, stock: matched.newStock } : p;
+                                }));
                             }
                         } catch (stockDeductErr) {
                             console.error('❌ ตัดสต็อกล้มเหลว! กำลัง Rollback ลบบิลที่เพิ่งเปิดออกจาก stk_sales:', stockDeductErr);
@@ -4358,9 +4102,11 @@
                 return (products || [])
                     .filter(p => p && p.status !== 'เลิกขาย')
                     .map(p => {
-                        const info = resolveProductStockInfo(p, products);
-                        if (info.isBundle && info.baseProduct) {
-                            return { ...p, stock: info.stock, frontStock: info.frontStock };
+                        if (p.isBundle || p.is_bundle) {
+                            const baseP = (products || []).find(bp => bp.name === (p.baseProduct || p.base_product));
+                            const bQty = Number(p.bundleQty || p.bundle_qty) || 1;
+                            const realStock = baseP ? Math.floor((baseP.stock || 0) / bQty) : 0;
+                            return { ...p, stock: realStock };
                         }
                         return p;
                     })
@@ -4604,26 +4350,10 @@
                             reasonNote: `ตัดสต๊อกเบิกตัดศูนย์หน้าร้าน บิล ${newRecord.id}`
                         });
                         if (stockChangeRes && stockChangeRes.details && setProducts) {
-                            setProducts(prev => {
-                                const nextList = (prev || []).map(p => {
-                                    const matched = stockChangeRes.details.find(d => d.productId === (p.product_id || p.id));
-                                    const deductQty = matched ? (matched.diff || 0) : 0;
-                                    return matched ? {
-                                        ...p,
-                                        stock: matched.newStock,
-                                        current_stock: matched.newStock,
-                                        frontStock: Math.max(0, (p.frontStock !== undefined ? p.frontStock : p.stock) - deductQty)
-                                    } : p;
-                                });
-                                return nextList.map(p => {
-                                    const resolveFn = window.resolveProductStockInfo || (typeof resolveProductStockInfo === 'function' ? resolveProductStockInfo : null);
-                                    const info = resolveFn ? resolveFn(p, nextList) : null;
-                                    if (info && info.isBundle && info.baseProduct) {
-                                        return { ...p, stock: info.stock, frontStock: info.frontStock };
-                                    }
-                                    return p;
-                                });
-                            });
+                            setProducts(prev => (prev || []).map(p => {
+                                const matched = stockChangeRes.details.find(d => d.productId === (p.product_id || p.id));
+                                return matched ? { ...p, stock: matched.newStock, current_stock: matched.newStock } : p;
+                            }));
                         }
                     }
 
@@ -4853,8 +4583,7 @@
                                         {zeroFilteredProducts.length > 0 ? (
                                             zeroFilteredProducts.map(p => {
                                                 const inCart = zeroCart.find(it => it.productId === p.id || it.productName === p.name);
-                                                const frontQty = p.frontStock !== undefined ? Number(p.frontStock || 0) : Number(p.stock || 0);
-                                                const isOutOfStock = frontQty <= 0;
+                                                const isOutOfStock = p.stock <= 0;
                                                 return (
                                                     <div
                                                         key={p.id}
@@ -4867,13 +4596,12 @@
                                                             <div className="min-w-0 truncate">
                                                                 <div className="font-bold text-xs text-slate-800 truncate">{p.name}</div>
                                                                 <div className={`text-[11px] font-bold ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                                    หน้าร้าน: {frontQty} ชิ้น
+                                                                    คงเหลือ: {p.stock} ชิ้น
                                                                 </div>
                                                             </div>
                                                         </div>
                                                         <button
                                                             type="button"
-                                                            disabled={isOutOfStock}
                                                             onClick={() => {
                                                                 setZeroCart(prev => {
                                                                     const existing = prev.find(it => it.productId === p.id || it.productName === p.name);
@@ -4883,13 +4611,13 @@
                                                                     return [...prev, {
                                                                         productId: p.id,
                                                                         productName: p.name,
-                                                                        stock: frontQty,
+                                                                        stock: p.stock,
                                                                         qty: 1
                                                                     }];
                                                                 });
                                                                 setZeroSearch('');
                                                             }}
-                                                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all shrink-0 flex items-center gap-1 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all shrink-0 flex items-center gap-1 active:scale-95"
                                                         >
                                                             <Plus size={14} /> เพิ่ม 0฿
                                                         </button>
@@ -5039,9 +4767,11 @@
                 return (products || [])
                     .filter(p => p && p.status !== 'เลิกขาย')
                     .map(p => {
-                        const info = resolveProductStockInfo(p, products);
-                        if (info.isBundle && info.baseProduct) {
-                            return { ...p, stock: info.stock, frontStock: info.frontStock };
+                        if (p.isBundle || p.is_bundle) {
+                            const baseP = (products || []).find(bp => bp.name === (p.baseProduct || p.base_product));
+                            const bQty = Number(p.bundleQty || p.bundle_qty) || 1;
+                            const realStock = baseP ? Math.floor((baseP.stock || 0) / bQty) : 0;
+                            return { ...p, stock: realStock };
                         }
                         return p;
                     })
@@ -5325,26 +5055,10 @@
                             reasonNote: `ตัดสต๊อกเบิกค้างชำระหน้าร้าน บิล ${newRecord.id} (${debtorName})`
                         });
                         if (stockChangeRes && stockChangeRes.details && setProducts) {
-                            setProducts(prev => {
-                                const nextList = (prev || []).map(p => {
-                                    const matched = stockChangeRes.details.find(d => d.productId === (p.product_id || p.id));
-                                    const deductQty = matched ? (matched.diff || 0) : 0;
-                                    return matched ? {
-                                        ...p,
-                                        stock: matched.newStock,
-                                        current_stock: matched.newStock,
-                                        frontStock: Math.max(0, (p.frontStock !== undefined ? p.frontStock : p.stock) - deductQty)
-                                    } : p;
-                                });
-                                return nextList.map(p => {
-                                    const resolveFn = window.resolveProductStockInfo || (typeof resolveProductStockInfo === 'function' ? resolveProductStockInfo : null);
-                                    const info = resolveFn ? resolveFn(p, nextList) : null;
-                                    if (info && info.isBundle && info.baseProduct) {
-                                        return { ...p, stock: info.stock, frontStock: info.frontStock };
-                                    }
-                                    return p;
-                                });
-                            });
+                            setProducts(prev => (prev || []).map(p => {
+                                const matched = stockChangeRes.details.find(d => d.productId === (p.product_id || p.id));
+                                return matched ? { ...p, stock: matched.newStock, current_stock: matched.newStock } : p;
+                            }));
                         }
                     }
 
@@ -6887,19 +6601,10 @@
 
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-slate-50/50">
                                 {cart.map((item, idx) => {
-                                    const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(item.productName, products) : null) || (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName)) || {};
-                                    const info = (typeof resolveProductStockInfo === 'function' ? resolveProductStockInfo(prodObj, products) : null) || { frontStock: Number(prodObj.frontStock !== undefined ? prodObj.frontStock : (prodObj.stock || 0)), mainStock: Number(prodObj.stock || 0), unit: 'à¸à¸¥à¹ˆà¸­à¸‡' };
+                                    const prodObj = findMatchingProduct(item.productName, products) || (products || []).find(p => p.name === item.productName) || {};
                                     const img = item.imageUrl || (prodObj.imageUrl && prodObj.imageUrl.trim() !== '' ? prodObj.imageUrl : (prodObj.image_url && prodObj.image_url.trim() !== '' ? prodObj.image_url : null));
-                                    const frontQty = info.frontStock;
-                                    const mainQty = info.mainStock;
-                                    const unit = info.unit || 'à¸à¸¥à¹ˆà¸­à¸‡';
-                                    const itemQty = parseInt(item.qty) || 0;
-                                    const isZeroFront = frontQty <= 0;
-                                    const isOverFront = frontQty > 0 && itemQty > frontQty;
-                                    const isLowFront = frontQty > 0 && frontQty <= 5 && !isOverFront;
-
                                     return (
-                                        <div key={`${item.productName}-${item.priceType}`} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border ${isZeroFront || isOverFront ? 'border-red-300 bg-red-50/20' : isLowFront ? 'border-amber-300 bg-amber-50/10' : 'border-slate-200 hover:border-blue-300'} transition-all shadow-sm`}>
+                                        <div key={`${item.productName}-${item.priceType}`} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 transition-all shadow-sm">
 
                                             <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
                                                 <div className="w-14 h-14 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
@@ -6912,36 +6617,13 @@
                                                             className="text-[12px] font-black border border-slate-200 bg-slate-50 text-slate-700 rounded-md px-2 py-1 outline-none focus:border-blue-500 cursor-pointer shadow-sm"
                                                             value={item.priceType} onChange={(e) => handleUpdateCartPriceType(item.productName, item.priceType, e.target.value)}
                                                         >
-                                                            <option value="à¸£à¸²à¸„à¸²à¹€à¸•à¹‡à¸¡">à¸£à¸²à¸„à¸²à¹€à¸•à¹‡à¸¡</option>
-                                                            <option value="à¸£à¸²à¸„à¸²à¸ªà¸¡à¸²à¸Šà¸´à¸">à¸£à¸²à¸„à¸²à¸ªà¸¡à¸²à¸Šà¸´à¸</option>
-                                                            <option value="à¸£à¸²à¸„à¸²à¹‚à¸›à¸£">à¸£à¸²à¸„à¸²à¹‚à¸›à¸£</option>
-                                                            <option value="à¸£à¸²à¸„à¸²à¸¨à¸¹à¸™à¸¢à¹Œ">à¸£à¸²à¸„à¸²à¸¨à¸¹à¸™à¸¢à¹Œ</option>
+                                                            <option value="ราคาเต็ม">ราคาเต็ม</option>
+                                                            <option value="ราคาสมาชิก">ราคาสมาชิก</option>
+                                                            <option value="ราคาโปร">ราคาโปร</option>
+                                                            <option value="ราคาศูนย์">ราคาศูนย์</option>
                                                         </select>
-                                                        <span className="text-[13px] font-black text-blue-600">à¸¿{(item.price || 0).toLocaleString()}</span>
+                                                        <span className="text-[13px] font-black text-blue-600">฿{(item.price || 0).toLocaleString()}</span>
                                                     </div>
-
-                                                    {/* à¸à¸¥à¹ˆà¸­à¸‡à¹à¸ˆà¹‰à¸‡à¹€à¸•à¸·à¸­à¸™à¸ªà¸•à¹Šà¸­à¸à¸«à¸™à¹‰à¸²à¸£à¹‰à¸²à¸™ */}
-                                                    {isZeroFront ? (
-                                                        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">
-                                                            <AlertCircle size={14} className="text-red-500 shrink-0" />
-                                                            <span>à¸«à¸™à¹‰à¸²à¸£à¹‰à¸²à¸™à¹„à¸¡à¹ˆà¸¡à¸µà¸ªà¸´à¸™à¸„à¹‰à¸² (à¹€à¸«à¸¥à¸·à¸­ 0 {unit} {mainQty > 0 ? `| à¸„à¸¥à¸±à¸‡à¹ƒà¸«à¸à¹ˆà¸¡à¸µ ${mainQty} ${unit}` : ''}) à¸à¸£à¸¸à¸“à¸²à¹€à¸šà¸´à¸à¸ªà¸´à¸™à¸„à¹‰à¸²à¸à¹ˆà¸­à¸™à¸‚à¸²à¸¢</span>
-                                                        </div>
-                                                    ) : isOverFront ? (
-                                                        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">
-                                                            <AlertCircle size={14} className="text-red-500 shrink-0" />
-                                                            <span>à¸ˆà¸³à¸™à¸§à¸™à¸—à¸µà¹ˆà¸‚à¸²à¸¢ ({itemQty} {unit}) à¹€à¸à¸´à¸™à¸ªà¸•à¹Šà¸­à¸à¸«à¸™à¹‰à¸²à¸£à¹‰à¸²à¸™ (à¹€à¸«à¸¥à¸·à¸­ {frontQty} {unit})</span>
-                                                        </div>
-                                                    ) : isLowFront ? (
-                                                        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                                                            <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-                                                            <span>à¸ªà¸•à¹Šà¸­à¸à¸«à¸™à¹‰à¸²à¸£à¹‰à¸²à¸™à¹ƒà¸à¸¥à¹‰à¸«à¸¡à¸”: à¹€à¸«à¸¥à¸·à¸­ {frontQty} {unit} (à¸à¸£à¸¸à¸“à¸²à¹€à¸šà¸´à¸à¸ªà¸´à¸™à¸„à¹‰à¸²à¸ˆà¸²à¸à¸„à¸¥à¸±à¸‡à¹ƒà¸«à¸à¹ˆ)</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="mt-1 text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                                                            <span>à¸ªà¸•à¹Šà¸­à¸à¸«à¸™à¹‰à¸²à¸£à¹‰à¸²à¸™:</span>
-                                                            <span className="text-emerald-600 font-black">{frontQty} {unit}</span>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             </div>
 
@@ -6965,7 +6647,7 @@
                                                     />
                                                     <button type="button" onClick={() => handleUpdateCartQty(item.productName, item.priceType, 1)} className="px-4 text-slate-500 hover:bg-white hover:text-green-600 font-bold transition-colors">+</button>
                                                 </div>
-                                                <div className="text-[16px] font-black text-slate-800 w-20 text-right">à¸¿{((item.price || 0) * item.qty).toLocaleString()}</div>
+                                                <div className="text-[16px] font-black text-slate-800 w-20 text-right">฿{((item.price || 0) * item.qty).toLocaleString()}</div>
                                                 <button type="button" onClick={() => handleRemoveFromCart(item.productName, item.priceType)} className="p-2.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-transparent hover:border-red-200 shrink-0">
                                                     <Trash2 size={18} />
                                                 </button>
@@ -6983,61 +6665,57 @@
                         </div>
 
                         {(() => {
-                            const outOfStockItems = cart.filter(item => {
-                                const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(item.productName, products) : null) || (products || []).find(p => p && (p.name === item.productName || p.product_name === item.productName)) || {};
-                                const info = (typeof resolveProductStockInfo === 'function' ? resolveProductStockInfo(prodObj, products) : null) || { frontStock: Number(prodObj.frontStock !== undefined ? prodObj.frontStock : (prodObj.stock || 0)) };
-                                const frontQty = info.frontStock;
-                                return frontQty <= 0 || (parseInt(item.qty) || 0) > frontQty;
-                            });
-                            const hasOutOfStockItem = outOfStockItems.length > 0;
                             const isUnderpaid = saleTab !== 'OLD_SYSTEM' && cart.length > 0 && cartTotals.amount > 0 && remainingTHB > 0;
-                            const isButtonDisabled = isSubmitting || cart.length === 0 || isUnderpaid || hasOutOfStockItem;
+                            const isButtonDisabled = isSubmitting || cart.length === 0 || isUnderpaid;
 
                             return (
                                 <div className="flex flex-col gap-2 shrink-0 mt-1">
+                                    {isUnderpaid && (
+                                        <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl py-2 px-3 animate-pulse">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500 shrink-0">
+                                                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                            </svg>
+                                            <span>ยอดเงินไม่ครบ: ยังมียอดค้างชำระอีก ฿{remainingTHB.toLocaleString()} (กรุณาระบุยอดชำระให้ครบถ้วนเพื่อปลดล็อค)</span>
+                                        </div>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={handleAdd}
                                         disabled={isButtonDisabled}
-                                        title={hasOutOfStockItem ? 'à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸šà¸±à¸™à¸—à¸¶à¸à¸šà¸´à¸¥à¹„à¸”à¹‰à¹€à¸™à¸·à¹ˆà¸­à¸‡à¸ˆà¸²à¸à¸ªà¸´à¸™à¸„à¹‰à¸²à¸«à¸™à¹‰à¸²à¸£à¹‰à¸²à¸™à¹„à¸¡à¹ˆà¸žà¸­à¸‚à¸²à¸¢' : isUnderpaid ? `à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸šà¸±à¸™à¸—à¸¶à¸à¸šà¸´à¸¥à¹„à¸”à¹‰à¹€à¸™à¸·à¹ˆà¸­à¸‡à¸ˆà¸²à¸à¸¢à¸±à¸‡à¸¡à¸µà¸¢à¸­à¸”à¸„à¹‰à¸²à¸‡à¸Šà¸³à¸£à¸° à¸¿${remainingTHB.toLocaleString()}` : ''}
+                                        title={isUnderpaid ? `ไม่สามารถบันทึกบิลได้เนื่องจากยังมียอดค้างชำระ ฿${remainingTHB.toLocaleString()}` : ''}
                                         className={`w-full py-4 rounded-2xl font-black text-[16px] shadow-lg transition-all flex items-center justify-center gap-2 ${
                                             isSubmitting || cart.length === 0
                                                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                                                : hasOutOfStockItem
-                                                    ? 'bg-red-50 text-red-500 border-2 border-red-300 cursor-not-allowed opacity-90 shadow-none'
-                                                    : isUnderpaid
-                                                        ? 'bg-rose-50 text-rose-500 border-2 border-rose-300 cursor-not-allowed opacity-90 shadow-none'
-                                                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 hover:-translate-y-0.5'
+                                                : isUnderpaid
+                                                    ? 'bg-rose-50 text-rose-500 border-2 border-rose-300 cursor-not-allowed opacity-90 shadow-none'
+                                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 hover:-translate-y-0.5'
                                         }`}
                                     >
                                         {isSubmitting ? (
-                                            <span>à¸à¸³à¸¥à¸±à¸‡à¸šà¸±à¸™à¸—à¸¶à¸...</span>
-                                        ) : hasOutOfStockItem ? (
-                                            <span className="flex items-center gap-2">
-                                                <AlertCircle size={18} className="shrink-0 text-red-500" />
-                                                <span>à¸ªà¸´à¸™à¸„à¹‰à¸²à¸«à¸™à¹‰à¸²à¸£à¹‰à¸²à¸™à¹„à¸¡à¹ˆà¸žà¸­à¸‚à¸²à¸¢ ({outOfStockItems.map(i => i.productName).join(', ')})</span>
-                                            </span>
+                                            <span>กำลังบันทึก...</span>
                                         ) : isUnderpaid ? (
                                             <span className="flex items-center gap-2">
                                                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-rose-500">
                                                     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                                                    <line x1="12" y1="9" x2="12" y2="13"/>
+                                                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                                                 </svg>
-                                                <span>à¸¢à¸­à¸”à¹€à¸‡à¸´à¸™à¹„à¸¡à¹ˆà¸„à¸£à¸š (à¸„à¹‰à¸²à¸‡à¸Šà¸³à¸£à¸° à¸¿{remainingTHB.toLocaleString()})</span>
+                                                <span>ยอดเงินไม่ครบ (ค้างชำระ ฿{remainingTHB.toLocaleString()})</span>
                                             </span>
                                         ) : editingSaleId ? (
                                             <span className="flex items-center gap-2">
                                                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                                                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
                                                 </svg>
-                                                <span>à¸šà¸±à¸™à¸—à¸¶à¸à¹à¸à¹‰à¹„à¸‚à¸šà¸´à¸¥</span>
+                                                <span>บันทึกแก้ไขบิล</span>
                                             </span>
                                         ) : (
                                             <span className="flex items-center gap-2">
                                                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                                                     <rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>
                                                 </svg>
-                                                <span>à¸šà¸±à¸™à¸—à¸¶à¸à¸šà¸´à¸¥à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™</span>
+                                                <span>บันทึกบิลชำระเงิน</span>
                                             </span>
                                         )}
                                     </button>
@@ -7625,46 +7303,17 @@
             }, []);
 
             const applyDataToStates = (response) => {
-                const fMap = response.frontStockMap || {};
-                if (Array.isArray(response.products)) {
-                    const rawProducts = response.products.map(x => {
-                        const pid = x.id || x.product_id;
-                        const curStock = parseInt(x.current_stock ?? x.stock ?? 0) || 0;
-                        const fStock = (x.frontStock !== undefined && x.frontStock !== null)
-                            ? Number(x.frontStock)
-                            : (fMap[pid] !== undefined ? Number(fMap[pid]) : 0);
-                        return {
-                            ...x,
-                            id: pid,
-                            name: x.name || x.product_name || "",
-                            product_name: x.product_name || x.name || "",
-                            stock: curStock,
-                            frontStock: Math.max(0, fStock),
-                            imageUrl: x.image_url ?? x.imageUrl ?? "",
-                            priceFull: Number(x.price_full ?? x.priceFull ?? 0) || 0,
-                            priceMember: Number(x.price_member ?? x.priceMember ?? 0) || 0,
-                            pricePromo: Number(x.price_promo ?? x.pricePromo ?? 0) || 0
-                        };
-                    });
-
-                    // ðŸ›¡ï¸ à¸„à¸³à¸™à¸§à¸“à¸ªà¸•à¹Šà¸­à¸à¸ˆà¸£à¸´à¸‡à¸‚à¸­à¸‡à¸ªà¸´à¸™à¸„à¹‰à¸²à¹€à¸‹à¹‡à¸•à¹‚à¸›à¸£à¹‚à¸¡à¸Šà¸±à¹ˆà¸™ (Bundle) à¸ˆà¸²à¸à¸ªà¸´à¸™à¸„à¹‰à¸²à¸«à¸¥à¸±à¸
-                    const resolveFn = window.resolveProductStockInfo || (typeof resolveProductStockInfo === 'function' ? resolveProductStockInfo : null);
-                    const resolvedProducts = rawProducts.map(p => {
-                        const info = resolveFn ? resolveFn(p, rawProducts) : null;
-                        if (info && info.isBundle && info.baseProduct) {
-                            return {
-                                ...p,
-                                stock: info.stock,
-                                frontStock: info.frontStock,
-                                baseProductId: info.baseProduct.id,
-                                baseProductName: info.baseProduct.name
-                            };
-                        }
-                        return p;
-                    });
-
-                    setProducts(resolvedProducts);
-                }
+                if (Array.isArray(response.products)) setProducts(response.products.map(x => ({
+                    ...x,
+                    id: x.id || x.product_id,
+                    name: x.name || x.product_name || "",
+                    product_name: x.product_name || x.name || "",
+                    stock: parseInt(x.current_stock ?? x.stock ?? 0) || 0,
+                    imageUrl: x.image_url ?? x.imageUrl ?? "",
+                    priceFull: Number(x.price_full ?? x.priceFull ?? 0) || 0,
+                    priceMember: Number(x.price_member ?? x.priceMember ?? 0) || 0,
+                    pricePromo: Number(x.price_promo ?? x.pricePromo ?? 0) || 0
+                })));
                 if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes.map(x => ({ ...x, id: x.id || x.type_id })));
                 if (Array.isArray(response.closers)) setClosers(response.closers.map(x => ({ ...x, id: x.id || x.closer_id })));
                 if (Array.isArray(response.clinicDoctors) && response.clinicDoctors.length > 0) setClinicDoctors(response.clinicDoctors);
