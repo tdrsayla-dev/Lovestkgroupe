@@ -1,3 +1,12 @@
+// 🛡️ Double-load guard: ถ้า function.js ถูกโหลดซ้ำในหน้าเดียวกัน ให้หยุดการทำงานรอบที่ 2 ทันที
+// (ป้องกัน "Identifier ... has already been declared" และ Realtime/Listener ซ้ำซ้อน)
+if (window.__CLINIC_FUNCTION_JS_LOADED__) {
+    window.addEventListener('error', function (e) { if (e && e.error && e.error.__clinicDupLoad) e.preventDefault(); }, { once: true });
+    console.info('[function.js] ข้ามการโหลดซ้ำ');
+    var __dupErr = new Error('function.js already loaded'); __dupErr.__clinicDupLoad = true; throw __dupErr;
+}
+window.__CLINIC_FUNCTION_JS_LOADED__ = true;
+
 // Safe LocalStorage setter to prevent QuotaExceededError
 window.safeSetLocalStorage = function (key, value) {
     // Keys ordered by safest-to-remove first
@@ -1476,14 +1485,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 const myPatients = allPatients.filter(p => isPatientReferredByUser(p));
                 const myOrdersList = allOrdersList.filter(o => isPatientReferredByUser(o));
 
+                // ความปลอดภัย: หากไม่ใช่ Admin ให้ส่งเฉพาะข้อมูลคนไข้ของผู้ใช้นั้น (myPatients)
+                const safeAllPatients = isAdmin ? allPatients : myPatients;
+                const safeAllOrders = isAdmin ? allOrdersList : myOrdersList;
+
                 if (event.source) {
                     event.source.postMessage({
                         type: 'PATIENTS_DATA',
-                        patients: allPatients,
-                        allPatients: allPatients,
+                        patients: safeAllPatients,
+                        allPatients: safeAllPatients,
                         myPatients: myPatients,
-                        orders: allOrdersList,
-                        allOrders: allOrdersList,
+                        orders: safeAllOrders,
+                        allOrders: safeAllOrders,
                         myOrders: myOrdersList,
                         isAdmin: isAdmin,
                         currentUserCode: userEmpCode,
@@ -1543,7 +1556,7 @@ function calculateBMI() {
 // =====================================
 // โหลดคิวและข้อมูลต่างๆ
 // =====================================
-let allAppointments = [];
+var allAppointments = [];
 window.appointmentReferrersMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
 window.patientReferrersMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
 
@@ -1946,7 +1959,7 @@ async function loadPatients() {
 window.patientFilteredData = []; // เก็บข้อมูลผู้ป่วยที่ถูกค้นหา/กรองแล้ว
 window.patientCurrentPage = 1;   // เก็บหน้าปัจจุบัน
 window.patientTriageFilter = 'all'; // เก็บสถานะตัวกรองคัดกรอง: 'all' | 'pending' | 'sent'
-const PATIENTS_PER_PAGE = 10;    // แสดง 10 รายการต่อหน้า
+var PATIENTS_PER_PAGE = 10;    // แสดง 10 รายการต่อหน้า
 
 // 1. ฟังก์ชันกรองข้อมูลผู้ป่วย
 function filterPatients() {
@@ -2297,7 +2310,7 @@ function setPatientTodayTab() {
 }
 window.setPatientTodayTab = setPatientTodayTab;
 
-const LAOS_ADDRESS_DATA = {
+var LAOS_ADDRESS_DATA = {
     "ນະຄອນຫຼວງວຽງຈັນ": [
         "ເມືອງຈັນທະບູລີ", "ເມືອງສີໂຄດຕະບອງ", "ເມືອງໄຊເສດຖາ", "ເມືອງສີສັດຕະນາກ",
         "ເມືອງນາຊາຍທອງ", "ເມືອງໄຊທານີ", "ເມືອງຮາດຊາຍຟອງ", "ເມືອງສັງທອງ", "ເມືອງປາກງື່ມ"
@@ -2674,7 +2687,7 @@ window.isVisitAssignedToCurrentDoctor = isVisitAssignedToCurrentDoctor;
 window.allDoctorQueueData = []; // ตัวแปรเก็บข้อมูลทั้งหมดที่ดึงมาจาก Supabase
 window.doctorQueueData = []; // ตัวแปรเก็บข้อมูลหลังผ่านการค้นหา/กรอง
 window.doctorCurrentPage = 1; // หน้าปัจจุบัน
-const DOCTOR_PER_PAGE = 15; // 🌟 กำหนดจำนวน 15 รายการต่อหน้า
+var DOCTOR_PER_PAGE = 15; // 🌟 กำหนดจำนวน 15 รายการต่อหน้า
 
 // 1. ดึงข้อมูลจากฐานข้อมูลมาเก็บไว้
 window.loadDoctorQueue = async function () {
@@ -7099,6 +7112,15 @@ async function deleteBill(billId) {
                     console.warn('Update visit cancelled warning:', uErr);
                 }
             }
+
+            // 🛡️ [OWASP A09: Security Audit Log] บันทึกประวัติการลบใบเสร็จ
+            if (typeof window.logClinicAudit === 'function') {
+                window.logClinicAudit('DELETE_BILL', 'bill', billId, {
+                    visit_id: vId,
+                    payable_amount: targetBill ? targetBill.payable_amount : null,
+                    patient_name: targetBill ? (targetBill.patient_name || targetBill.customer_name) : null
+                });
+            }
         }
     } catch (err) {
         console.warn('DB delete warning:', err);
@@ -7146,6 +7168,1107 @@ function deleteCurrentBill() {
     }
 }
 window.deleteCurrentBill = deleteCurrentBill;
+
+// ==============================================================================
+// 📋 Deleted Bills Audit Log Engine (OWASP A09 Audit Trail)
+// ==============================================================================
+let deletedBillsAuditData = [];
+
+// 📋 [OWASP A09: Security Audit Log] ระบบประวัติการลบใบเสร็จ (Fast Loading + Date Filter + Pagination 1, 2, 3...)
+window.currentDeletedBillsPage = 1;
+window.deletedBillsAuditData = [];
+window.filteredDeletedBillsData = [];
+window.selectedDeletedBillKeys = new Set();
+const DELETED_BILLS_PER_PAGE = 10;
+
+// 🔘 Checkbox & Batch Delete Engine for Deleted Bills Audit Log
+function updateDeleteSelectedBtn() {
+    const btn = document.getElementById('btnDeleteSelectedAuditLogs');
+    const countEl = document.getElementById('selectedAuditCount');
+    const headerCb = document.getElementById('selectAllDeletedBillsHeader');
+    const count = window.selectedDeletedBillKeys ? window.selectedDeletedBillKeys.size : 0;
+
+    if (countEl) countEl.textContent = count;
+    if (btn) {
+        if (count > 0) {
+            btn.classList.remove('d-none');
+            btn.classList.add('d-flex');
+        } else {
+            btn.classList.add('d-none');
+            btn.classList.remove('d-flex');
+        }
+    }
+
+    if (headerCb) {
+        const list = window.filteredDeletedBillsData || window.deletedBillsAuditData || [];
+        const page = window.currentDeletedBillsPage || 1;
+        const startIdx = (page - 1) * DELETED_BILLS_PER_PAGE;
+        const pageItems = list.slice(startIdx, startIdx + DELETED_BILLS_PER_PAGE);
+        if (pageItems.length > 0 && pageItems.every(it => {
+            const k = String(it.target_id || it.id || '').trim();
+            return window.selectedDeletedBillKeys && window.selectedDeletedBillKeys.has(k);
+        })) {
+            headerCb.checked = true;
+            headerCb.indeterminate = false;
+        } else if (pageItems.some(it => {
+            const k = String(it.target_id || it.id || '').trim();
+            return window.selectedDeletedBillKeys && window.selectedDeletedBillKeys.has(k);
+        })) {
+            headerCb.checked = false;
+            headerCb.indeterminate = true;
+        } else {
+            headerCb.checked = false;
+            headerCb.indeterminate = false;
+        }
+    }
+}
+window.updateDeleteSelectedBtn = updateDeleteSelectedBtn;
+
+function onDeletedBillCheckboxChange(key, isChecked) {
+    if (!window.selectedDeletedBillKeys) window.selectedDeletedBillKeys = new Set();
+    if (isChecked) {
+        window.selectedDeletedBillKeys.add(key);
+    } else {
+        window.selectedDeletedBillKeys.delete(key);
+    }
+    updateDeleteSelectedBtn();
+}
+window.onDeletedBillCheckboxChange = onDeletedBillCheckboxChange;
+
+function toggleSelectAllDeletedBills(isChecked) {
+    if (!window.selectedDeletedBillKeys) window.selectedDeletedBillKeys = new Set();
+    const list = window.filteredDeletedBillsData || window.deletedBillsAuditData || [];
+    const page = window.currentDeletedBillsPage || 1;
+    const startIdx = (page - 1) * DELETED_BILLS_PER_PAGE;
+    const pageItems = list.slice(startIdx, startIdx + DELETED_BILLS_PER_PAGE);
+
+    pageItems.forEach(it => {
+        const k = String(it.target_id || it.id || '').trim();
+        if (k) {
+            if (isChecked) {
+                window.selectedDeletedBillKeys.add(k);
+            } else {
+                window.selectedDeletedBillKeys.delete(k);
+            }
+        }
+    });
+
+    const cbs = document.querySelectorAll('.deleted-bill-cb');
+    cbs.forEach(cb => { cb.checked = isChecked; });
+
+    updateDeleteSelectedBtn();
+}
+window.toggleSelectAllDeletedBills = toggleSelectAllDeletedBills;
+
+async function deleteSelectedDeletedBills() {
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
+    if (typeof isClinicAdminUser === 'function' && !isClinicAdminUser()) {
+        Swal.fire({
+            icon: 'error',
+            title: 'ບໍ່ມີສິດດຳເນີນການ',
+            text: 'ສະເພາະຜູ້ດູແລລະບົບ (Admin) ເທົ່ານັ້ນທີ່ສາມາດລຶບຂໍ້ມູນປະຫວັດໄດ້'
+        });
+        return;
+    }
+
+    const selectedKeys = window.selectedDeletedBillKeys;
+    const count = selectedKeys ? selectedKeys.size : 0;
+    if (count === 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'ແຈ້ງເຕືອນ',
+            text: 'ກະລຸນາຕິກເລືອກລາຍການທີ່ຕ້ອງການລຶບກ່ອນ'
+        });
+        return;
+    }
+
+    const isLao = (localStorage.getItem('clinic_lang') || 'la') === 'la';
+    const confirm = await Swal.fire({
+        title: isLao ? `ຢືນຢັນການລຶບ ${count} ລາຍການ?` : `ยืนยันการลบ ${count} รายการ?`,
+        html: isLao 
+            ? `ທ່ານຕ້ອງການລຶບປະຫວັດການລຶບໃບບິນທີ່ເລືອກ <b>${count}</b> ລາຍການ ອອກຈາກຖານຂໍ້ມູນແທ້ຫຼືບໍ່?<br><small class="text-danger">⚠️ ຂໍ້ມູນຈະຖືກລຶບອອກຖາວອນ (ເໝາະສຳລັບລຶບຂໍ້ມູນທົດສອບລະບົບ)</small>`
+            : `คุณต้องการลบประวัติการลบใบเสร็จที่เลือก <b>${count}</b> รายการ ออกจากฐานข้อมูลใช่หรือไม่?<br><small class="text-danger">⚠️ ข้อมูลจะถูกลบออกถาวร (เหมาะสำหรับล้างข้อมูลทดสอบระบบ)</small>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: isLao ? '🗑️ ລຶບອອກຖາວອນ' : '🗑️ ลบออกถาวร',
+        cancelButtonText: isLao ? 'ຍົກເລີກ' : 'ยกเลิก',
+        confirmButtonColor: '#dc2626'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    Swal.fire({
+        title: isLao ? 'ກຳລັງລຶບຂໍ້ມູນ...' : 'กำลังลบข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const allData = window.deletedBillsAuditData || [];
+        const targetIds = [];
+        const recordUuids = [];
+
+        allData.forEach(item => {
+            const k = String(item.target_id || item.id || '').trim();
+            if (selectedKeys.has(k)) {
+                if (item.target_id) targetIds.push(item.target_id);
+                if (item.id) {
+                    targetIds.push(item.id);
+                    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id)) {
+                        recordUuids.push(item.id);
+                    }
+                }
+                if (item.aliasId) targetIds.push(item.aliasId);
+            }
+        });
+
+        const uniqueTargetIds = [...new Set(targetIds.filter(Boolean))];
+        const deleteTasks = [];
+
+        // 1. Delete from clinic_audit_logs in Supabase
+        if (typeof _supabase !== 'undefined' && _supabase) {
+            if (uniqueTargetIds.length > 0) {
+                deleteTasks.push(_supabase
+                    .from('clinic_audit_logs')
+                    .delete()
+                    .in('target_id', uniqueTargetIds)
+                );
+            }
+            if (recordUuids.length > 0) {
+                deleteTasks.push(_supabase
+                    .from('clinic_audit_logs')
+                    .delete()
+                    .in('id', recordUuids)
+                );
+            }
+
+            // 2. Delete from clinic_deleted_records in Supabase
+            if (uniqueTargetIds.length > 0) {
+                deleteTasks.push(_supabase
+                    .from('clinic_deleted_records')
+                    .delete()
+                    .eq('list_key', 'clinic_deleted_bills')
+                    .in('record_id', uniqueTargetIds)
+                );
+            }
+        }
+
+        await Promise.allSettled(deleteTasks);
+
+        // 3. Remove from localStorage 'clinic_deleted_bills'
+        try {
+            const rawLocal = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+            const removeSet = new Set(uniqueTargetIds.map(x => String(x).toLowerCase()));
+            const filteredLocal = rawLocal.filter(id => !removeSet.has(String(id).toLowerCase()));
+            localStorage.setItem('clinic_deleted_bills', JSON.stringify(filteredLocal));
+        } catch (e) { }
+
+        // 4. Update In-Memory arrays
+        const removeKeySet = new Set(uniqueTargetIds.map(x => String(x).toLowerCase()));
+        window.deletedBillsAuditData = (window.deletedBillsAuditData || []).filter(item => {
+            const tId = String(item.target_id || '').toLowerCase();
+            const id = String(item.id || '').toLowerCase();
+            const aId = String(item.aliasId || '').toLowerCase();
+            return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId);
+        });
+
+        window.filteredDeletedBillsData = (window.filteredDeletedBillsData || []).filter(item => {
+            const tId = String(item.target_id || '').toLowerCase();
+            const id = String(item.id || '').toLowerCase();
+            const aId = String(item.aliasId || '').toLowerCase();
+            return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId);
+        });
+
+        window.selectedDeletedBillKeys.clear();
+        updateDeleteSelectedBtn();
+
+        // 5. Re-render table smoothly
+        const totalRemaining = window.filteredDeletedBillsData.length;
+        const totalPages = Math.ceil(totalRemaining / DELETED_BILLS_PER_PAGE) || 1;
+        if (window.currentDeletedBillsPage > totalPages) {
+            window.currentDeletedBillsPage = totalPages;
+        }
+
+        renderDeletedBillsAuditTable(window.filteredDeletedBillsData, window.currentDeletedBillsPage);
+
+        Swal.fire({
+            icon: 'success',
+            title: isLao ? 'ລຶບສຳເລັດ' : 'ลบสำเร็จ',
+            text: isLao ? `ລຶບອອກຈາກລະບົບທັງໝົດ ${count} ລາຍການແລ້ວ` : `ลบออกจากระบบทั้งหมด ${count} รายการแล้ว`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+    } catch (err) {
+        console.error('Error deleting audit records:', err);
+        Swal.fire({
+            icon: 'error',
+            title: isLao ? 'ເກີດຂໍ້ຜິດພາດ' : 'เกิดข้อผิดพลาด',
+            text: err && err.message ? err.message : String(err)
+        });
+    }
+}
+window.deleteSelectedDeletedBills = deleteSelectedDeletedBills;
+
+
+function getTodayVientianeStr() {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Vientiane', year: 'numeric', month: '2-digit', day: '2-digit' });
+    return formatter.format(now);
+}
+
+function openDeletedBillsAuditModal() {
+    const modalEl = document.getElementById('deletedBillsAuditModal');
+    if (!modalEl) return;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    // ⚡ ค่าเริ่มต้น: เปิดมาให้แสดง "ເດືອນນີ້ (This month)" เพื่อให้เห็นประวัติการลบล่าสุดทันที
+    setDeletedBillDateQuick('month');
+}
+window.openDeletedBillsAuditModal = openDeletedBillsAuditModal;
+
+function setDeletedBillDateQuick(type) {
+    const startInp = document.getElementById('deletedBillStartDate');
+    const endInp = document.getElementById('deletedBillEndDate');
+    const todayStr = getTodayVientianeStr();
+
+    // เปลี่ยนสถานะปุ่มกดให้เห็นชัดเจน (Active button highlight)
+    const btnMap = {
+        'today': document.getElementById('btnQuickDeletedToday'),
+        'month': document.getElementById('btnQuickDeletedMonth'),
+        'all': document.getElementById('btnQuickDeletedAll')
+    };
+
+    Object.keys(btnMap).forEach(k => {
+        const btn = btnMap[k];
+        if (btn) {
+            if (k === type) {
+                btn.className = 'btn btn-secondary text-white active py-1 px-2';
+            } else {
+                btn.className = 'btn btn-outline-secondary py-1 px-2';
+            }
+        }
+    });
+
+    if (type === 'today') {
+        if (startInp) startInp.value = todayStr;
+        if (endInp) endInp.value = todayStr;
+    } else if (type === 'month') {
+        const ym = todayStr.slice(0, 7);
+        if (startInp) startInp.value = ym + '-01';
+        if (endInp) endInp.value = todayStr;
+    } else if (type === 'all') {
+        if (startInp) startInp.value = '';
+        if (endInp) endInp.value = '';
+    }
+
+    loadDeletedBillsAuditLog(true);
+}
+window.setDeletedBillDateQuick = setDeletedBillDateQuick;
+
+function onDeletedBillDateInputChange() {
+    // ปลดสถานะ active ของปุ่มด่วนเมื่อผู้ใช้เลือกวันที่เอง
+    ['btnQuickDeletedToday', 'btnQuickDeletedMonth', 'btnQuickDeletedAll'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.className = 'btn btn-outline-secondary py-1 px-2';
+    });
+    loadDeletedBillsAuditLog(true);
+}
+window.onDeletedBillDateInputChange = onDeletedBillDateInputChange;
+
+// 🔍 ฟังก์ชันดึงข้อมูลชื่อคนไข้และยอดเงินมาเติมให้อัตโนมัติ (Fast Lazy Enrichment Engine)
+const enrichedPagesSet = new Set();
+
+function extractCleanDigits(id) {
+    if (!id) return '';
+    let clean = String(id).trim();
+    while (/^(BILL-|VIS-ORD-|VIS-|ORD-CLINIC-|ORD-)/i.test(clean)) {
+        clean = clean.replace(/^(BILL-|VIS-ORD-|VIS-|ORD-CLINIC-|ORD-)/i, '');
+    }
+    return clean;
+}
+
+// ⚡ ฟังก์ชันจัดกลุ่มและเติมข้อมูลจากหน่วยความจำ (In-Memory Pre-enrichment & Deduplication: 0ms)
+function deduplicateAndPreEnrichLogs(rawLogs) {
+    if (!rawLogs || rawLogs.length === 0) return [];
+
+    const infoMap = new Map();
+
+    function storeInfo(keys, info) {
+        if (!info) return;
+        keys.forEach(k => {
+            if (!k) return;
+            const norm = String(k).trim().toUpperCase();
+            if (!norm) return;
+            if (!infoMap.has(norm)) {
+                infoMap.set(norm, Object.assign({}, info));
+            } else {
+                const ex = infoMap.get(norm);
+                const merged = Object.assign({}, ex);
+                if ((!merged.patient_name || merged.patient_name === '-') && info.patient_name && info.patient_name !== '-') {
+                    merged.patient_name = info.patient_name;
+                }
+                if ((merged.amount === undefined || merged.amount === null || merged.amount === '-') && info.amount !== undefined && info.amount !== null && info.amount !== '-') {
+                    merged.amount = info.amount;
+                }
+                if (!merged.hn && info.hn) merged.hn = info.hn;
+                if (!merged.visit_id && info.visit_id) merged.visit_id = info.visit_id;
+                infoMap.set(norm, merged);
+            }
+        });
+    }
+
+    // ดึงจาก In-Memory Data ทันที (0ms)
+    try {
+        const localBills = (window.allBillsData || window.clinicBills || []).concat(
+            JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]'),
+            JSON.parse(localStorage.getItem('clinic_bills') || '[]')
+        );
+        localBills.forEach(b => {
+            if (!b) return;
+            const pName = b.patient_name || b.customer_name;
+            const amt = b.payable_amount !== undefined ? b.payable_amount : b.subtotal;
+            const cleanB = extractCleanDigits(b.bill_id || b.id);
+            const cleanV = extractCleanDigits(b.visit_id);
+            storeInfo([b.bill_id, b.id, b.visit_id, cleanB, cleanV, 'BILL-' + cleanB, 'VIS-' + cleanV], {
+                patient_name: pName,
+                hn: b.hn,
+                amount: amt,
+                visit_id: b.visit_id
+            });
+        });
+
+        const localVisits = (window.allHistoryVisits || window.clinicVisits || []).concat(
+            JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]')
+        );
+        localVisits.forEach(v => {
+            if (!v) return;
+            const cleanV = extractCleanDigits(v.visit_id || v.id);
+            storeInfo([v.visit_id, v.id, cleanV, 'VIS-' + cleanV, 'BILL-' + cleanV], {
+                patient_name: v.patient_name,
+                hn: v.hn,
+                visit_id: v.visit_id
+            });
+        });
+
+        const localOrders = (JSON.parse(localStorage.getItem('clinic_orders') || '[]')).concat(
+            JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]')
+        );
+        localOrders.forEach(o => {
+            if (!o) return;
+            const pName = o.customer_name || o.patient_name;
+            const amt = o.total_amount || o.grand_total || o.total_price || o.net_amount;
+            const cleanO = extractCleanDigits(o.order_id || o.orderId || o.id);
+            const cleanV = extractCleanDigits(o.visit_id || o.visitId);
+            storeInfo([o.order_id, o.orderId, o.visit_id, o.visitId, o.id, cleanO, cleanV, 'ORD-' + cleanO, 'VIS-ORD-' + cleanV], {
+                patient_name: pName,
+                hn: o.hn,
+                amount: amt,
+                visit_id: o.visit_id
+            });
+        });
+    } catch (e) { }
+
+    const groupedMap = new Map();
+
+    rawLogs.forEach(item => {
+        const id = String(item.target_id || item.id || '').trim();
+        const cleanRoot = extractCleanDigits(id).toUpperCase();
+        const dStr = String(item.created_at || '').slice(0, 10);
+        const groupKey = (cleanRoot ? (cleanRoot + '_' + dStr) : id).toUpperCase();
+
+        let details = item.details || {};
+        if (typeof details === 'string') {
+            try { details = JSON.parse(details); } catch (e) { details = {}; }
+        }
+
+        const candidates = [
+            id,
+            cleanRoot,
+            'BILL-' + cleanRoot,
+            'VIS-' + cleanRoot,
+            'VIS-ORD-' + cleanRoot,
+            'ORD-' + cleanRoot,
+            'ORD-CLINIC-' + cleanRoot
+        ];
+
+        let matched = null;
+        for (const cand of candidates) {
+            if (cand && infoMap.has(cand.toUpperCase())) {
+                const found = infoMap.get(cand.toUpperCase());
+                if (found && found.patient_name && found.patient_name !== '-') {
+                    matched = found;
+                    break;
+                } else if (found && !matched) {
+                    matched = found;
+                }
+            }
+        }
+
+        if (matched) {
+            if (!details.patient_name || details.patient_name === '-') details.patient_name = matched.patient_name;
+            if (details.payable_amount === undefined || details.payable_amount === null || details.payable_amount === '-') details.payable_amount = matched.amount;
+            if (!details.visit_id && matched.visit_id) details.visit_id = matched.visit_id;
+            if (!details.hn && matched.hn) details.hn = matched.hn;
+        }
+
+        const currentItem = Object.assign({}, item, { details: details });
+
+        if (!groupedMap.has(groupKey)) {
+            groupedMap.set(groupKey, currentItem);
+        } else {
+            const existing = groupedMap.get(groupKey);
+            const curTarget = String(currentItem.target_id || currentItem.id || '');
+            const exTarget = String(existing.target_id || existing.id || '');
+
+            const getPriority = (s) => {
+                if (s.startsWith('BILL-')) return 5;
+                if (s.startsWith('VIS-ORD-')) return 4;
+                if (s.startsWith('ORD-') && !s.startsWith('ORD-CLINIC-')) return 3;
+                if (s.startsWith('VIS-')) return 2;
+                if (s.startsWith('ORD-CLINIC-')) return 1;
+                return 0;
+            };
+
+            const curPrio = getPriority(curTarget);
+            const exPrio = getPriority(exTarget);
+
+            if (curPrio > exPrio) {
+                currentItem.aliasId = exTarget;
+                if ((!currentItem.details.patient_name || currentItem.details.patient_name === '-') && existing.details.patient_name && existing.details.patient_name !== '-') {
+                    currentItem.details.patient_name = existing.details.patient_name;
+                }
+                if ((currentItem.details.payable_amount === undefined || currentItem.details.payable_amount === '-') && existing.details.payable_amount !== undefined && existing.details.payable_amount !== '-') {
+                    currentItem.details.payable_amount = existing.details.payable_amount;
+                }
+                if (!currentItem.details.visit_id && existing.details.visit_id) currentItem.details.visit_id = existing.details.visit_id;
+                if (!currentItem.details.hn && existing.details.hn) currentItem.details.hn = existing.details.hn;
+                groupedMap.set(groupKey, currentItem);
+            } else {
+                if (!existing.aliasId && curTarget !== exTarget) existing.aliasId = curTarget;
+                if ((!existing.details.patient_name || existing.details.patient_name === '-') && currentItem.details.patient_name && currentItem.details.patient_name !== '-') {
+                    existing.details.patient_name = currentItem.details.patient_name;
+                }
+                if ((existing.details.payable_amount === undefined || existing.details.payable_amount === '-') && currentItem.details.payable_amount !== undefined && currentItem.details.payable_amount !== '-') {
+                    existing.details.payable_amount = currentItem.details.payable_amount;
+                }
+                if (!existing.details.visit_id && currentItem.details.visit_id) existing.details.visit_id = currentItem.details.visit_id;
+                if (!existing.details.hn && currentItem.details.hn) existing.details.hn = currentItem.details.hn;
+            }
+        }
+    });
+
+    return Array.from(groupedMap.values());
+}
+
+// ⚡ ฟังก์ชันดึงข้อมูลชื่อและยอดเงินเฉพาะหน้าปัจจุบัน (10 รายการ: ໄວສຸດໆ ພາຍໃນ 0.15 ວິນາທີ)
+async function enrichPageItems(page) {
+    const list = window.filteredDeletedBillsData || window.deletedBillsAuditData || [];
+    if (!list || list.length === 0) return;
+
+    const startIdx = (page - 1) * DELETED_BILLS_PER_PAGE;
+    const pageItems = list.slice(startIdx, startIdx + DELETED_BILLS_PER_PAGE);
+
+    // ตรวจสอบว่ามีรายการในหน้านี้ที่ยังขาดข้อมูลหรือไม่
+    const itemsToEnrich = pageItems.filter(item => {
+        const d = item.details || {};
+        return (!d.patient_name || d.patient_name === '-' || d.payable_amount === undefined || d.payable_amount === '-' || d.payable_amount === null);
+    });
+
+    if (itemsToEnrich.length === 0) return;
+
+    // รวบรวม IDs เฉพาะ 10 รายการในหน้านี้
+    const visitIds = new Set();
+    const billIds = new Set();
+    const orderIds = new Set();
+
+    itemsToEnrich.forEach(item => {
+        const id = String(item.target_id || item.id || '').trim();
+        const alias = String(item.aliasId || '').trim();
+        const clean = extractCleanDigits(id);
+        const cleanAlias = extractCleanDigits(alias);
+
+        [id, alias].forEach(rawId => {
+            if (!rawId) return;
+            visitIds.add(rawId);
+            billIds.add(rawId);
+            orderIds.add(rawId);
+        });
+
+        [clean, cleanAlias].forEach(c => {
+            if (!c) return;
+            visitIds.add('VIS-' + c);
+            visitIds.add('VIS-ORD-' + c);
+            visitIds.add(c);
+            billIds.add('BILL-' + c);
+            billIds.add(c);
+            orderIds.add('ORD-' + c);
+            orderIds.add('ORD-CLINIC-' + c);
+            orderIds.add(c);
+        });
+    });
+
+    const vList = Array.from(visitIds).filter(Boolean);
+    const bList = Array.from(billIds).filter(Boolean);
+    const oList = Array.from(orderIds).filter(Boolean);
+
+    if (typeof _supabase === 'undefined' || !vList.length) return;
+
+    const infoMap = new Map();
+    function storeResult(keys, info) {
+        if (!info) return;
+        keys.forEach(k => {
+            if (!k) return;
+            const norm = String(k).trim().toUpperCase();
+            if (!norm) return;
+            if (!infoMap.has(norm)) {
+                infoMap.set(norm, Object.assign({}, info));
+            } else {
+                const ex = infoMap.get(norm);
+                const merged = Object.assign({}, ex);
+                if ((!merged.patient_name || merged.patient_name === '-') && info.patient_name && info.patient_name !== '-') {
+                    merged.patient_name = info.patient_name;
+                }
+                if ((merged.amount === undefined || merged.amount === null || merged.amount === '-') && info.amount !== undefined && info.amount !== null && info.amount !== '-') {
+                    merged.amount = info.amount;
+                }
+                if (!merged.hn && info.hn) merged.hn = info.hn;
+                if (!merged.visit_id && info.visit_id) merged.visit_id = info.visit_id;
+                infoMap.set(norm, merged);
+            }
+        });
+    }
+
+    // ยิงคำขอพร้อมกันเฉพาะ 10 รายการ (ใช้เวลาเพียง 100-200ms เท่านั้น)
+    const quickTasks = [];
+
+    // 1. visits
+    if (vList.length > 0) {
+        quickTasks.push((async () => {
+            try {
+                const { data: vRows } = await _supabase
+                    .from('visits')
+                    .select('visit_id, hn, patient_name, doctor_name, meds, status, lab_tests, created_at')
+                    .in('visit_id', vList);
+
+                if (vRows && Array.isArray(vRows)) {
+                    vRows.forEach(v => {
+                        let calcAmount = null;
+                        if (v.meds) {
+                            try {
+                                let mList = typeof v.meds === 'string' ? JSON.parse(v.meds) : v.meds;
+                                if (typeof mList === 'string') mList = JSON.parse(mList);
+                                if (Array.isArray(mList) && mList.length > 0) {
+                                    calcAmount = mList.reduce((sum, m) => {
+                                        const p = parseFloat(m.price || m.unit_price || 0) || 0;
+                                        const q = parseFloat(m.qty || m.quantity || 1) || 1;
+                                        return sum + (p * q);
+                                    }, 0);
+                                }
+                            } catch (e) { }
+                        }
+                        const clean = extractCleanDigits(v.visit_id);
+                        storeResult([v.visit_id, clean, 'VIS-' + clean, 'BILL-' + clean, 'ORD-' + clean, 'VIS-ORD-' + clean], {
+                            patient_name: v.patient_name,
+                            hn: v.hn,
+                            amount: calcAmount > 0 ? calcAmount : undefined,
+                            visit_id: v.visit_id
+                        });
+                    });
+                }
+            } catch (e) { }
+        })());
+    }
+
+    // 2. bills (by bill_id & visit_id)
+    if (bList.length > 0) {
+        quickTasks.push((async () => {
+            try {
+                const { data: bRows } = await _supabase
+                    .from('bills')
+                    .select('bill_id, visit_id, hn, patient_name, payable_amount, subtotal, discount')
+                    .in('bill_id', bList);
+
+                if (bRows && Array.isArray(bRows)) {
+                    bRows.forEach(b => {
+                        const amt = (b.payable_amount !== undefined && b.payable_amount !== null) ? b.payable_amount : b.subtotal;
+                        const cleanB = extractCleanDigits(b.bill_id);
+                        const cleanV = extractCleanDigits(b.visit_id);
+                        storeResult([b.bill_id, b.visit_id, cleanB, cleanV, 'BILL-' + cleanB, 'VIS-' + cleanV], {
+                            patient_name: b.patient_name,
+                            hn: b.hn,
+                            amount: amt,
+                            visit_id: b.visit_id
+                        });
+                    });
+                }
+            } catch (e) { }
+        })());
+
+        quickTasks.push((async () => {
+            try {
+                const { data: bvRows } = await _supabase
+                    .from('bills')
+                    .select('bill_id, visit_id, hn, patient_name, payable_amount, subtotal, discount')
+                    .in('visit_id', vList);
+
+                if (bvRows && Array.isArray(bvRows)) {
+                    bvRows.forEach(b => {
+                        const amt = (b.payable_amount !== undefined && b.payable_amount !== null) ? b.payable_amount : b.subtotal;
+                        const cleanB = extractCleanDigits(b.bill_id);
+                        const cleanV = extractCleanDigits(b.visit_id);
+                        storeResult([b.bill_id, b.visit_id, cleanB, cleanV, 'BILL-' + cleanB, 'VIS-' + cleanV], {
+                            patient_name: b.patient_name,
+                            hn: b.hn,
+                            amount: amt,
+                            visit_id: b.visit_id
+                        });
+                    });
+                }
+            } catch (e) { }
+        })());
+    }
+
+    // 3. stk_nutrient_orders
+    if (oList.length > 0) {
+        quickTasks.push((async () => {
+            try {
+                const { data: oRows } = await _supabase
+                    .from('stk_nutrient_orders')
+                    .select('*')
+                    .in('order_id', oList);
+
+                if (oRows && Array.isArray(oRows)) {
+                    oRows.forEach(o => {
+                        const pName = o.customer_name || o.patient_name;
+                        const amt = (o.total_amount !== undefined && o.total_amount !== null) ? o.total_amount : (o.grand_total || o.total_price || o.net_amount);
+                        const clean = extractCleanDigits(o.order_id);
+                        storeResult([o.order_id, o.visit_id, clean, 'ORD-' + clean, 'VIS-ORD-' + clean, 'BILL-' + clean], {
+                            patient_name: pName,
+                            hn: o.hn,
+                            amount: amt,
+                            visit_id: o.visit_id
+                        });
+                    });
+                }
+            } catch (e) { }
+        })());
+    }
+
+    // 4. commission_logs
+    quickTasks.push((async () => {
+        try {
+            const { data: cRows } = await _supabase
+                .from('commission_logs')
+                .select('*')
+                .in('visit_id', vList);
+
+            if (cRows && Array.isArray(cRows)) {
+                cRows.forEach(c => {
+                    const amt = (c.total_invoice !== undefined && c.total_invoice !== null) ? c.total_invoice : (c.base_amount || c.amount);
+                    const cleanV = extractCleanDigits(c.visit_id);
+                    storeResult([c.visit_id, cleanV, 'VIS-' + cleanV, 'BILL-' + cleanV, c.id], {
+                        patient_name: c.patient_name,
+                        amount: amt,
+                        visit_id: c.visit_id
+                    });
+                });
+            }
+        } catch (e) { }
+    })());
+
+    await Promise.allSettled(quickTasks);
+
+    // อัปเดตข้อมูลให้กับ 10 รายการในหน้านี้โดยตรง
+    let hasUpdates = false;
+    pageItems.forEach(item => {
+        const id = String(item.target_id || item.id || '').trim();
+        const alias = String(item.aliasId || '').trim();
+        const clean = extractCleanDigits(id);
+        const cleanAlias = extractCleanDigits(alias);
+
+        const candidates = [
+            id, alias, clean, cleanAlias,
+            'BILL-' + clean, 'VIS-' + clean, 'VIS-ORD-' + clean, 'ORD-' + clean,
+            'BILL-' + cleanAlias, 'VIS-' + cleanAlias
+        ];
+
+        let matched = null;
+        for (const cand of candidates) {
+            if (cand && infoMap.has(cand.toUpperCase())) {
+                const found = infoMap.get(cand.toUpperCase());
+                if (found && found.patient_name && found.patient_name !== '-') {
+                    matched = found;
+                    break;
+                } else if (found && !matched) {
+                    matched = found;
+                }
+            }
+        }
+
+        if (matched) {
+            item.details = item.details || {};
+            if (!item.details.patient_name || item.details.patient_name === '-') {
+                item.details.patient_name = matched.patient_name;
+                hasUpdates = true;
+            }
+            if (item.details.payable_amount === undefined || item.details.payable_amount === null || item.details.payable_amount === '-') {
+                item.details.payable_amount = matched.amount;
+                hasUpdates = true;
+            }
+            if (!item.details.visit_id && matched.visit_id) item.details.visit_id = matched.visit_id;
+            if (!item.details.hn && matched.hn) item.details.hn = matched.hn;
+        }
+    });
+
+    // ⚡ วาดตາຕະລາງໃໝ່ທັນທີເມື່ອໄດ້ຂໍ້ມູນຄົບ (Smooth Update ບໍ່ມີ Spinner)
+    if (hasUpdates) {
+        renderDeletedBillsAuditTable(list, page);
+    }
+}
+
+async function loadDeletedBillsAuditLog(isManualRefresh = false) {
+    const tbody = document.getElementById('deletedBillsAuditTableBody');
+    const badge = document.getElementById('deletedBillsCountBadge');
+    if (!tbody) return;
+
+    // Fast Stale-While-Revalidate: ถ้ามีข้อมูลอยู่แล้ว ไม่แสดงตัวหมุนค้าง
+    const hasExistingData = window.deletedBillsAuditData && window.deletedBillsAuditData.length > 0;
+    if (isManualRefresh || !hasExistingData) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div> ກຳລັງໂຫຼດຂໍ້ມູນປະຫວັດການລຶບໃບບິນ...</td></tr>';
+    }
+
+    const startDate = (document.getElementById('deletedBillStartDate')?.value || '').trim();
+    const endDate = (document.getElementById('deletedBillEndDate')?.value || '').trim();
+
+    try {
+        let logs = [];
+        let dbQuerySucceeded = false;
+
+        // 1. ดึงจาก clinic_audit_logs ใน Supabase (คำขอเดียว รวดเร็วมาก ~100ms)
+        if (typeof _supabase !== 'undefined' && _supabase) {
+            try {
+                let q = _supabase
+                    .from('clinic_audit_logs')
+                    .select('*')
+                    .eq('action', 'DELETE_BILL');
+
+                if (startDate) q = q.gte('created_at', startDate + 'T00:00:00+07:00');
+                if (endDate) q = q.lte('created_at', endDate + 'T23:59:59.999+07:00');
+
+                const res = await q.order('created_at', { ascending: false }).limit(500);
+                if (res.data && Array.isArray(res.data)) {
+                    dbQuerySucceeded = true;
+                    logs = res.data;
+                }
+            } catch (auditErr) { }
+        }
+
+        // 2. Fallback: ถ้า clinic_audit_logs ไม่มีข้อมูล ให้ดึงจาก clinic_deleted_records
+        if (logs.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+            try {
+                let fbQ = _supabase
+                    .from('clinic_deleted_records')
+                    .select('*')
+                    .eq('list_key', 'clinic_deleted_bills');
+
+                if (startDate) fbQ = fbQ.gte('deleted_at', startDate + 'T00:00:00+07:00');
+                if (endDate) fbQ = fbQ.lte('deleted_at', endDate + 'T23:59:59.999+07:00');
+
+                const fallbackRes = await fbQ.order('deleted_at', { ascending: false }).limit(500);
+
+                if (fallbackRes.data && Array.isArray(fallbackRes.data)) {
+                    dbQuerySucceeded = true;
+                    if (fallbackRes.data.length > 0) {
+                        logs = fallbackRes.data.map(r => ({
+                            id: r.record_id,
+                            created_at: r.deleted_at,
+                            action: 'DELETE_BILL',
+                            target_id: r.record_id,
+                            actor_name: 'Admin',
+                            actor_emp_code: 'ADMIN',
+                            details: { patient_name: '-', payable_amount: '-' }
+                        }));
+                    }
+                }
+            } catch (fbErr) { }
+        }
+
+        // 3. Fallback: LocalStorage (เฉพาะเมื่อฐานข้อมูลออฟไลน์ หรือ ดึงแบบ "ทั้งหมด" แล้วไม่พบข้อมูลจริงๆ)
+        if (logs.length === 0 && !startDate && !endDate && !dbQuerySucceeded) {
+            const localDeleted = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+            if (localDeleted.length > 0) {
+                logs = [...new Set(localDeleted)].filter(id => String(id).startsWith('BILL-') || String(id).startsWith('VIS-')).map(id => ({
+                    id: id,
+                    created_at: new Date().toISOString(),
+                    action: 'DELETE_BILL',
+                    target_id: id,
+                    actor_name: 'Admin',
+                    actor_emp_code: 'CACHE',
+                    details: { patient_name: '-', payable_amount: '-' }
+                }));
+            }
+        }
+
+        // ⚡ 4. Deduplicate และจัดกลุ่มทันทีในหน่วยความจำ (0ms)
+        const deduplicated = deduplicateAndPreEnrichLogs(logs);
+
+        window.deletedBillsAuditData = deduplicated;
+        window.filteredDeletedBillsData = deduplicated;
+        window.currentDeletedBillsPage = 1;
+        if (window.selectedDeletedBillKeys) window.selectedDeletedBillKeys.clear();
+        updateDeleteSelectedBtn();
+
+        // 🚀 5. วาดตารางหน้า 1 ทັນທີ! (ບໍ່ຕ້ອງລໍຖ້າ Spinner ເຫັນຂໍ້ມູນພາຍໃນ 0.1 ວິນາທີ)
+        renderDeletedBillsAuditTable(deduplicated, 1);
+
+        // ⚡ 6. ดึงข้อมูลชื่อและยอดเงินเฉพาะ 10 รายการในหน้า 1 ใน Background (เร็วมาก 100-200ms)
+        enrichPageItems(1);
+
+    } catch (err) {
+        console.error('Error loading deleted bills audit log:', err);
+        const esc = typeof window.escapeHtml === 'function' ? window.escapeHtml : (s => s);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger"><i class="bi bi-exclamation-triangle me-1"></i> ເກີດຂໍ້ຜິດພາດ: ' + esc(err.message) + '</td></tr>';
+    }
+}
+window.loadDeletedBillsAuditLog = loadDeletedBillsAuditLog;
+
+function renderDeletedBillsPagination(totalItems, currentPage, totalPages) {
+    const listEl = document.getElementById('deletedBillsPaginationList');
+    const showingRangeEl = document.getElementById('deletedBillsShowingRange');
+    const totalCountEl = document.getElementById('deletedBillsTotalCount');
+    const curPageEl = document.getElementById('deletedBillsCurrentPageNum');
+    const totalPagesEl = document.getElementById('deletedBillsTotalPagesNum');
+
+    if (showingRangeEl) {
+        if (totalItems === 0) {
+            showingRangeEl.textContent = '0 - 0';
+        } else {
+            const s = (currentPage - 1) * DELETED_BILLS_PER_PAGE + 1;
+            const e = Math.min(currentPage * DELETED_BILLS_PER_PAGE, totalItems);
+            showingRangeEl.textContent = `${s} - ${e}`;
+        }
+    }
+    if (totalCountEl) totalCountEl.textContent = totalItems.toLocaleString();
+    if (curPageEl) curPageEl.textContent = currentPage;
+    if (totalPagesEl) totalPagesEl.textContent = totalPages;
+
+    if (!listEl) return;
+    if (totalItems === 0 || totalPages <= 1) {
+        listEl.innerHTML = '';
+        return;
+    }
+
+    let paginationHtml = '';
+    const prevDisabled = currentPage <= 1 ? 'disabled' : '';
+    paginationHtml += `
+        <li class="page-item ${prevDisabled}">
+            <button class="page-link rounded-circle d-flex align-items-center justify-content-center" 
+                style="width: 30px; height: 30px; font-size: 0.75rem; border: none; ${currentPage <= 1 ? 'opacity: 0.5;' : ''}"
+                onclick="changeDeletedBillsPage(${currentPage - 1})" ${prevDisabled ? 'disabled' : ''} title="Previous">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+        </li>
+    `;
+
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    if (startPage > 1) {
+        paginationHtml += `
+            <li class="page-item">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 30px; height: 30px; font-size: 0.78rem; border: none;"
+                    onclick="changeDeletedBillsPage(1)">1</button>
+            </li>
+        `;
+        if (startPage > 2) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link border-0 text-muted px-1" style="font-size: 0.75rem;">...</span></li>`;
+        }
+    }
+
+    for (let p = startPage; p <= endPage; p++) {
+        const isActive = p === currentPage;
+        paginationHtml += `
+            <li class="page-item ${isActive ? 'active' : ''}">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center fw-semibold"
+                    style="width: 30px; height: 30px; font-size: 0.78rem; border: none; ${isActive ? 'background-color: #dc2626; color: #ffffff;' : ''}"
+                    onclick="changeDeletedBillsPage(${p})">${p}</button>
+            </li>
+        `;
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link border-0 text-muted px-1" style="font-size: 0.75rem;">...</span></li>`;
+        }
+        paginationHtml += `
+            <li class="page-item">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 30px; height: 30px; font-size: 0.78rem; border: none;"
+                    onclick="changeDeletedBillsPage(${totalPages})">${totalPages}</button>
+            </li>
+        `;
+    }
+
+    const nextDisabled = currentPage >= totalPages ? 'disabled' : '';
+    paginationHtml += `
+        <li class="page-item ${nextDisabled}">
+            <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                style="width: 30px; height: 30px; font-size: 0.75rem; border: none; ${currentPage >= totalPages ? 'opacity: 0.5;' : ''}"
+                onclick="changeDeletedBillsPage(${currentPage + 1})" ${nextDisabled ? 'disabled' : ''} title="Next">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </li>
+    `;
+
+    listEl.innerHTML = paginationHtml;
+}
+window.renderDeletedBillsPagination = renderDeletedBillsPagination;
+
+function changeDeletedBillsPage(page) {
+    const list = window.filteredDeletedBillsData || window.deletedBillsAuditData || [];
+    const totalPages = Math.ceil(list.length / DELETED_BILLS_PER_PAGE) || 1;
+    if (page < 1) page = 1;
+    if (page > totalPages) page = totalPages;
+    window.currentDeletedBillsPage = page;
+    
+    // ⚡ วาดตารางทันที (0ms)
+    renderDeletedBillsAuditTable(list, page);
+
+    // ⚡ ดึงข้อมูลเฉพาะ 10 รายการในหน้านี้ทันทีใน Background
+    enrichPageItems(page);
+}
+window.changeDeletedBillsPage = changeDeletedBillsPage;
+
+function renderDeletedBillsAuditTable(logs, page = 1) {
+    const tbody = document.getElementById('deletedBillsAuditTableBody');
+    const badge = document.getElementById('deletedBillsCountBadge');
+    if (!tbody) return;
+
+    const esc = typeof window.escapeHtml === 'function' ? window.escapeHtml : (s => String(s || ''));
+
+    if (!logs || logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted"><i class="bi bi-check2-circle text-success fs-3 d-block mb-2"></i>ບໍ່ພົບປະຫວັດການລຶບໃບບິນໃນຊ່ວງເວລານີ້</td></tr>';
+        if (badge) badge.innerText = 'ພົບ 0 ລາຍການ';
+        renderDeletedBillsPagination(0, 1, 1);
+        updateDeleteSelectedBtn();
+        return;
+    }
+
+    const totalItems = logs.length;
+    const totalPages = Math.ceil(totalItems / DELETED_BILLS_PER_PAGE) || 1;
+    if (page > totalPages) page = totalPages;
+    window.currentDeletedBillsPage = page;
+
+    if (badge) badge.innerText = 'ພົບ ' + totalItems.toLocaleString() + ' ລາຍການ';
+
+    const startIdx = (page - 1) * DELETED_BILLS_PER_PAGE;
+    const pageItems = logs.slice(startIdx, startIdx + DELETED_BILLS_PER_PAGE);
+
+    tbody.innerHTML = pageItems.map(function(item, index) {
+        const rowNumber = startIdx + index + 1;
+        const d = item.created_at ? new Date(item.created_at) : new Date();
+        const dateStr = d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        const billId = item.target_id || item.id || '-';
+        
+        let details = item.details || {};
+        if (typeof details === 'string') {
+            try { details = JSON.parse(details); } catch (e) { details = {}; }
+        }
+
+        const patientName = details.patient_name || details.customer_name || '-';
+        const isUnknownPatient = (!patientName || patientName === '-');
+        const displayPatient = isUnknownPatient ? '<span class="text-muted fst-italic">ບໍ່ພົບຊື່ໃນລະບົບ (ລຶບຖາວອນ)</span>' : '<span class="fw-bold text-dark">' + esc(patientName) + '</span>';
+
+        const visitIdTag = details.visit_id ? '<span class="badge bg-light text-secondary border me-1 font-monospace" style="font-size:0.75rem;">' + esc(details.visit_id) + '</span>' : '';
+        const hnTag = details.hn ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" style="font-size:0.75rem;">' + esc(details.hn) + '</span>' : '';
+
+        const rawAmount = details.payable_amount !== undefined ? details.payable_amount : (details.amount !== undefined ? details.amount : '-');
+        let amountStr = '-';
+        if (typeof rawAmount === 'number' && !isNaN(rawAmount)) {
+            amountStr = Number(rawAmount).toLocaleString() + ' <small class="text-muted fw-normal">LAK</small>';
+        } else if (rawAmount && rawAmount !== '-') {
+            const num = parseFloat(String(rawAmount).replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(num)) {
+                amountStr = Number(num).toLocaleString() + ' <small class="text-muted fw-normal">LAK</small>';
+            } else {
+                amountStr = esc(String(rawAmount));
+            }
+        }
+
+        const actorName = item.actor_name || item.actor_email || 'Admin';
+        const actorCode = item.actor_emp_code ? '(' + item.actor_emp_code + ')' : '';
+        const aliasTag = item.aliasId ? '<div class="text-muted font-monospace mt-0.5" style="font-size:0.75rem;">' + esc(item.aliasId) + '</div>' : '';
+
+        const itemKey = String(item.target_id || item.id || '').trim();
+        const isChecked = window.selectedDeletedBillKeys && window.selectedDeletedBillKeys.has(itemKey);
+        const checkboxHtml = '<input type="checkbox" class="form-check-input deleted-bill-cb" value="' + esc(itemKey) + '" ' + (isChecked ? 'checked' : '') + ' onchange="onDeletedBillCheckboxChange(this.value, this.checked)" style="cursor: pointer;">';
+
+        return '<tr>' +
+            '<td class="ps-3 text-center">' + checkboxHtml + '</td>' +
+            '<td class="text-muted fw-semibold">' + rowNumber + '</td>' +
+            '<td><i class="bi bi-calendar-event me-1 text-muted"></i>' + dateStr + '</td>' +
+            '<td>' +
+                '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fs-6 fw-bold font-monospace">' + esc(billId) + '</span>' +
+                aliasTag +
+            '</td>' +
+            '<td>' +
+                displayPatient +
+                '<div class="mt-1 d-flex align-items-center gap-1 flex-wrap">' + visitIdTag + hnTag + '</div>' +
+            '</td>' +
+            '<td class="text-end fw-bold text-dark font-monospace">' + amountStr + '</td>' +
+            '<td>' +
+                '<div class="fw-semibold text-dark"><i class="bi bi-person-circle me-1 text-primary"></i>' + esc(actorName) + '</div>' +
+                '<div class="small text-muted font-monospace">' + esc(actorCode) + '</div>' +
+            '</td>' +
+            '<td class="text-center">' +
+                '<span class="badge bg-danger px-2.5 py-1 rounded-pill"><i class="bi bi-trash3-fill me-1"></i>ລຶບແລ້ວ</span>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+
+    renderDeletedBillsPagination(totalItems, page, totalPages);
+    updateDeleteSelectedBtn();
+}
+window.renderDeletedBillsAuditTable = renderDeletedBillsAuditTable;
+
+function filterDeletedBillsLog() {
+    const q = ((document.getElementById('deletedBillsSearchInput') || {}).value || '').toLowerCase().trim();
+    const sourceData = window.deletedBillsAuditData || [];
+    if (!q) {
+        window.filteredDeletedBillsData = sourceData;
+        window.currentDeletedBillsPage = 1;
+        renderDeletedBillsAuditTable(sourceData, 1);
+        enrichPageItems(1);
+        return;
+    }
+    const filtered = sourceData.filter(function(item) {
+        const id = String(item.target_id || item.id || '').toLowerCase();
+        const alias = String(item.aliasId || '').toLowerCase();
+        const actor = String(item.actor_name || item.actor_emp_code || '').toLowerCase();
+        let detailsStr = '';
+        if (item.details) {
+            const pName = String(item.details.patient_name || item.details.customer_name || '');
+            const hn = String(item.details.hn || '');
+            const vId = String(item.details.visit_id || '');
+            detailsStr = `${pName} ${hn} ${vId}`.toLowerCase();
+        }
+        return id.includes(q) || alias.includes(q) || actor.includes(q) || detailsStr.includes(q);
+    });
+    window.filteredDeletedBillsData = filtered;
+    window.currentDeletedBillsPage = 1;
+    renderDeletedBillsAuditTable(filtered, 1);
+    enrichPageItems(1);
+}
+window.filterDeletedBillsLog = filterDeletedBillsLog;
 
 // พิมพ์สรุปรายวัน A4 แนวนอน (เฉพาะใบรายงานในกรอบสีแดง)
 function printDailyClinicReport() {
@@ -8192,7 +9315,7 @@ function isCategoryMatch(itemCategory, targetCategory) {
 window.labQueueData = []; // เก็บข้อมูลทั้งหมด
 window.labFilteredData = []; // เก็บข้อมูลที่ผ่านการกรอง
 window.labCurrentPage = 1; // หน้าปัจจุบัน
-const LAB_PER_PAGE = 15; // จำนวน 15 รายการต่อหน้า
+var LAB_PER_PAGE = 15; // จำนวน 15 รายการต่อหน้า
 
 // 1. ดึงข้อมูลจากฐานข้อมูลมาเก็บไว้
 async function loadLabQueue() {
@@ -9519,7 +10642,7 @@ window.renderPaymentTable = function () {
 // ===============================================
 // ระบบจัดเก็บไฟล์แล็บด้วย IndexedDB (ป้องกัน QuotaExceededError)
 // ===============================================
-const LabDB = {
+var LabDB = {
     dbName: 'ClinicLabFilesDB',
     storeName: 'lab_files_store',
     db: null,
@@ -14981,7 +16104,7 @@ window.completeDispensing = async function (visitId) {
 window.allHistoryVisits = []; // ข้อมูลทั้งหมดจากฐานข้อมูล
 window.historyFilteredData = []; // ข้อมูลที่ผ่านการค้นหาและกรองวันที่
 window.historyCurrentPage = 1;
-const HISTORY_PER_PAGE = 15; // กำหนด 15 รายการต่อหน้า
+var HISTORY_PER_PAGE = 15; // กำหนด 15 รายการต่อหน้า
 
 // 🌟 ฟังก์ชันกำหนดช่วงวันที่ด่วนในหน้าประวัติผู้ป่วย (วันนี้ / เดือนนี้ / ปีนี้ / ทั้งหมด)
 window.setHistoryDateFilter = function (mode) {
@@ -15940,9 +17063,9 @@ window.setSafeDisplay = function (id, isShow, displayVal = 'block') {
     const el = document.getElementById(id);
     if (el) el.style.display = isShow ? displayVal : 'none';
 };
-const setSafeText = window.setSafeText;
-const setSafeHtml = window.setSafeHtml;
-const setSafeDisplay = window.setSafeDisplay;
+var setSafeText = window.setSafeText;
+var setSafeHtml = window.setSafeHtml;
+var setSafeDisplay = window.setSafeDisplay;
 
 // 🌟 ຟັງຊັນຈັດການ Grid Layout ສ່ວນເທິງຂອງ Dashboard ປະຫວັດ (Patient Info & Lab) ໃຫ້ສົມດູນ 100%
 window.setHistoryDashboardLabVisibility = function (showLab) {
@@ -19131,7 +20254,7 @@ function filterIntakeTable() {
 // จัดการพนักงาน / ผู้ใช้ระบบ (Staff Management)
 // =====================================
 
-const SYSTEM_FUNCTIONS = [
+var SYSTEM_FUNCTIONS = [
     { key: 'dashboard', label: 'ພາບລວມລະບົບ / ภาพรวมระบบ (Dashboard)', category: 'หน้าหลัก', icon: 'bi-grid-1x2-fill' },
     { key: 'booking', label: 'เฉพาะพนักงาน (Booking)', category: 'งานบริการผู้ป่วย', icon: 'bi-telephone-fill' },
     { key: 'appointments', label: 'ນັດໝາຍລ່ວງໜ້າ / นัดหมายล่วงหน้า (Appointments)', category: 'งานบริการผู้ป่วย', icon: 'bi-calendar-event-fill' },
@@ -19182,7 +20305,7 @@ const SYSTEM_FUNCTIONS = [
     { key: 'clinic-settings', label: 'ຕັ້ງຄ່າຂໍ້ມູນຄລີນິກ / ຕັ້ງຄ່າ Clinic (Clinic Settings)', category: 'ระบบหลังบ้าน', icon: 'bi-gear-wide-connected' }
 ];
 
-let allStaffUsers = [];
+var allStaffUsers = [];
 
 function isPermChecked(selectedKeys, modKey, action) {
     if (!selectedKeys || !Array.isArray(selectedKeys)) return false;
@@ -19804,7 +20927,12 @@ async function submitStaffUser() {
         const pwdTargetId = editId || newStaffId;
         if (password.length >= 6 && pwdTargetId) {
             const { error: pwdErr } = await _supabase.rpc('admin_set_staff_password', { p_staff_id: String(pwdTargetId), p_password: password });
-            if (pwdErr) throw pwdErr;
+            if (pwdErr) {
+                if (pwdErr.code === '42501' || /permission denied|Only admin/i.test(pwdErr.message || '')) {
+                    throw new Error('บันทึกข้อมูลพนักงานแล้ว แต่ตั้งรหัสผ่านไม่สำเร็จ: ต้องล็อกอินด้วยบัญชี Admin ผ่าน Supabase Auth (ออกจากระบบแล้วล็อกอินใหม่)');
+                }
+                throw pwdErr;
+            }
         }
 
         bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
@@ -20257,13 +21385,24 @@ function formatCommissionAmount(num) {
     return `${sym}${val}`;
 }
 
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+window.escapeHtml = escapeHtml;
+
 function sanitizeReferrerName(name, fallback = '-') {
     if (name === null || name === undefined) return fallback;
     const str = String(name).trim();
     if (str === '' || str.toLowerCase() === 'undefined' || str.toLowerCase() === 'null' || str === '-') {
         return fallback;
     }
-    return str;
+    return escapeHtml(str);
 }
 window.sanitizeReferrerName = sanitizeReferrerName;
 
@@ -21968,7 +23107,7 @@ async function batchDeleteCommissionLogs() {
 window.batchDeleteCommissionLogs = batchDeleteCommissionLogs;
 
 window.commLogCurrentPage = 1;
-const COMM_LOGS_PER_PAGE = 25;
+var COMM_LOGS_PER_PAGE = 25;
 
 function changeCommLogPage(page) {
     renderCommissionLogsTable(page);
@@ -21976,7 +23115,7 @@ function changeCommLogPage(page) {
 window.changeCommLogPage = changeCommLogPage;
 
 // ⏱️ Debounce Search (350ms) เพื่อลดภาระการประมวลผลขณะพิมพ์
-let commLogSearchTimer = null;
+var commLogSearchTimer = null;
 function debounceCommLogSearch() {
     clearTimeout(commLogSearchTimer);
     commLogSearchTimer = setTimeout(() => {
@@ -21987,7 +23126,7 @@ function debounceCommLogSearch() {
 }
 window.debounceCommLogSearch = debounceCommLogSearch;
 
-let referrerSearchTimer = null;
+var referrerSearchTimer = null;
 function debounceReferrerSearch() {
     clearTimeout(referrerSearchTimer);
     referrerSearchTimer = setTimeout(() => {
@@ -24755,7 +25894,7 @@ window.printDailyReport = printDailyReport;
 // รายงานสรุปค่าตรวจประจำวัน (Daily Examination Fee Summary Report) - ซิงค์ตรงกับ ระบบ Bill / ใบเสร็จรับเงิน 100%
 // ============================================================
 window.dailyExamCurrentPage = 1;
-const DAILY_EXAM_PER_PAGE = 25;
+var DAILY_EXAM_PER_PAGE = 25;
 
 function changeDailyExamPage(page) {
     if (typeof page === 'number' && !isNaN(page)) {
@@ -24771,7 +25910,7 @@ function onDailyExamDateChange() {
 }
 window.onDailyExamDateChange = onDailyExamDateChange;
 
-let dailyExamSearchTimer = null;
+var dailyExamSearchTimer = null;
 function debounceDailyExamSearch() {
     clearTimeout(dailyExamSearchTimer);
     dailyExamSearchTimer = setTimeout(() => {
@@ -26653,7 +27792,7 @@ function isClinicAdminUser() {
 }
 window.isClinicAdminUser = isClinicAdminUser;
 
-const BILLS_PER_PAGE = 15;
+var BILLS_PER_PAGE = 15;
 window.currentBillPage = 1;
 window.currentFilteredBills = [];
 
@@ -27969,7 +29108,7 @@ function previewLabFile(input) {
 // =====================================
 // ระบบบันทึกผลตรวจ CBC (CBC Modal & Report)
 // =====================================
-const BASE_CBC_ITEMS = [
+var BASE_CBC_ITEMS = [
     { section: 'White Blood Cell (WBC)' },
     { name: 'WBC', unit: '10^9/L', min: '4.0', max: '10.0' },
     { name: 'LYM%', unit: '%', min: '20.0', max: '40.0' },
@@ -27999,7 +29138,7 @@ const BASE_CBC_ITEMS = [
     { name: 'PDW_CV', unit: '%', min: '10.0', max: '18.0' }
 ];
 
-const DEFAULT_CBC_DATA = BASE_CBC_ITEMS.map(it => ({ ...it, value: '' }));
+var DEFAULT_CBC_DATA = BASE_CBC_ITEMS.map(it => ({ ...it, value: '' }));
 
 // ดึงช่วงค่าอ้างอิงมาตรฐาน (Reference Ranges) ที่คลินิกเคยตั้งไว้
 function getClinicCbcRanges() {
@@ -31196,7 +32335,7 @@ function getExpenseLocalDateStr(dateInput) {
 window.clinicExpensesData = [];
 window.currentExpensePage = 1;
 window.currentFilteredExpenses = [];
-const EXPENSES_PER_PAGE = 15;
+var EXPENSES_PER_PAGE = 15;
 
 async function loadExpenses() {
     try {
@@ -32702,7 +33841,7 @@ window.refreshPharmacyPage = function () {
 window.triageHistoryData = []; // เก็บข้อมูลประวัติทั้งหมดที่ดึงมา
 window.triageHistoryFilteredData = []; // 🌟 ตัวแปรใหม่: เก็บข้อมูลที่ผ่านการกรอง (ค้นหา) แล้ว
 window.triageHistoryCurrentPage = 1;
-const TRIAGE_HISTORY_PER_PAGE = 10;
+var TRIAGE_HISTORY_PER_PAGE = 10;
 
 // 1. ฟังก์ชันกำหนดปุ่มวันที่ด่วน
 window.setTriageHistoryDateFilter = function (mode) {

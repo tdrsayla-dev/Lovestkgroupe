@@ -2763,6 +2763,13 @@
                     </div>
                     <div class="d-flex gap-2 flex-wrap align-items-center">
                         <button type="button"
+                            class="btn btn-outline-danger rounded-pill px-3 py-2 fw-semibold border-2 d-flex align-items-center gap-1.5 shadow-sm"
+                            id="btnViewDeletedBills"
+                            onclick="openDeletedBillsAuditModal()"
+                            title="ເບິ່ງປະຫວັດໃບບິນທີ່ຖືກລຶບ ແລະ ຜູ້ດຳເນີນການ (Admin Only)">
+                            <i class="bi bi-clock-history fs-6"></i> <span>📋 ປະຫວັດການລຶບໃບບິນ</span>
+                        </button>
+                        <button type="button"
                             class="btn btn-outline-success rounded-pill px-3 py-2 fw-semibold border-2 d-flex align-items-center gap-1.5 shadow-sm"
                             onclick="exportBillsExcel()">
                             <i class="bi bi-file-earmark-excel-fill text-success fs-6"></i> <span
@@ -6095,6 +6102,112 @@
         </div>
     </div>
 
+    <!-- 📋 Modal ประวัติการลบบิล (Deleted Bills Audit Log Modal) -->
+    <div class="modal fade" id="deletedBillsAuditModal" tabindex="-1" aria-labelledby="deletedBillsAuditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header px-4 py-3 bg-light border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 rounded-3 bg-danger bg-opacity-10 text-danger d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="bi bi-clock-history fs-5"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold text-dark mb-0" id="deletedBillsAuditModalLabel">
+                                📋 ປະຫວັດການລຶບໃບບິນ (Deleted Bills Audit Log)
+                            </h5>
+                            <small class="text-muted">ບັນທຶກປະຫວັດການລຶບໃບບິນທັງໝົດໃນລະບົບ ພ້ອມລາຍຊື່ຜູ້ດຳເນີນການ (Admin Only)</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body px-4 py-3">
+                    <!-- Search & Date Filter bar -->
+                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                        <!-- Left: Search Box -->
+                        <div class="input-group" style="width: 270px; flex-shrink: 0;">
+                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                            <input type="text" id="deletedBillsSearchInput" class="form-control border-start-0 ps-0" placeholder="ຄົ້ນຫາເລກບິນ, ຊື່ຄົນໄຂ້, ຜູ້ລຶບ..." oninput="filterDeletedBillsLog()">
+                        </div>
+
+                        <!-- Center: Date Inputs & Quick Buttons (Neat single-line container) -->
+                        <div class="d-flex align-items-center gap-2 flex-nowrap bg-light p-1 px-2.5 rounded-3 border">
+                            <div class="d-flex align-items-center gap-1">
+                                <i class="bi bi-calendar3 text-muted me-1" style="font-size: 0.85rem;"></i>
+                                <input type="date" class="form-control form-control-sm border-0 bg-white shadow-none rounded-2 py-1 px-2 text-secondary" id="deletedBillStartDate" onchange="onDeletedBillDateInputChange()" style="width: 125px; font-size: 0.82rem;">
+                                <span class="text-muted small px-1">ຫາ</span>
+                                <input type="date" class="form-control form-control-sm border-0 bg-white shadow-none rounded-2 py-1 px-2 text-secondary" id="deletedBillEndDate" onchange="onDeletedBillDateInputChange()" style="width: 125px; font-size: 0.82rem;">
+                            </div>
+                            <div class="vr my-1 text-secondary opacity-25"></div>
+                            <div class="btn-group btn-group-sm" role="group" id="deletedBillsDateButtonGroup">
+                                <button type="button" class="btn btn-outline-secondary py-1 px-2" id="btnQuickDeletedToday" onclick="setDeletedBillDateQuick('today')" style="font-size: 0.8rem;">ມື້ນີ້</button>
+                                <button type="button" class="btn btn-secondary text-white active py-1 px-2" id="btnQuickDeletedMonth" onclick="setDeletedBillDateQuick('month')" style="font-size: 0.8rem;">ເດືອນນີ້</button>
+                                <button type="button" class="btn btn-outline-secondary py-1 px-2" id="btnQuickDeletedAll" onclick="setDeletedBillDateQuick('all')" style="font-size: 0.8rem;">ທັງໝົດ</button>
+                            </div>
+                        </div>
+
+                        <!-- Right: Badge, Delete Selected & Refresh Button -->
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                            <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 py-1.5 fw-semibold d-none align-items-center gap-1 shadow-sm" id="btnDeleteSelectedAuditLogs" onclick="deleteSelectedDeletedBills()">
+                                <i class="bi bi-trash3-fill"></i> <span>ລຶບທີ່ເລືອກ (<span id="selectedAuditCount">0</span>)</span>
+                            </button>
+                            <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill fw-semibold border border-danger-subtle" id="deletedBillsCountBadge" style="font-size: 0.82rem;">
+                                ພົບ 0 ລາຍການ
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 fw-semibold d-flex align-items-center gap-1" onclick="loadDeletedBillsAuditLog(true)">
+                                <i class="bi bi-arrow-clockwise"></i> ຣີເຟຣຊ
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0" id="deletedBillsAuditTable" style="font-size: 0.92rem;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3 text-center" style="width: 45px;">
+                                        <input type="checkbox" class="form-check-input" id="selectAllDeletedBillsHeader" onchange="toggleSelectAllDeletedBills(this.checked)" title="ເລືອກທັງໝົດໃນໜ້ານີ້" style="cursor: pointer;">
+                                    </th>
+                                    <th class="text-secondary" style="width: 45px;">#</th>
+                                    <th class="text-secondary" style="width: 170px;">ວັນ-ເວລາທີ່ລຶບ</th>
+                                    <th class="text-secondary" style="width: 140px;">ລະຫັດໃບບິນ</th>
+                                    <th class="text-secondary">ຊື່ຜູ້ປ່ວຍ / ລາຍລະອຽດ</th>
+                                    <th class="text-end text-secondary" style="width: 140px;">ຍອດເງິນ</th>
+                                    <th class="text-secondary" style="width: 180px;">ຜູ້ກົດລຶບ (Actor)</th>
+                                    <th class="text-center text-secondary" style="width: 100px;">ສະຖານະ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deletedBillsAuditTableBody">
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2"></div> ກຳລັງໂຫຼດປະຫວັດການລຶບ...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination Bar -->
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top flex-wrap gap-2" id="deletedBillsPaginationContainer">
+                        <div class="text-muted small">
+                            ສະແດງ <span class="fw-bold text-dark font-monospace" id="deletedBillsShowingRange">0 - 0</span> 
+                            ຈາກທັງໝົດ <span class="fw-bold text-danger font-monospace" id="deletedBillsTotalCount">0</span> ລາຍການ 
+                            (ໜ້າ <span class="fw-bold text-dark font-monospace" id="deletedBillsCurrentPageNum">1</span> / <span class="font-monospace" id="deletedBillsTotalPagesNum">1</span>)
+                        </div>
+                        <nav aria-label="Deleted bills pagination">
+                            <ul class="pagination pagination-sm mb-0 gap-1" id="deletedBillsPaginationList">
+                                <!-- Pagination injected dynamically -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                <div class="modal-footer px-4 py-2 bg-light border-top d-flex justify-content-between">
+                    <span class="text-muted small"><i class="bi bi-shield-check text-success me-1"></i> ບັນທຶກປະຫວັດການລຶບໃບບິນ (Admin ສາມາດເລືອກລຶບລາຍການທົດສອບໄດ້)</span>
+                    <button type="button" class="btn btn-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">ປິດ (Close)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="config.js"></script>
     <script>
@@ -6267,6 +6380,15 @@ document.write('<script src="../config.js"><\/script>');
                     } catch (authErr) {
                         console.warn('auth.updateUser notice:', authErr);
                     }
+                }
+
+                // 🛡️ [OWASP A09: Security Audit Log] บันทึกประวัติการเปลี่ยนรหัสผ่าน
+                if (typeof window.logClinicAudit === 'function') {
+                    try {
+                        window.logClinicAudit('CHANGE_PASSWORD', 'staff', user.emp_code || user.id || 'me', {
+                            method: 'force_first_login'
+                        });
+                    } catch (aErr) { }
                 }
 
                 // 3. ปรับสถานะใน localStorage

@@ -4426,6 +4426,18 @@
                 }
                 await Promise.allSettled(deletePromises);
 
+                // 🛡️ [OWASP A09: Security Audit Log] บันทึกประวัติการลบคนไข้/ออเดอร์
+                if (typeof window.logClinicAudit === 'function' || (window.parent && typeof window.parent.logClinicAudit === 'function')) {
+                    try {
+                        const logger = window.logClinicAudit || window.parent.logClinicAudit;
+                        logger(isOrderRecord ? 'DELETE_ORDER' : 'DELETE_VISIT', isOrderRecord ? 'order' : 'visit', visitId || hn, {
+                            hn: hn,
+                            patient_name: patientName,
+                            order_id: cleanOrderId
+                        });
+                    } catch (auditErr) { }
+                }
+
                 // บันทึก Blacklist ลง LocalStorage เพื่อให้ตัดออกจากรายงานและหน้าประวัติทันที
                 try {
                     let deletedNutrients = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');

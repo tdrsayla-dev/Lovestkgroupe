@@ -3,6 +3,17 @@
 
 <head>
     <meta charset="UTF-8">
+    <!-- 🛡️ [Frame Security] Anti-Clickjacking: ป้องกันไม่ให้แอบนำหน้า Login ไปครอบใน iframe เด็ดขาด -->
+    <script>
+        if (window.top !== window.self) {
+            try {
+                window.top.location = window.self.location.href;
+            } catch (e) {
+                document.documentElement.style.display = 'none';
+                window.location.replace('about:blank');
+            }
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เข้าสู่ระบบ - Clinic System</title>
     <link rel="icon" type="image/png" href="favicon.png?v=1.0">
