@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ================================================================
  * 🎁 reportReferralLogic.js - สมองกลประมวลผลและการคำนวณค่าแนะนำ & ปันผล
  * LOVE STK GROUPE - Referral & Dividends Calculation Engine

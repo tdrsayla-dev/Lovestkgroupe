@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ================================================================
  * 📊 mlmLogic.js — STK MLM & Dashboard Business Logic Engine
  * LOVE STK GROUPE - Dashboard Calculation & Data Processing Engine

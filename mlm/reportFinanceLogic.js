@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ================================================================
  * 💰 reportFinanceLogic.js - สมองกลประมวลผลและการคำนวณรายงานการเงิน
  * LOVE STK GROUPE - Finance & Revenue Calculation Engine

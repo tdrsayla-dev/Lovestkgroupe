@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ================================================================
  * 📦 reportStockLogic.js - สมองกลประมวลผลและการคำนวณรายงานสต๊อกและสินค้าตัดศูนย์
  * LOVE STK GROUPE - Stock & Zero Price Report Calculation Engine
