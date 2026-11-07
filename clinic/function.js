@@ -7264,6 +7264,7 @@ async function deleteSelectedDeletedBills() {
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
         document.activeElement.blur();
     }
+
     if (typeof isClinicAdminUser === 'function' && !isClinicAdminUser()) {
         Swal.fire({
             icon: 'error',
@@ -7307,84 +7308,142 @@ async function deleteSelectedDeletedBills() {
 
     try {
         const allData = window.deletedBillsAuditData || [];
-        const targetIds = [];
+        const rawTargetIds = [];
         const recordUuids = [];
 
         allData.forEach(item => {
             const k = String(item.target_id || item.id || '').trim();
             if (selectedKeys.has(k)) {
-                if (item.target_id) targetIds.push(item.target_id);
+                if (item.target_id) rawTargetIds.push(item.target_id);
                 if (item.id) {
-                    targetIds.push(item.id);
+                    rawTargetIds.push(item.id);
                     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id)) {
                         recordUuids.push(item.id);
                     }
                 }
-                if (item.aliasId) targetIds.push(item.aliasId);
+                if (item.aliasId) rawTargetIds.push(item.aliasId);
             }
         });
 
-        const uniqueTargetIds = [...new Set(targetIds.filter(Boolean))];
-        const deleteTasks = [];
+        // ⚡ ขยายรายการ ID ให้ครอบคลุมทุกรูปแบบ (รวมทั้งแบบมี Prefix ແລະ ບໍ່ມີ Prefix)
+        const expandedIdsSet = new Set();
+        rawTargetIds.forEach(id => {
+            if (!id) return;
+            const str = String(id).trim();
+            if (!str) return;
+            expandedIdsSet.add(str);
+            const clean = extractCleanDigits(str);
+            if (clean) {
+                expandedIdsSet.add(clean);
+                expandedIdsSet.add('BILL-' + clean);
+                expandedIdsSet.add('VIS-' + clean);
+                expandedIdsSet.add('ORD-' + clean);
+                expandedIdsSet.add('VIS-ORD-' + clean);
+                expandedIdsSet.add('ORD-CLINIC-' + clean);
+                expandedIdsSet.add('ORD-CLINIC-VIS-' + clean);
+            }
+        });
 
-        // 1. Delete from clinic_audit_logs in Supabase
+        const uniqueTargetIds = Array.from(expandedIdsSet);
+        const supabaseErrors = [];
+
+        // 1. Delete from Supabase
         if (typeof _supabase !== 'undefined' && _supabase) {
+            // 1.1 Delete from clinic_audit_logs by target_id
             if (uniqueTargetIds.length > 0) {
-                deleteTasks.push(_supabase
+                const resAuditTarget = await _supabase
                     .from('clinic_audit_logs')
                     .delete()
-                    .in('target_id', uniqueTargetIds)
-                );
-            }
-            if (recordUuids.length > 0) {
-                deleteTasks.push(_supabase
-                    .from('clinic_audit_logs')
-                    .delete()
-                    .in('id', recordUuids)
-                );
+                    .in('target_id', uniqueTargetIds);
+
+                if (resAuditTarget.error) {
+                    console.error('clinic_audit_logs delete by target_id error:', resAuditTarget.error);
+                    supabaseErrors.push('clinic_audit_logs (target_id): ' + resAuditTarget.error.message);
+                }
             }
 
-            // 2. Delete from clinic_deleted_records in Supabase
+            // 1.2 Delete from clinic_audit_logs by UUID
+            if (recordUuids.length > 0) {
+                const resAuditId = await _supabase
+                    .from('clinic_audit_logs')
+                    .delete()
+                    .in('id', recordUuids);
+
+                if (resAuditId.error) {
+                    console.error('clinic_audit_logs delete by id error:', resAuditId.error);
+                    supabaseErrors.push('clinic_audit_logs (id): ' + resAuditId.error.message);
+                }
+            }
+
+            // 1.3 Delete from clinic_deleted_records (ครอบคลุมทั้ง bills และ orders)
             if (uniqueTargetIds.length > 0) {
-                deleteTasks.push(_supabase
+                const resDeletedRecords = await _supabase
                     .from('clinic_deleted_records')
                     .delete()
-                    .eq('list_key', 'clinic_deleted_bills')
-                    .in('record_id', uniqueTargetIds)
-                );
+                    .in('record_id', uniqueTargetIds);
+
+                if (resDeletedRecords.error) {
+                    console.error('clinic_deleted_records delete error:', resDeletedRecords.error);
+                    supabaseErrors.push('clinic_deleted_records: ' + resDeletedRecords.error.message);
+                }
             }
         }
 
-        await Promise.allSettled(deleteTasks);
+        // ⚠️ หาก Supabase ติดสิทธิ์ RLS ไม่อนุญาตให้ลบ ให้แจ้งเตือน Admin ทันที (ไม่หลอกว่าลบสำเร็จ)
+        if (supabaseErrors.length > 0) {
+            console.error('Supabase RLS Error:', supabaseErrors);
+            Swal.fire({
+                icon: 'error',
+                title: isLao ? 'ຖານຂໍ້ມູນ Supabase ບໍ່ອະນຸຍາດໃຫ້ລຶບ (RLS)' : 'ฐานข้อมูล Supabase ไม่อนุญาตให้ลบ (RLS)',
+                html: isLao 
+                    ? `ຖານຂໍ້ມູນ Supabase ຕິດ Row Level Security (RLS) ເຮັດໃຫ້ບໍ່ສາມາດລຶບໄດ້:<br><div class="alert alert-danger mt-2 py-1 small text-start font-monospace">${supabaseErrors.join('<br>')}</div><br><b>ວິທີແກ້:</b> ຕ້ອງນຳຄຳສັ່ງ SQL Policy ໄປ Run ໃນ Supabase SQL Editor ກ່ອນ`
+                    : `ฐานข้อมูล Supabase ติด Row Level Security (RLS) ทำให้ไม่สามารถลบได้:<br><div class="alert alert-danger mt-2 py-1 small text-start font-monospace">${supabaseErrors.join('<br>')}</div><br><b>วิธีแก้:</b> ต้องนำคำสั่ง SQL Policy ไป Run ใน Supabase SQL Editor ก่อน`
+            });
+            return;
+        }
 
-        // 3. Remove from localStorage 'clinic_deleted_bills'
-        try {
-            const rawLocal = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
-            const removeSet = new Set(uniqueTargetIds.map(x => String(x).toLowerCase()));
-            const filteredLocal = rawLocal.filter(id => !removeSet.has(String(id).toLowerCase()));
-            localStorage.setItem('clinic_deleted_bills', JSON.stringify(filteredLocal));
-        } catch (e) { }
+        // 2. Remove from LocalStorage ('clinic_deleted_bills' ແລະ 'stk_deleted_nutrient_orders')
+        ['clinic_deleted_bills', 'stk_deleted_nutrient_orders'].forEach(key => {
+            try {
+                const rawLocal = JSON.parse(localStorage.getItem(key) || '[]');
+                const removeSet = new Set(uniqueTargetIds.map(x => String(x).toLowerCase()));
+                const filteredLocal = rawLocal.filter(id => {
+                    const s = String(id).toLowerCase();
+                    const c = extractCleanDigits(s).toLowerCase();
+                    return !removeSet.has(s) && !removeSet.has(c);
+                });
+                localStorage.setItem(key, JSON.stringify(filteredLocal));
+            } catch (e) { }
+        });
 
-        // 4. Update In-Memory arrays
+        // 3. Remove from In-Memory data
         const removeKeySet = new Set(uniqueTargetIds.map(x => String(x).toLowerCase()));
         window.deletedBillsAuditData = (window.deletedBillsAuditData || []).filter(item => {
             const tId = String(item.target_id || '').toLowerCase();
             const id = String(item.id || '').toLowerCase();
             const aId = String(item.aliasId || '').toLowerCase();
-            return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId);
+            const cT = extractCleanDigits(tId).toLowerCase();
+            const cI = extractCleanDigits(id).toLowerCase();
+            const cA = extractCleanDigits(aId).toLowerCase();
+            return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId) &&
+                   !removeKeySet.has(cT) && !removeKeySet.has(cI) && !removeKeySet.has(cA);
         });
 
         window.filteredDeletedBillsData = (window.filteredDeletedBillsData || []).filter(item => {
             const tId = String(item.target_id || '').toLowerCase();
             const id = String(item.id || '').toLowerCase();
             const aId = String(item.aliasId || '').toLowerCase();
-            return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId);
+            const cT = extractCleanDigits(tId).toLowerCase();
+            const cI = extractCleanDigits(id).toLowerCase();
+            const cA = extractCleanDigits(aId).toLowerCase();
+            return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId) &&
+                   !removeKeySet.has(cT) && !removeKeySet.has(cI) && !removeKeySet.has(cA);
         });
 
         window.selectedDeletedBillKeys.clear();
         updateDeleteSelectedBtn();
 
-        // 5. Re-render table smoothly
+        // 4. Re-render table smoothly
         const totalRemaining = window.filteredDeletedBillsData.length;
         const totalPages = Math.ceil(totalRemaining / DELETED_BILLS_PER_PAGE) || 1;
         if (window.currentDeletedBillsPage > totalPages) {
