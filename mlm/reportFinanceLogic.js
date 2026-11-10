@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ================================================================
  * 💰 reportFinanceLogic.js - สมองกลประมวลผลและการคำนวณรายงานการเงิน
  * LOVE STK GROUPE - Finance & Revenue Calculation Engine
@@ -141,7 +141,7 @@
         const query = String(searchQuery || '').trim().toUpperCase();
         return sales.filter(s => {
             if (!s || (s.date || '') < startDate || (s.date || '') > endDate) return false;
-            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return false;
+            if (permittedMemberSet && typeof permittedMemberSet.has === 'function' && !permittedMemberSet.has(safeUpper(s.memberId))) return false;
             if (query !== '') {
                 const mName = (s.sellerName || '').toUpperCase();
                 const mId = (s.memberId || '').toUpperCase();
@@ -200,7 +200,7 @@
             const sDateStr = String(s.date);
             const monthKey = sDateStr.substring(0, 7);
             if (!grouped[monthKey]) return;
-            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return;
+            if (permittedMemberSet && typeof permittedMemberSet.has === 'function' && !permittedMemberSet.has(safeUpper(s.memberId))) return;
 
             if (query !== '') {
                 const mName = (s.sellerName || '').toUpperCase();
@@ -710,7 +710,7 @@
             if (!s || !s.date) return false;
             const sDate = String(s.date).split('T')[0].split(' ')[0];
             if (sDate !== targetDate) return false;
-            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId || s.seller_id))) return false;
+            if (permittedMemberSet && typeof permittedMemberSet.has === 'function' && !permittedMemberSet.has(safeUpper(s.memberId || s.seller_id))) return false;
             if (query !== '') {
                 const mName = (s.sellerName || s.seller_name || '').toUpperCase();
                 const mId = (s.memberId || s.seller_id || '').toUpperCase();
@@ -1020,7 +1020,7 @@
             if (st === 'ยกเลิก' || st === 'cancelled' || st === 'void') return;
 
             const sellerId = String(s.seller_id || s.memberId || '').trim();
-            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(sellerId))) return;
+            if (permittedMemberSet && typeof permittedMemberSet.has === 'function' && !permittedMemberSet.has(safeUpper(sellerId))) return;
 
             const billId = String(s.id || s.order_id || '').trim();
             if (billId) billCountSet.add(billId);

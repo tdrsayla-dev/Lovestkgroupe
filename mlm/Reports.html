@@ -593,7 +593,7 @@
                 const sDate = s.date || s.sale_date || '';
                 if (!s || sDate < startDate || sDate > endDate) return false;
                 const sMemId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
-                if (permittedMemberSet !== null) return permittedMemberSet.has(sMemId);
+                if (permittedMemberSet && typeof permittedMemberSet.has === 'function') return permittedMemberSet.has(sMemId);
                 return true;
             });
 

@@ -1,0 +1,16 @@
+{
+  "name": "project-framework",
+  "version": "1.0.0",
+  "description": "LOVE STK GROUPE - Centralized Architecture with Node.js Egress Shield",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "compression": "^1.7.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

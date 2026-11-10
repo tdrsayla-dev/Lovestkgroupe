@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ================================================================
  * 🎁 reportReferralLogic.js - สมองกลประมวลผลและการคำนวณค่าแนะนำ & ปันผล
  * LOVE STK GROUPE - Referral & Dividends Calculation Engine
@@ -17,7 +17,7 @@
         const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
             ? Number(it.price)
             : ((it.unitPrice !== undefined && it.unitPrice !== null && String(it.unitPrice).trim() !== '' && !isNaN(Number(it.unitPrice))) ? Number(it.unitPrice) : null);
-        
+
         const typeStr = String(it.type || it.priceType || '').trim().toLowerCase();
         const pName = String(it.prod || it.productName || it.name || '').trim();
         const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
@@ -116,7 +116,8 @@
             const sDate = rawD.includes('T') ? rawD.split('T')[0] : (rawD.includes(' ') ? rawD.split(' ')[0] : rawD);
             if ((startDate && sDate < startDate) || (endDate && sDate > endDate)) return false;
             const sMemId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
-            if (permittedMemberSet !== null) return permittedMemberSet.has(sMemId);
+
+            if (permittedMemberSet && typeof permittedMemberSet.has === 'function') return permittedMemberSet.has(sMemId);
             return true;
         });
 
@@ -163,7 +164,7 @@
 
             let rawItems = [];
             if (record.items_json) {
-                try { rawItems = typeof record.items_json === 'string' ? JSON.parse(record.items_json) : record.items_json; } catch (e) {}
+                try { rawItems = typeof record.items_json === 'string' ? JSON.parse(record.items_json) : record.items_json; } catch (e) { }
             }
 
             if (!Array.isArray(rawItems) || rawItems.length === 0) {
@@ -174,10 +175,10 @@
                             const lastUnderscore = key.lastIndexOf('_');
                             const pName = key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim();
                             const legacyType = key.substring(lastUnderscore + 1);
-                            
+
                             // ⭐ เรียก Auto-Correct ให้บิลเก่า
                             const correctType = classifyOrderItem({ prod: pName, type: legacyType }, prodMap);
-                            
+
                             rawItems.push({
                                 prod: pName,
                                 type: correctType,
@@ -204,7 +205,7 @@
                             custType: resolvedCustType,
                             productId: String(it.productId || it.product_id || it.id || '').trim(),
                             product: String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim(),
-                            priceType: correctType, 
+                            priceType: correctType,
                             qty: q
                         });
                     }
@@ -258,7 +259,7 @@
                     };
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
         return commConfig;
     }
 
@@ -290,7 +291,7 @@
                         const parsed = JSON.parse(log.reference_note);
                         if (parsed.promoDeductBoxes) promoDeductBoxes = Number(parsed.promoDeductBoxes);
                         if (parsed.promoDeductAmount) promoDeductAmount = Number(parsed.promoDeductAmount);
-                    } catch(e) {}
+                    } catch (e) { }
                 }
                 list.push({
                     id: String(id),
@@ -457,7 +458,7 @@
         const l1Fee = Number(prodConfig.level1Fee ?? prodConfig.level_1_fee ?? prodConfig.uplineFee ?? prodConfig.l1Rate ?? 0);
         const selfPctFull = Number(prodConfig.selfPercentFull ?? prodConfig.self_percent_full ?? prodConfig.selfPercent ?? 0);
         const selfPctMem = Number(prodConfig.selfPercentMember ?? prodConfig.self_percent_member ?? 0);
-        
+
         if (givePv > 0 || selfFee > 0 || l1Fee > 0 || selfPctFull > 0 || selfPctMem > 0) return true;
         for (let l = 2; l <= 10; l++) {
             if (Number(prodConfig[`level${l}Fee`] ?? prodConfig[`level_${l}_fee`] ?? 0) > 0) return true;
@@ -797,7 +798,7 @@
         return Object.values(memberMap)
             .filter(m => {
                 const mKey = safeUpper(m.id);
-                if (permittedMemberSet !== null && !permittedMemberSet.has(mKey)) return false;
+                if (permittedMemberSet && typeof permittedMemberSet.has === 'function' && !permittedMemberSet.has(mKey)) return false;
                 if (selectedTeamFilter && safeUpper(m.team) !== safeUpper(selectedTeamFilter)) return false;
                 if (selectedSponsorFilter) {
                     const motherId = safeUpper(selectedSponsorFilter);
@@ -1054,15 +1055,15 @@
                 const dateKeyPart = pDate || startDate || endDate || '';
                 const key = `${safeUpper(mId)}_${dateKeyPart}`;
                 if (!dailyMap[key]) {
-                    dailyMap[key] = { 
-                        key, 
-                        date: dateVal, 
-                        memberId: mId, 
-                        memberName: mName, 
-                        team: mTeam, 
-                        selfEarn: 0, 
-                        teamEarn: 0, 
-                        totalEarn: 0, 
+                    dailyMap[key] = {
+                        key,
+                        date: dateVal,
+                        memberId: mId,
+                        memberName: mName,
+                        team: mTeam,
+                        selfEarn: 0,
+                        teamEarn: 0,
+                        totalEarn: 0,
                         boxes: 0,
                         box100k: 0,
                         box150k: 0,
@@ -1302,7 +1303,7 @@
                 if (startDate && item.date && item.date < startDate) return false;
                 if (endDate && item.date && item.date > endDate) return false;
                 const mKey = safeUpper(item.memberId);
-                if (permittedMemberSet !== null && !permittedMemberSet.has(mKey)) return false;
+                if (permittedMemberSet && typeof permittedMemberSet.has === 'function' && !permittedMemberSet.has(mKey)) return false;
                 if (selectedTeamFilter && safeUpper(item.team) !== safeUpper(selectedTeamFilter)) return false;
                 if (selectedSponsorFilter) {
                     const motherId = safeUpper(selectedSponsorFilter);
@@ -1373,7 +1374,7 @@
 
                 if (levelIdx === 0) {
                     feePerBox = Number(prodConfig.selfFee ?? prodConfig.self_fee ?? prodConfig.directFee ?? prodConfig.level0Fee ?? 0);
-                    feePercent = isMemberPrice 
+                    feePercent = isMemberPrice
                         ? Number(prodConfig.selfPercentMember ?? prodConfig.self_percent_member ?? 0)
                         : Number(prodConfig.selfPercentFull ?? prodConfig.self_percent_full ?? prodConfig.selfPercent ?? 0);
                 } else if (levelIdx === 1) {
@@ -1391,8 +1392,8 @@
                 if (isNaN(feePerBox) || feePerBox < 0) feePerBox = 0;
                 if (isNaN(feePercent) || feePercent < 0) feePercent = 0;
 
-                const itemPrice = isMemberPrice 
-                    ? Number(prodConfig.priceMember ?? prodConfig.price_member ?? prodConfig.priceFull ?? prodConfig.price_full ?? 0) 
+                const itemPrice = isMemberPrice
+                    ? Number(prodConfig.priceMember ?? prodConfig.price_member ?? prodConfig.priceFull ?? prodConfig.price_full ?? 0)
                     : Number(prodConfig.priceFull ?? prodConfig.price_full ?? prodConfig.priceMember ?? prodConfig.price_member ?? 0);
                 const boxEarn = feePerBox * s.qty;
                 const percentEarn = (itemPrice * s.qty) * (feePercent / 100);

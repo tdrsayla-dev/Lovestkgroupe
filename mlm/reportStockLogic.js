@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ================================================================
  * 📦 reportStockLogic.js - สมองกลประมวลผลและการคำนวณรายงานสต๊อกและสินค้าตัดศูนย์
  * LOVE STK GROUPE - Stock & Zero Price Report Calculation Engine
@@ -248,7 +248,7 @@
             const sDate = s.date || s.sale_date || '';
             if (!s || sDate < startDate || sDate > endDate) return false;
             const sMemId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
-            if (permittedMemberSet !== null) return permittedMemberSet.has(sMemId);
+            if (permittedMemberSet && typeof permittedMemberSet.has === 'function') return permittedMemberSet.has(sMemId);
             return true;
         });
 
@@ -432,7 +432,7 @@
             const statusUpper = safeUpper(record.status);
             // กรองข้ามบิลที่ถูกยกเลิกหรือไม่สำเร็จ
             if (statusUpper === 'CANCELLED' || statusUpper === 'ยกเลิก' || statusUpper === 'DELETED') return;
-            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(record.memberId))) return;
+            if (permittedMemberSet && typeof permittedMemberSet.has === 'function' && !permittedMemberSet.has(safeUpper(record.memberId))) return;
             
             const saleDate = (record.date || record.created_at || '').substring(0, 10);
 
