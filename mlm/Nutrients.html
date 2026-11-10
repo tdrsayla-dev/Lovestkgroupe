@@ -48,7 +48,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="config.js?v=2026.11.03.02"></script>
-  <script src="dictionary.js?v=2026.11.03.02"></script>
+  <script src="dictionary.js?v=2026.11.10.02"></script>
   <script src="CommonComponents.js?v=2026.11.03.02"></script>
 </head>
 
@@ -180,17 +180,26 @@
     }
     // 🛡️ ฟังก์ชันช่วยวิเคราะห์และป้องกันการดีดกลับของประเภทลูกค้า (เคารพค่าจากระบบคลินิกต้นทาง 100%)
     function getAccurateCustomerTypeLocally(visitId, explicitType, isExisting) {
+      const vUp = String(visitId || '').toUpperCase();
+      const isOrd = vUp.includes('VIS-ORD') || vUp.includes('VISIT-ORD') || vUp.startsWith('ORD-');
+
       let baseType = String(explicitType || '').trim();
-      if (baseType && baseType !== '-' && baseType !== '--') {
+      const isWalkinDefault = (
+        baseType === 'ลูกค้าใหม่มาตรวจ' ||
+        baseType === 'T001' ||
+        baseType === 'ລູກຄ້າໃໝ່ມາກວດ' ||
+        baseType === 'ลูกค้าเก่ากลับมาต่อยา' ||
+        baseType === 'T002'
+      );
+      if (baseType && baseType !== '-' && baseType !== '--' && !(isOrd && isWalkinDefault)) {
         if (typeof window.normalizeCustomerType === 'function') {
           return window.normalizeCustomerType(baseType).name || baseType;
         }
         return baseType;
       }
 
-      const vUp = String(visitId || '').toUpperCase();
       // กฎเหล็ก 1: ถ้าเป็น VIS-ORD หรือ ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์)
-      if (vUp.includes('VIS-ORD') || vUp.includes('VISIT-ORD') || vUp.startsWith('ORD-')) {
+      if (isOrd) {
         return isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่';
       }
 
@@ -454,7 +463,7 @@
                   customer_name: item.customer_name || item.customerName || '-',
                   phone: item.phone || item.customer_phone || '-',
                   disease: item.disease || item.disease_name || (!/^\d+(\.\d+)?$/.test(String(item.symptom || '').trim()) ? item.symptom : '') || '-',
-                  customer_type: item.customer_type || 'ลูกค้าใหม่มาตรวจ',
+                  customer_type: (item.customer_type && (!vKey.includes('VIS-ORD') || (item.customer_type !== 'ลูกค้าใหม่มาตรวจ' && item.customer_type !== 'ลูกค้าเก่ากลับมาต่อยา'))) ? item.customer_type : (vKey.includes('VIS-ORD') ? 'โทรปิดการขายลูกค้าใหม่' : 'ลูกค้าใหม่มาตรวจ'),
                   order_by_type: closerInfo.orderByType || item.order_by_type,
                   closer_team: closerInfo.closerTeam || item.closer_team,
                   recorded_by: item.recorded_by || '-',
@@ -818,13 +827,29 @@
                 const rawExplicit = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
 
                 // 🛡️ ลำดับความสำคัญที่ถูกต้อง 100%:
-                // 1. หากในระบบคลินิก (ตาราง patients) ระบุ customer_type มาชัดเจน -> ยึดตามคลินิกเป็นอันดับ 1 เสมอ
+                // 1. หากในระบบคลินิก (ตาราง patients) ระบุ customer_type มาชัดเจน -> ยึดตามคลินิกเป็นอันดับ 1 เสมอ (ยกเว้น VIS-ORD ห้ามใช้ค่า default ลูกค้าใหม่มาตรวจ)
                 // 2. หากใน stk_nutrient_orders มี customer_type ระบุอยู่แล้ว -> ยึดตามนั้น 100%
                 // 3. หากไม่มีทั้งคู่ -> ใช้ค่าเริ่มต้นตามประเภทบิลและประวัติการซื้อจริง
+                const isOrd = vUpper.startsWith('VIS-ORD-') || vUpper.includes('-ORD-') || vUpper.startsWith('ORD-');
+                const isWalkinDefaultClinic = (
+                  clinicSourceType === 'ลูกค้าใหม่มาตรวจ' ||
+                  clinicSourceType === 'T001' ||
+                  clinicSourceType === 'ລູກຄ້າໃໝ່ມາກວດ' ||
+                  clinicSourceType === 'ลูกค้าเก่ากลับมาต่อยา' ||
+                  clinicSourceType === 'T002'
+                );
+                const isWalkinDefaultRaw = (
+                  rawExplicit === 'ลูกค้าใหม่มาตรวจ' ||
+                  rawExplicit === 'T001' ||
+                  rawExplicit === 'ລູກຄ້າໃໝ່ມາກວດ' ||
+                  rawExplicit === 'ลูกค้าเก่ากลับมาต่อยา' ||
+                  rawExplicit === 'T002'
+                );
+
                 let explicit = '';
-                if (clinicSourceType && clinicSourceType !== '-' && clinicSourceType !== '--') {
+                if (clinicSourceType && clinicSourceType !== '-' && clinicSourceType !== '--' && !(isOrd && isWalkinDefaultClinic)) {
                   explicit = clinicSourceType;
-                } else if (rawExplicit && rawExplicit !== '-' && rawExplicit !== '--') {
+                } else if (rawExplicit && rawExplicit !== '-' && rawExplicit !== '--' && !(isOrd && isWalkinDefaultRaw)) {
                   explicit = rawExplicit;
                 }
 
@@ -835,7 +860,7 @@
                     customer_name: item.customer_name || item.customerName || '',
                     hn: item.hn || item.customer_id || ''
                   }).name
-                  : (explicit || (vUpper.startsWith('VIS-ORD-') ? (isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
+                  : (explicit || (isOrd ? (isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExisting ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
 
                 // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง ชื่อแพทย์อาจไปตกอยู่ใน recorded_by
                 let itemCloser = item.closer_dr;
@@ -903,9 +928,11 @@
                     syncUpdates.sale_order_id = matchingSaleId;
                   }
                   // 🛡️ ห้ามเขียนทับ customer_type ที่มีอยู่แล้วใน Supabase โดยเด็ดขาด!
-                  // จะอัปเดตเฉพาะเมื่อในตาราง stk_nutrient_orders ยังเป็นค่าว่าง แล้วระบบคลินิกมี clinicSourceType ระบุมาชัดเจนเท่านั้น
-                  if ((!item.customer_type || item.customer_type === '-' || item.customer_type === '--') && clinicSourceType) {
+                  // และห้ามนำค่า default คลินิก "ลูกค้าใหม่มาตรวจ" ไปทับบิลที่เป็น VIS-ORD- เด็ดขาด!
+                  if ((!item.customer_type || item.customer_type === '-' || item.customer_type === '--') && clinicSourceType && !(isOrd && isWalkinDefaultClinic)) {
                     syncUpdates.customer_type = clinicSourceType;
+                  } else if (isOrd && (!item.customer_type || item.customer_type === 'ลูกค้าใหม่มาตรวจ' || item.customer_type === 'ลูกค้าเก่ากลับมาต่อยา')) {
+                    syncUpdates.customer_type = isExisting ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่';
                   }
                   if ((!item.customer_phone || item.customer_phone === '-' || item.customer_phone === '--') && clinicPhone) {
                     syncUpdates.customer_phone = clinicPhone;
@@ -1024,10 +1051,26 @@
 
             const clinicSourceTypeLocal = (window.clinicCustTypeByHn ? hCandidatesLocal.map(c => window.clinicCustTypeByHn.get(c)).find(Boolean) : '') || (pCleanLocal.length >= 7 && window.clinicCustTypeByPhone ? window.clinicCustTypeByPhone.get(pCleanLocal) : '') || '';
             const rawExplicitLocal = item.customer_type || item.customerType || item.cust_type || item.type || item.patient_type || item.customer_type_name || item.visit_type || item.order_type || '';
+            const isOrdLocal = vUpper.startsWith('VIS-ORD-') || vUpper.includes('-ORD-') || vUpper.startsWith('ORD-');
+            const isWalkinDefaultClinicLocal = (
+              clinicSourceTypeLocal === 'ลูกค้าใหม่มาตรวจ' ||
+              clinicSourceTypeLocal === 'T001' ||
+              clinicSourceTypeLocal === 'ລູກຄ້າໃໝ່ມາກວດ' ||
+              clinicSourceTypeLocal === 'ลูกค้าเก่ากลับมาต่อยา' ||
+              clinicSourceTypeLocal === 'T002'
+            );
+            const isWalkinDefaultRawLocal = (
+              rawExplicitLocal === 'ลูกค้าใหม่มาตรวจ' ||
+              rawExplicitLocal === 'T001' ||
+              rawExplicitLocal === 'ລູກຄ້າໃໝ່ມາກວດ' ||
+              rawExplicitLocal === 'ลูกค้าเก่ากลับมาต่อยา' ||
+              rawExplicitLocal === 'T002'
+            );
+
             let explicitLocal = '';
-            if (clinicSourceTypeLocal && clinicSourceTypeLocal !== '-' && clinicSourceTypeLocal !== '--') {
+            if (clinicSourceTypeLocal && clinicSourceTypeLocal !== '-' && clinicSourceTypeLocal !== '--' && !(isOrdLocal && isWalkinDefaultClinicLocal)) {
               explicitLocal = clinicSourceTypeLocal;
-            } else if (rawExplicitLocal && rawExplicitLocal !== '-' && rawExplicitLocal !== '--') {
+            } else if (rawExplicitLocal && rawExplicitLocal !== '-' && rawExplicitLocal !== '--' && !(isOrdLocal && isWalkinDefaultRawLocal)) {
               explicitLocal = rawExplicitLocal;
             }
 
@@ -1038,7 +1081,7 @@
                 customer_name: item.customer_name || item.customerName || item.patientName || item.patient_name || item.patient || item.name || '',
                 hn: item.hn || item.customer_id || ''
               }).name
-              : (explicitLocal || (vUpper.startsWith('VIS-ORD-') ? (isExistingLocal ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExistingLocal ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
+              : (explicitLocal || (isOrdLocal ? (isExistingLocal ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่') : (isExistingLocal ? 'ลูกค้าเก่ากลับมาต่อยา' : 'ลูกค้าใหม่มาตรวจ')));
 
             // 🛡️ ป้องกันการสลับชื่อ/ชื่อค้าง: เมื่อแพทย์หมอเป็นคนสั่งจ่ายมาเอง
             let localCloser = item.closer_dr || '';
@@ -2096,7 +2139,12 @@
                               )}
                               <div className="flex items-center gap-1 mt-1 flex-wrap">
                                 {(() => {
-                                  const currentEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
+                                  const rawEffectiveType = (customTypeOverrides && (customTypeOverrides[ord.id] || customTypeOverrides[ord.visit_id])) || ord.customer_type;
+                                  const vOrdCheck = String(ord.visit_id || '').toUpperCase();
+                                  const isVOrd = vOrdCheck.includes('VIS-ORD') || vOrdCheck.startsWith('ORD-');
+                                  const currentEffectiveType = (isVOrd && (rawEffectiveType === 'ลูกค้าใหม่มาตรวจ' || rawEffectiveType === 'ลูกค้าเก่ากลับมาต่อยา' || !rawEffectiveType))
+                                    ? 'โทรปิดการขายลูกค้าใหม่'
+                                    : (rawEffectiveType || 'ลูกค้าใหม่มาตรวจ');
                                   const normType = (typeof window.normalizeCustomerType === 'function' && currentEffectiveType)
                                     ? window.normalizeCustomerType(currentEffectiveType, currentLang, {
                                       disease: ord.disease,
