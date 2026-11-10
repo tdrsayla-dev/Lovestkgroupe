@@ -191,14 +191,18 @@
                     const activeList = Array.isArray(camps) ? camps : [];
                     setActiveCampaigns(activeList);
 
-                    if (activeList.length > 0 && typeof window.CampaignEngine.fetchClinicLogs === 'function') {
-                        const minStart = activeList.reduce((min, c) => (!min || (c.start_date && c.start_date < min) ? c.start_date : min), null);
-                        const maxEnd = activeList.reduce((max, c) => (!max || (c.end_date && c.end_date > max) ? c.end_date : max), null);
-                        if (minStart && maxEnd) {
-                            const logs = await window.CampaignEngine.fetchClinicLogs(minStart, maxEnd, forceLive);
+                    if (typeof window.CampaignEngine !== 'undefined' && typeof window.CampaignEngine.fetchClinicLogs === 'function') {
+                        const campStart = activeList.reduce((min, c) => (!min || (c.start_date && c.start_date < min) ? c.start_date : min), null);
+                        const campEnd = activeList.reduce((max, c) => (!max || (c.end_date && c.end_date > max) ? c.end_date : max), null);
+                        
+                        const finalStart = campStart && campStart < dashStartDate ? campStart : (dashStartDate || firstDayOfMonthStr);
+                        const finalEnd = campEnd && campEnd > dashEndDate ? campEnd : (dashEndDate || todayStr);
+
+                        if (finalStart && finalEnd) {
+                            const logs = await window.CampaignEngine.fetchClinicLogs(finalStart, finalEnd, forceLive);
                             setClinicLogs(Array.isArray(logs) ? logs : []);
                             if (typeof window.supabaseSelect === 'function') {
-                                const cSales = await window.supabaseSelect('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${minStart}&date=lte.${maxEnd}&limit=5000`).catch(() => []);
+                                const cSales = await window.supabaseSelect('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${finalStart}&date=lte.${finalEnd}&limit=5000`).catch(() => []);
                                 if (Array.isArray(cSales) && cSales.length > 0) setCampaignSales(cSales);
                             }
                         }
@@ -207,7 +211,7 @@
                     console.warn("loadCampaigns error:", e);
                 }
             }
-        }, []);
+        }, [dashStartDate, dashEndDate, firstDayOfMonthStr, todayStr]);
 
         useEffect(() => {
             window.refreshDashboardCampaigns = () => loadCampaigns(true);
@@ -409,9 +413,9 @@
         const teamTopStats = useMemo(() => {
             if (!window.MlmLogic) return [];
             return window.MlmLogic.calcTeamTopStats({
-                sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate, products
+                sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate, products, clinicLogs
             });
-        }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customers, products]);
+        }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customers, products, clinicLogs]);
 
         const topPerformanceData = useMemo(() => {
             if (!window.MlmLogic) return [];
@@ -1522,7 +1526,7 @@
                      const globalIndex = (progressPage - 1) * ITEMS_PER_PAGE + idx;
                      const percent = Math.min((d.actual / d.target) * 100, 100);
                      const remaining = Math.max(d.target - d.actual, 0);
-                     const memInfo = (members || []).find(m => m.id === d.id);
+                     const memInfo = (members || []).find(m => m.id === d.id || m.user_id === d.id || (m.id && d.id && String(m.id).toUpperCase() === String(d.id).toUpperCase()) || (m.user_id && d.id && String(m.user_id).toUpperCase() === String(d.id).toUpperCase()));
                      const avatarUrl = cleanAvatarUrl(memInfo?.profileUrl, d.name);
                      return (
                         <div key={d.id} className="flex items-center gap-2 sm:gap-2.5 bg-slate-800/40 p-1.5 sm:p-2 rounded-xl border border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600 transition-colors group shadow-sm">

@@ -41,10 +41,30 @@
   const parseSaleDate = (s) => String(s?.date || s?.created_at || s?.sale_date || '').trim().substring(0, 10);
   const parseSaleMemberId = (s) => s?.memberId || s?.member_id || s?.sellerId || s?.seller_id;
   const parseSaleBoxes = (s) => {
-    // แก้บั๊กไม่ให้ระบบดึงยอดเก่าที่ผิดพลาดในฐานข้อมูลมาแสดงเมื่อคำนวณได้ 0
+    // 1. ตรวจสอบจากฟิลด์รวมชิ้นแบบเดิม
     const fQty = s?.['รวมชิ้นราคาเต็ม'] !== undefined ? Number(s['รวมชิ้นราคาเต็ม']) : Number(s?.fullQty || s?.full_qty || s?.full_boxes || 0);
     const mQty = s?.['รวมชิ้นราคาสมาชิก'] !== undefined ? Number(s['รวมชิ้นราคาสมาชิก']) : Number(s?.memberQty || s?.member_qty || s?.member_boxes || 0);
-    return fQty + mQty;
+    const sum = fQty + mQty;
+    if (sum > 0) return sum;
+
+    // 2. ตรวจสอบจาก items_json (โครงสร้างมาตรฐานของ Supabase)
+    if (s?.items_json) {
+      try {
+        const items = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+        if (Array.isArray(items) && items.length > 0) {
+          const itemBoxes = items.reduce((tot, it) => tot + Number(it.qty || it.quantity || 1), 0);
+          if (itemBoxes > 0) return itemBoxes;
+        }
+      } catch (e) {}
+    }
+
+    // 3. ตรวจสอบจาก total_bottles ของตาราง stk_sales
+    if (s?.total_bottles !== undefined && s?.total_bottles !== null) {
+      const tb = Number(s.total_bottles);
+      if (!isNaN(tb) && tb > 0) return tb;
+    }
+
+    return 0;
   };
 
   const findSaleCustomer = (s, customersList) => {
@@ -365,11 +385,12 @@
 
     let mTargetData = {};
     (activeTeamMembers || []).forEach(m => {
-      if (m && m.id) {
-        const targetVal = customMemberTargets && customMemberTargets[m.id] !== undefined 
-          ? customMemberTargets[m.id] 
+      if (m && (m.id || m.user_id)) {
+        const mKey = safeUpper(m.id || m.user_id);
+        const targetVal = customMemberTargets && (customMemberTargets[mKey] !== undefined || (m.id && customMemberTargets[m.id] !== undefined))
+          ? (customMemberTargets[mKey] !== undefined ? customMemberTargets[mKey] : customMemberTargets[m.id])
           : (Number(globalIndividualTarget) || 200);
-        mTargetData[m.id] = { id: m.id, name: m.name, team: m.team || '', actual: 0, target: targetVal };
+        mTargetData[mKey] = { id: m.id || m.user_id, name: m.name || m.id, team: m.team || m.business_team || '', actual: 0, target: targetVal };
       }
     });
 
@@ -402,7 +423,12 @@
             teamSalesMap[bt.id] = (teamSalesMap[bt.id] || 0) + countedBoxes;
           }
         });
-        if (mTargetData[mem.id]) mTargetData[mem.id].actual += countedBoxes;
+        const mKey = safeUpper(mem.id || mem.user_id);
+        if (mTargetData[mKey]) {
+          mTargetData[mKey].actual += countedBoxes;
+        } else if (mTargetData[mem.id]) {
+          mTargetData[mem.id].actual += countedBoxes;
+        }
       }
     });
 
@@ -425,7 +451,7 @@
     return { teamsList, memberTargetData: Object.values(mTargetData).sort((a, b) => b.actual - a.actual) };
   };
 
-  const calcTeamTopStats = ({ sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate, products = [] }) => {
+  const calcTeamTopStats = ({ sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate, products = [], clinicLogs = [] }) => {
     const map = {};
     (activeBusinessTeams || []).forEach(t => {
       map[t.id] = { 
@@ -528,6 +554,41 @@
         }
       }
     });
+
+    // เพิ่มคนมาตรวจจริงจาก Clinic Logs เข้าสู่ทีม
+    if (Array.isArray(clinicLogs) && clinicLogs.length > 0) {
+      clinicLogs.forEach(c => {
+        if (!c) return;
+        const logDate = String(c.created_at || '').substring(0, 10);
+        if (dashStartDate && logDate < dashStartDate) return;
+        if (dashEndDate && logDate > dashEndDate) return;
+
+        const refStr = String(c.referrer_id || c.referrer_name || '').trim().toUpperCase();
+        const firstWord = refStr.split(/[\s-]+/)[0];
+        const mem = (members || []).find(m => {
+          if (!m) return false;
+          const uId = safeUpper(m.id || m.user_id);
+          const uName = safeUpper(m.name);
+          return uId === firstWord || refStr.includes(uId) || (uName && refStr.includes(uName));
+        });
+        if (!mem) return;
+
+        const memTeam = String(mem.team || mem.business_team || mem.businessTeam || '').trim().toUpperCase();
+        let targetTeamId = null;
+        (activeBusinessTeams || []).forEach(bt => {
+          const btId = String(bt.id || bt.team_id || '').toUpperCase();
+          const btName = String(bt.name || bt.team_name || '').toUpperCase();
+          if ((btId && memTeam === btId) || (btName && memTeam === btName)) {
+            targetTeamId = bt.id || bt.team_id;
+          }
+        });
+
+        if (targetTeamId && map[targetTeamId]) {
+          const vKey = extractPureVisitKey(c.visit_id) || (c.visit_id ? ('VIS_' + String(c.visit_id).trim().toUpperCase()) : ('LOG_' + String(c.patient_name || c.id).trim().toUpperCase()));
+          if (vKey) map[targetTeamId].newCustSet.add(vKey);
+        }
+      });
+    }
 
     const palette = [
       { text: "text-blue-400", checkupText: "text-blue-300", strokeLeft: "#3b82f6", strokeRight: "#93c5fd", bg: "bg-blue-600/20", border: "border-blue-500/40", hoverBg: "group-hover:bg-blue-600" },

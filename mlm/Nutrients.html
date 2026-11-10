@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -2240,10 +2240,10 @@
           const userStr = localStorage.getItem('stk_current_user') || localStorage.getItem('stk_user');
           if (userStr) return JSON.parse(userStr);
         } catch (e) { }
-        return { name: 'Administrator', role: 'ผู้ดูแลระบบ' };
+        return null;
       });
-      const [isLoggedIn, setIsLoggedIn] = useState(true);
-      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('stk_current_user'));
+      const [showLoginModal, setShowLoginModal] = useState(() => !localStorage.getItem('stk_current_user'));
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
       });
@@ -2269,11 +2269,17 @@
       };
 
       const handleLogout = () => {
-        localStorage.removeItem('stk_current_user');
-        localStorage.removeItem('stk_user');
-        setCurrentUser(null);
-        setIsLoggedIn(false);
-        if (window.resolvePageUrl) window.location.href = window.resolvePageUrl('?page=dashboard');
+        if (typeof window.performGlobalLogout === 'function') {
+          window.performGlobalLogout();
+        } else {
+          localStorage.removeItem('stk_current_user');
+          localStorage.removeItem('stk_user');
+          setCurrentUser(null);
+          setIsLoggedIn(false);
+          setShowLoginModal(true);
+          const targetUrl = (typeof window.resolvePageUrl === 'function') ? window.resolvePageUrl('?page=dashboard&login=1') : 'Mlm.html?login=1';
+          window.location.href = targetUrl;
+        }
       };
 
       return (
@@ -2284,7 +2290,7 @@
               activePage="nutrients"
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
-              isAdmin={true}
+              isAdmin={currentUser ? (String(currentUser.role || '').includes('แอดมิน') || String(currentUser.role || '').toLowerCase().includes('admin')) : false}
               onLogout={handleLogout}
               showLoginModal={showLoginModal}
               setShowLoginModal={setShowLoginModal}
@@ -2296,13 +2302,36 @@
 
           {/* Main View */}
           <main class={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
-            <NutrientsView />
+            {currentUser && isLoggedIn ? (
+              <NutrientsView />
+            ) : (
+              <div class="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[60vh]">
+                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3 text-slate-400">
+                  <PillIcon size={32} />
+                </div>
+                <h2 class="text-xl font-bold text-slate-800 mb-1">กรุณาเข้าสู่ระบบ</h2>
+                <p class="text-xs text-slate-500 mb-4">คุณต้องเข้าสู่ระบบเพื่อดูข้อมูลและสั่งจ่ายยา</p>
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                >
+                  ล็อกอินเข้าสู่ระบบ
+                </button>
+              </div>
+            )}
           </main>
 
           {LoginModalComp ? (
             <LoginModalComp
               isOpen={showLoginModal}
-              onClose={() => setShowLoginModal(false)}
+              onClose={() => {
+                if (!currentUser) {
+                  const targetUrl = (typeof window.resolvePageUrl === 'function') ? window.resolvePageUrl('?page=dashboard&login=1') : 'Mlm.html?login=1';
+                  window.location.href = targetUrl;
+                } else {
+                  setShowLoginModal(false);
+                }
+              }}
               onLoginSuccess={handleLoginSuccess}
             />
           ) : null}

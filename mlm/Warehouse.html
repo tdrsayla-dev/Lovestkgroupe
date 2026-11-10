@@ -1970,7 +1970,7 @@
           const lateSalesQty = (existingAudit && existingAudit.sales_qty !== undefined && existingAudit.sales_qty !== null)
             ? (Number(dateSales || 0) - Number(existingAudit.sales_qty || 0))
             : 0;
-          const hasLateSales = Boolean(existingAudit && lateSalesQty !== 0);
+                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
 
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
@@ -2058,7 +2058,7 @@
             totalStockQty: Number(item.totalStock || 0),
             physicalCount: physCount,
             diff: diff,
-            hasLateSales: hasLateSales,
+                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
             lateSalesQty: lateSalesQty,
             liveSalesQty: dateSales,
             prevDate: prevDate,
@@ -2263,7 +2263,7 @@
       // ฟังก์ชันซิงค์บิลตกค้างหลังปิดยอด (Late Sales Auto-Sync)
       const handleSyncLateSales = async () => {
         if (!dailyReconciliation || dailyReconciliation.length === 0) return;
-        const lateItems = dailyReconciliation.filter(r => r.hasLateSales);
+                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
         if (lateItems.length === 0) {
           showToast('ไม่พบบิลขายที่บันทึกหลังปิดยอด ยอดขายตรงตามระบบแล้ว', 'info');
           return;
@@ -5379,7 +5379,7 @@
                       )}
 
                       {/* Late Sales Warning & Sync Banner */}
-                      {Boolean(dailyReconciliation && dailyReconciliation.some(r => r.hasLateSales)) && (
+                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
                         <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-pulse">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -5387,10 +5387,10 @@
                             </div>
                             <div>
                               <p className="font-black text-xs text-amber-900 dark:text-amber-200">
-                                à¸•à¸£à¸§à¸ˆà¸žà¸šà¸šà¸´à¸¥à¸‚à¸²à¸¢à¸—à¸µà¹ˆà¸šà¸±à¸™à¸—à¸¶à¸à¸«à¸¥à¸±à¸‡à¸à¸²à¸£à¸›à¸´à¸”à¸¢à¸­à¸” ({dailyReconciliation.filter(r => r.hasLateSales).length} à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²)
+                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
                               </p>
                               <p className="text-[11px] text-amber-700 dark:text-amber-300/90 mt-0.5">
-                                à¸¡à¸µà¸à¸²à¸£à¹€à¸›à¸´à¸”à¸šà¸´à¸¥à¸‚à¸²à¸¢à¸«à¸£à¸·à¸­à¸›à¸£à¸±à¸šà¸¢à¸­à¸”à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸à¸à¸”à¸›à¸´à¸”à¸¢à¸­à¸”à¹„à¸›à¹à¸¥à¹‰à¸§ à¸—à¸³à¹ƒà¸«à¹‰à¸¢à¸­à¸”à¸‚à¸²à¸¢à¹à¸¥à¸°à¸ªà¸•à¹‡à¸­à¸à¸•à¸²à¸¡à¸£à¸°à¸šà¸šà¸„à¸¥à¸²à¸”à¹€à¸„à¸¥à¸·à¹ˆà¸­à¸™
+                                มีการเปิดบิลขายหรือปรับยอดหลังจากกดปิดยอดไปแล้ว ทำให้ยอดขายและสต็อกตามระบบคลาดเคลื่อน
                               </p>
                             </div>
                           </div>
@@ -5401,7 +5401,7 @@
                             className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                           >
                             <RefreshCw size={13} className={isSavingAudit ? "animate-spin" : ""} />
-                            <span>à¸‹à¸´à¸‡à¸„à¹Œà¸¢à¸­à¸”à¸‚à¸²à¸¢à¸šà¸´à¸¥à¸•à¸à¸„à¹‰à¸²à¸‡à¸—à¸±à¸™à¸—à¸µ</span>
+                            <span>ซิงค์ยอดขายบิลตกค้างทันที</span>
                           </button>
                         </div>
                       )}

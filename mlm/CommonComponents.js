@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // 📌 STK GROUPE - Common Components & Utilities (Pure JS)
 // ==========================================
 (function () {
@@ -688,6 +688,9 @@
               }
             }
           }
+          if (href.includes('login=1')) {
+            targetFile += (targetFile.includes('?') ? '&' : '?') + 'login=1';
+          }
           return targetFile + hashPart;
         }
       }
@@ -1157,32 +1160,20 @@
     // 🔒 ระบบออกจากระบบสมบูรณ์แบบ: ล้างแคชและหน่วยความจำทั้งหมด + เด้งไปหน้าล็อกอินเสมอทุกครั้ง
     const handleLogoutAction = (e) => {
       if (e && e.preventDefault) e.preventDefault();
-      try {
-        localStorage.removeItem('stk_current_user');
-        localStorage.removeItem('stk_app_cache_data');
-        localStorage.removeItem('stk_last_activity');
-        sessionStorage.clear();
-        localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
-      } catch (err) {
-        console.warn('Logout clear error:', err);
-      }
-
       if (typeof onLogout === 'function') {
-        try {
-          onLogout();
-        } catch (err) {
-          console.warn('Custom onLogout error:', err);
-        }
+        try { onLogout(); } catch (_) {}
       }
-
-      const targetUrl = resolvePageUrl(SCRIPT_URL + '?page=dashboard&login=1');
-      try {
-        if (window.top && window.top !== window && window.top.location) {
-          window.top.location.href = targetUrl;
-          return;
-        }
-      } catch (err) {}
-      window.location.href = targetUrl;
+      if (typeof window.performGlobalLogout === 'function') {
+        window.performGlobalLogout();
+      } else {
+        try {
+          localStorage.removeItem('stk_current_user');
+          localStorage.removeItem('stk_app_cache_data');
+          sessionStorage.clear();
+        } catch (_) {}
+        const targetUrl = resolvePageUrl(SCRIPT_URL + '?page=dashboard&login=1');
+        window.location.href = targetUrl;
+      }
     };
 
     const handleToggleSidebarCollapse = (val) => {
@@ -1537,14 +1528,14 @@
           }
 
           const savedUser = localStorage.getItem('stk_saved_username');
-          const savedPass = localStorage.getItem('stk_saved_password');
-          if (savedUser && savedPass) {
+          if (savedUser) {
             setUsername(savedUser);
-            setPassword(atob(savedPass));
             setRememberMe(true);
           }
+          // 🛡️ ป้องกันความปลอดภัย: ลบรหัสผ่านที่เคยเก็บใน localStorage ทิ้งทั้งหมด
+          try { localStorage.removeItem('stk_saved_password'); } catch(_) {}
         } catch (err) {
-          console.warn("เบราว์เซอร์บล็อกการจดจำรหัสผ่าน");
+          console.warn("เบราว์เซอร์บล็อกการจดจำชื่อผู้ใช้");
         }
       }
     }, [isOpen]);
@@ -1563,13 +1554,13 @@
         try {
           if (rememberMe) {
             localStorage.setItem('stk_saved_username', inputUser);
-            localStorage.setItem('stk_saved_password', btoa(inputPass));
           } else {
             localStorage.removeItem('stk_saved_username');
-            localStorage.removeItem('stk_saved_password');
           }
+          // 🛡️ ไม่เก็บรหัสผ่านลงใน localStorage เด็ดขาด
+          localStorage.removeItem('stk_saved_password');
         } catch (err) {
-          console.warn("ไม่สามารถบันทึกการจดจำรหัสผ่านได้");
+          console.warn("ไม่สามารถบันทึกการจดจำชื่อผู้ใช้ได้");
         }
         if (typeof window.resetSessionInactivityTimer === 'function') {
           window.resetSessionInactivityTimer();
@@ -1587,78 +1578,58 @@
       };
 
       try {
-        let members = [];
-        let fetchErrorDetail = '';
-        const safeUser = encodeURIComponent(inputUser);
-
-        // 1. ลองดึงผ่าน window.supabaseSelect (REST API)
-        if (typeof window.supabaseSelect === 'function') {
+        // 🔒 วิธีที่ 1: ตรวจสอบผ่าน Supabase Stored Procedure (RPC) - ปลอดภัยสูงสุด
+        // รหัสผ่านจะไม่ถูกส่งออกมาที่หน้าเว็บ ฐานข้อมูล Supabase จะตรวจให้เอง
+        if (window.supabaseClient && typeof window.supabaseClient.rpc === 'function') {
           try {
-            const loginQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash,id_card_url&nocache=true`;
-            const matched = await window.supabaseSelect('stk_members', loginQuery);
-            if (Array.isArray(matched) && matched.length > 0) {
-              members = matched;
-            }
-          } catch (fetchErr) {
-            console.warn("REST query with id_card_url failed, trying lightweight query:", fetchErr);
-            fetchErrorDetail = fetchErr.message || String(fetchErr);
-            // Retry แบบ Lightweight
-            try {
-              const lightQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash&nocache=true`;
-              const matchedLight = await window.supabaseSelect('stk_members', lightQuery);
-              if (Array.isArray(matchedLight) && matchedLight.length > 0) {
-                members = matchedLight;
-                fetchErrorDetail = '';
+            const { data, error } = await window.supabaseClient.rpc('verify_member_login', {
+              p_username: inputUser,
+              p_password: inputPass
+            });
+
+            if (!error && data) {
+              setIsLoading(false);
+              if (data.success && data.user) {
+                processSuccess(data.user);
+                return;
+              } else {
+                setError(data.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+                return;
               }
-            } catch (lightErr) {
-              console.warn("REST lightweight query failed:", lightErr);
-              fetchErrorDetail = lightErr.message || String(lightErr);
             }
+          } catch (rpcErr) {
+            console.warn('[Secure Login] RPC error, trying fallback:', rpcErr);
           }
         }
 
-        // 2. ถ้า REST API ไม่ผ่าน ให้ลองดึงผ่าน Supabase JS Client SDK
-        if ((!members || members.length === 0) && window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+        // 🛡️ วิธีที่ 2 (Fallback): ดึงเฉพาะ User รายคนเดียว (ไม่ดึงคนอื่น 500 คนลงมาเด็ดขาด)
+        let members = [];
+        const safeUser = encodeURIComponent(inputUser);
+
+        if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
           try {
             const { data, error } = await window.supabaseClient
               .from('stk_members')
               .select('user_id,username,name,permission_role,status,password_hash,id_card_url')
-              .or(`username.ilike.${safeUser},user_id.ilike.${safeUser}`);
+              .or(`username.ilike.${safeUser},user_id.ilike.${safeUser}`)
+              .limit(1);
             if (!error && Array.isArray(data) && data.length > 0) {
               members = data;
-              fetchErrorDetail = '';
             }
           } catch (sdkErr) {
-            console.warn("Supabase SDK query fallback failed:", sdkErr);
+            console.warn("Supabase SDK single user fallback failed:", sdkErr);
           }
         }
 
-        // 3. Fallback: ถ้ายังไม่ได้ ให้ลองดึงรายชื่อเบื้องต้น 500 คนแบบ lightweight
-        if (!members || members.length === 0) {
-          if (typeof window.supabaseSelect === 'function') {
-            try {
-              const batch = await window.supabaseSelect('stk_members', 'select=user_id,username,name,permission_role,status,password_hash&limit=500');
-              if (Array.isArray(batch) && batch.length > 0) {
-                members = batch;
-                fetchErrorDetail = '';
-              }
-            } catch(e) {}
-          }
-        }
-
-        // 4. Fallback โหมดออฟไลน์ (Local/Session Cache)
-        if (!members || members.length === 0) {
+        if ((!members || members.length === 0) && typeof window.supabaseSelect === 'function') {
           try {
-            const cachedApp = localStorage.getItem('stk_app_cache_data');
-            if (cachedApp) {
-              const parsed = JSON.parse(cachedApp);
-              if (Array.isArray(parsed?.members) && parsed.members.length > 0) {
-                members = parsed.members;
-              }
+            const singleQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash,id_card_url&limit=1&nocache=true`;
+            const matched = await window.supabaseSelect('stk_members', singleQuery);
+            if (Array.isArray(matched) && matched.length > 0) {
+              members = matched;
             }
-          } catch(e) {}
-          if ((!members || members.length === 0) && Array.isArray(systemUsers) && systemUsers.length > 0) {
-            members = systemUsers;
+          } catch (fetchErr) {
+            console.warn("REST query single user failed:", fetchErr);
           }
         }
 
@@ -2067,24 +2038,19 @@
   const Header = ({ currentUser, onLogout }) => {
     const handleHeaderLogout = (e) => {
       if (e && e.preventDefault) e.preventDefault();
-      try {
-        localStorage.removeItem('stk_current_user');
-        localStorage.removeItem('stk_app_cache_data');
-        localStorage.removeItem('stk_last_activity');
-        sessionStorage.clear();
-        localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
-      } catch (err) {}
       if (typeof onLogout === 'function') {
-        try { onLogout(); } catch (err) {}
+        try { onLogout(); } catch (_) {}
       }
-      const targetUrl = resolvePageUrl('?page=dashboard&login=1');
-      try {
-        if (window.top && window.top !== window && window.top.location) {
-          window.top.location.href = targetUrl;
-          return;
-        }
-      } catch (err) {}
-      window.location.href = targetUrl;
+      if (typeof window.performGlobalLogout === 'function') {
+        window.performGlobalLogout();
+      } else {
+        try {
+          localStorage.removeItem('stk_current_user');
+          sessionStorage.clear();
+        } catch (_) {}
+        const targetUrl = (typeof resolvePageUrl === 'function') ? resolvePageUrl('?page=dashboard&login=1') : 'Mlm.html?login=1';
+        window.location.href = targetUrl;
+      }
     };
 
     return React.createElement('header', {
@@ -2258,16 +2224,77 @@
   window.SystemFooter = SystemFooter;
   window.performGlobalLogout = (cb) => {
     try {
+      // 1. ล้างข้อมูลผู้ใช้และเซสชันทั้งหมด
       localStorage.removeItem('stk_current_user');
-      localStorage.removeItem('stk_app_cache_data');
+      localStorage.removeItem('stk_user');
       localStorage.removeItem('stk_last_activity');
+      localStorage.removeItem('stk_last_activity_date');
+      localStorage.removeItem('stk_saved_password');
+
+      // 2. ล้างข้อมูลแคชธุรกิจทุกตาราง เพื่อไม่ให้มีข้อมูลค้างตอนออกจากระบบ
+      const keysToRemove = [
+        'stk_app_cache_data',
+        'stk_app_cache_time',
+        'stk_reports_cache_data',
+        'stk_reports_cache_time',
+        'stk_app_cache_movements',
+        'stk_transfer_history',
+        'stk_grn_history',
+        'stk_clinic_doctors_cache',
+        'stk_admin_products_full',
+        'stk_warehouse_audit_cache',
+        'stk_nutrient_orders_view_cache',
+        'stk_cart_items',
+        'stk_sales_cart',
+        'stk_pos_draft_bill',
+        'stk_draft_order',
+        'stk_deleted_orders_log'
+      ];
+      keysToRemove.forEach(k => {
+        try { localStorage.removeItem(k); } catch (_) {}
+      });
+
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (
+          k.startsWith('stk_qc_') ||
+          k.startsWith('stk_warehouse_') ||
+          k.startsWith('stk_campaign_eval_') ||
+          k.startsWith('stk_clinic_logs_') ||
+          k.startsWith('stk_rep_') ||
+          k.startsWith('stk_nutrient_') ||
+          k.startsWith('stk_pos_') ||
+          k === 'stkDbCache'
+        )) {
+          try { localStorage.removeItem(k); } catch (_) {}
+        }
+      }
+
+      // 3. ล้าง sessionStorage ทั้งหมด
       sessionStorage.clear();
+
+      // 4. ล้าง in-memory cache
+      if (typeof window.clearDbCache === 'function') window.clearDbCache();
+      if (window.stkDbCache) window.stkDbCache = null;
+      try {
+        if (window.top && window.top.stkDbCache) window.top.stkDbCache = null;
+      } catch (_) {}
+
+      // 5. แจ้งเตือนทุกแท็บที่เปิดอยู่ให้ออกจากระบบพร้อมกัน
       localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
-    } catch (err) {}
+    } catch (err) {
+      console.warn('Global logout clear error:', err);
+    }
+
     if (typeof cb === 'function') {
       try { cb(); } catch (err) {}
     }
-    const targetUrl = resolvePageUrl('?page=dashboard&login=1');
+
+    // 6. ดีดกลับไปที่หน้าล็อกอินหลัก (Mlm.html?login=1) เสมอทุกครั้ง
+    const targetUrl = (typeof resolvePageUrl === 'function')
+      ? resolvePageUrl('?page=dashboard&login=1')
+      : 'Mlm.html?login=1';
+
     try {
       if (window.top && window.top !== window && window.top.location) {
         window.top.location.href = targetUrl;

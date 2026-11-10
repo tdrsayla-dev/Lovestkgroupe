@@ -164,7 +164,7 @@
   function isProductEligibleForReferral(prodConfig) {
     if (!prodConfig) return false;
     const status = String(prodConfig.status || "").trim();
-    if (status === "à¸¢à¸à¹€à¸¥à¸´à¸" || status === "inactive") return false;
+    if (status === "ยกเลิก" || status === "inactive") return false;
 
     const givePv = Number(prodConfig.givePv ?? prodConfig.give_pv ?? prodConfig.b2n_give_pv ?? 0);
     const selfFee = Number(prodConfig.selfFee ?? prodConfig.self_fee ?? prodConfig.directFee ?? prodConfig.level0Fee ?? 0);
@@ -442,7 +442,7 @@
       if (c.includes('02') || c.includes('SUPPLEMENT 02') || c.includes('SUPPLEMENT02')) return 'Supplement02';
       if (c.includes('SUPPLEMENT')) return 'Supplement';
 
-      // à¸à¸£à¸“à¸µ category à¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸ à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸•à¸²à¸¡à¸„à¸³à¸ªà¸³à¸„à¸±à¸à¸‚à¸­à¸‡à¸Šà¸·à¹ˆà¸­à¸ªà¸´à¸™à¸„à¹‰à¸²
+      // กรณี category ไม่ระบุ ตรวจสอบตามคำสำคัญของชื่อสินค้า
       const n = safeUpper(pName);
       if (n.includes('COFFEE') || n.includes('ARABICA')) return 'Coffee';
       if (n.includes('02') || n.includes('GLUTA') || n.includes('COLLAGEN') || n.includes('BALANCE') || n.includes('KUT-SO') || n.includes('LIPO') || n.includes('LUTEIN') || n.includes('ORYZA')) return 'Supplement02';

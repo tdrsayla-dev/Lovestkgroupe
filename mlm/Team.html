@@ -1171,17 +1171,17 @@ ${directPdfScript}
 
     const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products, currentUser, loading, refreshData }) => {
         const defaultRolePermissions = {
-            'à¸œà¸¹à¹‰à¸”à¸¹à¹à¸¥à¸£à¸°à¸šà¸š': {
+            'ผู้ดูแลระบบ': {
                 dashboard: 'full', reports: 'full', orgchart: 'full', sales: 'full', nutrients: 'full', customers: 'full',
                 team: 'full', business_teams: 'full', stock: 'full', customer_types: 'full', closers: 'full',
                 exchange_rate: 'full', system_users: 'full'
             },
-            'à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸à¸²à¸£à¸•à¸¥à¸²à¸”': {
+            'พนักงานการตลาด': {
                 dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', customers: 'none',
                 team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
                 exchange_rate: 'none', system_users: 'none'
             },
-            'à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸—à¸±à¹ˆà¸§à¹„à¸›': {
+            'พนักงานทั่วไป': {
                 dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', nutrients: 'edit', customers: 'view',
                 team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
                 exchange_rate: 'none', system_users: 'none'

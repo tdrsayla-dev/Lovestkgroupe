@@ -1,5 +1,5 @@
 // ================================================================
-// âš™ï¸ CONFIG.JS - à¸à¸²à¸£à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸²à¸£à¸°à¸šà¸šà¹à¸¥à¸°à¸à¸²à¸£à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­ Supabase Database à¸à¸¥à¸²à¸‡
+// ⚙️ CONFIG.JS - การตั้งค่าระบบและการเชื่อมต่อ Supabase Database กลาง
 // LOVE STK GROUPE System Configuration
 // ================================================================
 
@@ -8,8 +8,9 @@
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
   const APP_VERSION = '2026.11.07.04';
+  window.APP_VERSION = APP_VERSION;
 
-  // ðŸŒŸ Global Favicon Manager (à¸£à¸±à¸šà¸›à¸£à¸°à¸à¸±à¸™à¹‚à¸¥à¹‚à¸à¹‰à¸‚à¸¶à¹‰à¸™à¸šà¸™à¹à¸—à¹‡à¸šà¸šà¸£à¸²à¸§à¹€à¸‹à¸­à¸£à¹Œà¸—à¸¸à¸à¸«à¸™à¹‰à¸² 100%)
+  // 🌟 Global Favicon Manager (รับประกันโลโก้ขึ้นบนแท็บเบราว์เซอร์ทุกหน้า 100%)
   (function installGlobalFavicon() {
     const applyFavicon = (href) => {
       if (!href || typeof document === 'undefined') return;
@@ -32,7 +33,7 @@
         if (shortcut && shortcut.getAttribute('href') !== href) {
           shortcut.href = href;
         }
-      } catch (_) {}
+      } catch (_) { }
     };
 
     try {
@@ -43,7 +44,7 @@
           applyFavicon(comp.logoUrl);
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     if (typeof window !== 'undefined') {
       window.addEventListener('company_settings_updated', (e) => {
@@ -54,14 +55,13 @@
           try {
             const parsed = JSON.parse(e.newValue);
             if (parsed && parsed.logoUrl) applyFavicon(parsed.logoUrl);
-          } catch (_) {}
+          } catch (_) { }
         }
       });
     }
   })();
-  window.APP_VERSION = APP_VERSION;
 
-  // ðŸ›¡ï¸ Global QuotaExceeded Protection for localStorage & sessionStorage
+  // 🛡️ Global QuotaExceeded Protection for localStorage & sessionStorage
   (function installStorageGuard() {
     try {
       if (typeof Storage === 'undefined' || !Storage.prototype || Storage.prototype._guarded) return;
@@ -73,6 +73,7 @@
           'stk_reports_cache_data',
           'stk_reports_cache_time',
           'stk_app_cache_movements',
+          'stk_payout_history',
           'stk_transfer_history',
           'stk_grn_history',
           'stk_clinic_doctors_cache'
@@ -160,32 +161,31 @@
     }
   })();
 
-  // ðŸ›¡ï¸ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
+  // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
   try {
     const savedVer = localStorage.getItem('stk_app_version');
     if (savedVer && savedVer !== APP_VERSION) {
-      console.log(`%cðŸ”„ New App Version detected (${savedVer} -> ${APP_VERSION}). Refreshing cache...`, 'color:#3b82f6;font-weight:bold;');
+      console.log(`%c🔄 New App Version detected (${savedVer} -> ${APP_VERSION}). Refreshing cache...`, 'color:#3b82f6;font-weight:bold;');
       localStorage.removeItem('stk_app_cache_data');
       localStorage.removeItem('stk_reports_cache_data');
       localStorage.removeItem('stk_app_cache_time');
       localStorage.removeItem('stk_clinic_doctors_cache');
       sessionStorage.removeItem('stk_admin_products_full');
       sessionStorage.removeItem('stk_warehouse_audit_cache');
-      sessionStorage.removeItem('stk_nutrient_orders_view_cache');
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const k = sessionStorage.key(i);
         if (k && (k.startsWith('stk_qc_') || k.startsWith('stk_warehouse_'))) sessionStorage.removeItem(k);
-        if (k && (k.startsWith('stk_campaign_eval_') || k.startsWith('stk_rep_campaign_eval_') || k.startsWith('stk_clinic_logs_'))) sessionStorage.removeItem(k);
+        if (k && k.startsWith('stk_campaign_eval_')) sessionStorage.removeItem(k);
       }
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('stk_campaign_eval_') || k.startsWith('stk_rep_campaign_eval_') || k.startsWith('stk_clinic_logs_'))) localStorage.removeItem(k);
+        if (k && k.startsWith('stk_campaign_eval_')) localStorage.removeItem(k);
       }
     }
     localStorage.setItem('stk_app_version', APP_VERSION);
   } catch (e) {}
 
-  // ðŸ›¡ï¸ Global Safe JSON Parser Helper
+  // 🛡️ Global Safe JSON Parser Helper
   window.safeJsonParse = function(raw, fallback) {
     if (raw === null || raw === undefined) return fallback !== undefined ? fallback : null;
     if (typeof raw !== 'string') return raw;
@@ -197,17 +197,27 @@
   };
 
 
-  // 1. à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸² Environments & API Keys
+    // 1. ตั้งค่า Environments & API Keys (รองรับการเชื่อมต่อผ่าน Node.js Egress Shield เมื่อรันบน Server)
+  const isStaticHost = (typeof window !== 'undefined' && window.location && (
+    window.location.hostname.endsWith('github.io') ||
+    window.location.hostname.endsWith('surge.sh') ||
+    window.location.hostname.endsWith('gitlab.io') ||
+    window.location.port === '5500' ||
+    window.location.port === '5501' ||
+    window.location.port === '8000' ||
+    window.location.port === '8080'
+  ));
+  const isHostedOnServer = (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http') && !isStaticHost);
   const CONFIG = {
-    SUPABASE_URL: 'https://mfpkeyrykqnrywyksyqp.supabase.co',
+    SUPABASE_URL: isHostedOnServer ? (window.location.origin + '/api') : 'https://mfpkeyrykqnrywyksyqp.supabase.co',
     SUPABASE_ANON_KEY: 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO'
   };
 
-  // Expose CONFIG à¹„à¸›à¸—à¸µà¹ˆ window
+  // Expose CONFIG ไปที่ window
   window.APP_CONFIG = CONFIG;
   window.SUPABASE_URL = CONFIG.SUPABASE_URL;
   window.SUPABASE_ANON_KEY = CONFIG.SUPABASE_ANON_KEY;
-  window.SUPABASE_REST_URL = CONFIG.SUPABASE_URL + '/rest/v1';
+  window.SUPABASE_REST_URL = isHostedOnServer ? (window.location.origin + '/api/rest/v1') : (CONFIG.SUPABASE_URL + '/rest/v1');
   window.SUPABASE_HEADERS = {
     'Content-Type': 'application/json',
     'apikey': CONFIG.SUPABASE_ANON_KEY,
@@ -215,28 +225,28 @@
     'Prefer': 'return=representation'
   };
 
-
   // Global cleanMojibake Helper (ถอดรหัสภาษาเอเลี่ยน Latin-1/UTF-8)
-  window.cleanMojibake = function(text) {
+  window.cleanMojibake = function (text) {
     if (!text || typeof text !== 'string') return text || '';
     if (text.indexOf('à') !== -1 || text.indexOf('Ã') !== -1 || text.indexOf('Â') !== -1) {
       try {
         var decoded = decodeURIComponent(escape(text));
         if (decoded && decoded !== text) return decoded;
-      } catch (e) {}
+      } catch (e) { }
     }
     return text;
   };
-  // 1.1 Clinic Database Config (Supabase à¸„à¸¥à¸´à¸™à¸´à¸à¸ à¸²à¸¢à¸™à¸­à¸)
+
+  // 1.1 Clinic Database Config (Supabase คลินิกภายนอก)
   const CLINIC_CONFIG = {
-    SUPABASE_URL: 'https://fpmstumpobbjozflkola.supabase.co',
+    SUPABASE_URL: isHostedOnServer ? (window.location.origin + '/api/clinic') : 'https://fpmstumpobbjozflkola.supabase.co',
     SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbXN0dW1wb2Jiam96Zmxrb2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MDE0NDcsImV4cCI6MjA5OTQ3NzQ0N30.qTn4UHISBY9A5fX83ANk0mu3JSgK42ByLZ9xPh2TEvM'
   };
 
   window.CLINIC_CONFIG = CLINIC_CONFIG;
   window.CLINIC_SUPABASE_URL = CLINIC_CONFIG.SUPABASE_URL;
   window.CLINIC_SUPABASE_ANON_KEY = CLINIC_CONFIG.SUPABASE_ANON_KEY;
-  window.CLINIC_SUPABASE_REST_URL = CLINIC_CONFIG.SUPABASE_URL + '/rest/v1';
+  window.CLINIC_SUPABASE_REST_URL = isHostedOnServer ? (window.location.origin + '/api/clinic/rest/v1') : (CLINIC_CONFIG.SUPABASE_URL + '/rest/v1');
   window.CLINIC_SUPABASE_HEADERS = {
     'Content-Type': 'application/json',
     'apikey': CLINIC_CONFIG.SUPABASE_ANON_KEY,
@@ -244,38 +254,38 @@
     'Prefer': 'return=representation'
   };
 
-  // 2. Initialise Supabase Client SDK (à¸–à¹‰à¸²à¸¡à¸µ Library supabase à¹‚à¸«à¸¥à¸”à¹€à¸‚à¹‰à¸²à¸¡à¸²)
+  // 2. Initialise Supabase Client SDK (ถ้ามี Library supabase โหลดเข้ามา)
   if (typeof supabase !== 'undefined' && (!window.supabaseClient || typeof window.supabaseClient.from !== 'function')) {
     try {
       window.supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-      console.log('%câœ… Supabase Connected via config.js!', 'color:#10b981;font-weight:bold;', CONFIG.SUPABASE_URL);
+      console.log('%c✅ Supabase Connected via config.js!', 'color:#10b981;font-weight:bold;', CONFIG.SUPABASE_URL);
     } catch (e) {
       console.warn('Supabase Client init error:', e);
     }
   }
 
-  // 3. à¸£à¸°à¸šà¸š Smart In-Memory Cache (TTL) à¸ªà¸³à¸«à¸£à¸±à¸šà¸¥à¸”à¸›à¸£à¸´à¸¡à¸²à¸“à¸à¸²à¸£à¸”à¸¶à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ (Egress)
+  // 3. ระบบ Smart In-Memory Cache (TTL) สำหรับลดปริมาณการดึงข้อมูลซ้ำซ้อน (Egress)
   const queryCache = new Map();
-  // à¸à¸³à¸«à¸™à¸”à¸­à¸²à¸¢à¸¸à¹à¸„à¸Šà¸•à¸²à¸¡à¸›à¸£à¸°à¹€à¸ à¸—à¸•à¸²à¸£à¸²à¸‡ (à¸¡à¸´à¸¥à¸¥à¸´à¸§à¸´à¸™à¸²à¸—à¸µ)
+  // กำหนดอายุแคชตามประเภทตาราง (มิลลิวินาที)
   const CACHE_TTL_CONFIG = {
-    'stk_products': 3 * 60 * 1000,         // à¸ªà¸´à¸™à¸„à¹‰à¸² 3 à¸™à¸²à¸—à¸µ
-    'stk_customer_types': 5 * 60 * 1000,   // à¸›à¸£à¸°à¹€à¸ à¸—à¸¥à¸¹à¸à¸„à¹‰à¸² 5 à¸™à¸²à¸—à¸µ
-    'stk_closers': 5 * 60 * 1000,          // à¸«à¸¡à¸­/à¸œà¸¹à¹‰à¸›à¸´à¸”à¸à¸²à¸£à¸‚à¸²à¸¢ 5 à¸™à¸²à¸—à¸µ
-    'stk_business_teams': 5 * 60 * 1000,   // à¸ªà¸²à¸¢à¸‡à¸²à¸™/à¸—à¸µà¸¡ 5 à¸™à¸²à¸—à¸µ
-    'stk_system_settings': 5 * 60 * 1000,  // à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸²à¸£à¸°à¸šà¸š 5 à¸™à¸²à¸—à¸µ
-    'stk_members': 3 * 60 * 1000,          // à¸£à¸²à¸¢à¸Šà¸·à¹ˆà¸­à¸ªà¸¡à¸²à¸Šà¸´à¸ 3 à¸™à¸²à¸—à¸µ
-    'stk_sales': 45 * 1000,                // à¸¢à¸­à¸”à¸‚à¸²à¸¢ 45 à¸§à¸´à¸™à¸²à¸—à¸µ
-    'stk_nutrient_orders': 30 * 1000,      // à¸­à¸­à¹€à¸”à¸­à¸£à¹Œà¸ªà¸±à¹ˆà¸‡à¸ˆà¹ˆà¸²à¸¢à¸¢à¸² 30 à¸§à¸´à¸™à¸²à¸—à¸µ
-    'stk_customers': 60 * 1000,            // à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸¥à¸¹à¸à¸„à¹‰à¸² 1 à¸™à¸²à¸—à¸µ
-    'stk_payout_logs': 45 * 1000,          // à¸¥à¹‡à¸­à¸à¸à¸²à¸£à¸ˆà¹ˆà¸²à¸¢à¸„à¸­à¸¡à¸¡à¸´à¸Šà¸Šà¸±à¹ˆà¸™ 45 à¸§à¸´à¸™à¸²à¸—à¸µ
-    'stk_campaigns': 2 * 60 * 1000,        // à¹à¸„à¸¡à¹€à¸›à¸à¹à¸‚à¹ˆà¸‡à¸‚à¸±à¸™ 2 à¸™à¸²à¸—à¸µ
-    'stk_campaign_results': 60 * 1000,     // à¸œà¸¥à¹à¸„à¸¡à¹€à¸›à¸ 1 à¸™à¸²à¸—à¸µ
-    'stk_b2b_price_tiers': 3 * 60 * 1000,  // à¹€à¸£à¸—à¸£à¸²à¸„à¸²à¸ªà¹ˆà¸‡ B2B 3 à¸™à¸²à¸—à¸µ
-    'stk_b2b_orders': 45 * 1000,           // à¸­à¸­à¹€à¸”à¸­à¸£à¹Œà¸‚à¸²à¸¢à¸ªà¹ˆà¸‡ B2B 45 à¸§à¸´à¸™à¸²à¸—à¸µ
-    'stk_daily_balance': 30 * 1000         // à¸à¸£à¸°à¸—à¸šà¸¢à¸­à¸”à¸ªà¸•à¹Šà¸­à¸à¸›à¸£à¸°à¸ˆà¸³à¸§à¸±à¸™ à¹à¸„à¸Š 30 à¸§à¸´à¸™à¸²à¸—à¸µ
+    'stk_products': 3 * 60 * 1000,         // สินค้า 3 นาที
+    'stk_customer_types': 5 * 60 * 1000,   // ประเภทลูกค้า 5 นาที
+    'stk_closers': 5 * 60 * 1000,          // หมอ/ผู้ปิดการขาย 5 นาที
+    'stk_business_teams': 5 * 60 * 1000,   // สายงาน/ทีม 5 นาที
+    'stk_system_settings': 5 * 60 * 1000,  // ตั้งค่าระบบ 5 นาที
+    'stk_members': 3 * 60 * 1000,          // รายชื่อสมาชิก 3 นาที
+    'stk_sales': 45 * 1000,                // ยอดขาย 45 วินาที
+    'stk_nutrient_orders': 30 * 1000,      // ออเดอร์สั่งจ่ายยา 30 วินาที
+    'stk_customers': 60 * 1000,            // ข้อมูลลูกค้า 1 นาที
+    'stk_payout_logs': 45 * 1000,          // ล็อกการจ่ายคอมมิชชั่น 45 วินาที
+    'stk_campaigns': 2 * 60 * 1000,        // แคมเปญแข่งขัน 2 นาที
+    'stk_campaign_results': 60 * 1000,     // ผลแคมเปญ 1 นาที
+    'stk_b2b_price_tiers': 3 * 60 * 1000,  // เรทราคาส่ง B2B 3 นาที
+    'stk_b2b_orders': 45 * 1000,           // ออเดอร์ขายส่ง B2B 45 วินาที
+    'stk_daily_balance': 30 * 1000         // กระทบยอดสต๊อกประจำวัน แคช 30 วินาที
   };
 
-  // à¸à¸³à¸«à¸™à¸”à¸„à¸­à¸¥à¸±à¸¡à¸™à¹Œà¸¡à¸²à¸•à¸£à¸à¸²à¸™à¸ªà¸³à¸«à¸£à¸±à¸šà¸•à¸²à¸£à¸²à¸‡à¸•à¹ˆà¸²à¸‡à¹† (à¸£à¸§à¸¡ id_card_url à¹€à¸žà¸·à¹ˆà¸­à¹ƒà¸«à¹‰à¸£à¸¹à¸›à¹‚à¸›à¸£à¹„à¸Ÿà¸¥à¹Œà¹à¸ªà¸”à¸‡à¸œà¸¥, image_url à¸£à¸¹à¸›à¸ªà¸´à¸™à¸„à¹‰à¸², à¹à¸¥à¸° extra_details_json à¸ªà¸³à¸«à¸£à¸±à¸šà¸—à¸µà¸¡à¸œà¸¹à¹‰à¸›à¸´à¸”)
+  // กำหนดคอลัมน์มาตรฐานสำหรับตารางต่างๆ (รวม id_card_url เพื่อให้รูปโปรไฟล์แสดงผล, image_url รูปสินค้า, และ extra_details_json สำหรับทีมผู้ปิด)
   const DEFAULT_TABLE_SELECT = {
     'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,accumulated_pv,created_at',
     'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty,image_url',
@@ -301,7 +311,7 @@
       }
       queryCache.delete(key);
     }
-    // 2. sessionStorage (à¹à¸Šà¸£à¹Œà¸‚à¹‰à¸²à¸¡à¸«à¸™à¹‰à¸²à¸•à¹ˆà¸²à¸‡à¹ƒà¸™à¹à¸—à¹‡à¸šà¹€à¸”à¸µà¸¢à¸§à¸à¸±à¸™ à¸¥à¸” Egress 100% à¹€à¸¡à¸·à¹ˆà¸­à¹€à¸›à¸¥à¸µà¹ˆà¸¢à¸™à¸«à¸™à¹‰à¸²)
+    // 2. sessionStorage (แชร์ข้ามหน้าต่างในแท็บเดียวกัน ลด Egress 100% เมื่อเปลี่ยนหน้า)
     try {
       const raw = sessionStorage.getItem(SESSION_CACHE_PREFIX + key);
       if (raw) {
@@ -322,16 +332,16 @@
   function setToCache(key, data, ttl) {
     if (ttl <= 0) return;
     const entry = { timestamp: Date.now(), data: data };
-    // 1. à¹€à¸à¹‡à¸šà¹ƒà¸™ RAM (Map) à¹€à¸ªà¸¡à¸­ - à¸—à¸³à¸‡à¸²à¸™à¹€à¸£à¹‡à¸§à¸¡à¸²à¸à¹à¸¥à¸°à¹„à¸¡à¹ˆà¸¡à¸µà¸‚à¹‰à¸­à¸ˆà¸³à¸à¸±à¸” 5MB
+    // 1. เก็บใน RAM (Map) เสมอ - ทำงานเร็วมากและไม่มีข้อจำกัด 5MB
     queryCache.set(key, entry);
 
-    // 2. à¸–à¹‰à¸²à¸‚à¸™à¸²à¸”à¹€à¸¥à¹‡à¸à¸žà¸­ à¹€à¸à¹‡à¸šà¸¥à¸‡ sessionStorage à¹€à¸žà¸·à¹ˆà¸­à¹à¸Šà¸£à¹Œà¸‚à¹‰à¸²à¸¡à¸«à¸™à¹‰à¸²à¸•à¹ˆà¸²à¸‡à¹à¸šà¸šà¸ˆà¸³à¸à¸±à¸”à¸ˆà¸³à¸™à¸§à¸™ (LRU)
+    // 2. ถ้าขนาดเล็กพอ เก็บลง sessionStorage เพื่อแชร์ข้ามหน้าต่างแบบจำกัดจำนวน (LRU)
     try {
       const str = JSON.stringify(entry);
-      // à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸‚à¸™à¸²à¸”à¹ƒà¸«à¸à¹ˆà¹€à¸à¸´à¸™ 150KB (à¹€à¸Šà¹ˆà¸™ à¸•à¸²à¸£à¸²à¸‡à¸¢à¸­à¸”à¸‚à¸²à¸¢à¸—à¸±à¹‰à¸‡à¸£à¸°à¸šà¸š) à¹ƒà¸«à¹‰à¸­à¸¢à¸¹à¹ˆà¹€à¸‰à¸žà¸²à¸°à¹ƒà¸™ RAM
+      // ข้อมูลขนาดใหญ่เกิน 150KB (เช่น ตารางยอดขายทั้งระบบ) ให้อยู่เฉพาะใน RAM
       if (str.length > MAX_ITEM_BYTES) return;
 
-      // à¸•à¸£à¸§à¸ˆà¸™à¸±à¸šà¸„à¸µà¸¢à¹Œà¹à¸„à¸Šà¹ƒà¸™ sessionStorage à¸«à¸²à¸à¹€à¸à¸´à¸™à¹‚à¸„à¸§à¸•à¹‰à¸²à¸ˆà¸³à¸™à¸§à¸™ à¹ƒà¸«à¹‰à¸¥à¸šà¸„à¸µà¸¢à¹Œà¹€à¸à¹ˆà¸²à¸­à¸­à¸à¸à¹ˆà¸­à¸™
+      // ตรวจนับคีย์แคชใน sessionStorage หากเกินโควต้าจำนวน ให้ลบคีย์เก่าออกก่อน
       const existingQcKeys = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const k = sessionStorage.key(i);
@@ -348,7 +358,7 @@
 
       sessionStorage.setItem(SESSION_CACHE_PREFIX + key, str);
     } catch (e) {
-      // à¸«à¸²à¸à¹€à¸à¸´à¸”à¸›à¸±à¸à¸«à¸²à¸žà¸·à¹‰à¸™à¸—à¸µà¹ˆà¸ˆà¸±à¸”à¹€à¸à¹‡à¸š à¹ƒà¸«à¹‰à¸¥à¹‰à¸²à¸‡à¹à¸„à¸Š query à¹ƒà¸™ sessionStorage à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”
+      // หากเกิดปัญหาพื้นที่จัดเก็บ ให้ล้างแคช query ใน sessionStorage ทั้งหมด
       try {
         for (let i = sessionStorage.length - 1; i >= 0; i--) {
           const k = sessionStorage.key(i);
@@ -389,18 +399,18 @@
 
   window.invalidateTableCache = invalidateTableCache;
 
-  // 4. Helper Functions à¸ªà¸³à¸«à¸£à¸±à¸šà¹€à¸£à¸µà¸¢à¸ REST API Supabase (SELECT, INSERT, UPDATE, UPSERT, DELETE)
+  // 4. Helper Functions สำหรับเรียก REST API Supabase (SELECT, INSERT, UPDATE, UPSERT, DELETE)
   if (typeof window.supabaseSelect !== 'function') {
     window.supabaseSelect = async function (table, query) {
       const isNoCache = query && (query.includes('nocache=true') || query.includes('nocache=1'));
       let cleanQuery = query ? query.replace(/[?&]?nocache=[^&]+&?/g, '&').replace(/[?&]?_t=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
       
-      // Auto-filter heavy Base64: à¸«à¸²à¸à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸£à¸°à¸šà¸¸ select= à¸¡à¸² à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰ Safe Columns à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´ (à¸›à¸£à¸°à¸«à¸¢à¸±à¸” Egress 85-98%)
+      // Auto-filter heavy Base64: หากไม่ได้ระบุ select= มา ให้ใช้ Safe Columns อัตโนมัติ (ประหยัด Egress 85-98%)
       if (DEFAULT_TABLE_SELECT[table] && (!cleanQuery || (!cleanQuery.includes('select=') && !cleanQuery.includes('*')))) {
         cleanQuery = (cleanQuery ? cleanQuery + '&' : '') + 'select=' + DEFAULT_TABLE_SELECT[table];
       }
 
-      // ðŸ›¡ï¸ Auto Schema Normalizer: à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¸à¸²à¸£à¹€à¸£à¸µà¸¢à¸à¸Šà¸·à¹ˆà¸­à¸„à¸­à¸¥à¸±à¸¡à¸™à¹Œà¸œà¸´à¸”à¸‚à¹‰à¸²à¸¡ Database à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´ à¸›à¹‰à¸­à¸‡à¸à¸±à¸™ Error 400 à¹à¸¥à¸° Egress à¸£à¸±à¹ˆà¸§à¹„à¸«à¸¥
+      // 🛡️ Auto Schema Normalizer: ป้องกันการเรียกชื่อคอลัมน์ผิดข้าม Database อัตโนมัติ ป้องกัน Error 400 และ Egress รั่วไหล
       if (table === 'stk_sales' && cleanQuery) {
         cleanQuery = cleanQuery
           .replace(/\bselect=id\b/g, 'select=order_id')
@@ -424,11 +434,11 @@
       const cacheKey = table + (cleanQuery ? '?' + cleanQuery : '');
       const ttl = CACHE_TTL_CONFIG[table] || 0;
 
-      // à¸–à¹‰à¸²à¸•à¸²à¸£à¸²à¸‡à¸­à¸¢à¸¹à¹ˆà¹ƒà¸™à¸£à¸²à¸¢à¸à¸²à¸£à¸—à¸µà¹ˆà¸¡à¸µà¹à¸„à¸Š à¹à¸¥à¸°à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸ªà¸±à¹ˆà¸‡ nocache à¹à¸¥à¸°à¹à¸„à¸Šà¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸«à¸¡à¸”à¸­à¸²à¸¢à¸¸ (à¸•à¸£à¸§à¸ˆà¸—à¸±à¹‰à¸‡ Memory à¹à¸¥à¸° sessionStorage)
+      // ถ้าตารางอยู่ในรายการที่มีแคช และไม่ได้สั่ง nocache และแคชยังไม่หมดอายุ (ตรวจทั้ง Memory และ sessionStorage)
       if (!isNoCache && ttl > 0) {
         const cachedData = getFromCache(cacheKey, ttl);
         if (cachedData !== null) {
-          return JSON.parse(JSON.stringify(cachedData)); // à¸„à¸·à¸™à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸ˆà¸²à¸à¹à¸„à¸Šà¸—à¸±à¸™à¸—à¸µ à¹„à¸¡à¹ˆà¹€à¸ªà¸µà¸¢ Egress à¹à¸¡à¹‰à¹€à¸›à¸¥à¸µà¹ˆà¸¢à¸™à¸«à¸™à¹‰à¸²
+          return JSON.parse(JSON.stringify(cachedData)); // คืนข้อมูลจากแคชทันที ไม่เสีย Egress แม้เปลี่ยนหน้า
         }
       }
 
@@ -467,17 +477,17 @@
   }
 
   // 4.05 Supabase SELECT All (Auto-pagination for Historical Reports & Complete Data Fetch)
-  // à¹à¸à¹‰à¸›à¸±à¸à¸«à¸² PostgREST Server Limit 1,000 à¹à¸–à¸§ à¹‚à¸”à¸¢à¸—à¸³à¸à¸²à¸£à¸”à¸¶à¸‡à¹à¸šà¸š page à¸—à¸µà¸¥à¸° 1,000 à¹à¸–à¸§à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¸ˆà¸™à¸„à¸£à¸š 100%
+  // แก้ปัญหา PostgREST Server Limit 1,000 แถว โดยทำการดึงแบบ page ทีละ 1,000 แถวอัตโนมัติจนครบ 100%
   if (typeof window.supabaseSelectAll !== 'function') {
     window.supabaseSelectAll = async function (table, query, options = {}) {
-      const maxPages = options.maxPages || 50; // Safety ceiling (à¸£à¸­à¸‡à¸£à¸±à¸šà¸ªà¸¹à¸‡à¸ªà¸¸à¸” 50,000 à¹à¸–à¸§)
+      const maxPages = options.maxPages || 50; // Safety ceiling (รองรับสูงสุด 50,000 แถว)
       const pageSize = options.pageSize || 1000;
       let allData = [];
       let offset = 0;
       let hasMore = true;
       let page = 0;
 
-      // à¸¥à¸š limit à¹à¸¥à¸° offset à¸—à¸µà¹ˆà¸­à¸²à¸ˆà¸•à¸´à¸”à¸¡à¸²à¸à¸±à¸š query à¸•à¹‰à¸™à¸—à¸²à¸‡à¸­à¸­à¸
+      // ลบ limit และ offset ที่อาจติดมากับ query ต้นทางออก
       let baseQuery = query ? query.replace(/[?&]?limit=[^&]+&?/g, '&').replace(/[?&]?offset=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
 
       while (hasMore && page < maxPages) {
@@ -534,13 +544,13 @@
       const isNoCache = query && (query.includes('nocache=true') || query.includes('nocache=1'));
       let cleanQuery = query ? query.replace(/[?&]?nocache=[^&]+&?/g, '&').replace(/[?&]?_t=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
 
-      // ðŸ›¡ï¸ Auto Schema Normalizer: à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¸„à¸­à¸¥à¸±à¸¡à¸™à¹Œà¸„à¸¥à¸´à¸™à¸´à¸à¸œà¸´à¸”à¸žà¸¥à¸²à¸” (à¹€à¸Šà¹ˆà¸™ phone_number -> phone)
+      // 🛡️ Auto Schema Normalizer: ป้องกันคอลัมน์คลินิกผิดพลาด (เช่น phone_number -> phone)
       if (table === 'patients' && cleanQuery) {
         cleanQuery = cleanQuery.replace(/\bphone_number\b/g, 'phone');
       }
 
       const cacheKey = 'clinic_' + table + (cleanQuery ? '?' + cleanQuery : '');
-      const ttl = 60 * 1000; // 1 à¸™à¸²à¸—à¸µ
+      const ttl = 60 * 1000; // 1 นาที
 
       if (!isNoCache && ttl > 0) {
         const cachedData = getFromCache(cacheKey, ttl);
@@ -566,27 +576,27 @@
     };
   }
 
-  // 4.2 Helper à¸”à¸¶à¸‡à¸£à¸²à¸¢à¸Šà¸·à¹ˆà¸­à¸«à¸¡à¸­/à¹à¸žà¸—à¸¢à¹Œà¸ˆà¸²à¸à¸à¸±à¹ˆà¸‡à¸„à¸¥à¸´à¸™à¸´à¸ (à¸•à¸²à¸£à¸²à¸‡ staff_users à¸žà¸£à¹‰à¸­à¸¡ Stale-While-Revalidate & Persistent Cache)
-  // ðŸ›¡ï¸ à¸—à¸³à¸‡à¸²à¸™à¹à¸šà¸š Fault-Tolerant: à¸”à¸¶à¸‡à¸ˆà¸²à¸à¸•à¸²à¸£à¸²à¸‡ staff_users à¸„à¸±à¸”à¸à¸£à¸­à¸‡ role = 'doctor' à¸•à¸£à¸‡à¸•à¸²à¸¡à¹‚à¸„à¸£à¸‡à¸ªà¸£à¹‰à¸²à¸‡à¸à¸²à¸™à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸„à¸¥à¸´à¸™à¸´à¸
-  window.fetchClinicDoctors = async function (forceRefresh) {
+  // 4.2 Helper ดึงรายชื่อหมอ/แพทย์จากฝั่งคลินิก (ตาราง staff_users พร้อม Stale-While-Revalidate & Persistent Cache)
+  // 🛡️ ทำงานแบบ Fault-Tolerant: ดึงจากตาราง staff_users คัดกรอง role = 'doctor' ตรงตามโครงสร้างฐานข้อมูลคลินิก
+  window.fetchClinicDoctors = async function () {
     const CACHE_KEY = 'stk_clinic_doctors_cache_v2';
     let cachedDoctors = [];
     try {
-      localStorage.removeItem('stk_clinic_doctors_cache'); // à¸¥à¸šà¹à¸„à¸Šà¸£à¸¸à¹ˆà¸™à¹€à¸à¹ˆà¸²à¸—à¸µà¹ˆà¹€à¸„à¸¢à¸”à¸¶à¸‡à¸ˆà¸²à¸à¸•à¸²à¸£à¸²à¸‡ staff à¸­à¸­à¸
+      localStorage.removeItem('stk_clinic_doctors_cache'); // ลบแคชรุ่นเก่าที่เคยดึงจากตาราง staff ออก
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) cachedDoctors = JSON.parse(raw);
     } catch (e) {}
 
-    // à¸–à¹‰à¸²à¸¡à¸µà¸Ÿà¸±à¸‡à¸à¹Œà¸Šà¸±à¸™ clinicSupabaseSelect à¹ƒà¸«à¹‰à¸”à¸¶à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸¥à¹ˆà¸²à¸ªà¸¸à¸”à¸ˆà¸²à¸à¸•à¸²à¸£à¸²à¸‡ staff_users à¸‚à¸­à¸‡à¸„à¸¥à¸´à¸™à¸´à¸
+    // ถ้ามีฟังก์ชัน clinicSupabaseSelect ให้ดึงข้อมูลล่าสุดจากตาราง staff_users ของคลินิก
     if (typeof window.clinicSupabaseSelect === 'function') {
       try {
-        const staffUsers = await window.clinicSupabaseSelect('staff_users', 'select=id,emp_code,full_name,role,email&order=emp_code.asc' + (forceRefresh ? '&nocache=true' : ''));
+        const staffUsers = await window.clinicSupabaseSelect('staff_users', 'select=id,emp_code,full_name,role,email&order=emp_code.asc&nocache=true');
         if (Array.isArray(staffUsers) && staffUsers.length > 0) {
           const docs = staffUsers
             .filter(s => {
               if (!s) return false;
               const role = String(s.role || '').trim().toLowerCase();
-              // à¸„à¸±à¸”à¸à¸£à¸­à¸‡à¹€à¸‰à¸žà¸²à¸° role à¸—à¸µà¹ˆà¹€à¸›à¹‡à¸™ doctor à¸«à¸£à¸·à¸­à¸¡à¸µà¸„à¸³à¸§à¹ˆà¸²à¹à¸žà¸—à¸¢à¹Œ/à¸«à¸¡à¸­
+              // คัดกรองเฉพาะ role ที่เป็น doctor หรือมีคำว่าแพทย์/หมอ
               return role === 'doctor' || role.includes('doctor') || role.includes('แพทย์') || role.includes('หมอ');
             })
             .map(s => {
@@ -616,7 +626,7 @@
       }
     }
 
-    // à¸«à¸²à¸à¸”à¸¶à¸‡à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆà¸«à¸£à¸·à¸­à¸•à¸´à¸” Error à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹à¸„à¸Šà¹€à¸”à¸´à¸¡à¸—à¸µà¹ˆà¹€à¸„à¸¢à¸ˆà¸³à¹„à¸§à¹‰à¹€à¸ªà¸¡à¸­ à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸«à¸¥à¸¸à¸”à¸«à¸£à¸·à¸­à¸«à¸™à¹‰à¸²à¸ˆà¸­à¸§à¹ˆà¸²à¸‡à¹€à¸›à¸¥à¹ˆà¸²
+    // หากดึงไม่สำเร็จหรือติด Error ให้ใช้ข้อมูลแคชเดิมที่เคยจำไว้เสมอ ป้องกันข้อมูลหลุดหรือหน้าจอว่างเปล่า
     return Array.isArray(cachedDoctors) && cachedDoctors.length > 0 ? cachedDoctors : [];
   };
 
@@ -697,15 +707,15 @@
   }
 
   // ================================================================
-  // 4. à¸£à¸°à¸šà¸š Session Inactivity & Cross-Day Auto-Logout
-  // à¸¥à¹‡à¸­à¸à¹€à¸­à¸²à¸•à¹Œà¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¹€à¸¡à¸·à¹ˆà¸­: 
-  //   1) à¹„à¸¡à¹ˆà¸¡à¸µà¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹€à¸à¸´à¸™ 60 à¸™à¸²à¸—à¸µ
-  //   2) à¸‚à¹‰à¸²à¸¡à¸§à¸±à¸™ (Midnight / à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸§à¸±à¸™à¹ƒà¸«à¸¡à¹ˆ)
-  // à¹€à¸žà¸·à¹ˆà¸­à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¸à¸²à¸£à¹€à¸›à¸´à¸”à¹à¸—à¹‡à¸šà¸—à¸´à¹‰à¸‡à¹„à¸§à¹‰à¸à¸´à¸™ Data Egress à¹à¸¥à¸°à¸£à¸±à¸à¸©à¸²à¸„à¸§à¸²à¸¡à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸‚à¸­à¸‡à¸£à¸°à¸šà¸š
+  // 4. ระบบ Session Inactivity & Cross-Day Auto-Logout
+  // ล็อกเอาต์อัตโนมัติเมื่อ: 
+  //   1) ไม่มีการใช้งานเกิน 60 นาที
+  //   2) ข้ามวัน (Midnight / เข้าสู่วันใหม่)
+  // เพื่อป้องกันการเปิดแท็บทิ้งไว้กิน Data Egress และรักษาความปลอดภัยของระบบ
   // ================================================================
   (function initSessionInactivityManager() {
-    const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 à¸™à¸²à¸—à¸µ (3,600,000 à¸¡à¸´à¸¥à¸¥à¸´à¸§à¸´à¸™à¸²à¸—à¸µ)
-    const WARNING_BEFORE_TIMEOUT_MS = 2 * 60 * 1000; // à¹à¸ˆà¹‰à¸‡à¹€à¸•à¸·à¸­à¸™à¸¥à¹ˆà¸§à¸‡à¸«à¸™à¹‰à¸² 2 à¸™à¸²à¸—à¸µ (120,000 à¸¡à¸´à¸¥à¸¥à¸´à¸§à¸´à¸™à¸²à¸—à¸µ)
+    const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 นาที (3,600,000 มิลลิวินาที)
+    const WARNING_BEFORE_TIMEOUT_MS = 2 * 60 * 1000; // แจ้งเตือนล่วงหน้า 2 นาที (120,000 มิลลิวินาที)
     const ACTIVITY_STORAGE_KEY = 'stk_last_activity';
     const ACTIVITY_DATE_KEY = 'stk_last_activity_date';
     const LOGOUT_REASON_KEY = 'stk_logout_reason';
@@ -719,8 +729,8 @@
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
-    // 0) à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸—à¸±à¸™à¸—à¸µ à¸“ à¸§à¸´à¸™à¸²à¸—à¸µà¹à¸£à¸à¸—à¸µà¹ˆà¹‚à¸«à¸¥à¸”à¹„à¸Ÿà¸¥à¹Œà¸ªà¸„à¸£à¸´à¸›à¸•à¹Œ (Synchronous Boot Check)
-    // à¸«à¸²à¸à¸žà¸šà¸§à¹ˆà¸²à¸‚à¹‰à¸²à¸¡à¸§à¸±à¸™ à¸«à¸£à¸·à¸­à¸«à¸¡à¸”à¹€à¸§à¸¥à¸² 60 à¸™à¸²à¸—à¸µ à¹ƒà¸«à¹‰à¸¥à¹‰à¸²à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¸—à¸±à¸™à¸—à¸µà¸à¹ˆà¸­à¸™à¸—à¸µà¹ˆ React à¸ˆà¸°à¹€à¸£à¸´à¹ˆà¸¡à¸—à¸³à¸‡à¸²à¸™
+    // 0) ตรวจสอบทันที ณ วินาทีแรกที่โหลดไฟล์สคริปต์ (Synchronous Boot Check)
+    // หากพบว่าข้ามวัน หรือหมดเวลา 60 นาที ให้ล้างข้อมูลผู้ใช้ทันทีก่อนที่ React จะเริ่มทำงาน
     try {
       const existingUser = localStorage.getItem('stk_current_user');
       if (existingUser) {
@@ -747,7 +757,7 @@
           sessionStorage.setItem(LOGOUT_REASON_KEY, isDeactivated ? 'deactivated' : (isCrossDay ? 'cross_day' : 'inactivity_60m'));
           if (typeof window.clearDbCache === 'function') window.clearDbCache();
         } else {
-          // à¹€à¸‹à¸ªà¸Šà¸±à¸™à¸¢à¸±à¸‡à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹„à¸”à¹‰à¸›à¸à¸•à¸´ à¹ƒà¸«à¹‰à¸šà¸±à¸™à¸—à¸¶à¸à¹€à¸§à¸¥à¸²à¹à¸¥à¸°à¸§à¸±à¸™à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™
+          // เซสชันยังใช้งานได้ปกติ ให้บันทึกเวลาและวันปัจจุบัน
           localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
           localStorage.setItem(ACTIVITY_DATE_KEY, todayStr);
         }
@@ -756,7 +766,7 @@
       console.warn('Session boot check error:', e);
     }
 
-    // 1) à¸”à¸±à¸à¸ˆà¸±à¸šà¸„à¸§à¸²à¸¡à¹€à¸„à¸¥à¸·à¹ˆà¸­à¸™à¹„à¸«à¸§à¸‚à¸­à¸‡à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰ (User Activity) à¹à¸šà¸š Throttled
+    // 1) ดักจับความเคลื่อนไหวของผู้ใช้ (User Activity) แบบ Throttled
     function recordActivity() {
       const now = Date.now();
       if (now - lastRecordedTime > 5000) {
@@ -766,7 +776,7 @@
             const todayStr = getLocalDateStr();
             const lastDate = localStorage.getItem(ACTIVITY_DATE_KEY);
 
-            // à¸–à¹‰à¸²à¸žà¸šà¸§à¹ˆà¸²à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸•à¹ˆà¸­à¹€à¸™à¸·à¹ˆà¸­à¸‡à¸ˆà¸™à¸‚à¹‰à¸²à¸¡à¹€à¸—à¸µà¹ˆà¸¢à¸‡à¸„à¸·à¸™à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸§à¸±à¸™à¹ƒà¸«à¸¡à¹ˆ
+            // ถ้าพบว่าใช้งานต่อเนื่องจนข้ามเที่ยงคืนเข้าสู่วันใหม่
             if (lastDate && lastDate !== todayStr) {
               performAutoLogout('cross_day');
               return;
@@ -780,13 +790,13 @@
       hideInactivityWarning();
     }
 
-    // à¸•à¸´à¸”à¸•à¸±à¹‰à¸‡ Event Listeners à¸”à¸±à¸à¸ˆà¸±à¸šà¸à¸²à¸£à¸à¸£à¸°à¸—à¸³à¸‚à¸­à¸‡à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰
+    // ติดตั้ง Event Listeners ดักจับการกระทำของผู้ใช้
     const trackedEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
     trackedEvents.forEach(evt => {
       window.addEventListener(evt, recordActivity, { passive: true });
     });
 
-    // 2) à¹à¸ªà¸”à¸‡à¹à¸–à¸šà¹à¸ˆà¹‰à¸‡à¹€à¸•à¸·à¸­à¸™à¸¥à¹ˆà¸§à¸‡à¸«à¸™à¹‰à¸²à¸à¹ˆà¸­à¸™à¸«à¸¡à¸”à¹€à¸§à¸¥à¸² 2 à¸™à¸²à¸—à¸µ
+    // 2) แสดงแถบแจ้งเตือนล่วงหน้าก่อนหมดเวลา 2 นาที
     function showInactivityWarning(minutesRemaining) {
       if (!document.body) return;
       if (warningBannerEl && document.body.contains(warningBannerEl)) return;
@@ -834,7 +844,7 @@
       }
     }
 
-    // 3) à¸•à¸±à¸§à¸ªà¸±à¹ˆà¸‡à¸à¸²à¸£ Logout à¹€à¸¡à¸·à¹ˆà¸­à¸«à¸¡à¸”à¹€à¸§à¸¥à¸² 60 à¸™à¸²à¸—à¸µ à¸«à¸£à¸·à¸­à¸‚à¹‰à¸²à¸¡à¸§à¸±à¸™
+    // 3) ตัวสั่งการ Logout เมื่อหมดเวลา 60 นาที หรือข้ามวัน
     function performAutoLogout(reason = 'inactivity_60m') {
       hideInactivityWarning();
       try {
@@ -849,7 +859,7 @@
         window.clearDbCache();
       }
 
-      // à¸–à¹‰à¸²à¸¡à¸µà¸«à¸™à¹‰à¸²à¸•à¹ˆà¸²à¸‡à¹€à¸”à¸´à¸¡à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§ à¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡à¸ªà¸£à¹‰à¸²à¸‡à¸‹à¹‰à¸³
+      // ถ้ามีหน้าต่างเดิมอยู่แล้ว ไม่ต้องสร้างซ้ำ
       if (document.getElementById('stk-timeout-overlay')) return;
 
       const isCrossDay = reason === 'cross_day';
@@ -895,7 +905,7 @@
       }
     }
 
-    // 4) Watchdog Timer à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸ªà¸–à¸²à¸™à¸°à¸—à¸¸à¸ 10 à¸§à¸´à¸™à¸²à¸—à¸µ
+    // 4) Watchdog Timer ตรวจสอบสถานะทุก 10 วินาที
     setInterval(() => {
       try {
         const userStr = localStorage.getItem('stk_current_user');
@@ -909,7 +919,7 @@
         const lastDate = localStorage.getItem(ACTIVITY_DATE_KEY);
         const lastActivity = Number(localStorage.getItem(ACTIVITY_STORAGE_KEY) || 0);
 
-        // à¹€à¸Šà¹‡à¸„à¹€à¸‡à¸·à¹ˆà¸­à¸™à¹„à¸‚à¸‚à¹‰à¸²à¸¡à¸§à¸±à¸™
+        // เช็คเงื่อนไขข้ามวัน
         if (lastDate && lastDate !== todayStr) {
           performAutoLogout('cross_day');
           return;
@@ -923,13 +933,13 @@
 
         const inactiveDuration = now - lastActivity;
 
-        // à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¸¡à¸µà¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹€à¸à¸´à¸™ 60 à¸™à¸²à¸—à¸µ -> Logout à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¸—à¸±à¸™à¸—à¸µ
+        // ถ้าไม่มีการใช้งานเกิน 60 นาที -> Logout อัตโนมัติทันที
         if (inactiveDuration >= INACTIVITY_TIMEOUT_MS) {
           performAutoLogout('inactivity_60m');
           return;
         }
 
-        // à¸–à¹‰à¸²à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸Šà¹ˆà¸§à¸‡ 2 à¸™à¸²à¸—à¸µà¸ªà¸¸à¸”à¸—à¹‰à¸²à¸¢à¸à¹ˆà¸­à¸™à¸«à¸¡à¸”à¹€à¸§à¸¥à¸² -> à¹à¸ªà¸”à¸‡à¹à¸–à¸šà¹€à¸•à¸·à¸­à¸™à¸¥à¹ˆà¸§à¸‡à¸«à¸™à¹‰à¸²
+        // ถ้าเข้าสู่ช่วง 2 นาทีสุดท้ายก่อนหมดเวลา -> แสดงแถบเตือนล่วงหน้า
         if (inactiveDuration >= (INACTIVITY_TIMEOUT_MS - WARNING_BEFORE_TIMEOUT_MS)) {
           const minsRemaining = Math.max(1, Math.ceil((INACTIVITY_TIMEOUT_MS - inactiveDuration) / 60000));
           showInactivityWarning(minsRemaining);
@@ -939,7 +949,7 @@
       } catch (e) {}
     }, 10000);
 
-    // 5) à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸—à¸±à¸™à¸—à¸µà¹€à¸¡à¸·à¹ˆà¸­à¸à¸¥à¸±à¸šà¸¡à¸²à¸—à¸µà¹ˆà¹à¸—à¹‡à¸š (à¹€à¸Šà¹ˆà¸™ à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸•à¸·à¹ˆà¸™à¸ˆà¸²à¸ Sleep à¸«à¸£à¸·à¸­à¸„à¸¥à¸´à¸à¸à¸¥à¸±à¸šà¸¡à¸²à¸”à¸¹à¹à¸—à¹‡à¸š)
+    // 5) ตรวจสอบทันทีเมื่อกลับมาที่แท็บ (เช่น เครื่องตื่นจาก Sleep หรือคลิกกลับมาดูแท็บ)
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         try {
@@ -958,7 +968,7 @@
       }
     });
 
-    // 6) à¸‹à¸´à¸‡à¸„à¹Œà¸‚à¹‰à¸²à¸¡à¹à¸—à¹‡à¸š (Cross-Tab Sync): à¹€à¸¡à¸·à¹ˆà¸­à¹à¸—à¹‡à¸šà¹ƒà¸”à¹à¸—à¹‡à¸šà¸«à¸™à¸¶à¹ˆà¸‡à¸­à¸­à¸à¸ˆà¸²à¸à¸£à¸°à¸šà¸š à¸—à¸¸à¸à¹à¸—à¹‡à¸šà¸ˆà¸°à¸­à¸­à¸à¸ˆà¸²à¸à¸£à¸°à¸šà¸šà¸—à¸±à¸™à¸—à¸µ
+    // 6) ซิงค์ข้ามแท็บ (Cross-Tab Sync): เมื่อแท็บใดแท็บหนึ่งออกจากระบบ ทุกแท็บจะออกจากระบบทันที
     window.addEventListener('storage', (e) => {
       if (e.key === BROADCAST_KEY || (e.key === 'stk_current_user' && !e.newValue)) {
         if (!sessionStorage.getItem(LOGOUT_REASON_KEY)) {
@@ -974,7 +984,7 @@
       }
     });
 
-    // 7) à¸Ÿà¸±à¸‡à¸à¹Œà¸Šà¸±à¸™à¸£à¸µà¹€à¸‹à¹‡à¸•à¹€à¸§à¸¥à¸²à¸ªà¸³à¸«à¸£à¸±à¸šà¹€à¸£à¸µà¸¢à¸à¹ƒà¸Šà¹‰à¸ à¸²à¸¢à¸™à¸­à¸ (à¹€à¸Šà¹ˆà¸™ à¹€à¸¡à¸·à¹ˆà¸­à¹€à¸žà¸´à¹ˆà¸‡à¸à¸”à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸šà¸ªà¸³à¹€à¸£à¹‡à¸ˆ)
+    // 7) ฟังก์ชันรีเซ็ตเวลาสำหรับเรียกใช้ภายนอก (เช่น เมื่อเพิ่งกดเข้าสู่ระบบสำเร็จ)
     window.resetSessionInactivityTimer = function () {
       try {
         const now = Date.now();
