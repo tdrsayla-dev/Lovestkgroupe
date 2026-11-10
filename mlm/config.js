@@ -7,7 +7,7 @@
   'use strict';
 
   // 0. Global App Version for Cache-Busting & Egress Optimization
-  const APP_VERSION = '2026.11.07.04';
+  const APP_VERSION = '2026.11.10.01';
   window.APP_VERSION = APP_VERSION;
 
   // 🌟 Global Favicon Manager (รับประกันโลโก้ขึ้นบนแท็บเบราว์เซอร์ทุกหน้า 100%)
@@ -197,19 +197,13 @@
   };
 
 
-    // 1. ตั้งค่า Environments & API Keys (รองรับการเชื่อมต่อผ่าน Node.js Egress Shield เมื่อรันบน Server)
-  const isStaticHost = (typeof window !== 'undefined' && window.location && (
-    window.location.hostname.endsWith('github.io') ||
-    window.location.hostname.endsWith('surge.sh') ||
-    window.location.hostname.endsWith('gitlab.io') ||
-    window.location.port === '5500' ||
-    window.location.port === '5501' ||
-    window.location.port === '8000' ||
-    window.location.port === '8080'
+    // 1. ตั้งค่า Environments & API Keys (เชื่อมต่อ Supabase Database โดยตรง และรองรับ Local Cache Server บน port 4000)
+  const isLocalProxyServer = (typeof window !== 'undefined' && window.location && (
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+    String(window.location.port) === '4000'
   ));
-  const isHostedOnServer = (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http') && !isStaticHost);
   const CONFIG = {
-    SUPABASE_URL: isHostedOnServer ? (window.location.origin + '/api') : 'https://mfpkeyrykqnrywyksyqp.supabase.co',
+    SUPABASE_URL: isLocalProxyServer ? (window.location.origin + '/api') : 'https://mfpkeyrykqnrywyksyqp.supabase.co',
     SUPABASE_ANON_KEY: 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO'
   };
 
@@ -217,7 +211,7 @@
   window.APP_CONFIG = CONFIG;
   window.SUPABASE_URL = CONFIG.SUPABASE_URL;
   window.SUPABASE_ANON_KEY = CONFIG.SUPABASE_ANON_KEY;
-  window.SUPABASE_REST_URL = isHostedOnServer ? (window.location.origin + '/api/rest/v1') : (CONFIG.SUPABASE_URL + '/rest/v1');
+  window.SUPABASE_REST_URL = isLocalProxyServer ? (window.location.origin + '/api/rest/v1') : (CONFIG.SUPABASE_URL + '/rest/v1');
   window.SUPABASE_HEADERS = {
     'Content-Type': 'application/json',
     'apikey': CONFIG.SUPABASE_ANON_KEY,
@@ -239,14 +233,14 @@
 
   // 1.1 Clinic Database Config (Supabase คลินิกภายนอก)
   const CLINIC_CONFIG = {
-    SUPABASE_URL: isHostedOnServer ? (window.location.origin + '/api/clinic') : 'https://fpmstumpobbjozflkola.supabase.co',
+    SUPABASE_URL: isLocalProxyServer ? (window.location.origin + '/api/clinic') : 'https://fpmstumpobbjozflkola.supabase.co',
     SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbXN0dW1wb2Jiam96Zmxrb2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MDE0NDcsImV4cCI6MjA5OTQ3NzQ0N30.qTn4UHISBY9A5fX83ANk0mu3JSgK42ByLZ9xPh2TEvM'
   };
 
   window.CLINIC_CONFIG = CLINIC_CONFIG;
   window.CLINIC_SUPABASE_URL = CLINIC_CONFIG.SUPABASE_URL;
   window.CLINIC_SUPABASE_ANON_KEY = CLINIC_CONFIG.SUPABASE_ANON_KEY;
-  window.CLINIC_SUPABASE_REST_URL = isHostedOnServer ? (window.location.origin + '/api/clinic/rest/v1') : (CLINIC_CONFIG.SUPABASE_URL + '/rest/v1');
+  window.CLINIC_SUPABASE_REST_URL = isLocalProxyServer ? (window.location.origin + '/api/clinic/rest/v1') : (CLINIC_CONFIG.SUPABASE_URL + '/rest/v1');
   window.CLINIC_SUPABASE_HEADERS = {
     'Content-Type': 'application/json',
     'apikey': CLINIC_CONFIG.SUPABASE_ANON_KEY,
