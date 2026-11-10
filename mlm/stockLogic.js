@@ -201,7 +201,7 @@
                         stockMap[d.productId] = (stockMap[d.productId] || 0) + d.qty;
                     }
                 });
-            } else {
+            } else if (Array.isArray(productsList) && productsList.length > 0) {
                 console.warn('⚠️ StockLogic: ไม่พบข้อมูลสินค้าสำหรับตัดสต๊อก:', identifier);
             }
         });

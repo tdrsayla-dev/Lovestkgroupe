@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
@@ -555,7 +555,7 @@
                   }));
                 }
               }
-              const res = await window.supabaseSelect('stk_products', 'select=product_id,name,category,price_member,price_full,current_stock,barcode,image_url,status,is_bundle,base_product,bundle_qty&order=name.asc&limit=1000' + cacheParam);
+              const res = await window.supabaseSelect('stk_products', 'select=product_id,name,category,price_member,price_full,current_stock,barcode,status,is_bundle,base_product,bundle_qty&order=name.asc&limit=1000' + cacheParam);
               return Array.isArray(res) ? res : [];
             } catch(e) {
               console.warn('fetchProducts error:', e);
@@ -881,7 +881,10 @@
             if (Array.isArray(salesRes)) {
               const sMap = {};
               const gMap = {};
-              const pList = products || [];
+              const pList = (products && products.length > 0) ? products : (() => {
+                try { return JSON.parse(sessionStorage.getItem('stk_warehouse_products') || '[]'); } catch(e) { return []; }
+              })();
+              if (!pList || pList.length === 0) return; // หากรายการสินค้ายังโหลดไม่เสร็จ ให้รอรอบของ loadWarehouseData
               salesRes.forEach(bill => {
                 const bStatus = String(bill.status || '').toUpperCase();
                 if (bStatus === 'CANCELLED' || bStatus === 'ยกเลิก' || bStatus === 'DELETED') return;
@@ -1435,6 +1438,27 @@
         return list;
       }, [productStockSummary, inventoryTypeFilter, selectedStatusFilter, inventorySortBy, inventorySortOrder]);
 
+      // 🟢 Pagination State (50 / 100 / ทั้งหมด) เพื่อความลื่นไหลและประหยัดทรัพยากร
+      const [invPage, setInvPage] = useState(1);
+      const [invPageSize, setInvPageSize] = useState(50);
+
+      useEffect(() => {
+        setInvPage(1);
+      }, [inventoryTypeFilter, selectedStatusFilter, inventorySortBy, inventorySortOrder]);
+
+      const paginatedStockItems = useMemo(() => {
+        if (invPageSize === 'ALL') return displayedStockItems;
+        const size = Number(invPageSize) || 50;
+        const start = (invPage - 1) * size;
+        return displayedStockItems.slice(start, start + size);
+      }, [displayedStockItems, invPage, invPageSize]);
+
+      const totalInvPages = useMemo(() => {
+        if (invPageSize === 'ALL') return 1;
+        const size = Number(invPageSize) || 50;
+        return Math.max(1, Math.ceil(displayedStockItems.length / size));
+      }, [displayedStockItems.length, invPageSize]);
+
       // KPI Aggregations (นับเฉพาะสินค้าจริง ไม่นำเซ็ตโปรโมชั่นมาบวกทบสต๊อกคลัง)
       const kpis = useMemo(() => {
         let physicalSkus = 0;
@@ -1970,7 +1994,7 @@
           const lateSalesQty = (existingAudit && existingAudit.sales_qty !== undefined && existingAudit.sales_qty !== null)
             ? (Number(dateSales || 0) - Number(existingAudit.sales_qty || 0))
             : 0;
-                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
+          const hasLateSales = Boolean(existingAudit && lateSalesQty !== 0);
 
           const physCount = physicalCounts[pid] !== undefined && physicalCounts[pid] !== '' 
             ? Number(physicalCounts[pid]) 
@@ -2058,7 +2082,7 @@
             totalStockQty: Number(item.totalStock || 0),
             physicalCount: physCount,
             diff: diff,
-                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
+            hasLateSales: hasLateSales,
             lateSalesQty: lateSalesQty,
             liveSalesQty: dateSales,
             prevDate: prevDate,
@@ -2263,7 +2287,7 @@
       // ฟังก์ชันซิงค์บิลตกค้างหลังปิดยอด (Late Sales Auto-Sync)
       const handleSyncLateSales = async () => {
         if (!dailyReconciliation || dailyReconciliation.length === 0) return;
-                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
+        const lateItems = dailyReconciliation.filter(r => r.hasLateSales);
         if (lateItems.length === 0) {
           showToast('ไม่พบบิลขายที่บันทึกหลังปิดยอด ยอดขายตรงตามระบบแล้ว', 'info');
           return;
@@ -4128,7 +4152,7 @@
                                   </td>
                                 </tr>
                               ) : (
-                                displayedStockItems.map(item => {
+                                paginatedStockItems.map(item => {
                                   const p = item.product;
                                   const isBundle = item.isPromoBundle;
                                   return (
@@ -4272,6 +4296,47 @@
                               )}
                             </tbody>
                           </table>
+                        </div>
+                        {/* 🟢 Pagination Bar */}
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 text-xs">
+                          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                            <span>แสดง:</span>
+                            <select
+                              value={invPageSize}
+                              onChange={e => { setInvPageSize(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value)); setInvPage(1); }}
+                              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 font-bold text-slate-700 dark:text-slate-200 outline-none cursor-pointer"
+                            >
+                              <option value={50}>50 รายการ</option>
+                              <option value={100}>100 รายการ</option>
+                              <option value="ALL">ทั้งหมด ({displayedStockItems.length})</option>
+                            </select>
+                            <span>
+                              {invPageSize === 'ALL'
+                                ? `แสดงทั้งหมด ${displayedStockItems.length} รายการ`
+                                : `แสดง ${(invPage - 1) * (Number(invPageSize) || 50) + 1} - ${Math.min(invPage * (Number(invPageSize) || 50), displayedStockItems.length)} จากทั้งหมด ${displayedStockItems.length} รายการ`}
+                            </span>
+                          </div>
+                          {invPageSize !== 'ALL' && totalInvPages > 1 && (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => setInvPage(p => Math.max(1, p - 1))}
+                                disabled={invPage === 1}
+                                className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                              >
+                                ก่อนหน้า
+                              </button>
+                              <span className="px-3 py-1 font-bold text-slate-700 dark:text-slate-200">
+                                หน้า {invPage} / {totalInvPages}
+                              </span>
+                              <button
+                                onClick={() => setInvPage(p => Math.min(totalInvPages, p + 1))}
+                                disabled={invPage === totalInvPages}
+                                className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                              >
+                                ถัดไป
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -5379,7 +5444,7 @@
                       )}
 
                       {/* Late Sales Warning & Sync Banner */}
-                                ตรวจพบบิลขายที่บันทึกหลังการปิดยอด ({dailyReconciliation.filter(r => r.hasLateSales).length} รายการสินค้า)
+                      {Boolean(dailyReconciliation && dailyReconciliation.some(r => r.hasLateSales)) && (
                         <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-pulse">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
