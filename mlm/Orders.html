@@ -625,6 +625,7 @@
         const [salesSearchTerm, setSalesSearchTerm] = useState('');
         const thirtyDaysAgoStr = (() => { const d = new Date(); d.setDate(d.getDate() - 30); const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; })();
         const [salesPage, setSalesPage] = useState(1);
+        const [salesPageSize, setSalesPageSize] = useState(50); // 50, 100, or ALL
         const [viewBillDetail, setViewBillDetail] = useState(null);
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, title: '' });
 
@@ -755,10 +756,12 @@
             return { totalFull, totalMember, totalPro, totalZero, grandTotal, totalAmountTHB, count: filteredSalesHistory.length };
         }, [filteredSalesHistory, prodMap, systemSettings]);
 
-        const totalSalesPages = Math.max(1, Math.ceil(filteredSalesHistory.length / SALES_PER_PAGE));
+        const effectivePageSize = salesPageSize === 'ALL' ? (filteredSalesHistory.length || 1) : Number(salesPageSize);
+        const totalSalesPages = salesPageSize === 'ALL' ? 1 : Math.max(1, Math.ceil(filteredSalesHistory.length / effectivePageSize));
         const paginatedSalesHistory = useMemo(() => {
-            return filteredSalesHistory.slice((salesPage - 1) * SALES_PER_PAGE, salesPage * SALES_PER_PAGE);
-        }, [filteredSalesHistory, salesPage]);
+            if (salesPageSize === 'ALL') return filteredSalesHistory;
+            return filteredSalesHistory.slice((salesPage - 1) * effectivePageSize, salesPage * effectivePageSize);
+        }, [filteredSalesHistory, salesPage, effectivePageSize, salesPageSize]);
 
         const handlePrintReceiptPopup = async (saleRecord) => {
             if (!saleRecord) return;
@@ -2392,16 +2395,32 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                    </table>
                  </div>
 
-                 {totalSalesPages > 1 && (
+                 {filteredSalesHistory.length > 0 && (
                    <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs gap-2">
-                      <span className="text-xs font-semibold text-slate-500">
-                          แสดง {((salesPage - 1) * SALES_PER_PAGE) + 1} ถึง {Math.min(salesPage * SALES_PER_PAGE, filteredSalesHistory.length)} จากทั้งหมด {filteredSalesHistory.length} รายการ
-                      </span>
-                      <div className="flex items-center gap-2">
-                          <button onClick={() => setSalesPage(p => Math.max(1, p - 1))} disabled={salesPage === 1} className="px-3 py-1.5 bg-white text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-xs">ก่อนหน้า</button>
-                          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 shadow-xs">หน้า {salesPage} / {totalSalesPages}</span>
-                          <button onClick={() => setSalesPage(p => Math.min(totalSalesPages, p + 1))} disabled={salesPage === totalSalesPages} className="px-3 py-1.5 bg-white text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-xs">ถัดไป</button>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
+                          <span>แสดง:</span>
+                          <select
+                              value={salesPageSize}
+                              onChange={e => { setSalesPageSize(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value)); setSalesPage(1); }}
+                              className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-700 outline-none cursor-pointer"
+                          >
+                              <option value={50}>50 รายการ</option>
+                              <option value={100}>100 รายการ</option>
+                              <option value="ALL">ทั้งหมด ({filteredSalesHistory.length})</option>
+                          </select>
+                          <span>
+                              {salesPageSize === 'ALL'
+                                  ? `แสดงทั้งหมด ${filteredSalesHistory.length} รายการ`
+                                  : `แสดง ${((salesPage - 1) * effectivePageSize) + 1} ถึง ${Math.min(salesPage * effectivePageSize, filteredSalesHistory.length)} จากทั้งหมด ${filteredSalesHistory.length} รายการ`}
+                          </span>
                       </div>
+                      {salesPageSize !== 'ALL' && totalSalesPages > 1 && (
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setSalesPage(p => Math.max(1, p - 1))} disabled={salesPage === 1} className="px-3 py-1.5 bg-white text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-xs">ก่อนหน้า</button>
+                            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 shadow-xs">หน้า {salesPage} / {totalSalesPages}</span>
+                            <button onClick={() => setSalesPage(p => Math.min(totalSalesPages, p + 1))} disabled={salesPage === totalSalesPages} className="px-3 py-1.5 bg-white text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-xs">ถัดไป</button>
+                        </div>
+                      )}
                    </div>
                  )}
              </div>

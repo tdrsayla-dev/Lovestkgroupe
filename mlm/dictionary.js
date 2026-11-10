@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // 🌐 STK GROUPE - Global Dictionary
 // ==========================================
 
@@ -478,11 +478,24 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
     // 🛡️ กฎเหล็ก: หากมีการระบุประเภทลูกค้า (explicitType) มาจากระบบคลินิกหรือผู้ใช้คีย์มาอย่างชัดเจน
     // ให้เคารพและแปลงตาม explicitType เป็นหลักเสมอ!
     // ยกเว้นกรณีที่เป็นค่าดีฟอลต์ทั่วไป 'ลูกค้าใหม่มาตรวจ' / 'T001' ให้ส่งผ่านไปตรวจสอบตามรูปแบบ Visit ID และประวัติลูกค้า
+    const isOrd = vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-') || vStr.startsWith('ORD-');
     const cleanExplicit = String(explicitType || '').trim();
+    const isWalkinCheckupDefault = (
+        cleanExplicit === 'ลูกค้าใหม่มาตรวจ' ||
+        cleanExplicit === 'T001' ||
+        cleanExplicit === 'ລູກຄ້າໃໝ່ມາກວດ' ||
+        cleanExplicit === 'New Customer - Clinic Visit' ||
+        cleanExplicit === 'New Customer' ||
+        cleanExplicit === 'ลูกค้าเก่ากลับมาต่อยา' ||
+        cleanExplicit === 'T002' ||
+        cleanExplicit === 'ລູກຄ້າເກົ່າກັບມາຕໍ່ຢາ'
+    );
+
     const isMissingExplicit = (
         !cleanExplicit ||
         cleanExplicit === '-' ||
-        cleanExplicit === '--'
+        cleanExplicit === '--' ||
+        (isOrd && isWalkinCheckupDefault)
     );
 
     // 🛡️ กฎเหล็ก: หากมีการระบุประเภทลูกค้า (explicitType) มาจากระบบคลินิกหรือผู้ใช้คีย์มาอย่างชัดเจน
@@ -491,20 +504,24 @@ window.resolveVisitCustomerType = function(visitId, isExistingCustomer, explicit
         if (typeof window.normalizeCustomerType === 'function') {
             const norm = window.normalizeCustomerType(cleanExplicit, curLang, context);
             if (norm && norm.id) {
-                return norm;
+                if (isOrd && (norm.id === 'T001' || norm.id === 'T002')) {
+                    // fallthrough to isOrd
+                } else {
+                    return norm;
+                }
             }
         }
     }
 
     // กรณีไม่มีการระบุประเภทลูกค้ามา (isMissingExplicit): วิเคราะห์จากรูปแบบ Visit ID และประวัติลูกค้า
     // 1. ตรวจสอบรหัส VIS-ORD- (ออเดอร์จากโทรติดตาม / ฝ่ายขายออนไลน์)
-    if (vStr.startsWith('VIS-ORD-') || vStr.includes('-ORD-')) {
+    if (isOrd) {
         const targetId = isExistingCustomer ? 'T006' : 'T004';
         const item = list.find(t => t.id === targetId) || {
             id: targetId,
             name: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
             th: isExistingCustomer ? 'โทรปิดการขายลูกค้าเก่า' : 'โทรปิดการขายลูกค้าใหม่',
-            lo: isExistingCustomer ? 'ໂທປິດการขวดເກົ່າ' : 'ໂທປິດການຂາຍລູກຄ້າໃໝ່',
+            lo: isExistingCustomer ? 'ໂທປິດການຂາຍລູກຄ້າເກົ່າ' : 'ໂທປິດການຂາຍລູກຄ້າໃໝ່',
             en: isExistingCustomer ? 'Telesales - Returning Customer' : 'Telesales - New Customer',
             isOld: Boolean(isExistingCustomer)
         };

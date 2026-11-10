@@ -197,7 +197,7 @@
                         const correctType = classifyOrderItem(it, prodMap);
 
                         items.push({
-                            billId: record.id,
+                            billId: record.order_id || record.orderId || record.id || record.billId || record.bill_no || "",
                             date: record.date || record.sale_date || '',
                             memberId: recMemberId,
                             memberName: member?.name || recMemberId || 'UNKNOWN',
@@ -215,10 +215,10 @@
                 const m = Number(record['รวมชิ้นราคาสมาชิก'] || 0);
                 const p = Number(record['รวมชิ้นราคาโปร'] || 0);
                 const z = Number(record['รวมชิ้นราคาศูนย์'] || 0);
-                if (f > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาเต็ม', qty: f });
-                if (m > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาสมาชิก', qty: m });
-                if (p > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาโปร', qty: p });
-                if (z > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || record.memberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาศูนย์', qty: z });
+                if (f > 0) items.push({ billId: record.order_id || record.orderId || record.id || record.billId || record.bill_no || "", date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาเต็ม', qty: f });
+                if (m > 0) items.push({ billId: record.order_id || record.orderId || record.id || record.billId || record.bill_no || "", date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาสมาชิก', qty: m });
+                if (p > 0) items.push({ billId: record.order_id || record.orderId || record.id || record.billId || record.bill_no || "", date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาโปร', qty: p });
+                if (z > 0) items.push({ billId: record.order_id || record.orderId || record.id || record.billId || record.bill_no || "", date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || record.memberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาศูนย์', qty: z });
             }
         });
         return items;
@@ -1068,7 +1068,10 @@
                         box100k: 0,
                         box150k: 0,
                         box250k: 0,
-                        boxOther: 0
+                        boxOther: 0,
+                        billSet: new Set(),
+                        bills: [],
+                        billCount: 0
                     };
                 }
                 return dailyMap[key];
@@ -1081,6 +1084,13 @@
                 item.totalEarn += selfPay;
                 const qty = Number(s.qty) || 1;
                 item.boxes += qty;
+
+                const curBillId = s.billId || s.orderId || s.order_id || '';
+                if (curBillId && item.billSet) {
+                    item.billSet.add(curBillId);
+                    item.bills = Array.from(item.billSet);
+                    item.billCount = item.bills.length;
+                }
 
                 // นับจำนวนกล่องแยกตามเรทค่าคอมขายเอง (100,000, 150,000 หรือ 250,000 กีบ/กล่อง)
                 const feePerBox = Number(prodConfig.selfFee ?? prodConfig.self_fee ?? prodConfig.directFee ?? prodConfig.level0Fee ?? 0);
@@ -1443,7 +1453,7 @@
             }
         });
 
-        return details.sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
+        return details.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.billId || "").localeCompare(String(a.billId || "")));
     }
 
     /**

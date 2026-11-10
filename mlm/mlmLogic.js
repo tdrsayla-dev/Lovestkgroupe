@@ -168,6 +168,21 @@
   };
 
     // ─── 2.4 Commission Eligibility Helper ───────────────────────────
+  function hasReferralFee(prodConfig) {
+      if (!prodConfig) return false;
+      const selfFee = Number(prodConfig.selfFee ?? prodConfig.self_fee ?? prodConfig.directFee ?? prodConfig.level0Fee ?? 0);
+      const l1Fee = Number(prodConfig.level1Fee ?? prodConfig.level_1_fee ?? prodConfig.uplineFee ?? prodConfig.l1Rate ?? 0);
+      const selfPctFull = Number(prodConfig.selfPercentFull ?? prodConfig.self_percent_full ?? prodConfig.selfPercent ?? 0);
+      const selfPctMem = Number(prodConfig.selfPercentMember ?? prodConfig.self_percent_member ?? 0);
+      if (selfFee > 0 || l1Fee > 0 || selfPctFull > 0 || selfPctMem > 0) return true;
+      for (let l = 2; l <= 10; l++) {
+          if (Number(prodConfig[`level${l}Fee`] ?? prodConfig[`level_${l}_fee`] ?? 0) > 0) return true;
+          if (Number(prodConfig[`level${l}PercentFull`] ?? prodConfig[`level_${l}_percent_full`] ?? 0) > 0) return true;
+          if (Number(prodConfig[`level${l}PercentMember`] ?? prodConfig[`level_${l}_percent_member`] ?? 0) > 0) return true;
+      }
+      return false;
+  }
+
   function isProductEligibleForReferral(prodConfig) {
       if (!prodConfig) return false;
       const givePv = Number(prodConfig.givePv ?? prodConfig.give_pv ?? prodConfig.b2n_give_pv ?? 0);
@@ -345,6 +360,28 @@
     return true; // ค่าเริ่มต้นสำหรับสายงานขายทั้งหมด
   };
 
+  // 🛡️ ตรวจสอบว่าเป็นพนักงานการตลาดแท้จริงหรือไม่ (คัดกรองแอดมิน, บัญชีระบบ, บัญชีผู้บริหาร, ทีมส่วนกลาง T02 ออกจากการแข่งขันโพเดียม)
+  const isMarketingStaff = (mem) => {
+    if (!mem) return false;
+    const role = String(mem.role || mem.permission_role || '').trim();
+    const roleLower = role.toLowerCase();
+    const name = String(mem.name || '').trim().toUpperCase();
+    const id = String(mem.id || mem.user_id || '').trim().toUpperCase();
+    const team = String(mem.team || mem.business_team || mem.businessTeam || '').trim().toUpperCase();
+
+    // บัญชีที่ต้องตัดออกเด็ดขาด ไม่ให้ขึ้นโพเดียมแข่งขัน
+    if (roleLower.includes('admin') || role.includes('ผู้ดูแล') || role.includes('ทั่วไป')) return false;
+    if (name.includes('ADMIN') || name.includes('LOVE STK') || name.includes('CEO') || name.includes('ส่วนกลาง') || name.includes('ระบบ')) return false;
+    if (id.includes('ADMIN') || id === 'L04289') return false;
+    if (team === 'T02' || team.includes('CENTER') || team.includes('ศูนย์')) return false;
+
+    // บัญชีที่เป็นพนักงานการตลาด
+    if (role.includes('การตลาด') || roleLower.includes('marketing')) return true;
+    if (team.startsWith('T') && team !== 'T02' && !roleLower.includes('admin')) return true;
+
+    return false;
+  };
+
   const filterActiveBusinessTeams = (businessTeams) => {
     if (!Array.isArray(businessTeams) || businessTeams.length === 0) return [];
     return businessTeams.filter(t => {
@@ -502,6 +539,7 @@
 
       if (targetTeamId && map[targetTeamId]) {
         let fQty = 0, mQty = 0, pQty = 0, zQty = 0;
+        let refFullQty = 0, refMemQty = 0;
         let itemsList = [];
         if (s.items_json) {
           try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
@@ -511,32 +549,51 @@
           itemsList.forEach(it => {
             const typeStr = classifyOrderItem(it, prodMap);
             const qtyNum = Number(it.qty || it.quantity || 1);
-            if (typeStr === 'ราคาเต็ม') fQty += qtyNum;
-            else if (typeStr === 'ราคาสมาชิก') mQty += qtyNum;
-            else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') pQty += qtyNum;
-            else zQty += qtyNum;
+
+            const pName = String(it.prod || it.productName || it.name || '').trim();
+            const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+            const pId = safeUpper(it.productId || it.product_id || it.id || '');
+            const pObj = (pId && prodMap[pId]) || prodMap[safeUpper(pName)] || prodMap[safeUpper(cleanPName)] || {};
+            const eligibleForRef = hasReferralFee(pObj);
+
+            if (typeStr === 'ราคาเต็ม') {
+              fQty += qtyNum;
+              if (eligibleForRef) refFullQty += qtyNum;
+            } else if (typeStr === 'ราคาสมาชิก') {
+              mQty += qtyNum;
+              if (eligibleForRef) refMemQty += qtyNum;
+            } else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') {
+              pQty += qtyNum;
+            } else {
+              zQty += qtyNum;
+            }
           });
         } else {
           fQty = s?.['รวมชิ้นราคาเต็ม'] !== undefined ? Number(s['รวมชิ้นราคาเต็ม']) : Number(s?.fullQty || s?.full_qty || s?.full_boxes || 0);
           mQty = s?.['รวมชิ้นราคาสมาชิก'] !== undefined ? Number(s['รวมชิ้นราคาสมาชิก']) : Number(s?.memberQty || s?.member_qty || s?.member_boxes || 0);
           pQty = s?.['รวมชิ้นราคาโปร'] !== undefined ? Number(s['รวมชิ้นราคาโปร']) : Number(s?.promoQty || s?.promo_qty || s?.promo_boxes || 0);
           zQty = s?.['รวมชิ้นราคาศูนย์'] !== undefined ? Number(s['รวมชิ้นราคาศูนย์']) : Number(s?.zeroQty || s?.zero_qty || s?.zero_boxes || 0);
+          refFullQty = fQty;
+          refMemQty = mQty;
         }
 
         if (fQty === 0 && mQty === 0 && pQty === 0 && zQty === 0) {
           const totalBoxes = parseSaleBoxes(s);
-          if (totalBoxes > 0) mQty = totalBoxes;
+          if (totalBoxes > 0) {
+            mQty = totalBoxes;
+            refMemQty = totalBoxes;
+          }
         }
 
-        // ยอดขายกล่องทั้งหมดของทีม = ราคาเต็ม + ราคาสมาชิก + โปรโมชั่น
+        // ยอดขายกล่องทั้งหมดของทีม = ราคาเต็ม + ราคาสมาชิก + โปรโมชั่น (บวกโปรเหมือนเดิม)
         const sumBoxes = fQty + mQty + pQty;
 
         if (fQty > 0 || mQty > 0 || pQty > 0 || zQty > 0) {
-          map[targetTeamId].full += fQty;
-          map[targetTeamId].mem += mQty;
+          map[targetTeamId].full += refFullQty; // แสดงเฉพาะยอดสินค้าที่คิดค่าแนะนำจริง
+          map[targetTeamId].mem += refMemQty;   // แสดงเฉพาะยอดสินค้าที่คิดค่าแนะนำจริง
           map[targetTeamId].promo += pQty;
           map[targetTeamId].zero += zQty;
-          map[targetTeamId].totalBoxes += sumBoxes;
+          map[targetTeamId].totalBoxes += sumBoxes; // ยอดรวมคำนวณจาก เต็ม + โปร + สมาชิก เหมือนเดิม
         }
 
         const custId = safeUpper(s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name || '');
@@ -606,10 +663,10 @@
     }));
   };
 
-  const calcTopPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate }) => {
+const calcTopPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate }) => {
     let mStats = {};
     (members || []).forEach(m => {
-      if (m && (m.id || m.user_id)) {
+      if (m && (m.id || m.user_id) && isMarketingStaff(m)) {
         const key = safeUpper(m.id || m.user_id);
         mStats[key] = { id: m.id || m.user_id, name: m.name || m.id, profileUrl: m.profileUrl, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
       }
@@ -625,8 +682,12 @@
       const memberId = parseSaleMemberId(s);
       if (!memberId) return;
       const key = safeUpper(memberId);
+      const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
+
+      // 🛡️ GUARD: เฉพาะพนักงานการตลาดเท่านั้นที่มีสิทธิ์แข่งขันบนโพเดียม (ห้ามแอดมิน/บัญชีระบบ)
+      if (!isMarketingStaff(mem)) return;
+
       if (!mStats[key]) {
-        const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
         mStats[key] = { id: memberId, name: mem ? mem.name : (s.memberName || s.member_name || memberId), profileUrl: mem?.profileUrl, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
       }
       const fullBoxes = parseSaleBoxes(s);
@@ -679,13 +740,10 @@
     return m ? ('VIS_' + m[1]) : null;
   };
 
-  const calcTopCheckupPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate, clinicLogs }) => {
+const calcTopCheckupPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate, clinicLogs }) => {
     let mStats = {};
     (members || []).forEach(m => {
-      if (m && (m.id || m.user_id)) {
-        const role = String(m.role || m.permission_role || '').trim();
-        // นับเฉพาะพนักงานการตลาดเท่านั้น ไม่นับพนักงานทั่วไปหรือรหัสบริษัท
-        if (role && role !== 'พนักงานการตลาด' && role.indexOf('การตลาด') === -1) return;
+      if (m && (m.id || m.user_id) && isMarketingStaff(m)) {
         const key = safeUpper(m.id || m.user_id);
         mStats[key] = { id: m.id || m.user_id, name: m.name || m.id, profileUrl: m.profileUrl, newCustSet: new Set() };
       }
@@ -988,7 +1046,9 @@
     calcSalesByCustomerTypeData,
     filterTargetHistory,
     classifyOrderItem,
-    isProductEligibleForReferral
+    isProductEligibleForReferral,
+    isMarketingStaff,
+    hasReferralFee
   };
 
   console.log('%c📊 MlmLogic Engine loaded successfully', 'color:#10b981;font-weight:bold');

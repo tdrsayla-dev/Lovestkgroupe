@@ -1943,7 +1943,7 @@
                 const loadEditRecordDirectly = async (editId) => {
                     try {
                         const [prodRes, saleRes] = await Promise.all([
-                            supabaseSelect('stk_products', '').catch(() => []),
+                            supabaseSelect('stk_products', 'select=product_id,name,category,price_member,price_full,price_promo,give_pv,current_stock,status,barcode').catch(() => []),
                             supabaseSelect('stk_sales', `order_id=eq.${encodeURIComponent(editId)}`).catch(() => supabaseSelect('stk_sales', `id=eq.${encodeURIComponent(editId)}`).catch(() => []))
                         ]);
                         const rawSale = Array.isArray(saleRes) && saleRes.length > 0 ? saleRes[0] : null;
@@ -2848,7 +2848,7 @@
                         if (false) {
                             let currentProducts = [];
                             if (typeof supabaseSelect === 'function') {
-                                currentProducts = await supabaseSelect('stk_products').catch(() => []) || [];
+                                currentProducts = await supabaseSelect('stk_products', 'select=product_id,name,category,price_member,price_full,price_promo,give_pv,current_stock,status,barcode').catch(() => []) || [];
                             }
 
                             const inQtyMap = {};
@@ -7572,12 +7572,12 @@
                 // ดึงข้อมูลทั้งหมดในพร้อมกัน แต่แสดงหน้าจอจาก cache ก่อน (ถ้ามี) เพื่อแก้ปัญหาหมุนค้างและให้ข้อมูลเรียลไทม์
                 const doFullRefresh = () => {
                     Promise.all([
-                        supabaseSelect('stk_products').catch(e => { console.warn('stk_products fetch:', e); return []; }),
+                        supabaseSelect('stk_products', 'select=product_id,name,category,price_member,price_full,price_promo,give_pv,current_stock,status,barcode&order=name.asc').catch(e => { console.warn('stk_products fetch:', e); return []; }),
                         supabaseSelect('stk_customer_types').catch(e => { console.warn('stk_customer_types fetch:', e); return []; }),
                         supabaseSelect('stk_closers').catch(e => { console.warn('stk_closers fetch:', e); return []; }),
-                        supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name,id_card_url').catch(e => { console.warn('stk_members fetch:', e); return []; }),
-                        supabaseSelect('stk_customers', 'order=customer_id.desc&limit=1500').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
-                        supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
+                        supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number').catch(e => { console.warn('stk_members fetch:', e); return []; }),
+                        supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,owner_member_id,closer_id,symptom_disease,line_id&order=customer_id.desc&limit=800').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
+                        supabaseSelect('stk_sales', 'select=order_id,date,created_at,seller_id,customer_id,sale_type,total_amount,total_bottles,status,recorded_by,items_json,payment_note,payments_json,exchange_rate&order=order_id.desc&limit=500').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
                         supabaseSelect('stk_business_teams').catch(e => { console.warn('stk_business_teams fetch:', e); return []; }),
                         (typeof window.fetchClinicDoctors === 'function' ? window.fetchClinicDoctors() : Promise.resolve([])).catch(e => { console.warn('clinicDoctors fetch:', e); return []; }),
                         supabaseSelect('stk_daily_balance', 'order=balance_date.desc&limit=500').catch(e => { console.warn('stk_daily_balance fetch:', e); return []; })
