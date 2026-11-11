@@ -94,11 +94,29 @@
     var projectRef = getUrl().replace(/^https?:\/\//, '').split('.')[0];
     var TOKEN_KEY = 'sb-' + projectRef + '-auth-token';
 
+    // 🛡️ [Token Sanitizer] ล้าง Token เก่าที่หมดอายุออกจาก localStorage ก่อนที่ SDK จะพยายาม auto-refresh
+    // ป้องกัน error: Failed to load resource (400) grant_type=refresh_token
+    try {
+        var rawTok = localStorage.getItem(TOKEN_KEY);
+        if (rawTok) {
+            var tokObj = JSON.parse(rawTok);
+            if (!tokObj || !tokObj.access_token || (tokObj.expires_at && tokObj.expires_at * 1000 < Date.now())) {
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        }
+    } catch (e) { }
+
     function clearLocalSession() {
         try {
             localStorage.removeItem('clinicUser');
             localStorage.removeItem('clinic_last_activity');
             localStorage.removeItem(TOKEN_KEY);
+            for (var i = localStorage.length - 1; i >= 0; i--) {
+                var k = localStorage.key(i);
+                if (k && k.indexOf('-auth-token') !== -1) {
+                    localStorage.removeItem(k);
+                }
+            }
         } catch (e) { }
     }
 
@@ -130,7 +148,7 @@
         return window.supabase.createClient(getUrl(), getKey(), {
             auth: {
                 persistSession: true,
-                autoRefreshToken: true,
+                autoRefreshToken: false,
                 detectSessionInUrl: false }
         });
     }
@@ -177,6 +195,8 @@
             return;
         }
         if (userRes.error || !userRes.data || !userRes.data.user) {
+            // ล้าง Token ที่หมดอายุหรือไม่ถูกต้องออกจาก localStorage เพื่อไม่ให้เกิด network error ค้าง
+            try { localStorage.removeItem(TOKEN_KEY); } catch (e) { }
             var localSession = null;
             try { localSession = JSON.parse(localStorage.getItem('clinicUser') || '{}'); } catch (e) { }
             console.log('✅ Auth guard: active clinicUser session verified (' + ((localSession && (localSession.name || localSession.email)) || 'active') + ')');

@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <script src="auth-guard.js?v=2.6"></script>
+    <script src="auth-guard.js?v=2.7"></script>
     <script src="deleted-sync.js?v=2.2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบการทำงาน - Clinic System</title>
@@ -23,7 +23,7 @@
             try {
                 var _cUrl = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || 'https://fpmstumpobbjozflkola.supabase.co';
                 var _cKey = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
-                window._supabase = supabase.createClient(_cUrl, _cKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+                window._supabase = supabase.createClient(_cUrl, _cKey, { auth: { persistSession: true, autoRefreshToken: false, detectSessionInUrl: false } });
             } catch (e) { }
         }
     </script>
