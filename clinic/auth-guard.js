@@ -169,8 +169,13 @@
         return;
     }
 
-    // 2) ตรวจกับเซิร์ฟเวอร์ + รีเฟรชสิทธิ์จากฐานข้อมูล
+    // 2) ตรวจกับเซิร์ฟเวอร์ + รีเฟรชสิทธิ์จากฐานข้อมูล (รันเฉพาะหน้าหลัก top window เพื่อลดภาระ DB จาก iframes)
     async function verifyWithServer() {
+        try {
+            if (window.top !== window.self && localStorage.getItem('clinicUser')) {
+                return;
+            }
+        } catch (e) { }
         if (!window.supabase || typeof window.supabase.createClient !== 'function') return;
         var parentClient = null;
         try {
@@ -204,15 +209,16 @@
         }
 
         var uid = userRes.data.user.id;
+        var userEmail = (userRes.data.user.email || '').trim().toLowerCase();
         var cols = 'id, emp_code, email, full_name, role, permissions, is_active, must_change_password';
         var staff = null;
         var staffRes;
         try {
-            staffRes = await withTimeout(client.from('staff_users').select(cols).eq('auth_user_id', uid).maybeSingle(), 8000);
-            staff = staffRes.data;
-            if (!staff && !staffRes.error) {
-                staffRes = await withTimeout(client.from('staff_users').select(cols).eq('id', uid).maybeSingle(), 8000);
-                staff = staffRes.data;
+            staffRes = await withTimeout(client.from('staff_users').select(cols).eq('auth_user_id', uid).maybeSingle(), 5000);
+            staff = staffRes ? staffRes.data : null;
+            if (!staff && userEmail) {
+                staffRes = await withTimeout(client.from('staff_users').select(cols).ilike('email', userEmail).maybeSingle(), 5000);
+                staff = staffRes ? staffRes.data : null;
             }
         } catch (e) {
             console.warn('Auth guard: staff lookup timeout', e.message || e);
@@ -222,9 +228,13 @@
             console.warn('Auth guard: cannot load staff profile', staffRes.error.message);
             return;
         }
-        if (!staff || staff.is_active === false) {
+        if (staff && staff.is_active === false) {
             try { await client.auth.signOut({ scope: 'local' }); } catch (e) { }
             goLogin();
+            return;
+        }
+        if (!staff) {
+            console.log('✅ Auth guard: authenticated user verified (using session profile)');
             return;
         }
 

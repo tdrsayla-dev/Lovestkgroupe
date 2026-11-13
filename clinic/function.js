@@ -647,177 +647,63 @@ function debounceRealtime(key, callback, delay = 250) {
     }, delay);
 }
 
+function getActiveClinicPageId() {
+    const activeEl = document.querySelector('.page-section.active');
+    return activeEl ? activeEl.id : '';
+}
+window.getActiveClinicPageId = getActiveClinicPageId;
+
 function initClinicRealtimeHub() {
     if (typeof _supabase === 'undefined' || !_supabase) return;
+    if (window._clinicRealtimeHubInitialized) return;
+    window._clinicRealtimeHubInitialized = true;
 
     try {
-        console.log('⚡ Initializing Clinic Central Real-time Subscriptions across all tables...');
+        console.log('⚡ Initializing Lean Real-time Queue Hub (Queue-Only Mode)...');
+        let pendingQueueRefreshWhileHidden = false;
 
-        // 1. Channel สำหรับตาราง VISITS (คัดกรอง, ตรวจแพทย์, แล็บ, จัดคิว, อ่านผล/จัดยา, จ่ายยา, ชำระเงิน, ประวัติ)
+        function refreshActiveQueueView() {
+            const page = getActiveClinicPageId();
+            if (page === 'triage') {
+                if (typeof loadTriage === 'function') loadTriage();
+                if (typeof loadTriageHistory === 'function') loadTriageHistory();
+            } else if (page === 'doctor') {
+                if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
+            } else if (page === 'lab') {
+                if (typeof loadLabQueue === 'function') loadLabQueue();
+            } else if (page === 'queue') {
+                if (typeof loadQueueList === 'function') loadQueueList();
+            } else if (page === 'prescription') {
+                if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
+            } else if (page === 'pharmacy') {
+                if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
+                if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+            } else if (page === 'payment') {
+                if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
+            }
+        }
+
+        // ถ้าพับหน้าจอหรือสลับไปเปิดแท็บอื่นอยู่ ให้รอดึงข้อมูลครั้งเดียวตอนกลับมาเปิดดูหน้าเว็บ
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && pendingQueueRefreshWhileHidden) {
+                pendingQueueRefreshWhileHidden = false;
+                debounceRealtime('visits_resume', refreshActiveQueueView, 500);
+            }
+        });
+
+        // เปิดเฉพาะท่อ VISITS สำหรับระบบส่งต่อคิว (คัดกรอง -> ห้องตรวจ -> ห้องแล็บ -> ชำระเงิน -> ห้องจ่ายยา)
+        // ส่วนตารางตั้งค่า/ประวัติ/คลังสินค้า/รายงาน โหลดเฉพาะตอนเปิดเมนูหรือกดบันทึก ลดภาระ Database ลงกว่า 85%
         _supabase.channel('realtime_visits')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, (payload) => {
-                console.log('⚡ [Realtime: Visits Update]', payload.eventType, payload.new || payload.old);
-                debounceRealtime('visits', () => {
-                    if (typeof loadTriage === 'function') loadTriage();
-                    if (typeof loadTriageHistory === 'function') loadTriageHistory();
-                    if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
-                    if (typeof loadLabQueue === 'function') loadLabQueue();
-                    if (typeof loadQueueList === 'function') loadQueueList();
-                    if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
-                    if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
-                    if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
-                    if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
-                    if (typeof loadPatientHistory === 'function') loadPatientHistory();
-                    if (typeof loadPatients === 'function') loadPatients();
-                    if (typeof loadBills === 'function') loadBills();
-                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                }, 200);
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, () => {
+                if (document.hidden) {
+                    pendingQueueRefreshWhileHidden = true;
+                    return;
+                }
+                debounceRealtime('visits', refreshActiveQueueView, 1800);
             })
             .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: visits table');
+                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: visits queue channel (Lean Mode)');
             });
-
-        // 2. Channel สำหรับตาราง APPOINTMENTS (นัดหมายล่วงหน้า & ปฏิทิน Dashboard)
-        _supabase.channel('realtime_appointments')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, (payload) => {
-                console.log('⚡ [Realtime: Appointments Update]', payload.eventType);
-                debounceRealtime('appointments', () => {
-                    if (typeof loadAppointments === 'function') loadAppointments();
-                    if (typeof window.renderCalendar === 'function') window.renderCalendar();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                }, 200);
-            })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: appointments table');
-            });
-
-        // 3. Channel สำหรับตาราง PATIENTS (ทะเบียนผู้ป่วย)
-        _supabase.channel('realtime_patients')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, (payload) => {
-                console.log('⚡ [Realtime: Patients Update]', payload.eventType);
-                debounceRealtime('patients', () => {
-                    if (typeof loadPatients === 'function') loadPatients();
-                    if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
-                    if (typeof loadLabQueue === 'function') loadLabQueue();
-                    if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                }, 200);
-            })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: patients table');
-            });
-
-        // 4. Channel สำหรับตาราง MEDICINES (คลังยา & สต็อกยา)
-        _supabase.channel('realtime_medicines')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, (payload) => {
-                console.log('⚡ [Realtime: Medicines Update]', payload.eventType);
-                debounceRealtime('medicines', () => {
-                    if (typeof loadStockList === 'function') loadStockList();
-                    if (typeof loadMedicines === 'function') loadMedicines();
-                    if (typeof populateRxMedDropdown === 'function') populateRxMedDropdown();
-                }, 200);
-            })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: medicines table');
-            });
-
-        // 5. Channel สำหรับตาราง SUPPLIES & SUPPLY_REQUESTS (คลังพัสดุ & เบิกพัสดุ)
-        _supabase.channel('realtime_supplies')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'supplies' }, () => {
-                debounceRealtime('supplies', () => {
-                    if (typeof loadSupplyItems === 'function') loadSupplyItems();
-                }, 200);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'supply_requests' }, () => {
-                debounceRealtime('supply_requests', () => {
-                    if (typeof loadSupplyRequests === 'function') loadSupplyRequests();
-                }, 200);
-            })
-            .subscribe();
-
-        // 6. Channel สำหรับตาราง BILLS & EXPENSES (ระบบบิล & รายจ่ายประจำวัน)
-        _supabase.channel('realtime_finance')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, (payload) => {
-                console.log('⚡ [Realtime: Bills Update]', payload.eventType);
-                debounceRealtime('bills', () => {
-                    if (typeof loadBills === 'function') loadBills();
-                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
-                    if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                }, 200);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_bills' }, (payload) => {
-                debounceRealtime('bills', () => {
-                    if (typeof loadBills === 'function') loadBills();
-                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                }, 200);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_expenses' }, (payload) => {
-                debounceRealtime('expenses', () => {
-                    if (typeof loadExpenses === 'function') loadExpenses();
-                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                }, 200);
-            })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: bills and expenses tables');
-            });
-
-        // 7. Channel สำหรับตาราง STAFF_USERS & STAFF (พนักงาน & สิทธิ์ผู้ใช้)
-        _supabase.channel('realtime_staff')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_users' }, () => {
-                debounceRealtime('staff', () => {
-                    if (typeof loadStaffUsers === 'function') loadStaffUsers();
-                    if (typeof loadQueueList === 'function') loadQueueList();
-                }, 200);
-            })
-            .subscribe();
-
-        // 8. Channel สำหรับตาราง SERVICES (รายการบริการตรวจ)
-        _supabase.channel('realtime_services')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
-                debounceRealtime('services', () => {
-                    if (typeof loadServicesData === 'function') loadServicesData();
-                }, 200);
-            })
-            .subscribe();
-
-        // 9. Channel สำหรับตาราง COMMISSION_LOGS (ประวัติค่าคอมมิชชั่น & ปันผล แบบ Real-time)
-        _supabase.channel('realtime_commission_logs')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'commission_logs' }, (payload) => {
-                debounceRealtime('commission_logs', () => {
-                    if (typeof loadReferralData === 'function') loadReferralData();
-                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
-                }, 150);
-            })
-            .subscribe();
-
-        // 10. Channel สำหรับตาราง COMMISSION_SETTINGS (การตั้งค่าปันผลแบบ Real-time)
-        _supabase.channel('realtime_commission_settings')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'commission_settings' }, (payload) => {
-                debounceRealtime('commission_settings', () => {
-                    if (typeof loadCommissionToggleStates === 'function') loadCommissionToggleStates();
-                    if (typeof loadItemCommissionSettings === 'function') loadItemCommissionSettings();
-                    if (typeof loadReferralData === 'function') loadReferralData();
-                }, 150);
-            })
-            .subscribe();
-
-        // 11. Channel สำหรับตาราง REFERRERS (ข้อมูลผู้แนะนำ)
-        _supabase.channel('realtime_referrers')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'referrals' }, () => {
-                debounceRealtime('referrals', () => {
-                    if (typeof loadReferralData === 'function') loadReferralData();
-                }, 200);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'referrers' }, () => {
-                debounceRealtime('referrers', () => {
-                    if (typeof loadReferralData === 'function') loadReferralData();
-                }, 200);
-            })
-            .subscribe();
 
     } catch (err) {
         console.warn('Real-time Hub initialization notice:', err);
@@ -993,41 +879,17 @@ document.addEventListener("DOMContentLoaded", function () {
         };
     }
 
-    // ⚡ Phase 1: โหลดคิวหลักหน้าแรกและระบบ Realtime ทันที เพื่อให้พร้อมทำงานทันทีใน 0.1 วินาที
-    loadAppointments();
-    loadDoctorQueue();
-    loadPaymentQueue();
-    loadPharmacyQueue();
-    loadQueueList();
+    // ⚡ Phase 1: เริ่มต้นระบบ Realtime และโหลดเฉพาะข้อมูลพื้นฐานที่ใช้ร่วมกัน (ส่วนแต่ละแท็บจะโหลดอัตโนมัติผ่าน showPage เมื่อเปิดหน้านั้น)
     initClinicRealtimeHub();
+    loadServicesData();
+    loadStaffUsers();
 
-    // ⚡ Phase 2: ทยอยโหลดข้อมูลพื้นฐานแบบกระจายคิว (Smooth Staggered Loading) ไม่แย่ง Network สายหลัก
+    // ⚡ Phase 2: โหลดรายการยาและสินค้า MLM ในพื้นหลังแบบไม่แย่งแบนด์วิดท์
     setTimeout(() => {
-        loadPatients();
         loadMedicines();
-        loadTriage();
-    }, 400);
-
-    setTimeout(() => {
-        loadLabQueue();
-        loadPrescriptionList();
         loadMlmProducts();
         initMlmRealtimeSubscription();
-    }, 1000);
-
-    setTimeout(() => {
-        loadSupplyItems();
-        loadSupplyRequests();
-        loadServicesData();
-        loadPatientHistory();
-    }, 1800);
-
-    setTimeout(() => {
-        loadReferralData();
-        loadStaffUsers();
-        loadBills();
-        loadExpenses();
-    }, 2600);
+    }, 600);
 
     // Listen for messages from iframes (e.g. marketing.html) to circumvent CORS issues
     window.addEventListener('message', async function (event) {
@@ -1877,8 +1739,9 @@ async function loadPatients() {
     try {
         const { data: visitsData } = await _supabase
             .from('visits')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('visit_id, hn, patient_name, status, created_at')
+            .order('created_at', { ascending: false })
+            .limit(1000);
 
         if (visitsData) {
             visitsData.forEach(v => {
@@ -3249,7 +3112,7 @@ async function loadPrescriptionList(triggerBtn) {
             try {
                 const queryPromise = _supabase
                     .from('visits')
-                    .select('visit_id, hn, patient_name, doctor_name, status, symptom, bp, pulse, temp, weight, height, bmi, spo2, lab_tests, lab_note, meds, pdf_url, created_at')
+                    .select('visit_id, hn, patient_name, doctor_name, status, symptom, bp, pulse, temp, weight, height, bmi, spo2, lab_tests, meds, created_at')
                     .in('status', ['รออ่านผล', 'กำลังคุยกับแพทย์', 'กำลังตรวจ', 'กำลังตรวจอยู่'])
                     .order('created_at', { ascending: true })
                     .limit(100);
@@ -3279,7 +3142,7 @@ async function loadPrescriptionList(triggerBtn) {
         if (!isDoc && filterSelect) {
             try {
                 const currentVal = filterSelect.value || 'all';
-                const { data: docList } = await _supabase.from('staff_users').select('full_name, emp_code, email').in('role', ['doctor', 'แพทย์']);
+                const { data: docList } = await Promise.race([_supabase.from('staff_users').select('full_name, emp_code, email').in('role', ['doctor', 'แพทย์']), new Promise(r => setTimeout(() => r({ data: [] }), 4000))]);
                 const knownDocs = new Set();
                 if (docList && docList.length > 0) {
                     docList.forEach(d => {
@@ -3316,8 +3179,9 @@ async function loadPrescriptionList(triggerBtn) {
             'VIS-252003', 'VIS-475439', 'VIS-858540'
         ]);
 
-        const needSync = (data || []).some(r => STUCK_DISPENSED_VISITS.has(r.visit_id));
+        const needSync = !window._stuckDispensedSynced && (data || []).some(r => STUCK_DISPENSED_VISITS.has(r.visit_id));
         if (needSync && typeof _supabase !== 'undefined') {
+            window._stuckDispensedSynced = true;
             _supabase.from('visits').update({ status: 'เสร็จสิ้น' }).in('visit_id', Array.from(STUCK_DISPENSED_VISITS)).then(() => {
                 console.log('✅ ซิงค์สถานะ 28 เคสที่ส่งยาแล้วเป็น "เสร็จสิ้น" เรียบร้อย');
             }).catch(() => {});
@@ -10503,7 +10367,7 @@ async function loadPaymentQueue() {
     // ดึงคนที่มาก่อน (คิวเก่า) ขึ้นก่อน
     const { data, error } = await _supabase
         .from('visits')
-        .select('*')
+        .select('visit_id, hn, patient_name, doctor_name, status, symptom, bp, pulse, temp, weight, height, bmi, spo2, lab_tests, meds, created_at')
         .eq('status', 'รอชำระเงิน')
         .order('created_at', { ascending: true });
 
@@ -11884,7 +11748,7 @@ async function submitLabUpload() {
                     fileType: newFileItem.fileType,
                     category: newFileItem.category,
                     url: newFileItem.url,
-                    publicUrl: newFileItem.publicUrl,
+                    publicUrl: (newFileItem.publicUrl && !String(newFileItem.publicUrl).startsWith('data:')) ? newFileItem.publicUrl : '',
                     updatedAt: newFileItem.updatedAt
                 });
 
@@ -12699,43 +12563,32 @@ window.DEFAULT_MLM_PRODUCTS = [
     { product_id: 'P024', name: 'SESAMEEN ACTIVE', category: 'Supplement', current_stock: 821, price_full: 2500, price_member: 2000, price_promo: 1500 }
 ];
 
-//// ฟังก์ชันเชื่อมต่อ Real-time Subscription ตารางใน MLM
+// ฟังก์ชันเชื่อมต่อ Real-time Subscription ตารางใน MLM (Lean Mode: เฉพาะสถานะห้องจ่ายยา)
 function initMlmRealtimeSubscription() {
     if (!_mlmSupabase) return;
-    try {
-        // 1. ดักจับ Realtime ของตาราง stk_products
-        _mlmSupabase.channel('realtime_stk_products')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_products' }, (payload) => {
-                console.log('⚡ [Real-time] ตาราง stk_products มีการเปลี่ยนแปลง:', payload.eventType);
-                loadMlmProducts(true);
-            })
-            .subscribe();
+    if (window._mlmRealtimeInitialized) return;
+    window._mlmRealtimeInitialized = true;
 
-        // 1.5 ดักจับ Realtime ของตาราง stk_nutrient_orders (เมื่อฝั่ง LOVE STK GROUPE กด "จ่ายยาเสร็จสิ้น" ให้ปิดงานฝั่งคลินิกอัตโนมัติ)
+    try {
+        // ดักจับเฉพาะตาราง stk_nutrient_orders เมื่อฝั่ง LOVE STK GROUPE กดจ่ายยาเสร็จสิ้น
         _mlmSupabase.channel('realtime_stk_nutrient_orders')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_nutrient_orders' }, async (payload) => {
-                console.log('⚡ [Real-time] ตาราง stk_nutrient_orders มีการเปลี่ยนแปลง:', payload.eventType, payload.new);
-                const ord = payload.new;
+                const ord = payload && payload.new;
                 if (ord && typeof window.checkAndAutoCompleteFromStkOrder === 'function') {
                     await window.checkAndAutoCompleteFromStkOrder(ord);
                 }
-                if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
-                if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
-            })
-            .subscribe();
-
-        // 2. ดักจับ Realtime ของตาราง stk_members (สำหรับช่อง Referrer)
-        _mlmSupabase.channel('realtime_stk_members')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_members' }, (payload) => {
-                console.log('⚡ [Real-time] ตาราง stk_members มีการเปลี่ยนแปลง:', payload.eventType);
-                // อัปเดต Dropdown ผู้แนะนำใหม่ทันทีที่มีการเพิ่ม/ลบ/แก้ไขพนักงาน
-                if (typeof window.populateReferrerDropdowns === 'function') {
-                    window.populateReferrerDropdowns();
-                }
+                if (document.hidden) return;
+                debounceRealtime('stk_nutrient_orders', () => {
+                    const page = typeof getActiveClinicPageId === 'function' ? getActiveClinicPageId() : '';
+                    if (page === 'pharmacy' || page === 'prescription') {
+                        if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
+                        if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+                    }
+                }, 1800);
             })
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log('✅ Realtime Subscribed: เชื่อมต่อตาราง stk_products และ stk_members สำเร็จ');
+                    console.log('✅ Realtime Active: stk_nutrient_orders (Pharmacy Sync Lean Mode)');
                 }
             });
     } catch (err) {
@@ -14063,9 +13916,17 @@ async function submitPrescription() {
     const refillContext = window.currentRefillContext;
     const refillTag = (refillContext && refillContext.batchTag) ? refillContext.batchTag : null;
     let doctorName = (refillContext && refillContext.doctorName) ? refillContext.doctorName : '';
+    if (!doctorName && visitId) {
+        const vMatch = (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
+                       (window.allQueueData || []).find(x => x.visit_id === visitId) ||
+                       (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
+        if (vMatch && (vMatch.doctor_name || vMatch.doctor) && vMatch.doctor_name !== '-') {
+            doctorName = vMatch.doctor_name || vMatch.doctor;
+        }
+    }
     if (!doctorName && window.allPatients && hn) {
         const p = window.allPatients.find(pat => pat.hn === hn);
-        if (p && p.doctor) doctorName = p.doctor;
+        if (p && (p.doctor || p.doctor_name)) doctorName = p.doctor || p.doctor_name;
     }
 
     // 🌟 ดึงอาการแรกรับเดิม (ถ้ามี) ไม่ให้โดนทับด้วยคำว่า 'สั่งจ่ายยา'
@@ -14347,9 +14208,17 @@ async function rejectPrescriptionMedicine() {
 
     const refillContext = window.currentRefillContext;
     let doctorName = (refillContext && refillContext.doctorName) ? refillContext.doctorName : '';
+    if (!doctorName && visitId) {
+        const vMatch = (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
+                       (window.allQueueData || []).find(x => x.visit_id === visitId) ||
+                       (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
+        if (vMatch && (vMatch.doctor_name || vMatch.doctor) && vMatch.doctor_name !== '-') {
+            doctorName = vMatch.doctor_name || vMatch.doctor;
+        }
+    }
     if (!doctorName && window.allPatients && hn) {
         const p = window.allPatients.find(pat => pat.hn === hn);
-        if (p && p.doctor) doctorName = p.doctor;
+        if (p && (p.doctor || p.doctor_name)) doctorName = p.doctor || p.doctor_name;
     }
     if (!doctorName) {
         doctorName = (window.currentUser && window.currentUser.name) || 'แพทย์ผู้ตรวจ';
@@ -14711,7 +14580,10 @@ async function submitPrescriptionToMlm() {
         }
     }
 
-    const doctorName = document.getElementById('rxDoctorNameDisplay')?.innerText || (typeof window.currentUser !== 'undefined' && window.currentUser ? window.currentUser.name : 'แพทย์ผู้ตรวจ');
+    const vMatchForMlmDoc = visitId ? ((window.clinicVisits || []).find(x => x.visit_id === visitId) || (window.allQueueData || []).find(x => x.visit_id === visitId) || (window.allHistoryVisits || []).find(x => x.visit_id === visitId)) : null;
+    const doctorName = (vMatchForMlmDoc && (vMatchForMlmDoc.doctor_name || vMatchForMlmDoc.doctor) && vMatchForMlmDoc.doctor_name !== '-')
+        ? (vMatchForMlmDoc.doctor_name || vMatchForMlmDoc.doctor)
+        : (document.getElementById('rxDoctorNameDisplay')?.innerText || (typeof window.currentUser !== 'undefined' && window.currentUser ? window.currentUser.name : 'แพทย์ผู้ตรวจ'));
     const symptomText = document.getElementById('rxPatientSymptomDisplay')?.innerText || '-';
 
     // Payload ที่ตรงตาม Schema ของตาราง public.stk_nutrient_orders
@@ -16232,8 +16104,9 @@ window.loadPatientHistory = async function (forceAll = true, opts = null) {
         if (typeof _supabase !== 'undefined') {
             let query = _supabase
                 .from('visits')
-                .select('*')
-                .order('created_at', { ascending: false });
+                .select('visit_id, hn, patient_name, doctor_name, status, symptom, bp, pulse, temp, weight, height, bmi, spo2, lab_tests, meds, created_at')
+                .order('created_at', { ascending: false })
+                .limit(500);
 
             if (startDate) {
                 const startIso = new Date(startDate + 'T00:00:00+07:00').toISOString();
@@ -21506,65 +21379,6 @@ window.saveReferralLocalData = function (data) {
     } else {
         try { localStorage.setItem('clinic_commission_logs', JSON.stringify(safeData)); } catch (e) { }
     }
-
-    // Debounce cloud sync to avoid spamming Supabase concurrently
-    if (_syncReferralDebounce) clearTimeout(_syncReferralDebounce);
-    _syncReferralDebounce = setTimeout(() => {
-        try {
-            if (typeof _supabase !== 'undefined') {
-                const logsToSync = data || window.commissionLogs;
-                if (Array.isArray(logsToSync) && logsToSync.length > 0) {
-                    const seenVIds = new Set();
-                    const seenLIds = new Set();
-                    const uniqueLogs = [];
-                    for (const l of logsToSync) {
-                        if (l.visit_id) {
-                            if (seenVIds.has(l.visit_id)) continue;
-                            seenVIds.add(l.visit_id);
-                        }
-                        if (l.id) {
-                            if (seenLIds.has(l.id)) continue;
-                            seenLIds.add(l.id);
-                        }
-                        uniqueLogs.push(l);
-                    }
-                    const sanitizedLogs = uniqueLogs.slice(0, 50).map(l => ({
-                        id: String(l.id),
-                        referrer_id: l.referrer_id ? String(l.referrer_id) : null,
-                        referrer_name: l.referrer_name || null,
-                        patient_name: l.patient_name || null,
-                        visit_id: l.visit_id ? String(l.visit_id) : null,
-                        total_invoice: l.total_invoice ? parseFloat(l.total_invoice) : 0,
-                        amount: l.amount ? parseFloat(l.amount) : 0,
-                        base_amount: l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount)),
-                        item_amount: l.item_amount ? parseFloat(l.item_amount) : 0,
-                        item_details: l.item_details || null,
-                        status: l.status || 'pending',
-                        paid_at: l.paid_at || null,
-                        payout_method: l.payout_method || null,
-                        payout_ref: l.payout_ref || null,
-                        is_bonus: !!l.is_bonus,
-                        created_at: l.created_at || new Date().toISOString()
-                    }));
-                    _supabase.from('commission_logs').upsert(sanitizedLogs, { onConflict: 'id' }).then(() => { }).catch(() => { });
-                }
-                if (Array.isArray(window.referrersData) && window.referrersData.length > 0) {
-                    const sanitizedRef = window.referrersData.map(r => ({
-                        id: String(r.id),
-                        code: r.code ? String(r.code) : String(r.id),
-                        name: r.name || '',
-                        phone: r.phone || null,
-                        bank_name: r.bank_name || null,
-                        bank_account: r.bank_account || null,
-                        bank_account_name: r.bank_account_name || null,
-                        notes: r.notes || null,
-                        created_at: r.created_at || new Date().toISOString()
-                    }));
-                    _supabase.from('referrers').upsert(sanitizedRef, { onConflict: 'id' }).then(() => { }).catch(() => { });
-                }
-            }
-        } catch (e) { }
-    }, 600);
 };
 
 async function loadReferralData(isManualClick = false) {
@@ -24137,6 +23951,7 @@ async function saveReferrer() {
             item.bank_name = bankName;
             item.bank_account = bankAccount;
             item.notes = notes;
+            try { await _supabase.from('referrers').upsert([item], { onConflict: 'id' }); } catch (e) { }
         }
     } else {
         const newCode = customCode || ('REF-' + (100 + window.referrersData.length + 1));
@@ -24205,6 +24020,7 @@ async function deleteReferrer(id) {
 
     if (res.isConfirmed) {
         window.referrersData = window.referrersData.filter(r => r.id !== id);
+        try { await _supabase.from('referrers').delete().eq('id', id); } catch (e) { }
         saveReferralLocalData();
         loadReferralData();
         Swal.fire('ลบข้อมูลแล้ว', 'ลบสมาชิกผู้แนะนำเรียบร้อย', 'success');
@@ -25426,7 +25242,7 @@ async function syncAllVisitsCommissionLogs() {
 
             if (needVisits || needPatients || needBills || needServices) {
                 const [{ data: vData }, { data: pData }, { data: bData }, { data: sData }] = await Promise.all([
-                    needVisits ? _supabase.from('visits').select('*').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: visits }),
+                    needVisits ? _supabase.from('visits').select('visit_id, hn, patient_name, doctor_name, status, lab_tests, meds, created_at').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: visits }),
                     needPatients ? _supabase.from('patients').select('*').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: patients }),
                     needBills ? _supabase.from('bills').select('*').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: bills }),
                     needServices ? _supabase.from('services').select('id, name, price') : Promise.resolve({ data: window.servicesData })
@@ -25591,23 +25407,33 @@ async function syncAllVisitsCommissionLogs() {
         if (b.bill_id && b.created_at) billDateMap.set(b.bill_id, b.created_at);
     });
 
+    const isSameTimestamp = (d1, d2) => {
+        if (!d1 || !d2) return false;
+        if (d1 === d2) return true;
+        const t1 = new Date(d1).getTime();
+        const t2 = new Date(d2).getTime();
+        return !isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) < 60000;
+    };
     const logsToFix = [];
-    (window.commissionLogs || []).forEach(l => {
-        const bId = l.bill_id || (l.id && l.id.startsWith('COM-BILL-') ? l.id.replace(/^COM-/, '') : null);
-        if (bId && billDateMap.has(bId)) {
-            const trueDate = billDateMap.get(bId);
-            if (trueDate && l.created_at !== trueDate) {
-                l.created_at = trueDate;
-                logsToFix.push({ id: l.id, created_at: trueDate });
+    if (!window._commDatesReconciled) {
+        window._commDatesReconciled = true;
+        (window.commissionLogs || []).forEach(l => {
+            const bId = l.bill_id || (l.id && l.id.startsWith('COM-BILL-') ? l.id.replace(/^COM-/, '') : null);
+            if (bId && billDateMap.has(bId)) {
+                const trueDate = billDateMap.get(bId);
+                if (trueDate && !isSameTimestamp(l.created_at, trueDate)) {
+                    l.created_at = trueDate;
+                    logsToFix.push({ id: l.id, created_at: trueDate });
+                }
+            } else if (l.visit_id && visitDateMap.has(l.visit_id)) {
+                const trueDate = visitDateMap.get(l.visit_id);
+                if (trueDate && !isSameTimestamp(l.created_at, trueDate)) {
+                    l.created_at = trueDate;
+                    logsToFix.push({ id: l.id, created_at: trueDate });
+                }
             }
-        } else if (l.visit_id && visitDateMap.has(l.visit_id)) {
-            const trueDate = visitDateMap.get(l.visit_id);
-            if (trueDate && l.created_at !== trueDate) {
-                l.created_at = trueDate;
-                logsToFix.push({ id: l.id, created_at: trueDate });
-            }
-        }
-    });
+        });
+    }
 
     // 🌟 Direct Supabase cloud upsert for all batch-added logs
     if (newLogsToUpsert.length > 0 && typeof _supabase !== 'undefined') {

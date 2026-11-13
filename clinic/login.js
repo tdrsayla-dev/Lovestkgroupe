@@ -360,25 +360,33 @@ if (loginForm) {
                 return false;
             }
 
-            // 4. ดึงข้อมูลสิทธิ์และโปรไฟล์จากตาราง staff_users
+            // 4. ดึงข้อมูลสิทธิ์และโปรไฟล์จากตาราง staff_users (แยก query เพื่อป้องกัน error เมื่อคอลัมน์ id เป็นตัวเลข)
             const uid = authUser.id;
             try {
-                const queryPromise = _supabase
-                    .from('staff_users')
-                    .select('*')
-                    .or(`auth_user_id.eq.${uid},id.eq.${uid},email.ilike.${email}`)
-                    .maybeSingle();
+                let sData = null;
+                const byAuthId = await withTimeout(
+                    _supabase.from('staff_users').select('*').eq('auth_user_id', uid).maybeSingle(),
+                    3500
+                );
+                if (byAuthId && byAuthId.data) {
+                    sData = byAuthId.data;
+                } else {
+                    const byEmail = await withTimeout(
+                        _supabase.from('staff_users').select('*').ilike('email', email).maybeSingle(),
+                        3500
+                    );
+                    if (byEmail && byEmail.data) sData = byEmail.data;
+                }
 
-                const { data: sData } = await withTimeout(queryPromise, 6000);
                 if (sData) {
                     userData = sData;
                     if (!userData.auth_user_id || userData.auth_user_id !== uid) {
-                        await _supabase.from('staff_users').update({ auth_user_id: uid }).eq('id', userData.id);
+                        _supabase.from('staff_users').update({ auth_user_id: uid }).eq('id', userData.id).then(() => {}).catch(() => {});
                         userData.auth_user_id = uid;
                     }
                 }
             } catch (dbErr) {
-                console.warn('[login] fetch staff_users notice:', dbErr.message || dbErr);
+                console.info('[login] fetch staff_users fallback:', dbErr.message || dbErr);
             }
 
             if (!userData) {
@@ -410,44 +418,59 @@ if (loginForm) {
                 return false;
             }
 
-            // 4. บันทึก Session สำเร็จ
-            localStorage.removeItem('clinic_failed_attempts');
-            localStorage.removeItem('clinic_lockout_until');
-
-            if (rememberMe) {
-                localStorage.setItem('rememberedEmail', email);
-            } else {
-                localStorage.removeItem('rememberedEmail');
-            }
-
-            const userName = userData.full_name || userData.email.split('@')[0];
+            // 4. บันทึก Session สำเร็จ (พร้อมป้องกัน QuotaExceededError ใน localStorage)
             const clinicSession = {
                 id: userData.id,
                 emp_code: userData.emp_code,
                 email: userData.email,
-                name: userName,
+                name: userData.full_name || userData.email.split('@')[0],
                 role: userData.role || 'staff',
                 permissions: userData.permissions || ['all'],
                 must_change_password: userData.must_change_password === true,
                 authenticated_at: new Date().toISOString()
             };
-            localStorage.setItem('clinicUser', JSON.stringify(clinicSession));
-            localStorage.setItem('clinic_last_activity', Date.now().toString());
+            try {
+                localStorage.removeItem('clinic_failed_attempts');
+                localStorage.removeItem('clinic_lockout_until');
+                if (rememberMe) {
+                    localStorage.setItem('rememberedEmail', email);
+                } else {
+                    localStorage.removeItem('rememberedEmail');
+                }
+                localStorage.setItem('clinicUser', JSON.stringify(clinicSession));
+                localStorage.setItem('clinic_last_activity', Date.now().toString());
+            } catch (storageErr) {
+                // หาก localStorage เต็ม ให้ล้างเฉพาะ cache ข้อมูลขนาดใหญ่แล้วบันทึกซ้ำ
+                const heavyCacheKeys = [
+                    'clinic_visits_queue', 'clinic_visits_report_cache',
+                    'stk_nutrient_orders', 'clinic_orders', 'clinic_real_lab_files',
+                    'clinic_patients_cache', 'clinic_bills'
+                ];
+                heavyCacheKeys.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+                try {
+                    localStorage.setItem('clinicUser', JSON.stringify(clinicSession));
+                    localStorage.setItem('clinic_last_activity', Date.now().toString());
+                } catch (e2) {}
+            }
+            try {
+                sessionStorage.setItem('clinicUser', JSON.stringify(clinicSession));
+            } catch (e) {}
 
-            // 🔒 คง Session จริงของ Supabase Auth ไว้ (ไม่เขียนทับด้วย Anon Token)
-            // Supabase client ได้จัดเก็บ JWT Token ที่สมบูรณ์ไว้ใน _authTokenKey เรียบร้อยแล้ว
+            if (btn) {
+                btn.disabled = false;
+                btn.style.backgroundColor = '#10b981';
+                btn.style.borderColor = '#10b981';
+                btn.innerHTML = '<i class="ph ph-check-circle me-1"></i> ເຂົ້າສູ່ລະບົບສຳເລັດ ກຳລັງເປີດໜ້າຫຼັກ...';
+            }
 
-            console.info('[login] ✅ เข้าสู่ระบบสำเร็จ กำลังเปิดหน้า Clinic.html');
-            Swal.fire({
-                icon: 'success',
-                title: 'ເຂົ້າສູ່ລະບົບສຳເລັດ',
-                text: 'ຜ່ານການຢືນຢັນຮຽບຮ້ອຍແລ້ວ ກຳລັງພາທ່ານເຂົ້າສູ່ລະບົບ...',
-                timer: 600,
-                showConfirmButton: false
-            }).then(() => {
-                window.location.href = 'Clinic.html';
-            });
-
+            console.info('[login] ✅ เข้าสู่ระบบสำเร็จ กำลังเปิดหน้า Clinic.html ทันที');
+            window.location.href = 'Clinic.html';
+            try {
+                const a = document.createElement('a');
+                a.href = 'Clinic.html';
+                document.body.appendChild(a);
+                a.click();
+            } catch (e) {}
             return false;
 
         } catch (err) {

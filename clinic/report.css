@@ -44,8 +44,25 @@ body {
   overflow-x: hidden;
 }
 
-h1, h2, h3, h4, h5, h6, input, select, textarea, button, table, th, td, label, p, span, div {
+h1, h2, h3, h4, h5, h6, input, select, textarea, button, table, th, td, label, p, span:not([class*="ph"]):not([class*="bi"]), div:not([class*="ph"]):not([class*="bi"]) {
   font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', sans-serif !important;
+}
+
+/* ── Preserve Icon Fonts (Phosphor & Bootstrap Icons) ────────── */
+i.ph, .ph, [class*="ph-"] {
+  font-family: "Phosphor" !important;
+}
+i.ph-fill, .ph-fill {
+  font-family: "Phosphor-Fill" !important;
+}
+i.ph-bold, .ph-bold {
+  font-family: "Phosphor-Bold" !important;
+}
+i.ph-duotone, .ph-duotone {
+  font-family: "Phosphor-Duotone" !important;
+}
+i.bi, .bi, [class*="bi-"]::before {
+  font-family: "bootstrap-icons" !important;
 }
 
 /* ── Clean Top Header ────────────────────────────────────────── */
@@ -57,15 +74,65 @@ h1, h2, h3, h4, h5, h6, input, select, textarea, button, table, th, td, label, p
   flex-wrap: wrap;
   gap: 16px;
 }
-.r-header-left h1 {
+.r-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.header-title-icon-badge {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 55%, #0ea5e9 100%);
+  color: #ffffff;
   font-size: 1.65rem;
-  font-weight: 700;
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+.header-title-icon-badge::after {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -30%;
+  width: 65%;
+  height: 65%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 70%);
+  pointer-events: none;
+}
+.header-title-icon-badge.theme-patients {
+  background: linear-gradient(135deg, #0d9488 0%, #059669 55%, #10b981 100%);
+  box-shadow: 0 8px 20px -4px rgba(13, 148, 136, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+.header-title-icon-badge.theme-lab {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 55%, #8b5cf6 100%);
+  box-shadow: 0 8px 20px -4px rgba(124, 58, 237, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+.header-title-icon-badge svg {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.16));
+}
+.r-header-title-group {
+  display: flex;
+  flex-direction: column;
+}
+.r-header-left h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
   color: var(--primary-dark);
-  margin: 0 0 3px;
+  margin: 0 0 2px;
   font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', sans-serif;
   display: flex;
   align-items: center;
   gap: 10px;
+  letter-spacing: -0.01em;
 }
 .r-header-left p {
   font-size: .88rem;

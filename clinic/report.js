@@ -215,12 +215,43 @@ function switchReportTab(tabName) {
     }
   });
 
-  // Update header text based on tab
+  // Update header text and icon badge based on tab
   const titleEl = document.getElementById('headerPageTitle');
+  const badgeEl = document.getElementById('headerPageIconBadge');
   if (titleEl) {
     if (tabName === 'nutrients') titleEl.textContent = 'ລາຍງານການສັ່ງອາຫານເສີມ & ຈ່າຍຢາ';
     else if (tabName === 'patients') titleEl.textContent = 'ລາຍງານຂໍ້ມູນຄົນເຈັບ & ການກວດ';
     else if (tabName === 'labPackages') titleEl.textContent = 'ລາຍງານປະເພດການກວດ & ແພັກເກດ';
+  }
+  if (badgeEl) {
+    badgeEl.classList.remove('theme-patients', 'theme-lab');
+    if (tabName === 'nutrients') {
+      badgeEl.innerHTML = `
+        <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M160 40H96C87.1634 40 80 47.1634 80 56V72H176V56C176 47.1634 168.837 40 160 40Z" fill="white" fill-opacity="0.32"/>
+          <rect x="56" y="72" width="144" height="152" rx="20" fill="white" fill-opacity="0.22" stroke="white" stroke-width="14" stroke-linejoin="round"/>
+          <path d="M84 40H172" stroke="white" stroke-width="14" stroke-linecap="round"/>
+          <path d="M96 40V72M160 40V72" stroke="white" stroke-width="14" stroke-linecap="round"/>
+          <path d="M128 118V178M98 148H158" stroke="white" stroke-width="16" stroke-linecap="round"/>
+        </svg>`;
+    } else if (tabName === 'patients') {
+      badgeEl.classList.add('theme-patients');
+      badgeEl.innerHTML = `
+        <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="128" cy="88" r="40" fill="white" fill-opacity="0.28" stroke="white" stroke-width="14"/>
+          <path d="M56 200C56 164.654 88.2355 136 128 136C167.764 136 200 164.654 200 200" stroke="white" stroke-width="14" stroke-linecap="round"/>
+          <circle cx="200" cy="96" r="24" fill="white" fill-opacity="0.22" stroke="white" stroke-width="12"/>
+          <circle cx="56" cy="96" r="24" fill="white" fill-opacity="0.22" stroke="white" stroke-width="12"/>
+        </svg>`;
+    } else if (tabName === 'labPackages') {
+      badgeEl.classList.add('theme-lab');
+      badgeEl.innerHTML = `
+        <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M104 32H152" stroke="white" stroke-width="14" stroke-linecap="round"/>
+          <path d="M112 32V96L50.8 197.9C45.2 207.2 51.9 216 62.8 216H193.2C204.1 216 210.8 207.2 205.2 197.9L144 96V32" fill="white" fill-opacity="0.2" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M74 160C102 146 154 174 182 160" stroke="white" stroke-width="12" stroke-linecap="round"/>
+        </svg>`;
+    }
   }
 }
 
@@ -513,11 +544,11 @@ async function loadReportData() {
       state.patients = [];
     }
 
-    // Render Tab 1: Nutrients & Prescriptions
-    renderNutrientsTab();
-
-    // Render Tab 2: Patients & Visits
+    // Render Tab 2: Patients & Visits first (builds unified state.patientDoctorStats + med items)
     renderPatientsTab();
+
+    // Render Tab 1: Nutrients & Prescriptions (uses unified doctor stats so box counts match 100%)
+    renderNutrientsTab();
 
     // Render Tab 3: Lab Packages & Health Exams
     renderLabPackagesTab();
@@ -833,7 +864,7 @@ function buildVisitNutrientLookup() {
 
   // Index raw orders first, then processed nutrientOrders so confirmed orders take precedence
   (state.nutrientOrdersRaw || []).forEach(indexOrder);
-  (state.nutrientOrders || []).forEach(indexOrder);
+  (state.processedNutrientOrders || state.nutrientOrders || []).forEach(indexOrder);
   return map;
 }
 
@@ -846,33 +877,45 @@ function normalizeIdStr(id) {
 function resolveDoctorForRecord(record, visitsList, ordersList, billsList) {
   if (!record) return null;
 
-  // 1. Direct doctor match on candidate fields
-  let doc = matchDoctorFromStaff(record.closer_dr || record.doctor || record.doctor_name);
-  if (doc) return doc;
-
   const currentVisits = visitsList || state.visits || [];
   const currentOrders = ordersList || state.nutrientOrders || [];
   const currentBills = billsList || state.bills || [];
 
-  const recVid = normalizeIdStr(record.visit_id);
+  let recVid = normalizeIdStr(record.visit_id);
   const recOid = normalizeIdStr(record.order_id || record.id);
+  if (!recVid && recOid && recOid.includes('vis-')) {
+    recVid = 'vis-' + recOid.split('vis-')[1];
+  }
+  const recHn = String(record.hn || '').trim().toLowerCase();
+  const recDate = toLocalDateStr(record.created_at || record.date);
 
-  // 2. Cross-reference with visits (by visit_id or order_id)
-  if (recVid || recOid) {
+  // 1. Cross-reference with clinical visits FIRST so the examining doctor (visits.doctor_name)
+  //    always takes priority over closer_dr in stk_nutrient_orders
+  if (recVid || recOid || (recHn && recHn !== '-' && recDate)) {
     const vMatch = currentVisits.find(v => {
       if (!v) return false;
       const vVid = normalizeIdStr(v.visit_id);
       const vOid = normalizeIdStr(v.order_id);
-      return (recVid && (vVid === recVid || vOid === recVid)) ||
-             (recOid && (vVid === recOid || vOid === recOid));
+      if (recVid && (vVid === recVid || vOid === recVid)) return true;
+      if (recOid && (vVid === recOid || vOid === recOid)) return true;
+      const vHn = String(v.hn || '').trim().toLowerCase();
+      const vDate = toLocalDateStr(v.created_at);
+      if (recHn && recHn !== '-' && recDate && vHn === recHn && vDate === recDate && !isOrderVisit(v)) {
+        return true;
+      }
+      return false;
     });
     if (vMatch) {
-      doc = matchDoctorFromStaff(vMatch.doctor || vMatch.doctor_name || vMatch.closer_dr);
-      if (doc) return doc;
+      const vDoc = matchDoctorFromStaff(vMatch.doctor_name || vMatch.doctor);
+      if (vDoc) return vDoc;
     }
   }
 
-  // 3. Cross-reference with nutrient orders (if record is a visit)
+  // 2. Direct doctor match on candidate fields (doctor_name / doctor first, then closer_dr)
+  let doc = matchDoctorFromStaff(record.doctor_name || record.doctor || record.closer_dr);
+  if (doc) return doc;
+
+  // 3. Cross-reference with nutrient orders (if record is a visit without doctor_name)
   if (recVid || recOid) {
     const oMatch = currentOrders.find(o => {
       if (!o) return false;
@@ -909,6 +952,72 @@ function resolveDoctorForRecord(record, visitsList, ordersList, billsList) {
   }
 
   return null;
+}
+
+// 💊 Unified Medicine Item Extractor (shared by Tab 1 & Tab 2 so box counts always match 100%)
+function extractVisitMedItems(v, visitNutrientMap) {
+  let rawMeds = v ? v.meds : null;
+  const vVid = normalizeIdStr(v && v.visit_id);
+  const vOid = normalizeIdStr(v && v.order_id);
+  const vDate = toLocalDateStr(v && v.created_at);
+  const vHn = String((v && v.hn) || '').trim().toLowerCase();
+  const linkedOrder = (v && visitNutrientMap) ? (
+    (v.visit_id && visitNutrientMap[v.visit_id]) ||
+    (v.order_id && visitNutrientMap[v.order_id]) ||
+    (vVid && visitNutrientMap[vVid]) ||
+    (vOid && visitNutrientMap[vOid]) ||
+    (vHn && vDate && visitNutrientMap[`${vHn}_${vDate}`]) ||
+    (vHn && visitNutrientMap[`hn_${vHn}`])
+  ) : null;
+
+  let parsed = parseMedsListSafe(rawMeds);
+  if (parsed.length === 0 && linkedOrder) {
+    parsed = parseMedsListSafe(linkedOrder.items || linkedOrder.items_json || linkedOrder.meds);
+  }
+
+  const linkedItems = linkedOrder ? parseMedsListSafe(linkedOrder.items || linkedOrder.items_json || linkedOrder.meds) : [];
+
+  let totalMedsQty = 0;
+  let totalMedsPrice = 0;
+  const medsList = [];
+  const cleanItems = [];
+
+  if (Array.isArray(parsed) && parsed.length > 0) {
+    parsed.forEach((m, idx) => {
+      const q = Number(m.qty || m.quantity || 1);
+      const rawName = m.name || m.clean_name || m.medicine_name || m.item_name || m.title || 'ຢາ/ອາຫານເສີມ';
+      const linkedIt = linkedItems[idx] || linkedItems.find(li => (li.name || li.clean_name) === rawName) || {};
+      const explicitTier = m.tier || m.type || m.priceType || m.price_type || m.tierName || linkedIt.tier || linkedIt.type || linkedIt.priceType || '';
+      const rawPrice = (m.price !== undefined && m.price !== null && m.price !== '') ? m.price
+        : (m.unit_price !== undefined && m.unit_price !== null && m.unit_price !== '') ? m.unit_price
+        : (linkedIt.unit_price !== undefined ? linkedIt.unit_price : linkedIt.price);
+      let unitPrice = getProductPrice(rawName, rawPrice, explicitTier);
+      const parsedInfo = parseProductTierAndName(rawName, explicitTier, unitPrice);
+      const isFree = (parsedInfo.tier === 'free');
+      if (isFree) unitPrice = 0;
+      const totP = isFree ? 0 : (q * unitPrice);
+
+      totalMedsQty += q;
+      totalMedsPrice += totP;
+      medsList.push(`${rawName} (x${q})`);
+      cleanItems.push({
+        name: rawName,
+        clean_name: parsedInfo.cleanName,
+        tier: parsedInfo.tier,
+        qty: q,
+        unit_price: unitPrice,
+        total_price: totP
+      });
+    });
+  }
+
+  return {
+    items: cleanItems,
+    totalQty: totalMedsQty,
+    totalPrice: totalMedsPrice,
+    summary: medsList.join(', '),
+    linkedOrder: linkedOrder
+  };
 }
 
 // Fetch Raw Nutrient Orders with Parallel Execution & Timeout Guard
@@ -1263,6 +1372,7 @@ function processNutrientOrders(rawOrders, visitsList) {
     }
   });
 
+  state.processedNutrientOrders = unified;
   state.unifiedPrescriptions = unified;
   state.nutrientOrders = unified;
 }
@@ -1582,7 +1692,52 @@ function renderExpensesTable() {
 
 // ── Tab 2: Nutrient & Prescription Orders Renderers ───────────
 function renderNutrientsTab() {
-  const orders = state.nutrientOrders || [];
+  // 🌟 Ensure state.patientDoctorStats is built first so Tab 1 and Tab 2 use the exact same unified dataset
+  if (!state.patientDoctorStats) {
+    renderPatientsTab();
+  }
+
+  const patMap = {};
+  (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
+  const visitNutrientMap = buildVisitNutrientLookup();
+
+  // Build unified prescriptions strictly from the exact same doctor visits list as Tab ຜູ້ປ່ວຍ (only visits with meds > 0)
+  const orders = [];
+  Object.values(state.patientDoctorStats || {}).forEach(ds => {
+    (ds.visitsList || []).forEach(v => {
+      if (v._totalMedsQty === undefined || !v._medItems) {
+        const medData = extractVisitMedItems(v, visitNutrientMap);
+        v._medItems = medData.items;
+        v._totalMedsQty = medData.totalQty;
+        v._totalMedsPrice = medData.totalPrice;
+        v._medsSummary = medData.summary;
+        v._linkedOrder = medData.linkedOrder;
+      }
+      if ((v._totalMedsQty || 0) <= 0) return;
+
+      const p = patMap[v.hn] || {};
+      const patKey = v.hn || v.patient_name || `VIS-${v.visit_id}`;
+      orders.push({
+        id: v.order_id || v.visit_id || '-',
+        order_id: v.order_id || '-',
+        visit_id: v.visit_id || '-',
+        date: v.created_at,
+        doctor: ds.doctor,
+        patient_name: p.name || v.patient_name || 'ຄົນເຈັບ',
+        hn: patKey,
+        phone: p.phone || '-',
+        items: v._medItems || [],
+        total_qty: v._totalMedsQty || 0,
+        total_price: v._totalMedsPrice || 0,
+        status: (v._linkedOrder && v._linkedOrder.status) || v.status || 'ຈ່າຍຢາແລ້ວ',
+        symptom: v.symptoms || v.symptom || '',
+        recorded_by: v.recorded_by || '-'
+      });
+    });
+  });
+
+  state.nutrientOrders = orders;
+  state.unifiedPrescriptions = orders;
   
   let totalItemsCount = 0;
   let pendingCount = 0;
@@ -2185,19 +2340,7 @@ function renderPatientsTab() {
   const patMap = {};
   allPatients.forEach(p => { if (p.hn) patMap[p.hn] = p; });
 
-  const visitNutrientMap = {};
-  (state.nutrientOrders || []).forEach(o => {
-    const rawOid = o.order_id || o.id;
-    const rawVid = o.visit_id;
-    if (rawOid && rawOid !== '-') {
-      visitNutrientMap[rawOid] = o;
-      visitNutrientMap[normalizeIdStr(rawOid)] = o;
-    }
-    if (rawVid && rawVid !== '-') {
-      visitNutrientMap[rawVid] = o;
-      visitNutrientMap[normalizeIdStr(rawVid)] = o;
-    }
-  });
+  const visitNutrientMap = buildVisitNutrientLookup();
 
   // Set of all handled visit IDs and order IDs from visits
   const handledVisitIds = new Set();
@@ -2223,8 +2366,9 @@ function renderPatientsTab() {
     }
   });
 
-  // Also incorporate patient prescriptions from nutrientOrders ONLY if not already in visits
-  (state.nutrientOrders || []).forEach(o => {
+  // Also incorporate patient prescriptions from processedNutrientOrders ONLY if not already in visits
+  const sourceNutrientOrders = state.processedNutrientOrders || state.nutrientOrders || [];
+  sourceNutrientOrders.forEach(o => {
     const oVid = normalizeIdStr(o.visit_id);
     const oId = normalizeIdStr(o.order_id || o.id);
     const oDate = toLocalDateStr(o.date || o.created_at);
@@ -2317,6 +2461,14 @@ function renderPatientsTab() {
         ds.labTestMap[pkg] = (ds.labTestMap[pkg] || 0) + 1;
       });
     }
+
+    // 💊 Pre-calculate medicine items & box count so Tab 1 and Tab 2 always match 100%
+    const medData = extractVisitMedItems(v, visitNutrientMap);
+    v._medItems = medData.items;
+    v._totalMedsQty = medData.totalQty;
+    v._totalMedsPrice = medData.totalPrice;
+    v._medsSummary = medData.summary;
+    v._linkedOrder = medData.linkedOrder;
 
     ds.visitsList.push(v);
   });
@@ -2582,42 +2734,15 @@ function renderDoctorPatientCards(doctorList) {
         : `<span class="text-muted small">-</span>`;
 
       // 🌟 ຄິດໄລ່ລາຍການຢາ / ອາຫານເສີມ ແລະ ຈຳນວນກ່ອງ (รูปแบบที่ 3: Badges ຍ່ອຍເຫັນຄົບ)
-      let totalMedsQty = 0;
-      let medsList = [];
-      let parsedItems = [];
+      const medData = extractVisitMedItems(v, visitNutrientMap);
+      const totalMedsQty = medData.totalQty;
+      const parsedItems = medData.items;
 
-      let rawMeds = v.meds;
-      const vVid = normalizeIdStr(v.visit_id);
-      const vOid = normalizeIdStr(v.order_id);
-      const vDate = toLocalDateStr(v.created_at);
-      const vHn = String(v.hn || '').trim().toLowerCase();
-      const linkedOrder = (v.visit_id && visitNutrientMap[v.visit_id]) ||
-                          (v.order_id && visitNutrientMap[v.order_id]) ||
-                          (vVid && visitNutrientMap[vVid]) ||
-                          (vOid && visitNutrientMap[vOid]) ||
-                          (vHn && vDate && visitNutrientMap[`${vHn}_${vDate}`]) ||
-                          (vHn && visitNutrientMap[`hn_${vHn}`]);
-
-      let parsed = parseMedsListSafe(rawMeds);
-      if (parsed.length === 0 && linkedOrder) {
-        parsed = parseMedsListSafe(linkedOrder.items || linkedOrder.items_json || linkedOrder.meds);
-      }
-
-      if (parsed.length > 0) {
-
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          parsed.forEach(m => {
-            const q = Number(m.qty || m.quantity || 1);
-            totalMedsQty += q;
-            const mName = m.name || m.clean_name || m.medicine_name || m.item_name || 'ຢາ/ອາຫານເສີມ';
-            medsList.push(`${mName} (x${q})`);
-            parsedItems.push({ name: mName, qty: q });
-          });
-        }
-      }
-
+      v._medItems = medData.items;
       v._totalMedsQty = totalMedsQty;
-      v._medsSummary = medsList.join(', ');
+      v._totalMedsPrice = medData.totalPrice;
+      v._medsSummary = medData.summary;
+      v._linkedOrder = medData.linkedOrder;
 
       const medsCellHtml = totalMedsQty > 0
         ? `
