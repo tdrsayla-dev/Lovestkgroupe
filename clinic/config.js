@@ -4,7 +4,8 @@ var CONFIG = (typeof window !== 'undefined' && window.CONFIG) ? window.CONFIG : 
     MLM_SUPABASE_URL: "https://mfpkeyrykqnrywyksyqp.supabase.co",
     MLM_SUPABASE_ANON_KEY: "sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO",
     USE_NODE_BRIDGE: true,
-    NODE_BRIDGE_PORT: 8085
+    NODE_BRIDGE_PORT: 8085,
+    CLOUDFLARE_WORKER_URL: "https://clinic-api-bridge.t-drsayla.workers.dev"
 };
 
 if (typeof window !== 'undefined') {
@@ -38,8 +39,8 @@ if (typeof window !== 'undefined') {
         const targetPort = String(CONFIG.NODE_BRIDGE_PORT || 8085);
         const isNodeServerOrigin = (currentPort === targetPort || currentPort === '8086');
 
-        async function checkNodeBridgeHealth() {
-            // ถ้าอยู่ใน iframe (เช่น report.html) ให้ดึงสถานะจากหน้าหลักโดยตรง ไม่ต้องยิงซ้ำ
+        // ตรวจสอบทั้ง Cloudflare Worker บนเว็บจริง หรือ Node.js บน Local Server
+        async function checkBridgeHealth() {
             try {
                 if (window.parent && window.parent !== window && window.parent.__NODE_BRIDGE_INITIALIZED__) {
                     window.__NODE_BRIDGE_ONLINE__ = !!window.parent.__NODE_BRIDGE_ONLINE__;
@@ -48,43 +49,59 @@ if (typeof window !== 'undefined') {
                 }
             } catch (_) {}
 
-            // เช็คเฉพาะเมื่อเปิดผ่าน Node.js Server (พอร์ต 8085/8086) เพื่อไม่ให้เกิด ERR_CONNECTION_REFUSED เวลาเปิดพอร์ต 3000
-            if (!isNodeServerOrigin) {
-                window.__NODE_BRIDGE_ONLINE__ = false;
-                return false;
+            // 1. ตรวจสอบ Cloudflare Worker ก่อน (สำหรับเว็บจริงที่ Deploy แล้ว)
+            if (CONFIG.CLOUDFLARE_WORKER_URL) {
+                try {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), 1200);
+                    const res = await nativeFetch(`${CONFIG.CLOUDFLARE_WORKER_URL}/api/health`, {
+                        method: 'GET',
+                        signal: ctrl.signal
+                    });
+                    clearTimeout(timer);
+                    if (res.ok) {
+                        const info = await res.json();
+                        if (info && info.status === 'ok') {
+                            const wasOffline = !window.__NODE_BRIDGE_ONLINE__;
+                            window.__NODE_BRIDGE_ONLINE__ = true;
+                            window.__NODE_BRIDGE_URL__ = CONFIG.CLOUDFLARE_WORKER_URL;
+                            if (wasOffline) {
+                                console.log(`🟢 [Cloudflare Edge Bridge] เชื่อมต่อ Backend สำเร็จ (${CONFIG.CLOUDFLARE_WORKER_URL})`);
+                            }
+                            return true;
+                        }
+                    }
+                } catch (_) {}
             }
 
-            try {
-                const baseUrl = window.location.origin;
-                const ctrl = new AbortController();
-                const timer = setTimeout(() => ctrl.abort(), 800);
-                const res = await nativeFetch(`${baseUrl}/api/health`, {
-                    method: 'GET',
-                    signal: ctrl.signal
-                });
-                clearTimeout(timer);
-                if (res.ok) {
-                    const info = await res.json();
-                    if (info && info.ok) {
-                        const wasOffline = !window.__NODE_BRIDGE_ONLINE__;
-                        window.__NODE_BRIDGE_ONLINE__ = true;
-                        window.__NODE_BRIDGE_URL__ = `${baseUrl}/api/db-proxy`;
-                        if (wasOffline) {
-                            console.log(`🟢 [Node.js DB Bridge] เชื่อมต่อตัวกลางสำเร็จ (${baseUrl}) — Smart Cache & Auto-Retry ทำงาน`);
+            // 2. ถ้าไม่ได้ใช้ Worker หรือหลุด ให้เช็ค Node.js บนเครื่อง Local
+            if (isNodeServerOrigin) {
+                try {
+                    const baseUrl = window.location.origin;
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), 800);
+                    const res = await nativeFetch(`${baseUrl}/api/health`, {
+                        method: 'GET',
+                        signal: ctrl.signal
+                    });
+                    clearTimeout(timer);
+                    if (res.ok) {
+                        const info = await res.json();
+                        if (info && info.ok) {
+                            window.__NODE_BRIDGE_ONLINE__ = true;
+                            window.__NODE_BRIDGE_URL__ = `${baseUrl}/api/db-proxy`;
+                            return true;
                         }
-                        return true;
                     }
-                }
-            } catch (_) {}
+                } catch (_) {}
+            }
 
             window.__NODE_BRIDGE_ONLINE__ = false;
             return false;
         }
 
-        checkNodeBridgeHealth();
-        if (isNodeServerOrigin) {
-            setInterval(checkNodeBridgeHealth, 25000);
-        }
+        checkBridgeHealth();
+        setInterval(checkBridgeHealth, 30000);
 
         // Transparent Fetch Wrapper
         window.fetch = async function(input, init) {
