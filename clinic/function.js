@@ -1143,7 +1143,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
 
                 const combinedOrders = Array.from(uniqueOrdersMap.values());
-                let allPatients = patients ? [...patients] : [];
+                let deletedPatientsSet = new Set();
+                try {
+                    const dp = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+                    dp.forEach(id => { if (id) deletedPatientsSet.add(String(id).trim().toUpperCase()); });
+                } catch (e) { }
+
+                let allPatients = (patients ? [...patients] : []).filter(p => {
+                    const pHn = String(p.hn || '').trim().toUpperCase();
+                    return !pHn || !deletedPatientsSet.has(pHn);
+                });
 
                 // ผูก visit_status และ order ล่าสุดให้กับคนไข้แต่ละคนอย่างแม่นยำ
                 allPatients.forEach(p => {
@@ -1373,9 +1382,11 @@ document.addEventListener("DOMContentLoaded", function () {
         if (event.data && event.data.type === 'DELETE_PATIENT_RECORD') {
             const vId = event.data.visitId;
             const oId = event.data.orderId;
+            const patHn = event.data.hn;
             try {
                 let deletedBills = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
                 let deletedNutrients = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+                let deletedPatients = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
                 [vId, oId].forEach(id => {
                     if (id) {
                         const s = String(id).trim();
@@ -1383,8 +1394,19 @@ document.addEventListener("DOMContentLoaded", function () {
                         if (!deletedNutrients.includes(s)) deletedNutrients.push(s);
                     }
                 });
+                if (patHn && patHn !== '-') {
+                    const sHn = String(patHn).trim();
+                    if (!deletedPatients.includes(sHn)) deletedPatients.push(sHn);
+                    if (typeof _supabase !== 'undefined' && _supabase) {
+                        _supabase.from('patients').delete().eq('hn', sHn).then(() => { }).catch(() => { });
+                    }
+                    if (Array.isArray(window.allPatients)) {
+                        window.allPatients = window.allPatients.filter(p => p.hn !== sHn);
+                    }
+                }
                 localStorage.setItem('clinic_deleted_bills', JSON.stringify(deletedBills));
                 localStorage.setItem('stk_deleted_nutrient_orders', JSON.stringify(deletedNutrients));
+                localStorage.setItem('clinic_deleted_patients', JSON.stringify(deletedPatients));
             } catch (e) { }
         }
     });
@@ -1761,7 +1783,18 @@ async function loadPatients() {
         });
     }
 
-    window.allPatients = data;
+    let deletedPatientsSet = new Set();
+    try {
+        const dp = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+        dp.forEach(id => { if (id) deletedPatientsSet.add(String(id).trim().toUpperCase()); });
+    } catch (e) { }
+
+    const validPatients = (data || []).filter(d => {
+        const dHn = String(d.hn || '').trim().toUpperCase();
+        return !dHn || !deletedPatientsSet.has(dHn);
+    });
+
+    window.allPatients = validPatients;
     window.latestVisitMap = latestVisitMap;
 
     // อัปเดตยอดบน Dashboard ทันทีที่ข้อมูลผู้ป่วยพร้อม
@@ -8860,6 +8893,15 @@ async function deletePatient(hn) {
         if (error) {
             Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
         } else {
+            try {
+                let deletedPatients = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+                const sHn = String(hn).trim();
+                if (!deletedPatients.includes(sHn)) deletedPatients.push(sHn);
+                localStorage.setItem('clinic_deleted_patients', JSON.stringify(deletedPatients));
+                if (Array.isArray(window.allPatients)) {
+                    window.allPatients = window.allPatients.filter(p => p.hn !== sHn);
+                }
+            } catch (e) { }
             Swal.fire('สำเร็จ', 'ลบประวัติผู้ป่วยเรียบร้อยแล้ว', 'success');
             loadPatients();
         }

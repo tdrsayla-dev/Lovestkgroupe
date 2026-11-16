@@ -966,8 +966,7 @@ function extractVisitMedItems(v, visitNutrientMap) {
     (v.order_id && visitNutrientMap[v.order_id]) ||
     (vVid && visitNutrientMap[vVid]) ||
     (vOid && visitNutrientMap[vOid]) ||
-    (vHn && vDate && visitNutrientMap[`${vHn}_${vDate}`]) ||
-    (vHn && visitNutrientMap[`hn_${vHn}`])
+    (vHn && vDate && visitNutrientMap[`${vHn}_${vDate}`])
   ) : null;
 
   let parsed = parseMedsListSafe(rawMeds);
@@ -2421,11 +2420,80 @@ function renderPatientsTab() {
     };
   });
 
+  // 🌟 รวมรอบตรวจของคนไข้คนเดียวกันในวันเดียวกัน (Same Patient + Same Date + Same Doctor) ให้เหลือบรรทัดเดียว
+  const mergedVisitsMap = new Map();
   visits.forEach(v => {
     const dr = resolveVisitDoctor(v, visitNutrientMap);
-    if (!dr || !patientDoctorStats[dr]) return; // Only count visits attended by doctors from staff_users!
+    if (!dr || !patientDoctorStats[dr]) return;
     v._resolvedDoctor = dr;
 
+    const patIdentifier = (v.hn && v.hn !== '-') ? String(v.hn).trim().toLowerCase() : normalizeIdStr(v.patient_name || v.visit_id);
+    const vDate = toLocalDateStr(v.created_at);
+    const mergeKey = `${patIdentifier}_${vDate}_${dr}`;
+
+    if (!mergedVisitsMap.has(mergeKey)) {
+      mergedVisitsMap.set(mergeKey, {
+        ...v,
+        _mergedVisitIds: v.visit_id ? [v.visit_id] : []
+      });
+    } else {
+      const existing = mergedVisitsMap.get(mergeKey);
+      if (v.visit_id && !existing._mergedVisitIds.includes(v.visit_id)) {
+        existing._mergedVisitIds.push(v.visit_id);
+      }
+
+      // 1. รวมอาการเบื้องต้น/โรค (ไม่เอาซ้ำ)
+      const sym1 = (existing.symptoms || existing.symptom || existing.initial_symptom || existing.diagnosis || existing.disease || '').trim();
+      const sym2 = (v.symptoms || v.symptom || v.initial_symptom || v.diagnosis || v.disease || '').trim();
+      if (sym2 && sym2 !== '-' && sym2 !== sym1) {
+        if (!sym1 || sym1 === '-') {
+          existing.symptoms = sym2;
+          existing.symptom = sym2;
+        } else if (!sym1.includes(sym2)) {
+          existing.symptoms = `${sym1}, ${sym2}`;
+          existing.symptom = existing.symptoms;
+        }
+      }
+
+      // 2. ให้ความสำคัญกับรอบที่มีการสั่งจ่ายยา/ออเดอร์
+      const existingHasMeds = existing.meds && existing.meds !== '[]' && existing.meds !== '-';
+      const vHasMeds = v.meds && v.meds !== '[]' && v.meds !== '-';
+      if (!existingHasMeds && vHasMeds) {
+        existing.meds = v.meds;
+        if (v.order_id) existing.order_id = v.order_id;
+        if (v.visit_id) existing.visit_id = v.visit_id;
+      }
+
+      // 3. ใช้วันเวลาล่าสุด (เวลาที่เสร็จสิ้น/จ่ายยา)
+      const tExisting = new Date(existing.created_at || 0).getTime();
+      const tV = new Date(v.created_at || 0).getTime();
+      if (tV > tExisting) {
+        existing.created_at = v.created_at;
+      }
+
+      // 4. รวมแพ็กเกจตรวจ Lab
+      if (v.lab_tests && v.lab_tests !== '-' && v.lab_tests !== '[]') {
+        if (!existing.lab_tests || existing.lab_tests === '-' || existing.lab_tests === '[]') {
+          existing.lab_tests = v.lab_tests;
+        } else if (existing.lab_tests !== v.lab_tests) {
+          existing.lab_tests = `${existing.lab_tests}, ${v.lab_tests}`;
+        }
+      }
+
+      // 5. รวมผู้แนะนำ / ช่องทาง
+      if ((!existing.referred_by || existing.referred_by === '-') && v.referred_by && v.referred_by !== '-') {
+        existing.referred_by = v.referred_by;
+      }
+      if ((!existing.recorded_by || existing.recorded_by === '-') && v.recorded_by && v.recorded_by !== '-') {
+        existing.recorded_by = v.recorded_by;
+      }
+    }
+  });
+
+  const mergedVisits = Array.from(mergedVisitsMap.values());
+
+  mergedVisits.forEach(v => {
+    const dr = v._resolvedDoctor;
     const isNew = isNewPatient(v, patMap);
     v._isNew = isNew;
 
@@ -2780,7 +2848,7 @@ function renderDoctorPatientCards(doctorList) {
           <td class="text-center align-middle no-print">
             <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-2 px-2 py-1"
               title="ລົບລາຍການນີ້"
-              onclick="deleteDoctorReportRow('${String(v.visit_id || '').replace(/'/g, "\\'")}', '${String(v.order_id || '').replace(/'/g, "\\'")}', '${String(name || '').replace(/'/g, "\\'")}', ${isOrder ? 'true' : 'false'})">
+              onclick="deleteDoctorReportRow('${String(v._mergedVisitIds && v._mergedVisitIds.length ? v._mergedVisitIds.join(',') : v.visit_id || '').replace(/'/g, "\\'")}', '${String(v.order_id || '').replace(/'/g, "\\'")}', '${String(name || '').replace(/'/g, "\\'")}', ${isOrder ? 'true' : 'false'})">
               <i class="bi bi-trash3"></i>
             </button>
           </td>
@@ -3132,7 +3200,11 @@ function exportCSV() {
     fileName = `Doctor_Prescriptions_${state.startDate}_to_${state.endDate}.csv`;
 
   } else if (state.activeTab === 'patients') {
-    const consultedVisits = (state.visits || []).filter(v => isConsultedVisit(v));
+    const allDoctorVisits = [];
+    Object.values(state.patientDoctorStats || {}).forEach(ds => {
+      (ds.visitsList || []).forEach(v => allDoctorVisits.push(v));
+    });
+    const consultedVisits = allDoctorVisits.length > 0 ? allDoctorVisits : (state.visits || []).filter(v => isConsultedVisit(v));
     if (consultedVisits.length === 0) {
       showEmptyExportAlert();
       return;
@@ -3303,13 +3375,16 @@ window.deleteDoctorReportRow = async function (visitId, orderId, patientName, is
   if (!confirmed) return;
 
   try {
-    const idsToBlacklist = [visitId, orderId]
+    const rawIdList = String(visitId || '').split(',').concat(String(orderId || '').split(','));
+    const idsToBlacklist = rawIdList
       .map(x => String(x || '').trim())
       .filter(x => x && x !== '-' && x !== 'null' && x !== 'undefined');
 
-    if (visitId && !String(visitId).startsWith('ORD-CLINIC-')) {
-      idsToBlacklist.push(`ORD-CLINIC-${visitId}`);
-    }
+    idsToBlacklist.slice().forEach(id => {
+      if (id && !id.startsWith('ORD-CLINIC-')) {
+        idsToBlacklist.push(`ORD-CLINIC-${id}`);
+      }
+    });
 
     // บันทึกลง LocalStorage เพื่อให้ซ่อนถาวรทั้งในรายงานและประวัติ
     ['stk_deleted_nutrient_orders', 'clinic_deleted_bills'].forEach(storageKey => {

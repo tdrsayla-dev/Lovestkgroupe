@@ -8,13 +8,23 @@
 // โค้ดอื่นยังอ่านจาก localStorage ได้เหมือนเดิม ไม่ต้องแก้
 // ==========================================================================
 (function () {
-    var KEYS = ['clinic_deleted_bills', 'stk_deleted_nutrient_orders'];
+    var KEYS = ['clinic_deleted_bills', 'stk_deleted_nutrient_orders', 'clinic_deleted_patients'];
     var TABLE = 'clinic_deleted_records';
     var DEFAULT_URL = 'https://fpmstumpobbjozflkola.supabase.co';
     var DEFAULT_KEY = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
     var originalSetItem = Storage.prototype.setItem;
     var client = null;
     var pendingPush = [];
+
+    // เพิ่ม HN-218085 ที่ถูกลบไปแล้วเข้า Blacklist อัตโนมัติ
+    try {
+        var initDp = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+        if (!Array.isArray(initDp)) initDp = [];
+        if (!initDp.includes('HN-218085')) {
+            initDp.push('HN-218085');
+            localStorage.setItem('clinic_deleted_patients', JSON.stringify(initDp));
+        }
+    } catch (e) { }
 
     function readList(key) {
         try {
@@ -96,6 +106,11 @@
                 await push(p[0], p[1]);
             }
             if (window !== window.top) return;
+
+            // ลบ HN-218085 ออกจากฐานข้อมูล patients ทันทีหากยังหลงเหลือ
+            try {
+                c.from('patients').delete().eq('hn', 'HN-218085').then(function () { }).catch(function () { });
+            } catch (e) { }
 
             var serverRows = [];
             for (var from = 0; from < 5000; from += 1000) {

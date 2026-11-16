@@ -2,7 +2,7 @@
 <html lang="lo">
 
 <head>
-    <meta charset="UTF-8"><script src="auth-guard.js?v=2.7"></script><script src="deleted-sync.js?v=2.2"></script>
+    <meta charset="UTF-8"><script src="auth-guard.js?v=2.9"></script><script src="deleted-sync.js?v=2.2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Booking - Timeline</title>
     <link rel="icon" type="image/png" href="favicon.png?v=1.0">
@@ -4424,6 +4424,11 @@
                     deletePromises.push(mlmClient.from('stk_nutrient_orders').delete().eq('order_id', visitId));
                     deletePromises.push(mlmClient.from('stk_nutrient_orders').delete().eq('visit_id', visitId));
                 }
+
+                // 🌟 [OPTION A] ลบข้อมูลออกจากตารางทะเบียนผู้ป่วย (patients) ในฐานข้อมูลด้วย
+                if (clinicClient && hn && hn !== '-') {
+                    deletePromises.push(clinicClient.from('patients').delete().eq('hn', hn));
+                }
                 await Promise.allSettled(deletePromises);
 
                 // 🛡️ [OWASP A09: Security Audit Log] บันทึกประวัติการลบคนไข้/ออเดอร์
@@ -4453,6 +4458,12 @@
                     localStorage.setItem('clinic_deleted_bills', JSON.stringify(deletedBills));
                 } catch (e) { }
 
+                try {
+                    let deletedPatients = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+                    if (hn && hn !== '-' && !deletedPatients.includes(hn)) deletedPatients.push(hn);
+                    localStorage.setItem('clinic_deleted_patients', JSON.stringify(deletedPatients));
+                } catch (e) { }
+
                 const filterOutItem = (item) => {
                     if (!item) return false;
                     const vId = String(item.latest_visit_id || item.visit_id || item.id || '').trim();
@@ -4466,7 +4477,7 @@
                         if (visitId && (vId.includes(visitId) || oId.includes(visitId))) return false;
                     }
                     if (hn && hn !== '-' && itemHn === hn) {
-                        if (!item.latest_visit_id || item.latest_visit_id === '-' || item.latest_visit_id === visitId) return false;
+                        return false;
                     }
                     return true;
                 };
@@ -4614,9 +4625,15 @@
 
                     if (!pErr && Array.isArray(dbPatients) && dbPatients.length > 0) {
                         let newPatientsAdded = false;
+                        let deletedPatientsSet = new Set();
+                        try {
+                            const dp = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+                            dp.forEach(id => { if (id) deletedPatientsSet.add(String(id).trim().toUpperCase()); });
+                        } catch (e) { }
 
                         for (const pt of dbPatients) {
                             if (!pt) continue;
+                            if (pt.hn && deletedPatientsSet.has(String(pt.hn).trim().toUpperCase())) continue;
                             const existingIdx = (allPatientsData || []).findIndex(x => (x.hn && x.hn === pt.hn) || (x.id && x.id === pt.id));
                             if (existingIdx === -1) {
                                 // ດຶງ visit ຫຼ້າສຸດຂອງຄົນໄຂ້ຄົນນີ້
@@ -5063,7 +5080,8 @@
                 try {
                     const db = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
                     const dn = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
-                    [...db, ...dn].forEach(id => {
+                    const dp = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+                    [...db, ...dn, ...dp].forEach(id => {
                         if (id) {
                             const s = String(id).trim().toUpperCase();
                             if (s) deletedIdsSet.add(s);
@@ -5075,8 +5093,10 @@
                     if (!item) return false;
                     const vId = String(item.latest_visit_id || item.visit_id || item.id || '').trim().toUpperCase();
                     const oId = String(item.order_id || (item.order_data && item.order_data.order_id) || '').trim().toUpperCase();
+                    const itemHn = String(item.hn || '').trim().toUpperCase();
                     if (vId && deletedIdsSet.has(vId)) return false;
                     if (oId && deletedIdsSet.has(oId)) return false;
+                    if (itemHn && itemHn !== '-' && deletedIdsSet.has(itemHn)) return false;
                     return true;
                 };
 
@@ -6677,8 +6697,17 @@
             const dropdown = document.getElementById('orderCustDropdown');
             if (!dropdown) return;
 
+            let deletedPatientsSet = new Set();
+            try {
+                const dp = JSON.parse(localStorage.getItem('clinic_deleted_patients') || '[]');
+                dp.forEach(id => { if (id) deletedPatientsSet.add(String(id).trim().toUpperCase()); });
+            } catch (e) { }
+
             const q = (filter || '').trim().toLowerCase();
-            const pool = allPatientsData || [];
+            const pool = (allPatientsData || []).filter(p => {
+                const pHn = String(p.hn || '').trim().toUpperCase();
+                return !pHn || !deletedPatientsSet.has(pHn);
+            });
             let matches = pool;
             if (q) {
                 matches = pool.filter(p => {
