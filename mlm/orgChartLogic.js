@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ================================================================
  * 🔀 orgChartLogic.js — STK Sales Team Hierarchy & Commission Logic Engine
  * LOVE STK GROUPE - Sales Hierarchy & Referral Dividend Calculation Engine
@@ -178,8 +178,6 @@
       if (Number(prodConfig[`level${l}PercentFull`] ?? prodConfig[`level_${l}_percent_full`] ?? 0) > 0) return true;
       if (Number(prodConfig[`level${l}PercentMember`] ?? prodConfig[`level_${l}_percent_member`] ?? 0) > 0) return true;
     }
-    const cat = safeUpper(prodConfig.category);
-    if (cat.includes("SUPPLEMENT") || cat.includes("COSMETIC") || cat.includes("COFFEE")) return true;
     return false;
   }
 
@@ -429,10 +427,10 @@
     };
 
     const downlineCategorized = {
-      'Supplement': { key: 'Supplement', name: 'หมวด Supplement', rate: 250000, l1Rate: 200000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
-      'Supplement02': { key: 'Supplement02', name: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
-      'Cosmetic': { key: 'Cosmetic', name: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
-      'Coffee': { key: 'Coffee', name: 'หมวด Coffee', rate: 20000, l1Rate: 10000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 }
+      'Supplement': { key: 'Supplement', name: 'หมวด Supplement', rate: 250000, l1Rate: 200000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, paidQty: 0, totalLAK: 0, marginLAK: 0 },
+      'Supplement02': { key: 'Supplement02', name: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, paidQty: 0, totalLAK: 0, marginLAK: 0 },
+      'Cosmetic': { key: 'Cosmetic', name: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, paidQty: 0, totalLAK: 0, marginLAK: 0 },
+      'Coffee': { key: 'Coffee', name: 'หมวด Coffee', rate: 20000, l1Rate: 10000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, paidQty: 0, totalLAK: 0, marginLAK: 0 }
     };
 
     const getCatKey = (prodConfig, pName) => {
@@ -485,7 +483,7 @@
         if (!isPromoOrZero && isProductEligibleForReferral(prodConfig)) {
           personalCategorized[catKey].totalQty += q;
           const configuredSelfFee = Number(prodConfig.selfFee ?? prodConfig.self_fee ?? prodConfig.directFee ?? prodConfig.level0Fee ?? 0);
-          const selfFee = configuredSelfFee > 0 ? configuredSelfFee : (defaultRates[catKey]?.rate || 250000);
+          const selfFee = (prodConfig.product_id || prodConfig.id) ? configuredSelfFee : (configuredSelfFee > 0 ? configuredSelfFee : (defaultRates[catKey]?.rate || 250000));
           personalCategorized[catKey].totalLAK += q * selfFee;
           personalCategorized[catKey].rate = selfFee;
 
@@ -551,7 +549,7 @@
         let feePerBox = 0;
         if (sellerLevel === 1) {
           const configuredL1Fee = Number(prodConfig.level1Fee ?? prodConfig.level_1_fee ?? prodConfig.uplineFee ?? 0);
-          feePerBox = configuredL1Fee > 0 ? configuredL1Fee : (defaultRates[catKey]?.l1Rate || 200000);
+          feePerBox = (prodConfig.product_id || prodConfig.id) ? configuredL1Fee : (configuredL1Fee > 0 ? configuredL1Fee : (defaultRates[catKey]?.l1Rate || 200000));
           if (feePerBox > 0) {
             downlineCategorized[catKey].l1Rate = feePerBox;
           }
@@ -562,6 +560,9 @@
         const earnLAK = meetCommCondition ? (q * feePerBox) : 0;
 
         downlineCategorized[catKey].totalQty += q;
+        if (earnLAK > 0 || (feePerBox > 0 && meetCommCondition)) {
+          downlineCategorized[catKey].paidQty = (downlineCategorized[catKey].paidQty || 0) + q;
+        }
         downlineCategorized[catKey].totalLAK += earnLAK;
 
         if (salesByLevelStats[sellerLevel]) {
