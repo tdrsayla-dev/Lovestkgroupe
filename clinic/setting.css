@@ -39,7 +39,8 @@ body {
   font-weight: 700;
   color: var(--primary-dark);
   margin: 0 0 3px;
-  font-family: 'Kanit', 'Outfit', sans-serif;
+  font-family: 'Outfit', 'Kanit', 'Noto Sans Lao', 'Sarabun', sans-serif;
+  line-height: 1.35;
 }
 .s-header-clean p {
   font-size: .88rem;

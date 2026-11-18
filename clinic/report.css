@@ -42,6 +42,8 @@ body {
   min-height: 100vh;
   font-size: .92rem;
   overflow-x: hidden;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, h4, h5, h6, input, select, textarea, button, table, th, td, label, p, span:not([class*="ph"]):not([class*="bi"]), div:not([class*="ph"]):not([class*="bi"]) {
