@@ -10,8 +10,8 @@
 (function () {
     var KEYS = ['clinic_deleted_bills', 'stk_deleted_nutrient_orders', 'clinic_deleted_patients'];
     var TABLE = 'clinic_deleted_records';
-    var DEFAULT_URL = 'https://fpmstumpobbjozflkola.supabase.co';
-    var DEFAULT_KEY = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+    var DEFAULT_URL = 'https://clinic-api-bridge.t-drsayla.workers.dev';
+    var DEFAULT_KEY = 'cf-edge-hidden-key';
     var originalSetItem = Storage.prototype.setItem;
     var client = null;
     var pendingPush = [];

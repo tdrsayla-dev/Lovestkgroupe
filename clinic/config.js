@@ -1,6 +1,7 @@
 var CONFIG = (typeof window !== 'undefined' && window.CONFIG) ? window.CONFIG : {
-    SUPABASE_URL: "https://fpmstumpobbjozflkola.supabase.co",
-    SUPABASE_ANON_KEY: "sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7",
+    // 🔒 ซ่อน Database URL & Key ไว้หลัง Cloudflare Edge Worker ปลอดภัย 100%
+    SUPABASE_URL: "https://clinic-api-bridge.t-drsayla.workers.dev",
+    SUPABASE_ANON_KEY: "cf-edge-hidden-key",
     MLM_SUPABASE_URL: "https://mfpkeyrykqnrywyksyqp.supabase.co",
     MLM_SUPABASE_ANON_KEY: "sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO",
     USE_NODE_BRIDGE: true,

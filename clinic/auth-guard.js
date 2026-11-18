@@ -42,8 +42,8 @@
     } catch (frameErr) { }
 
     var LOGIN_PAGE = 'login.html';
-    var DEFAULT_URL = 'https://fpmstumpobbjozflkola.supabase.co';
-    var DEFAULT_KEY = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+    var DEFAULT_URL = 'https://clinic-api-bridge.t-drsayla.workers.dev';
+    var DEFAULT_KEY = 'cf-edge-hidden-key';
 
     // 🛡️ [OWASP A03: XSS Protection] Global HTML Entity Encoder
     window.escapeHtml = function (str) {
