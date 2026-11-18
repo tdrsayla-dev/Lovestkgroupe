@@ -2209,16 +2209,16 @@ window.setPatientTodayTab = setPatientTodayTab;
 var LAOS_ADDRESS_DATA = {
     "ນະຄອນຫຼວງວຽງຈັນ": [
         "ເມືອງຈັນທະບູລີ", "ເມືອງສີໂຄດຕະບອງ", "ເມືອງໄຊເສດຖາ", "ເມືອງສີສັດຕະນາກ",
-        "ເມືອງນາຊາຍທອງ", "ເມືອງໄຊທານີ", "ເມືອງຮາດຊາຍຟອງ", "ເມືອງສັງທອງ", "ເມືອງປາກງື່ມ"
+        "ເມືອງນາຊາຍທອງ", "ເມືອງໄຊທານີ", "ເມືອງຫາດຊາຍຟອງ", "ເມືອງສັງທອງ", "ເມືອງປາກງື່ມ"
     ],
     "ແຂວງຜົ້ງສາລີ": [
-        "ເມືອງຜົ້ງສາລີ", "ເມືອງໃໝ່", "ເມືອງຂວາ", "ເມືອງສຳພັນ", "ເມືອງບຸນເນື້ອ", "ເມືອງຍອດອູ", "ເມືອງບຸນໃຕ້"
+        "ເມືອງຜົ້ງສາລີ", "ເມືອງໃໝ່", "ເມືອງຂວາ", "ເມືອງສຳພັນ", "ເມືອງບຸນເໜືອ", "ເມືອງຍອດອູ", "ເມືອງບຸນໃຕ້"
     ],
     "ແຂວງຫຼວງນ້ຳທາ": [
-        "ເມືອງຫຼວງນ້ຳທາ", "ເມືອງສິງ", "ເມືອງລອງ", "ເມືອງວຽງພູຄາ", "ເມືອງນາແລ"
+        "ເມືອງນ້ຳທາ", "ເມືອງສິງ", "ເມືອງລອງ", "ເມືອງວຽງພູຄາ", "ເມືອງນາແລ"
     ],
     "ແຂວງອຸດົມໄຊ": [
-        "ເມືອງໄຊ", "ເມືອງຫຼາ", "ເມືອງນາໝໍ້", "ເມືອງງາ", "ເມືອງແບ່ງ", "ເມືອງຮຸນ", "ເມືອງປາກແບ່ງ"
+        "ເມືອງໄຊ", "ເມືອງຫຼາ", "ເມືອງນາໝໍ້", "ເມືອງງາ", "ເມືອງແບງ", "ເມືອງຮຸນ", "ເມືອງປາກແບງ"
     ],
     "ແຂວງບໍ່ແກ້ວ": [
         "ເມືອງຫ້ວຍຊາຍ", "ເມືອງຕົ້ນເຜິ້ງ", "ເມືອງເມິງ", "ເມືອງຜາອຸດົມ", "ເມືອງປາກທາ"
@@ -2228,19 +2228,22 @@ var LAOS_ADDRESS_DATA = {
         "ເມືອງງອຍ", "ເມືອງປາກແຊງ", "ເມືອງໂພນໄຊ", "ເມືອງຈອມເພັດ", "ເມືອງວຽງຄຳ", "ເມືອງພູຄູນ", "ເມືອງໂພນທອງ"
     ],
     "ແຂວງຫົວພັນ": [
-        "ເມືອງຊຳເໜືອ", "ເມືອງຊຽງຄໍ້", "ເມືອງເວີນໄຊ", "ເມືອງວຽງໄຊ", "ເມືອງຊຳໃຕ້",
-        "ເມືອງຫົວເມືອງ", "ເມືອງແອດ", "ເມືອງໂສບເບົາ", "ເມືອງພັນທອງ", "ເມືອງກວັນ"
+        "ເມືອງຊຳເໜືອ", "ເມືອງຊຽງຄໍ້", "ເມືອງຮ້ຽມ", "ເມືອງວຽງໄຊ", "ເມືອງຫົວເມືອງ",
+        "ເມືອງຊຳໃຕ້", "ເມືອງສົບເບົາ", "ເມືອງກັວນ", "ເມືອງຊ່ອນ", "ເມືອງແອດ"
     ],
     "ແຂວງໄຊຍະບູລີ": [
-        "ເມືອງໄຊຍະບູລີ", "ເມືອງຄອບ", "ເມືອງຫົງສາ", "ເມືອງເງິນ", "ເມືອງຊຽງຮ່ອນ",
-        "ເມືອງພຽງ", "ເມືອງປາກລາຍ", "ເມືອງແກ່ນທ້າວ", "ເມືອງບໍ່ແຕນ", "ເມືອງທົ່ງມີໄຊ", "ເມືອງໄຊສະຖານ"
+        "ເມືອງໄຊຍະບູລີ", "ເມືອງຄອບ", "ເມືອງຫົງສາ", "ເມືອງເງິນ", "ເມືອງແກ່ນທ້າວ",
+        "ເມືອງບໍ່ແຕນ", "ເມືອງທົ່ງມີໄຊ", "ເມືອງຊຽງຮ່ອນ", "ເມືອງພຽງ", "ເມືອງປາກລາຍ", "ເມືອງໄຊສະຖານ"
     ],
     "ແຂວງຊຽງຂວາງ": [
-        "ເມືອງແປກ (ໂພນສະຫວັນ)", "ເມືອງຄຳ", "ເມືອງໜອງແຮດ", "ເມືອງຄູນ", "ເມືອງໝອກໄໝ່", "ເມືອງພູກູດ", "ເມືອງຜາໄຊ"
+        "ເມືອງແປກ", "ເມືອງຄຳ", "ເມືອງໜອງແຮດ", "ເມືອງຄູນ", "ເມືອງໝອກໃໝ່", "ເມືອງພູກູດ", "ເມືອງຜາໄຊ"
+    ],
+    "ແຂວງໄຊສົມບູນ": [
+        "ເມືອງອະນຸວົງ", "ເມືອງທ່າທົມ", "ເມືອງລ້ອງແຈ້ງ", "ເມືອງຮົ່ມ", "ເມືອງລ້ອງຊານ"
     ],
     "ແຂວງວຽງຈັນ": [
         "ເມືອງໂພນໂຮງ", "ເມືອງທຸລະຄົມ", "ເມືອງແກ້ວອຸດົມ", "ເມືອງກາສີ", "ເມືອງວັງວຽງ",
-        "ເມືອງເຟືອງ", "ເມືອງຊະນະຄາມ", "ເມືອງແມດ", "ເມືອງວຽງຄຳ", "ເມືອງຫີນເຫີບ", "ເມືອງໝື່ນ"
+        "ເມືອງຊະນະຄາມ", "ເມືອງແມດ", "ເມືອງຫີນເຫີບ", "ເມືອງວຽງຄຳ", "ເມືອງເຟືອງ", "ເມືອງໝື່ນ"
     ],
     "ແຂວງບໍລິຄຳໄຊ": [
         "ເມືອງປາກຊັນ", "ເມືອງທ່າພະບາດ", "ເມືອງປາກກະດິງ", "ເມືອງບໍລິຄັນ", "ເມືອງຄຳເກີດ", "ເມືອງວຽງທອງ", "ເມືອງໄຊຈຳພອນ"
@@ -2250,25 +2253,22 @@ var LAOS_ADDRESS_DATA = {
         "ເມືອງບົວລະພາ", "ເມືອງນາກາຍ", "ເມືອງເຊບັ້ງໄຟ", "ເມືອງໄຊບົວທອງ", "ເມືອງຄູນຄຳ"
     ],
     "ແຂວງສະຫວັນນະເຂດ": [
-        "ນະຄອນໄກສອນ ພົມວິຫານ", "ເມືອງອຸທຸມພອນ", "ເມືອງອາສະພັງທອງ", "ເມືອງພີນ", "ເມືອງເຊໂປນ",
-        "ເມືອງນອງ", "ເມືອງທ່າປາງທອງ", "ເມືອງຈຳພອນ", "ເມືອງຊົນນະບູລີ", "ເມືອງໄຊບູລີ",
-        "ເມືອງວີລະບູລີ", "ເມືອງອາສະພອນ", "ເມືອງໄຊພູທອງ", "ເມືອງພະລານໄຊ", "ເມືອງສອງຄອນ"
-    ],
-    "ແຂວງໄຊສົມບູນ": [
-        "ເມືອງອນຸວົງ", "ເມືອງທ່າໂທມ", "ເມືອງລ້ອງຊານ", "ເມືອງຮົມ", "ເມືອງລ້ອງແຈ້ງ"
+        "ນະຄອນໄກສອນພົມວິຫານ", "ເມືອງອຸທຸມພອນ", "ເມືອງອາດສະພັງທອງ", "ເມືອງພິນ", "ເມືອງເຊໂປນ",
+        "ເມືອງນອງ", "ເມືອງທ່າປາງທອງ", "ເມືອງສອງຄອນ", "ເມືອງຈຳພອນ", "ເມືອງຊົນບູລີ",
+        "ເມືອງໄຊບູລີ", "ເມືອງວິລະບູລີ", "ເມືອງອາດສະພອນ", "ເມືອງໄຊພູທອງ", "ເມືອງພະລານໄຊ"
     ],
     "ແຂວງສາລະວັນ": [
         "ເມືອງສາລະວັນ", "ເມືອງຕະໂອ້ຍ", "ເມືອງຕຸ້ມລານ", "ເມືອງລະຄອນເພັງ", "ເມືອງວາປີ", "ເມືອງຄົງເຊໂດນ", "ເມືອງເລົ່າງາມ", "ເມືອງສະໝ້ວຍ"
     ],
     "ແຂວງເຊກອງ": [
-        "ເມືອງລະມາມ", "ເມືອງກະເລິມ", "ເມືອງດັກຈຶງ", "ເມືອງທ່າແຕງ"
-    ],
-    "ແຂວງຈຳປາສັກ": [
-        "ນະຄອນປາກເຊ", "ເມືອງຊະນະສົມບູນ", "ເມືອງບາຈຽງເຈີນສຸກ", "ເມືອງປາກຊ່ອງ", "ເມືອງປະທຸມພອນ",
-        "ເມືອງໂພນທອງ", "ເມືອງຈຳປາສັກ", "ເມືອງສຸຂຸມາ", "ເມືອງມູນລະປະໂມກ", "ເມືອງໂຂງ"
+        "ເມືອງລະມາມ", "ເມືອງກະລຶມ", "ເມືອງດັກຈຶງ", "ເມືອງທ່າແຕງ"
     ],
     "ແຂວງອັດຕະປື": [
-        "ເມືອງສາມັກຄີໄຊ", "ເມືອງໄຊເສດຖາ", "ເມືອງສະໜາມໄຊ", "ເມືອງສານໄຊ", "ເມືອງພູວົງ"
+        "ເມືອງໄຊເສດຖາ", "ເມືອງສາມັກຄີໄຊ", "ເມືອງສະໜາມໄຊ", "ເມືອງຊານໄຊ", "ເມືອງພູວົງ"
+    ],
+    "ແຂວງຈຳປາສັກ": [
+        "ນະຄອນປາກເຊ", "ເມືອງຊະນະສົມບູນ", "ເມືອງບາຈຽງຈະເລີນສຸກ", "ເມືອງປາກຊ່ອງ", "ເມືອງປະທຸມພອນ",
+        "ເມືອງໂພນທອງ", "ເມືອງຈຳປາສັກ", "ເມືອງສຸຂຸມາ", "ເມືອງມຸນລະປະໂມກ", "ເມືອງໂຂງ"
     ]
 };
 
@@ -3217,7 +3217,7 @@ async function loadPrescriptionList(triggerBtn) {
             window._stuckDispensedSynced = true;
             _supabase.from('visits').update({ status: 'เสร็จสิ้น' }).in('visit_id', Array.from(STUCK_DISPENSED_VISITS)).then(() => {
                 console.log('✅ ซิงค์สถานะ 28 เคสที่ส่งยาแล้วเป็น "เสร็จสิ้น" เรียบร้อย');
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         filtered = filtered.filter(row => !STUCK_DISPENSED_VISITS.has(row.visit_id));
@@ -3341,7 +3341,7 @@ window.clearDispensedVisitsPrompt = function (btn) {
     } else {
         if (confirm('ທ່ານຕ້ອງການເຄຼຍຄິວ 28 ລາຍການນີ້ແທ້ບໍ?')) {
             if (window._supabase) {
-                window._supabase.from('visits').update({ status: 'เสร็จสิ้น' }).in('visit_id', targetVisits).then(function() {
+                window._supabase.from('visits').update({ status: 'เสร็จสิ้น' }).in('visit_id', targetVisits).then(function () {
                     if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
                 });
             }
@@ -7185,7 +7185,7 @@ async function deleteSelectedDeletedBills() {
     const isLao = (localStorage.getItem('clinic_lang') || 'la') === 'la';
     const confirm = await Swal.fire({
         title: isLao ? `ຢືນຢັນການລຶບ ${count} ລາຍການ?` : `ยืนยันการลบ ${count} รายการ?`,
-        html: isLao 
+        html: isLao
             ? `ທ່ານຕ້ອງການລຶບປະຫວັດການລຶບໃບບິນທີ່ເລືອກ <b>${count}</b> ລາຍການ ອອກຈາກຖານຂໍ້ມູນແທ້ຫຼືບໍ່?<br><small class="text-danger">⚠️ ຂໍ້ມູນຈະຖືກລຶບອອກຖາວອນ (ເໝາະສຳລັບລຶບຂໍ້ມູນທົດສອບລະບົບ)</small>`
             : `คุณต้องการลบประวัติการลบใบเสร็จที่เลือก <b>${count}</b> รายการ ออกจากฐานข้อมูลใช่หรือไม่?<br><small class="text-danger">⚠️ ข้อมูลจะถูกลบออกถาวร (เหมาะสำหรับล้างข้อมูลทดสอบระบบ)</small>`,
         icon: 'warning',
@@ -7292,7 +7292,7 @@ async function deleteSelectedDeletedBills() {
             Swal.fire({
                 icon: 'error',
                 title: isLao ? 'ຖານຂໍ້ມູນ Supabase ບໍ່ອະນຸຍາດໃຫ້ລຶບ (RLS)' : 'ฐานข้อมูล Supabase ไม่อนุญาตให้ลบ (RLS)',
-                html: isLao 
+                html: isLao
                     ? `ຖານຂໍ້ມູນ Supabase ຕິດ Row Level Security (RLS) ເຮັດໃຫ້ບໍ່ສາມາດລຶບໄດ້:<br><div class="alert alert-danger mt-2 py-1 small text-start font-monospace">${supabaseErrors.join('<br>')}</div><br><b>ວິທີແກ້:</b> ຕ້ອງນຳຄຳສັ່ງ SQL Policy ໄປ Run ໃນ Supabase SQL Editor ກ່ອນ`
                     : `ฐานข้อมูล Supabase ติด Row Level Security (RLS) ทำให้ไม่สามารถลบได้:<br><div class="alert alert-danger mt-2 py-1 small text-start font-monospace">${supabaseErrors.join('<br>')}</div><br><b>วิธีแก้:</b> ต้องนำคำสั่ง SQL Policy ไป Run ใน Supabase SQL Editor ก่อน`
             });
@@ -7323,7 +7323,7 @@ async function deleteSelectedDeletedBills() {
             const cI = extractCleanDigits(id).toLowerCase();
             const cA = extractCleanDigits(aId).toLowerCase();
             return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId) &&
-                   !removeKeySet.has(cT) && !removeKeySet.has(cI) && !removeKeySet.has(cA);
+                !removeKeySet.has(cT) && !removeKeySet.has(cI) && !removeKeySet.has(cA);
         });
 
         window.filteredDeletedBillsData = (window.filteredDeletedBillsData || []).filter(item => {
@@ -7334,7 +7334,7 @@ async function deleteSelectedDeletedBills() {
             const cI = extractCleanDigits(id).toLowerCase();
             const cA = extractCleanDigits(aId).toLowerCase();
             return !removeKeySet.has(tId) && !removeKeySet.has(id) && !removeKeySet.has(aId) &&
-                   !removeKeySet.has(cT) && !removeKeySet.has(cI) && !removeKeySet.has(cA);
+                !removeKeySet.has(cT) && !removeKeySet.has(cI) && !removeKeySet.has(cA);
         });
 
         window.selectedDeletedBillKeys.clear();
@@ -8095,7 +8095,7 @@ function changeDeletedBillsPage(page) {
     if (page < 1) page = 1;
     if (page > totalPages) page = totalPages;
     window.currentDeletedBillsPage = page;
-    
+
     // ⚡ วาดตารางทันที (0ms)
     renderDeletedBillsAuditTable(list, page);
 
@@ -8129,12 +8129,12 @@ function renderDeletedBillsAuditTable(logs, page = 1) {
     const startIdx = (page - 1) * DELETED_BILLS_PER_PAGE;
     const pageItems = logs.slice(startIdx, startIdx + DELETED_BILLS_PER_PAGE);
 
-    tbody.innerHTML = pageItems.map(function(item, index) {
+    tbody.innerHTML = pageItems.map(function (item, index) {
         const rowNumber = startIdx + index + 1;
         const d = item.created_at ? new Date(item.created_at) : new Date();
         const dateStr = d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
         const billId = item.target_id || item.id || '-';
-        
+
         let details = item.details || {};
         if (typeof details === 'string') {
             try { details = JSON.parse(details); } catch (e) { details = {}; }
@@ -8173,22 +8173,22 @@ function renderDeletedBillsAuditTable(logs, page = 1) {
             '<td class="text-muted fw-semibold">' + rowNumber + '</td>' +
             '<td><i class="bi bi-calendar-event me-1 text-muted"></i>' + dateStr + '</td>' +
             '<td>' +
-                '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fs-6 fw-bold font-monospace">' + esc(billId) + '</span>' +
-                aliasTag +
+            '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fs-6 fw-bold font-monospace">' + esc(billId) + '</span>' +
+            aliasTag +
             '</td>' +
             '<td>' +
-                displayPatient +
-                '<div class="mt-1 d-flex align-items-center gap-1 flex-wrap">' + visitIdTag + hnTag + '</div>' +
+            displayPatient +
+            '<div class="mt-1 d-flex align-items-center gap-1 flex-wrap">' + visitIdTag + hnTag + '</div>' +
             '</td>' +
             '<td class="text-end fw-bold text-dark font-monospace">' + amountStr + '</td>' +
             '<td>' +
-                '<div class="fw-semibold text-dark"><i class="bi bi-person-circle me-1 text-primary"></i>' + esc(actorName) + '</div>' +
-                '<div class="small text-muted font-monospace">' + esc(actorCode) + '</div>' +
+            '<div class="fw-semibold text-dark"><i class="bi bi-person-circle me-1 text-primary"></i>' + esc(actorName) + '</div>' +
+            '<div class="small text-muted font-monospace">' + esc(actorCode) + '</div>' +
             '</td>' +
             '<td class="text-center">' +
-                '<span class="badge bg-danger px-2.5 py-1 rounded-pill"><i class="bi bi-trash3-fill me-1"></i>ລຶບແລ້ວ</span>' +
+            '<span class="badge bg-danger px-2.5 py-1 rounded-pill"><i class="bi bi-trash3-fill me-1"></i>ລຶບແລ້ວ</span>' +
             '</td>' +
-        '</tr>';
+            '</tr>';
     }).join('');
 
     renderDeletedBillsPagination(totalItems, page, totalPages);
@@ -8206,7 +8206,7 @@ function filterDeletedBillsLog() {
         enrichPageItems(1);
         return;
     }
-    const filtered = sourceData.filter(function(item) {
+    const filtered = sourceData.filter(function (item) {
         const id = String(item.target_id || item.id || '').toLowerCase();
         const alias = String(item.aliasId || '').toLowerCase();
         const actor = String(item.actor_name || item.actor_emp_code || '').toLowerCase();
@@ -8576,7 +8576,7 @@ async function submitPatient() {
     let currentPayload = { ...patientData };
     let res = await execPatientDb(currentPayload);
     let retryCount = 0;
-    while (res && res.error && res.error.message && res.error.message.includes("in the schema cache") && retryCount < 3) {
+    while (res && res.error && res.error.message && res.error.message.includes("in the schema cache") && retryCount < 10) {
         const matchCol = res.error.message.match(/Could not find the '([^']+)' column/);
         if (matchCol && matchCol[1] && currentPayload[matchCol[1]] !== undefined) {
             console.warn(`[submitPatient] Column '${matchCol[1]}' not in patients table, retrying without it...`);
@@ -8586,6 +8586,9 @@ async function submitPatient() {
         } else {
             break;
         }
+    }
+    if (res && res.error) {
+        console.error('[submitPatient] Database Error Details:', res.error);
     }
     patientErr = res ? res.error : null;
 
@@ -13960,8 +13963,8 @@ async function submitPrescription() {
     let doctorName = (refillContext && refillContext.doctorName) ? refillContext.doctorName : '';
     if (!doctorName && visitId) {
         const vMatch = (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
-                       (window.allQueueData || []).find(x => x.visit_id === visitId) ||
-                       (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
+            (window.allQueueData || []).find(x => x.visit_id === visitId) ||
+            (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
         if (vMatch && (vMatch.doctor_name || vMatch.doctor) && vMatch.doctor_name !== '-') {
             doctorName = vMatch.doctor_name || vMatch.doctor;
         }
@@ -14252,8 +14255,8 @@ async function rejectPrescriptionMedicine() {
     let doctorName = (refillContext && refillContext.doctorName) ? refillContext.doctorName : '';
     if (!doctorName && visitId) {
         const vMatch = (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
-                       (window.allQueueData || []).find(x => x.visit_id === visitId) ||
-                       (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
+            (window.allQueueData || []).find(x => x.visit_id === visitId) ||
+            (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
         if (vMatch && (vMatch.doctor_name || vMatch.doctor) && vMatch.doctor_name !== '-') {
             doctorName = vMatch.doctor_name || vMatch.doctor;
         }
@@ -16550,7 +16553,7 @@ window.fetchPatientHistoryRows = async function (startDate, endDate) {
 
         // ໂຫຼດອັບເດດຖານຂໍ້ມູນແບບ Background Sync ເງຽບໆ ບໍ່ໃຫ້ຂັດຈັງຫວະ UI
         setTimeout(() => {
-            window.loadPatientHistory(true, { startDate: startDate || null, endDate: endDate || null }).catch(() => {});
+            window.loadPatientHistory(true, { startDate: startDate || null, endDate: endDate || null }).catch(() => { });
         }, 500);
 
         return filtered;
@@ -20075,6 +20078,36 @@ function lookupRequesterByCode() {
         document.getElementById('reqRequester').value = found.requester_name || '';
     }
 }
+
+function switchSupplyTab(tab, btn) {
+    const listTab = document.getElementById('supplyListTab');
+    const intakeTab = document.getElementById('supplyIntakeTab');
+    const historyTab = document.getElementById('supplyHistoryTab');
+
+    if (listTab) listTab.style.display = (tab === 'list') ? '' : 'none';
+    if (intakeTab) intakeTab.style.display = (tab === 'intake') ? '' : 'none';
+    if (historyTab) historyTab.style.display = (tab === 'history') ? '' : 'none';
+
+    const container = document.getElementById('supplyTab');
+    if (container) {
+        container.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+    }
+    if (btn) {
+        btn.classList.add('active');
+    } else {
+        const targetBtn = document.querySelector(`#supplyTab button[onclick*="'${tab}'"]`);
+        if (targetBtn) targetBtn.classList.add('active');
+    }
+
+    if (tab === 'history' && typeof loadSupplyRequests === 'function') {
+        loadSupplyRequests();
+    } else if (tab === 'intake' && typeof loadSupplyIntakes === 'function') {
+        loadSupplyIntakes();
+    } else if (tab === 'list' && typeof loadSupplyItems === 'function') {
+        loadSupplyItems();
+    }
+}
+window.switchSupplyTab = switchSupplyTab;
 
 function viewItemReqHistory(itemId, itemName) {
     const tabHistoryBtn = document.querySelector('#supplyTab button[onclick*="history"]');
@@ -34372,7 +34405,7 @@ async function openPatientCardModal(hn) {
 
     let patient = null;
     if (window.allPatients && Array.isArray(window.allPatients)) {
-        patient = window.allPatients.find(function(p) { return p.hn === hn; });
+        patient = window.allPatients.find(function (p) { return p.hn === hn; });
     }
     if (!patient && window._supabase) {
         try {
@@ -34396,8 +34429,8 @@ async function openPatientCardModal(hn) {
     }
     let refDisplay = '-';
     if (refId) {
-        const refObj = (window.referrersData || []).find(function(r) { return r.id === refId || r.code === refId; });
-        const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(function(s) { return s.emp_code === refId || s.id === refId || s.full_name === refId; });
+        const refObj = (window.referrersData || []).find(function (r) { return r.id === refId || r.code === refId; });
+        const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(function (s) { return s.emp_code === refId || s.id === refId || s.full_name === refId; });
         if (refObj) {
             refDisplay = refObj.name + ' (' + (refObj.code || refObj.id) + ')';
         } else if (staffObj) {
@@ -34515,8 +34548,8 @@ function copyPatientCardText() {
 
     let refId = p.referred_by || (window.patientReferrersMap ? window.patientReferrersMap[p.hn] : '') || '-';
     if (refId && refId !== '-') {
-        const refObj = (window.referrersData || []).find(function(r) { return r.id === refId || r.code === refId; });
-        const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(function(s) { return s.emp_code === refId || s.id === refId || s.full_name === refId; });
+        const refObj = (window.referrersData || []).find(function (r) { return r.id === refId || r.code === refId; });
+        const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(function (s) { return s.emp_code === refId || s.id === refId || s.full_name === refId; });
         if (refObj) refId = refObj.name + ' (' + (refObj.code || refObj.id) + ')';
         else if (staffObj) refId = staffObj.full_name + ' (' + (staffObj.emp_code || 'STAFF') + ')';
     }
@@ -34548,11 +34581,11 @@ function copyPatientCardText() {
 
     const textLines = [
         (() => {
-        const cSettings = window.clinicSettings || {};
-        const la = cSettings['clinic_name_la'] || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
-        const en = cSettings['clinic_name_en'] || 'Love Stk Medical and Treatment Center';
-        return '🏥 ' + la + (en ? (' (' + en + ')') : '');
-    })(),
+            const cSettings = window.clinicSettings || {};
+            const la = cSettings['clinic_name_la'] || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
+            const en = cSettings['clinic_name_en'] || 'Love Stk Medical and Treatment Center';
+            return '🏥 ' + la + (en ? (' (' + en + ')') : '');
+        })(),
         '✨ ບັດຢັ້ງຢືນການລົງທະບຽນຜູ້ປ່ວຍ (Patient Pass)',
         '━━━━━━━━━━━━━━━━━━━━',
         '🆔 ລະຫັດ HN: ' + (p.hn || '-'),
@@ -34570,9 +34603,9 @@ function copyPatientCardText() {
     const textToCopy = textLines.join('\n');
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textToCopy).then(function() {
+        navigator.clipboard.writeText(textToCopy).then(function () {
             showCardCopiedFeedback();
-        }).catch(function() {
+        }).catch(function () {
             fallbackCopyText(textToCopy);
         });
     } else {
