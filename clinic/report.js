@@ -970,8 +970,58 @@ function resolveDoctorForRecord(record, visitsList, ordersList, billsList) {
   return null;
 }
 
+// 🛡️ ตรวจสอบสถานะการชำระเงิน/ขายสำเร็จจริงฝั่ง MLM (Single Source of Truth)
+function isMlmOrderPaidStatus(statusStr) {
+  const mst = String(statusStr || '').trim().toLowerCase();
+  if (!mst) return false;
+  if (
+    mst.includes('cancel') || mst.includes('ຍົກເລີກ') || mst.includes('ยกเลิก') ||
+    mst.includes('deleted') || mst.includes('ลบ') ||
+    mst.includes('รอดำเนินการ') || mst.includes('ລໍດຳເນີນການ') ||
+    mst.includes('ร่าง') || mst.includes('draft') ||
+    mst.includes('pending') || mst.includes('unpaid') || mst.includes('ຍັງບໍ່')
+  ) {
+    return false;
+  }
+  return (
+    mst.includes('ขายสำเร็จแล้ว') ||
+    mst.includes('ชำระเงินแล้ว') ||
+    mst.includes('ชำระแล้ว') ||
+    mst.includes('ຊຳລະແລ້ວ') ||
+    mst.includes('สำเร็จ') ||
+    mst.includes('เสร็จสิ้น') ||
+    mst.includes('completed') ||
+    mst.includes('paid')
+  );
+}
+
+// 🔍 ค้นหาออเดอร์ฝั่ง MLM ที่ผูกกับ Visit นี้ (ถ้ามีหลายใบ เช่น ยกเลิกใบเก่าที่ส่งยาผิดแล้วออกใบใหม่ ให้ยึดใบที่ชำระเงินสำเร็จเป็นหลัก)
+function findLinkedRawMlmOrder(v) {
+  if (!v) return null;
+  const rawOrders = state.nutrientOrdersRaw || [];
+  if (rawOrders.length === 0) return null;
+  const vVid = normalizeIdStr(v.visit_id);
+  const vOid = normalizeIdStr(v.order_id);
+  const matched = rawOrders.filter(o => {
+    if (!o) return false;
+    const oVid = normalizeIdStr(o.visit_id);
+    const oOid = normalizeIdStr(o.order_id || o.id);
+    return (vVid && (oVid === vVid || oOid === vVid || oOid === `ord-clinic-${vVid}`)) ||
+           (vOid && (oVid === vOid || oOid === vOid));
+  });
+  if (matched.length === 0) return null;
+  const paidOrder = matched.find(o => isMlmOrderPaidStatus(o.status));
+  return paidOrder || matched[0];
+}
+
 // 💊 Unified Medicine Item Extractor (shared by Tab 1 & Tab 2 so box counts always match 100%)
 function extractVisitMedItems(v, visitNutrientMap) {
+  // 🛡️ ถ้า Visit นี้มีใบสั่งยาฝั่ง MLM แต่ยังไม่ได้ชำระเงิน หรือถูกยกเลิก (เช่น ส่งยาผิด) ห้ามดึง v.meds เก่ามานับเด็ดขาด!
+  const rawMlmOrder = findLinkedRawMlmOrder(v);
+  if (rawMlmOrder && !isMlmOrderPaidStatus(rawMlmOrder.status)) {
+    return { items: [], totalQty: 0, totalPrice: 0, summary: '', linkedOrder: null };
+  }
+
   let rawMeds = v ? v.meds : null;
   const vVid = normalizeIdStr(v && v.visit_id);
   const vOid = normalizeIdStr(v && v.order_id);
@@ -985,12 +1035,9 @@ function extractVisitMedItems(v, visitNutrientMap) {
     (vHn && vDate && visitNutrientMap[`${vHn}_${vDate}`])
   ) : null;
 
-  let parsed = parseMedsListSafe(rawMeds);
-  if (parsed.length === 0 && linkedOrder) {
-    parsed = parseMedsListSafe(linkedOrder.items || linkedOrder.items_json || linkedOrder.meds);
-  }
-
   const linkedItems = linkedOrder ? parseMedsListSafe(linkedOrder.items || linkedOrder.items_json || linkedOrder.meds) : [];
+  // 🌟 ยึดรายการยาที่ชำระเงินจริงฝั่ง MLM เป็นหลักก่อน (ป้องกันกรณีหมอคีย์ส่งยาผิดใน visits.meds แล้วไปแก้ตอนจ่ายเงินฝั่ง MLM)
+  let parsed = (linkedItems.length > 0) ? linkedItems : parseMedsListSafe(rawMeds);
 
   let totalMedsQty = 0;
   let totalMedsPrice = 0;
@@ -1282,46 +1329,9 @@ function processNutrientOrders(rawOrders, visitsList) {
     if (vVid && handledVisitIds.has(vVid)) return;
     if (vOid && (handledOrderIds.has(vOid) || handledVisitIds.has(vOid))) return;
 
-    if (v.status) {
-      const vSt = String(v.status).toLowerCase();
-      // 1. ยกเลิก หรือ ลบ
-      if (vSt.includes('cancel') || vSt.includes('ຍົກເລີກ') || vSt.includes('ยกเลิก') || vSt.includes('deleted')) {
-        return;
-      }
-      // 2. สถานะที่ยังรอชำระเงิน หรือรอดำเนินการ หรือยังค้างขั้นตอนก่อนพบแพทย์/ก่อนจ่ายเงิน
-      if (
-        vSt.includes('รอชำระเงิน') || vSt.includes('ລໍຖ້າຊຳລະ') || vSt.includes('ລໍຊຳລະ') ||
-        vSt.includes('รอดำเนินการ') || vSt.includes('ລໍດຳເນີນການ') ||
-        vSt.includes('ร่าง') || vSt.includes('draft') || vSt.includes('unpaid') || vSt.includes('pending') ||
-        vSt.includes('รอคัดกรอง') || vSt.includes('ລໍຖ້າຄັດກອງ') || vSt.includes('ລໍຄັດກອງ') ||
-        vSt.includes('รอตรวจ') || vSt.includes('ລໍຖ້າກວດ') || vSt.includes('ລໍກວດ') ||
-        vSt.includes('รอจัดคิว') || vSt.includes('ລໍຖ້າຈັດຄິວ') || vSt.includes('ລໍຈັດຄິວ') ||
-        vSt.includes('รอผลแล็บ') || vSt.includes('ລໍຖ້າຜົນແລັບ') || vSt.includes('ລໍຜົນແລັບ')
-      ) {
-        return;
-      }
-    }
-    const vid = String(v.visit_id || '').trim();
-    if (vid && (deletedBillsSet.has(vid) || deletedNutrientsSet.has(vid))) return;
+    // 🛡️ ใช้เกณฑ์เดียวกับ isConsultedVisit (ตัด รอจ่ายยา / ยังไม่ชำระเงินฝั่ง MLM / ยกเลิก / ส่งยาผิด 100%)
+    if (!isConsultedVisit(v)) return;
     if (!v.meds) return;
-
-    // 🌟 หากเป็นเคสสั่งซื้อยา (Order) ต้องตรวจสอบว่าได้รับการยืนยันการขายแล้วหรือไม่
-    if (isOrderVisit(v)) {
-      const matchedOrder = (rawOrders || []).find(o => {
-        const oVid = normalizeIdStr(o.visit_id);
-        const oOid = normalizeIdStr(o.order_id || o.id);
-        return (vVid && (oVid === vVid || oOid === vVid)) || (vOid && (oVid === vOid || oOid === vOid));
-      });
-      if (matchedOrder) {
-        const mst = (matchedOrder.status || '').toLowerCase();
-        const isConfirmed = mst.includes('ขายสำเร็จแล้ว') || mst.includes('ชำระเงินแล้ว') || mst.includes('ชำระแล้ว') || mst.includes('ຊຳລະແລ້ວ') || mst.includes('สำเร็จ') || mst.includes('เสร็จสิ้น') || mst.includes('completed') || mst.includes('paid');
-        if (!isConfirmed) return;
-      } else {
-        const vst = (v.status || '').toLowerCase();
-        const isConfirmed = vst.includes('ขายสำเร็จแล้ว') || vst.includes('ชำระเงินแล้ว') || vst.includes('ชำระแล้ว') || vst.includes('ຊຳລະແລ້ວ') || vst.includes('สำเร็จ') || vst.includes('เสร็จสิ้น') || vst.includes('completed') || vst.includes('paid');
-        if (!isConfirmed) return;
-      }
-    }
 
     let items = [];
     const parsedMedsArr = parseMedsListSafe(v.meds);
@@ -2270,24 +2280,27 @@ function isConsultedVisit(v) {
     return false;
   }
 
-  // 🌟 3. ถ้าเป็นเคสสั่งซื้อยา/อาหารเสริม (Order) ที่ยังไม่ได้กดยืนยัน หรือยังไม่ได้ชำระเงิน (เช่น 'รอดำเนินการ', 'ร่างใบสั่งซื้อ', 'draft', 'pending', 'unpaid')
-  // ห้ามนำมาขึ้นในรายงานแพทย์เด็ดขาด!
+  // 🌟 2.5 ตรวจสอบสถานะ "รอจ่ายยา" — ต้องมีการกดชำระเงินฝั่ง MLM สำเร็จแล้วเท่านั้นจึงจะขึ้น Report
+  const rawMlmOrder = findLinkedRawMlmOrder(v);
+  const isWaitingPharmacy = st.includes('รอจ่ายยา') || st.includes('ລໍຖ້າຈ່າຍຢາ') || st.includes('ລໍຈ່າຍຢາ');
+  if (isWaitingPharmacy) {
+    if (!rawMlmOrder || !isMlmOrderPaidStatus(rawMlmOrder.status)) {
+      return false;
+    }
+  }
+
+  // 🌟 3. ตรวจสอบเงื่อนไขชำระเงินฝั่ง MLM สำหรับทุกเคสที่มีใบสั่งยา/ออเดอร์ (ทั้งเคส Order และเคสมาตรวจที่สั่งยา MLM)
+  // ป้องกันเคสที่ยังไม่ชำระเงิน ('รอดำเนินการ') หรือส่งยาผิดแล้วกดยกเลิก ('ยกเลิก') หลุดเข้ามาในรายงานแพทย์
   if (isOrderVisit(v)) {
-    const vVid = normalizeIdStr(v.visit_id);
-    const vOid = normalizeIdStr(v.order_id);
-    const rawOrders = state.nutrientOrdersRaw || [];
-    const matchedOrder = rawOrders.find(o => {
-      const oVid = normalizeIdStr(o.visit_id);
-      const oOid = normalizeIdStr(o.order_id || o.id);
-      return (vVid && (oVid === vVid || oOid === vVid)) || (vOid && (oVid === vOid || oOid === vOid));
-    });
-    if (matchedOrder) {
-      const mst = (matchedOrder.status || '').toLowerCase();
-      const isConfirmed = mst.includes('ขายสำเร็จแล้ว') || mst.includes('ชำระเงินแล้ว') || mst.includes('ชำระแล้ว') || mst.includes('ຊຳລະແລ້ວ') || mst.includes('สำเร็จ') || mst.includes('เสร็จสิ้น') || mst.includes('completed') || mst.includes('paid');
-      if (!isConfirmed) return false;
+    if (rawMlmOrder) {
+      if (!isMlmOrderPaidStatus(rawMlmOrder.status)) return false;
     } else {
-      const isConfirmed = st.includes('ขายสำเร็จแล้ว') || st.includes('ชำระเงินแล้ว') || st.includes('ชำระแล้ว') || st.includes('ຊຳລະແລ້ວ') || st.includes('สำเร็จ') || st.includes('เสร็จสิ้น') || st.includes('completed') || st.includes('paid');
-      if (!isConfirmed) return false;
+      if (!isMlmOrderPaidStatus(st)) return false;
+    }
+  } else if (rawMlmOrder) {
+    // เคสมาตรวจที่มีใบสั่งยาผูกกับระบบ MLM: ต้องชำระเงินฝั่ง MLM สำเร็จแล้วเท่านั้น (ถ้ายัง 'รอดำเนินการ' หรือ 'ยกเลิก' ให้ตัดออก)
+    if (!isMlmOrderPaidStatus(rawMlmOrder.status)) {
+      return false;
     }
   }
 
