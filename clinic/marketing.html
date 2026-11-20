@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8"><script src="auth-guard.js?v=2.9"></script><script src="deleted-sync.js?v=2.2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Clinic Booking - Timeline</title>
     <link rel="icon" type="image/png" href="favicon.png?v=1.0">
 
@@ -3764,9 +3767,13 @@
                     if (!isNaN(parsed.getTime())) apptFormatted = parsed.toLocaleDateString('lo-LA');
                 } catch (e) { }
             }
+            const rawSym = String(v.latest_symptom || v.symptom || (appt ? ('ນັດມາກວດ: ' + apptFormatted) : 'ລົງທະບຽນລ່ວງໜ້າ (ລໍຖ້າຄັດກອງ)'))
+                .replace(/^ไม่รับยา\s*\(\s*(?:สาเหตุ|ສາເຫດ)\s*:\s*(.*?)\s*\)$/i, '$1')
+                .replace(/^ไม่รับยา\s*[:\-]?\s*/i, '')
+                .trim();
             return Object.assign({}, v, {
                 latest_visit_id: v.latest_visit_id || v.visit_id || (v.hn ? v.hn : '-'),
-                latest_symptom: v.latest_symptom || v.symptom || (appt ? ('ນັດມາກວດ: ' + apptFormatted) : 'ລົງທະບຽນລ່ວງໜ້າ (ລໍຖ້າຄັດກອງ)'),
+                latest_symptom: rawSym || '-',
                 latest_visit_date: v.latest_visit_date || (apptFormatted ? apptFormatted : (ts ? new Date(ts).toLocaleString('lo-LA') : '-')),
                 visit_status: v.visit_status || v.status || '01 ທະບຽນຜູ້ປ່ວຍ (ລົງທະບຽນແລ້ວ ລໍຖ້າຄັດກອງ)'
             });
@@ -5286,32 +5293,51 @@
 
         function viewVisit(visitId, hn, encName) {
             const pName = encName ? decodeURIComponent(encName).trim() : '';
-            // ✅ มี HN → หาด้วย HN อย่างเดียว (ชื่อซ้ำกันได้); ใช้ชื่อเฉพาะเมื่อไม่มี HN
             const hasHn = hn && hn !== '-';
-            const pt = (allPatientsData || []).find(p => hasHn
-                ? p.hn === hn
-                : (pName && p.patient_name && p.patient_name.trim().toLowerCase() === pName.toLowerCase()));
-            let ordData = pt ? pt.order_data : null;
+            const vClean = String(visitId || '').trim();
+            const vDigits = vClean.replace(/\D/g, '');
 
-            if (!ordData) {
+            const isOrderMatchingVisit = (ord) => {
+                if (!ord) return false;
+                const oV = String(ord.visit_id || ord.visitId || ord.latest_visit_id || '').trim();
+                const oO = String(ord.order_id || ord.orderId || '').trim();
+                if (vClean && vClean !== '-' && (oV === vClean || oO === vClean)) return true;
+                if (vDigits && (oV.replace(/\D/g, '') === vDigits || oO.replace(/\D/g, '') === vDigits)) return true;
+                return false;
+            };
+
+            // ✅ ค้นหาแถวที่ตรงกับ visitId จาก sharedHistoryRows / currentHistoryPatientsList ก่อนเสมอ (เพื่อให้ได้ order_data ชุดเดียวกับหน้าประวัติผู้ป่วย 100%)
+            const historyPool = []
+                .concat(Array.isArray(currentHistoryPatientsList) ? currentHistoryPatientsList : [])
+                .concat(Array.isArray(sharedHistoryRows) ? sharedHistoryRows : [])
+                .concat(Array.isArray(allOrdersData) ? allOrdersData : [])
+                .concat(Array.isArray(allPatientsData) ? allPatientsData : []);
+
+            let pt = null;
+            if (vClean && vClean !== '-') {
+                pt = historyPool.find(p => p && isOrderMatchingVisit(p));
+            }
+            if (!pt) {
+                pt = historyPool.find(p => p && (hasHn
+                    ? p.hn === hn
+                    : (pName && p.patient_name && p.patient_name.trim().toLowerCase() === pName.toLowerCase())));
+            }
+
+            // ✅ ตรวจสอบว่า pt.order_data เป็นของ visit นี้จริงหรือไม่ ถ้าไม่ใช่ห้ามส่งไปทับ
+            let ordData = null;
+            if (pt && pt.order_data && isOrderMatchingVisit(pt.order_data)) {
+                ordData = pt.order_data;
+            } else if (pt && (pt.items_json || pt.items) && isOrderMatchingVisit(pt)) {
+                ordData = pt;
+            }
+
+            if (!ordData && vClean && vClean !== '-') {
                 try {
                     const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
                     const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
                     const allLocal = localOrders.concat(localStk);
                     // ✅ Match เฉพาะ visitId/orderId ตรงๆ เท่านั้น — ห้าม match ด้วย HN เพราะทำให้เปิดผู้ป่วยผิดคน
-                    ordData = allLocal.find(o => {
-                        if (!o || !visitId || visitId === '-') return false;
-                        const oV = String(o.visit_id || o.visitId || '').trim();
-                        const oO = String(o.order_id || o.orderId || '').trim();
-                        const vClean = String(visitId).trim();
-                        if (oV && oV === vClean) return true;
-                        if (oO && oO === vClean) return true;
-                        // digit-only exact match (e.g. VIS-119900 vs 119900)
-                        const vDigits = vClean.replace(/\D/g, '');
-                        if (vDigits && oV.replace(/\D/g, '') === vDigits) return true;
-                        if (vDigits && oO.replace(/\D/g, '') === vDigits) return true;
-                        return false;
-                    }) || null;
+                    ordData = allLocal.find(o => isOrderMatchingVisit(o)) || null;
                 } catch (e) { }
             }
 

@@ -1198,7 +1198,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         p.latest_visit_id = latestV.visit_id;
                         p.latest_visit_date = new Date(latestV.created_at).toLocaleString('lo-LA');
                         p.latest_visit_raw_date = latestV.created_at;
-                        p.latest_symptom = latestV.symptom || '-';
+                        const rawLatestSym = (latestV.symptom || '-').replace(/^ไม่รับยา\s*\(\s*(?:สาเหตุ|ສາເຫດ)\s*:\s*(.*?)\s*\)$/i, '$1').replace(/^ไม่รับยา\s*[:\-]?\s*/i, '').trim();
+                        p.latest_symptom = rawLatestSym || '-';
                         p.visit_status = latestV.status || '-';
                         p.doctor_name = latestV.doctor_name || (latestO ? (latestO.closer_dr || latestO.doctor_advice) : '-');
                         p.has_order = false;
@@ -14329,7 +14330,7 @@ async function rejectPrescriptionMedicine() {
     }
 
     const nowIso = new Date().toISOString();
-    const detailSymptom = `ไม่รับยา (สาเหตุ: ${remark})`;
+    const detailSymptom = remark;
 
     // 🌟 ดึงข้อมูลการวินิจฉัยโรค (ICD-10 Diagnosis)
     const rxIcdCode = document.getElementById('rxIcd10Code')?.value || '';
@@ -16270,7 +16271,15 @@ window.loadPatientHistory = async function (forceAll = true, opts = null) {
             }
 
             if (data && !error) {
-                let rows = data;
+                let rows = data.map(r => {
+                    if (r && typeof r.symptom === 'string' && r.symptom.includes('ไม่รับยา')) {
+                        r.symptom = r.symptom
+                            .replace(/^ไม่รับยา\s*\(\s*(?:สาเหตุ|ສາເຫດ)\s*:\s*(.*?)\s*\)$/i, '$1')
+                            .replace(/^ไม่รับยา\s*[:\-]?\s*/i, '')
+                            .trim();
+                    }
+                    return r;
+                });
 
                 // ดึงรายการบิลและออเดอร์ที่ถูกลบออกจากระบบ
                 let deletedBills = [];
@@ -16597,6 +16606,9 @@ window.loadPatientHistory = async function (forceAll = true, opts = null) {
                     console.warn('Patient phone mapping notice:', pErr);
                 }
 
+                if (!opts || (!opts.startDate && !opts.endDate) || !Array.isArray(window.allHistoryVisits) || window.allHistoryVisits.length === 0) {
+                    window.allHistoryVisits = rows;
+                }
                 if (opts) return rows;
                 window.allHistoryVisits = rows;
             }
@@ -17167,6 +17179,28 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         directOrderData = null;
     }
 
+    const isMatchVisitId = (v1, v2) => {
+        if (!v1 || !v2) return false;
+        const s1 = String(v1).trim();
+        const s2 = String(v2).trim();
+        if (s1 === s2) return true;
+        const d1 = s1.replace(/\D/g, '');
+        const d2 = s2.replace(/\D/g, '');
+        // ✅ ต้องตรงกันทั้งหมดเท่านั้น (ไม่ใช้ endsWith เพราะทำให้ HN/ID คนละคนเข้าใจผิด)
+        if (d1 && d2 && d1 === d2) return true;
+        return false;
+    };
+
+    // ✅ ทิ้ง directOrderData ถ้า visit_id / order_id ไม่ตรงกับ cleanVisitId
+    if (directOrderData && cleanVisitId) {
+        const dV = String(directOrderData.visit_id || directOrderData.visitId || '').trim();
+        const dO = String(directOrderData.order_id || directOrderData.orderId || '').trim();
+        const matchesVid = (dV && isMatchVisitId(dV, cleanVisitId)) || (dO && isMatchVisitId(dO, cleanVisitId));
+        if (!matchesVid && (dV || dO)) {
+            directOrderData = null;
+        }
+    }
+
     // 🌟 ລ້າງຄ່າກ່ອງ Lab & Reports ໃນ DOM ໃຫ້ສະອາດທຸກຄັ້ງກ່ອນໂຫຼດຂໍ້ມູນໃໝ່ (ປ້ອງກັນຂໍ້ມູນຄົນເຈັບເກົ່າຕົກຄ້າງ)
     try {
         const labEl = document.getElementById('histLabTests');
@@ -17183,18 +17217,6 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             window.setHistoryDashboardLabVisibility(false);
         }
     } catch (e) { }
-
-    const isMatchVisitId = (v1, v2) => {
-        if (!v1 || !v2) return false;
-        const s1 = String(v1).trim();
-        const s2 = String(v2).trim();
-        if (s1 === s2) return true;
-        const d1 = s1.replace(/\D/g, '');
-        const d2 = s2.replace(/\D/g, '');
-        // ✅ ต้องตรงกันทั้งหมดเท่านั้น (ไม่ใช้ endsWith เพราะทำให้ HN/ID คนละคนเข้าใจผิด)
-        if (d1 && d2 && d1 === d2) return true;
-        return false;
-    };
 
     // 0. ถ้ามี directOrderData ส่งตรงมาจากหน้าจอ ให้สร้าง row ทันที
     if (directOrderData) {
@@ -17221,6 +17243,27 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             order_data: directOrderData,
             items_json: directOrderData.items_json || directOrderData.items
         };
+    }
+
+    const isEmptyMedsVal = (m) => !m || m === '[]' || m === 'null' || m === '-' || (typeof m === 'string' && m.trim() === '[]') || (Array.isArray(m) && m.length === 0);
+
+    // 🌟 ดึงข้อมูลจาก window.allHistoryVisits เพื่อรักษา items_json/meds/order_data เดิมไว้เสมอ
+    let matchedHistoryVisit = null;
+    if (cleanVisitId && Array.isArray(window.allHistoryVisits)) {
+        matchedHistoryVisit = window.allHistoryVisits.find(v => isMatchVisitId(v.visit_id, cleanVisitId));
+    }
+    if (!row && matchedHistoryVisit) {
+        row = Object.assign({}, matchedHistoryVisit);
+    } else if (row && matchedHistoryVisit) {
+        if (isEmptyMedsVal(row.items_json) && !isEmptyMedsVal(matchedHistoryVisit.items_json || matchedHistoryVisit.items)) {
+            row.items_json = matchedHistoryVisit.items_json || matchedHistoryVisit.items;
+        }
+        if (isEmptyMedsVal(row.meds) && !isEmptyMedsVal(matchedHistoryVisit.meds)) {
+            row.meds = matchedHistoryVisit.meds;
+        }
+        if (!row.order_data && matchedHistoryVisit.order_data) {
+            row.order_data = matchedHistoryVisit.order_data;
+        }
     }
 
     if (!row && cleanVisitId) {
@@ -17269,9 +17312,20 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                         // ✅ ป้องกันไม่ให้ freshVisit ไป overwrite ชื่อและ HN ของคนที่ staff คลิกดู
                         if (preservedHn && preservedHn !== '-') row.hn = preservedHn;
                         if (preservedName && preservedName !== '-') row.patient_name = preservedName;
-                        if (!row.items_json && preservedItems) row.items_json = preservedItems;
+                        if (isEmptyMedsVal(row.items_json) && !isEmptyMedsVal(preservedItems)) row.items_json = preservedItems;
                         if (!row.order_data && preservedOrderData) row.order_data = preservedOrderData;
-                        if (!row.meds && preservedMeds) row.meds = preservedMeds;
+                        if (isEmptyMedsVal(row.meds) && !isEmptyMedsVal(preservedMeds)) row.meds = preservedMeds;
+                    }
+                    if (matchedHistoryVisit) {
+                        if (isEmptyMedsVal(row.items_json) && !isEmptyMedsVal(matchedHistoryVisit.items_json || matchedHistoryVisit.items)) {
+                            row.items_json = matchedHistoryVisit.items_json || matchedHistoryVisit.items;
+                        }
+                        if (isEmptyMedsVal(row.meds) && !isEmptyMedsVal(matchedHistoryVisit.meds)) {
+                            row.meds = matchedHistoryVisit.meds;
+                        }
+                        if (!row.order_data && matchedHistoryVisit.order_data) {
+                            row.order_data = matchedHistoryVisit.order_data;
+                        }
                     }
                 }
             }
@@ -17460,7 +17514,10 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         s.includes('ສັ່ງຊື້ຢາ/ອາຫານເສີມ') || s.includes('ສັ່ງຊື້ຢາ/อาหารเสริม') ||
         s.includes('ຕໍ່ຢາ') || s.includes('ต่อยา');
 
-    if (isOrdId || isExplicitOrderSymptom || directOrderData) {
+    const isDirectOrderOnly = !!(directOrderData && !hasVitals && !hasLabData &&
+        !(directOrderData.order_id && String(directOrderData.order_id).startsWith('ORD-CLINIC-')));
+
+    if (isOrdId || isExplicitOrderSymptom || isDirectOrderOnly) {
         isOrderVisit = true;
         row.lab_tests = '';
         row.lab_note = '';
@@ -17517,6 +17574,92 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         }
     } catch (e) { }
 
+    // 🌟 หากยังไม่พบ matchedOrderData ที่มีรายการยาในหน่วยความจำ/LocalStorage ให้ดึงจาก stk_nutrient_orders (Supabase) ทันที
+    // เพื่อให้ทั้งหน้า "ປະຫວັດຜູ້ປ່ວຍ" และหน้า "Booking / ຜູ້ປ່ວຍຂອງຂ້ອຍ" ได้ข้อมูลโรค/อาการและรายการยาตรงกัน 100%
+    const hasValidItemsInOrder = (ord) => {
+        if (!ord) return false;
+        let it = ord.items_json || ord.items;
+        if (typeof it === 'string') {
+            try { it = JSON.parse(it); } catch (e) { it = null; }
+        }
+        return Array.isArray(it) && it.length > 0;
+    };
+    if (!hasValidItemsInOrder(matchedOrderData) && (cleanVisitId || (row && row.visit_id))) {
+        const targetVidForOrd = (row && row.visit_id) || cleanVisitId;
+        const rawDigitsForOrd = String(targetVidForOrd).replace(/\D/g, '');
+        const nutrientClientsEarly = [];
+        if (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) nutrientClientsEarly.push(_mlmSupabase);
+        if (typeof _supabase !== 'undefined' && _supabase && _supabase !== _mlmSupabase) nutrientClientsEarly.push(_supabase);
+
+        const earlyCandidateOids = [];
+        if (targetVidForOrd) {
+            earlyCandidateOids.push('ORD-CLINIC-' + targetVidForOrd);
+            earlyCandidateOids.push(targetVidForOrd);
+            earlyCandidateOids.push(String(targetVidForOrd).replace(/^VIS-/, ''));
+            if (String(targetVidForOrd).startsWith('VIS-ORD-')) {
+                earlyCandidateOids.push(String(targetVidForOrd).replace('VIS-ORD-', 'ORD-'));
+            }
+        }
+        if (row && row.order_id) earlyCandidateOids.push(row.order_id);
+        if (rawDigitsForOrd) {
+            earlyCandidateOids.push('ORD-CLINIC-VIS-' + rawDigitsForOrd);
+            earlyCandidateOids.push('ORD-' + rawDigitsForOrd);
+            if (rawDigitsForOrd.length >= 5) earlyCandidateOids.push('ORD-' + rawDigitsForOrd.slice(-5));
+        }
+
+        for (const nClient of nutrientClientsEarly) {
+            if (hasValidItemsInOrder(matchedOrderData)) break;
+            try {
+                let dbOrd = null;
+                if (targetVidForOrd) {
+                    const { data: ordByVid } = await nClient
+                        .from('stk_nutrient_orders')
+                        .select('*')
+                        .eq('visit_id', targetVidForOrd)
+                        .order('created_at', { ascending: false });
+                    if (Array.isArray(ordByVid) && ordByVid.length > 0) {
+                        dbOrd = ordByVid.find(x => hasValidItemsInOrder(x)) || ordByVid[0];
+                    }
+                }
+                if (!hasValidItemsInOrder(dbOrd) && earlyCandidateOids.length > 0) {
+                    const { data: ordByOid } = await nClient
+                        .from('stk_nutrient_orders')
+                        .select('*')
+                        .in('order_id', earlyCandidateOids)
+                        .order('created_at', { ascending: false });
+                    if (Array.isArray(ordByOid) && ordByOid.length > 0) {
+                        dbOrd = ordByOid.find(x => hasValidItemsInOrder(x)) || ordByOid[0];
+                    }
+                }
+                if (!hasValidItemsInOrder(dbOrd) && rawDigitsForOrd && rawDigitsForOrd.length >= 5) {
+                    const last5 = rawDigitsForOrd.slice(-5);
+                    const { data: ordByLast5 } = await nClient
+                        .from('stk_nutrient_orders')
+                        .select('*')
+                        .ilike('visit_id', `%${last5}`)
+                        .order('created_at', { ascending: false })
+                        .limit(5);
+                    if (Array.isArray(ordByLast5) && ordByLast5.length > 0) {
+                        dbOrd = ordByLast5.find(x => hasValidItemsInOrder(x)) || dbOrd;
+                    }
+                }
+                if (dbOrd) {
+                    matchedOrderData = matchedOrderData ? Object.assign({}, dbOrd, matchedOrderData) : dbOrd;
+                    if (hasValidItemsInOrder(dbOrd)) {
+                        matchedOrderData.items_json = dbOrd.items_json || dbOrd.items;
+                        matchedOrderData.items = dbOrd.items || dbOrd.items_json;
+                    }
+                    if (row) {
+                        if (!row.order_data) row.order_data = matchedOrderData;
+                        if (isEmptyMedsVal(row.items_json) && (matchedOrderData.items_json || matchedOrderData.items)) {
+                            row.items_json = matchedOrderData.items_json || matchedOrderData.items;
+                        }
+                    }
+                }
+            } catch (e) { }
+        }
+    }
+
     let rowBatchNo = row.batch_no || (row.order_data && row.order_data.batch_no) || (matchedOrderData && matchedOrderData.batch_no) || 0;
     if (!rowBatchNo) {
         const matchBatch = (row.symptom || (row.order_data && (row.order_data.notes || row.order_data.symptom)) || (matchedOrderData && (matchedOrderData.notes || matchedOrderData.symptom)) || '').match(/(?:ຊຸດທີ|ชุดที่|batch)\s*(\d+)/i);
@@ -17572,6 +17715,15 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
     let patientProvince = '-';
     let patientDisease = '-';
 
+    const isNotDiseaseNote = (str) => {
+        if (!str) return true;
+        const s = String(str).trim();
+        return s === '-' || s.startsWith('ສັ່ງຊື້') || s.startsWith('สั่งซื้อ') || s.startsWith('Order') ||
+            s.includes('ไม่รับยา') || s.includes('ไม่เอายา') ||
+            s.includes('ບໍ່ຮັບຢາ') || s.includes('ບໍ່ເອົາຢາ') || s.includes('ຍົກເລີກ') || s.includes('ยกเลิก') ||
+            s.includes('08 ຫ້ອງຈ່າຍຢາ') || s.includes('เสร็จสิ้น') || s.includes('รอตรวจ');
+    };
+
     // 1. ถ้ามีข้อมูล order โดยตรง (matchedOrderData หรือ row.order_data) ให้ดึงเบอร์และอาการ/โรคจาก order นั้นเป็นอันดับ 1
     const ordObj = matchedOrderData || row.order_data;
     if (ordObj) {
@@ -17579,11 +17731,11 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         if (oPhone && oPhone !== '-' && oPhone !== 'null' && oPhone !== 'undefined') {
             patientPhone = String(oPhone).trim();
         }
-        if (ordObj.disease && ordObj.disease !== '-') {
+        if (ordObj.disease && !isNotDiseaseNote(ordObj.disease)) {
             patientDisease = ordObj.disease;
         } else if (ordObj.gender && ordObj.gender !== 'ຊາຍ' && ordObj.gender !== 'ຍິງ' && ordObj.gender !== 'ชาย' && ordObj.gender !== 'หญิง' && ordObj.gender !== '-') {
             patientDisease = ordObj.gender;
-        } else if (ordObj.symptom && !ordObj.symptom.startsWith('ສັ່ງຊື້') && !ordObj.symptom.startsWith('สั่งซื้อ') && !ordObj.symptom.startsWith('Order')) {
+        } else if (ordObj.symptom && !isNotDiseaseNote(ordObj.symptom)) {
             patientDisease = ordObj.symptom;
         }
         if (ordObj.age) patientAge = String(ordObj.age).trim();
@@ -17599,9 +17751,9 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
     if (patientVillage === '-' && row.village && row.village !== '-') patientVillage = String(row.village).trim();
     if (patientDistrict === '-' && row.district && row.district !== '-') patientDistrict = String(row.district).trim();
     if (patientProvince === '-' && row.province && row.province !== '-') patientProvince = String(row.province).trim();
-    if (patientDisease === '-' && row.disease && row.disease !== '-') patientDisease = row.disease;
-    if (patientDisease === '-' && row.symptom && !row.symptom.startsWith('ສັ່ງຊື້') && !row.symptom.startsWith('สั่งซื้อ') && !row.symptom.startsWith('Order')) patientDisease = row.symptom;
-    if (patientDisease === '-' && row.past_history && row.past_history !== '-') patientDisease = row.past_history;
+    if (patientDisease === '-' && row.disease && !isNotDiseaseNote(row.disease)) patientDisease = row.disease;
+    if (patientDisease === '-' && row.symptom && !isNotDiseaseNote(row.symptom)) patientDisease = row.symptom;
+    if (patientDisease === '-' && row.past_history && !isNotDiseaseNote(row.past_history)) patientDisease = row.past_history;
 
     // 3. ค้นหาใน LocalStorage clinic_orders และ stk_nutrient_orders
     try {
@@ -17630,9 +17782,9 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             if (patientProvince === '-' && (matchedLocal.province || matchedLocal.customer_province)) patientProvince = String(matchedLocal.province || matchedLocal.customer_province).trim();
             if (patientVillage === '-' && (matchedLocal.address || matchedLocal.customer_address)) patientVillage = String(matchedLocal.address || matchedLocal.customer_address).trim();
             if (patientDisease === '-') {
-                if (matchedLocal.disease && matchedLocal.disease !== '-') patientDisease = matchedLocal.disease;
+                if (matchedLocal.disease && !isNotDiseaseNote(matchedLocal.disease)) patientDisease = matchedLocal.disease;
                 else if (matchedLocal.gender && matchedLocal.gender !== 'ຊາຍ' && matchedLocal.gender !== 'ຍິງ' && matchedLocal.gender !== 'ชาย' && matchedLocal.gender !== 'หญิง' && matchedLocal.gender !== '-') patientDisease = matchedLocal.gender;
-                else if (matchedLocal.symptom && !matchedLocal.symptom.startsWith('ສັ່ງຊື້') && !matchedLocal.symptom.startsWith('สั่งซื้อ') && !matchedLocal.symptom.startsWith('Order')) patientDisease = matchedLocal.symptom;
+                else if (matchedLocal.symptom && !isNotDiseaseNote(matchedLocal.symptom)) patientDisease = matchedLocal.symptom;
             }
         }
     } catch (e) { }
@@ -17658,7 +17810,10 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             if (patientProvince === '-' && pat.province) patientProvince = String(pat.province).trim();
             if (patientVillage === '-' && pat.address) patientVillage = String(pat.address).trim();
             if (patientDisease === '-') {
-                patientDisease = pat.disease || pat.past_history || (pat.symptom && !pat.symptom.startsWith('ສັ່ງຊື້') ? pat.symptom : '-');
+                const candidatePatDisease = (!isNotDiseaseNote(pat.disease) ? pat.disease : null) ||
+                    (!isNotDiseaseNote(pat.past_history) ? pat.past_history : null) ||
+                    (!isNotDiseaseNote(pat.symptom) ? pat.symptom : null);
+                if (candidatePatDisease) patientDisease = candidatePatDisease;
             }
         }
     }
@@ -17911,7 +18066,20 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                 realSymptom = pat.symptom.trim();
             }
         }
+        if (realSymptom && typeof realSymptom === 'string' && realSymptom.includes('ไม่รับยา')) {
+            realSymptom = realSymptom
+                .replace(/^ไม่รับยา\s*\(\s*(?:สาเหตุ|ສາເຫດ)\s*:\s*(.*?)\s*\)$/i, '$1')
+                .replace(/^ไม่รับยา\s*[:\-]?\s*/i, '')
+                .trim();
+        }
         displaySymptom = realSymptom || 'ไม่มีระบุ';
+    }
+
+    if (displaySymptom && typeof displaySymptom === 'string' && displaySymptom.includes('ไม่รับยา')) {
+        displaySymptom = displaySymptom
+            .replace(/^ไม่รับยา\s*\(\s*(?:สาเหตุ|ສາເຫດ)\s*:\s*(.*?)\s*\)$/i, '$1')
+            .replace(/^ไม่รับยา\s*[:\-]?\s*/i, '')
+            .trim() || '-';
     }
 
     setSafeText('histSymptom', displaySymptom);
@@ -18384,16 +18552,37 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                 const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
                 const allLocal = localOrders.concat(localStk);
                 const targetVid = row.visit_id || cleanVisitId;
-                const mOrder = allLocal.find(o => {
+                const rawVidDigits = targetVid ? String(targetVid).replace(/\D/g, '') : '';
+
+                // ค้นหาแบบจัดลำดับความสำคัญ (Priority):
+                // 1) ตรงกับ visit_id หรือ order_id เป๊ะๆ
+                let mOrder = allLocal.find(o => {
                     if (!o) return false;
-                    const oV = o.visit_id || o.visitId;
-                    const oO = o.order_id || o.orderId;
-                    if (targetVid && oV && isMatchVisitId(oV, targetVid)) return true;
-                    if (targetVid && oO && isMatchVisitId(oO, targetVid)) return true;
-                    if (row.order_id && oO && isMatchVisitId(oO, row.order_id)) return true;
-                    if (row.hn && o.hn && row.hn !== '-' && (o.hn === row.hn || String(o.hn).replace(/\D/g, '') === String(row.hn).replace(/\D/g, ''))) return true;
-                    return false;
+                    const oV = String(o.visit_id || o.visitId || '').trim();
+                    const oO = String(o.order_id || o.orderId || '').trim();
+                    return targetVid && ((oV && oV === targetVid) || (oO && oO === targetVid));
                 });
+                // 2) ตรงด้วยตัวเลขรหัส (เช่น 764354)
+                if (!mOrder && rawVidDigits) {
+                    mOrder = allLocal.find(o => {
+                        if (!o) return false;
+                        const oV = String(o.visit_id || o.visitId || '').replace(/\D/g, '');
+                        const oO = String(o.order_id || o.orderId || '').replace(/\D/g, '');
+                        return (oV && oV === rawVidDigits) || (oO && oO === rawVidDigits);
+                    });
+                }
+                // 3) ค้นหาด้วย HN เฉพาะออเดอร์ที่มีรายการสินค้า (items) เท่านั้น
+                if (!mOrder && row.hn && row.hn !== '-') {
+                    const cleanHn = String(row.hn).trim();
+                    mOrder = allLocal.find(o => {
+                        if (!o || !o.hn) return false;
+                        const oHn = String(o.hn).trim();
+                        const isHnMatch = (oHn === cleanHn || oHn.replace(/\D/g, '') === cleanHn.replace(/\D/g, ''));
+                        if (!isHnMatch) return false;
+                        const hasItems = (Array.isArray(o.items) && o.items.length > 0) || (Array.isArray(o.items_json) && o.items_json.length > 0) || (typeof o.items_json === 'string' && o.items_json.length > 5);
+                        return hasItems;
+                    });
+                }
                 if (mOrder) {
                     let mItems = mOrder.items || mOrder.items_json;
                     if (typeof mItems === 'string') { try { mItems = JSON.parse(mItems); } catch (e) { mItems = null; } }
@@ -18407,7 +18596,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                             total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
                             source: it.source || 'mlm'
                         }));
-                        if (!matchedOrderData) matchedOrderData = mOrder;
+                        if (!matchedOrderData || !matchedOrderData.items) matchedOrderData = mOrder;
                     }
                 }
             } catch (e) { }
@@ -18435,7 +18624,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                                 tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
                                 price: Number(it.price || 0),
                                 total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
-                                source: 'mlm'
+                                source: it.source || 'mlm'
                             }));
                         }
                     }
@@ -18481,12 +18670,14 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
 
                 const candidateOids = [];
                 if (targetVid) {
+                    candidateOids.push('ORD-CLINIC-' + targetVid);
                     candidateOids.push(targetVid);
                     candidateOids.push(String(targetVid).replace(/^VIS-/, ''));
                     if (String(targetVid).startsWith('VIS-ORD-')) candidateOids.push(String(targetVid).replace('VIS-ORD-', 'ORD-'));
                 }
                 if (row.order_id) candidateOids.push(row.order_id);
                 if (rawVidDigits) {
+                    candidateOids.push('ORD-CLINIC-VIS-' + rawVidDigits);
                     candidateOids.push('ORD-' + rawVidDigits);
                     if (rawVidDigits.length >= 5) candidateOids.push('ORD-' + rawVidDigits.slice(-5));
                 }
@@ -18496,42 +18687,51 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                     let nOrder = null;
 
                     // A. ค้นหาด้วย order_id
-                    for (const oid of candidateOids) {
-                        if (nOrder) break;
+                    if (candidateOids.length > 0) {
                         try {
-                            const { data: ord } = await client.from('stk_nutrient_orders').select('*').eq('order_id', oid).maybeSingle();
-                            if (ord && (ord.items_json || ord.items)) nOrder = ord;
+                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').in('order_id', candidateOids).order('created_at', { ascending: false });
+                            if (Array.isArray(ordList) && ordList.length > 0) {
+                                nOrder = ordList.find(x => hasValidItemsInOrder(x)) || ordList[0];
+                            }
                         } catch (e) { }
                     }
 
                     // B. ค้นหาด้วย visit_id
-                    if (!nOrder && targetVid) {
+                    if (!hasValidItemsInOrder(nOrder) && targetVid) {
                         try {
-                            const { data: ord } = await client.from('stk_nutrient_orders').select('*').eq('visit_id', targetVid).maybeSingle();
-                            if (ord && (ord.items_json || ord.items)) nOrder = ord;
+                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').eq('visit_id', targetVid).order('created_at', { ascending: false });
+                            if (Array.isArray(ordList) && ordList.length > 0) {
+                                nOrder = ordList.find(x => hasValidItemsInOrder(x)) || ordList[0];
+                            }
                         } catch (e) { }
                     }
 
                     // C. ค้นหาด้วย 5 ตัวท้าย
-                    if (!nOrder && rawVidDigits && rawVidDigits.length >= 5) {
+                    if (!hasValidItemsInOrder(nOrder) && rawVidDigits && rawVidDigits.length >= 5) {
                         const last5 = rawVidDigits.slice(-5);
                         try {
-                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').ilike('visit_id', `%${last5}`).order('created_at', { ascending: false }).limit(1);
-                            if (ordList && ordList[0] && (ordList[0].items_json || ordList[0].items)) nOrder = ordList[0];
+                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').ilike('visit_id', `%${last5}`).order('created_at', { ascending: false }).limit(5);
+                            if (Array.isArray(ordList) && ordList.length > 0) {
+                                nOrder = ordList.find(x => hasValidItemsInOrder(x)) || nOrder;
+                            }
                         } catch (e) { }
-                        if (!nOrder) {
+                        if (!hasValidItemsInOrder(nOrder)) {
                             try {
-                                const { data: ordList } = await client.from('stk_nutrient_orders').select('*').ilike('order_id', `%${last5}`).order('created_at', { ascending: false }).limit(1);
-                                if (ordList && ordList[0] && (ordList[0].items_json || ordList[0].items)) nOrder = ordList[0];
+                                const { data: ordList } = await client.from('stk_nutrient_orders').select('*').ilike('order_id', `%${last5}`).order('created_at', { ascending: false }).limit(5);
+                                if (Array.isArray(ordList) && ordList.length > 0) {
+                                    nOrder = ordList.find(x => hasValidItemsInOrder(x)) || nOrder;
+                                }
                             } catch (e) { }
                         }
                     }
 
                     // D. ค้นหาด้วย HN
-                    if (!nOrder && row.hn && row.hn !== '-') {
+                    if (!hasValidItemsInOrder(nOrder) && row.hn && row.hn !== '-') {
                         try {
-                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').eq('hn', row.hn).order('created_at', { ascending: false }).limit(1);
-                            if (ordList && ordList[0] && (ordList[0].items_json || ordList[0].items)) nOrder = ordList[0];
+                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').eq('hn', row.hn).order('created_at', { ascending: false }).limit(5);
+                            if (Array.isArray(ordList) && ordList.length > 0) {
+                                nOrder = ordList.find(x => hasValidItemsInOrder(x)) || nOrder;
+                            }
                         } catch (e) { }
                     }
 
@@ -18546,7 +18746,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                                 tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
                                 price: Number(it.price || 0),
                                 total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
-                                source: 'mlm'
+                                source: it.source || 'mlm'
                             }));
                             if (!matchedOrderData) matchedOrderData = nOrder;
                             else Object.assign(matchedOrderData, nOrder);
