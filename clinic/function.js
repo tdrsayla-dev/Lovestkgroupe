@@ -3200,6 +3200,7 @@ async function loadPrescriptionList(triggerBtn) {
             } catch (e) { }
         }
 
+        window._lastPrescriptionVisits = data || [];
         let filtered = data || [];
 
         // 🧹 กรองและอัปเดต 28 เคสที่ส่งยาแล้วให้เป็น "เสร็จสิ้น" อัตโนมัติ (ไม่กระทบการทำงานอื่น)
@@ -13125,9 +13126,16 @@ if (typeof window !== 'undefined' && !window._icd10ClickOutsideBound) {
 async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds = null, refillBatchTag = null) {
     if (!visitId) return;
 
+    // เคลียร์บริบทต่อยาเก่าหากเป็นการเปิดอ่านผล/สั่งจ่ายยาปกติ เพื่อป้องกันชื่อแพทย์จากเคสก่อนหน้าค้าง
+    if (!refillBatchTag) {
+        window.currentRefillContext = null;
+    }
+    window._currentRxDoctorName = '';
+
     // ถ้าไม่มี hn หรือ patientName หรือ pdfUrl หรือ lab_note ให้ค้นหาจาก cache หรือ Supabase
     let visitRow = null;
-    if (window.allHistoryVisits) visitRow = window.allHistoryVisits.find(v => v.visit_id === visitId);
+    if (window._lastPrescriptionVisits) visitRow = window._lastPrescriptionVisits.find(v => v.visit_id === visitId);
+    if (!visitRow && window.allHistoryVisits) visitRow = window.allHistoryVisits.find(v => v.visit_id === visitId);
     if (!visitRow && window.allQueueData) visitRow = window.allQueueData.find(v => v.visit_id === visitId);
     if (!visitRow && window.clinicVisits) visitRow = window.clinicVisits.find(v => v.visit_id === visitId);
 
@@ -13145,6 +13153,16 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         if (!hn) hn = visitRow.hn;
         if (!patientName) patientName = visitRow.patient_name;
         if (!pdfUrl) pdfUrl = visitRow.pdf_url;
+        const vDoc = (visitRow.doctor_name || visitRow.doctor || '').trim();
+        if (vDoc && vDoc !== '-' && vDoc !== 'null' && vDoc !== 'undefined') {
+            window._currentRxDoctorName = vDoc;
+        }
+    }
+    if (!window._currentRxDoctorName && refillBatchTag && window.currentRefillContext && window.currentRefillContext.doctorName) {
+        const rDoc = String(window.currentRefillContext.doctorName).trim();
+        if (rDoc && rDoc !== '-' && rDoc !== 'null') {
+            window._currentRxDoctorName = rDoc;
+        }
     }
 
     document.getElementById('rxVisitId').value = visitId || '';
@@ -13960,32 +13978,60 @@ async function submitPrescription() {
     const medsStr = JSON.stringify(window.currentRxMeds || []);
     const refillContext = window.currentRefillContext;
     const refillTag = (refillContext && refillContext.batchTag) ? refillContext.batchTag : null;
-    let doctorName = (refillContext && refillContext.doctorName) ? refillContext.doctorName : '';
+    const isValidDocName = (name) => {
+        const s = String(name || '').trim();
+        return s !== '' && s !== '-' && s !== 'null' && s !== 'undefined';
+    };
+
+    // ดึงชื่อแพทย์ผู้ตรวจของ Visit นี้อย่างแม่นยำ (ไม่ดึงแพทย์เก่าจาก allPatients มาทับ)
+    let doctorName = '';
+    if (refillContext && refillContext.isRefill && isValidDocName(refillContext.doctorName)) {
+        doctorName = String(refillContext.doctorName).trim();
+    }
+    if (!doctorName && isValidDocName(window._currentRxDoctorName)) {
+        doctorName = String(window._currentRxDoctorName).trim();
+    }
     if (!doctorName && visitId) {
-        const vMatch = (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
+        const vMatch = (window._lastPrescriptionVisits || []).find(x => x.visit_id === visitId) ||
+            (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
             (window.allQueueData || []).find(x => x.visit_id === visitId) ||
             (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
-        if (vMatch && (vMatch.doctor_name || vMatch.doctor) && vMatch.doctor_name !== '-') {
-            doctorName = vMatch.doctor_name || vMatch.doctor;
+        if (vMatch && isValidDocName(vMatch.doctor_name || vMatch.doctor)) {
+            doctorName = String(vMatch.doctor_name || vMatch.doctor).trim();
         }
     }
-    if (!doctorName && window.allPatients && hn) {
-        const p = window.allPatients.find(pat => pat.hn === hn);
-        if (p && (p.doctor || p.doctor_name)) doctorName = p.doctor || p.doctor_name;
-    }
 
-    // 🌟 ดึงอาการแรกรับเดิม (ถ้ามี) ไม่ให้โดนทับด้วยคำว่า 'สั่งจ่ายยา'
+    // 🌟 ดึงข้อมูลเดิมจาก Supabase visits (doctor_name และ symptom) เพื่อยึดแพทย์เจ้าของเคสเป็นหลัก
     let originalSymptom = '';
-    if (window.clinicVisits) {
+    if (window._lastPrescriptionVisits) {
+        const v = window._lastPrescriptionVisits.find(x => x.visit_id === visitId);
+        if (v && v.symptom && v.symptom !== 'สั่งจ่ายยา') originalSymptom = v.symptom;
+    }
+    if (!originalSymptom && window.clinicVisits) {
         const v = window.clinicVisits.find(x => x.visit_id === visitId);
         if (v && v.symptom && v.symptom !== 'สั่งจ่ายยา') originalSymptom = v.symptom;
     }
 
-    if (!originalSymptom && typeof _supabase !== 'undefined') {
+    if (visitId && typeof _supabase !== 'undefined') {
         try {
-            const { data: vDb } = await _supabase.from('visits').select('symptom').eq('visit_id', visitId).maybeSingle();
-            if (vDb && vDb.symptom && vDb.symptom !== 'สั่งจ่ายยา') originalSymptom = vDb.symptom;
+            const { data: vDb } = await _supabase.from('visits').select('symptom, doctor_name').eq('visit_id', visitId).maybeSingle();
+            if (vDb) {
+                if (isValidDocName(vDb.doctor_name)) {
+                    doctorName = String(vDb.doctor_name).trim();
+                }
+                if (!originalSymptom && vDb.symptom && vDb.symptom !== 'สั่งจ่ายยา') {
+                    originalSymptom = vDb.symptom;
+                }
+            }
         } catch (e) { }
+    }
+
+    // ถ้า Visit นี้ยังไม่มีชื่อแพทย์เลย ให้ใช้ชื่อผู้ใช้ปัจจุบันเฉพาะกรณีที่บัญชีนั้นเป็นแพทย์
+    if (!doctorName && typeof window.currentUser !== 'undefined' && window.currentUser) {
+        if (typeof isDoctorUser === 'function' && isDoctorUser(window.currentUser)) {
+            const curDoc = window.currentUser.full_name || window.currentUser.name || '';
+            if (isValidDocName(curDoc)) doctorName = String(curDoc).trim();
+        }
     }
 
     const symptomText = originalSymptom || (refillTag ? `ต่อยา (${refillTag})` : 'สั่งจ่ายยา');
@@ -14060,8 +14106,11 @@ async function submitPrescription() {
     // 2. อัปเดตข้อมูลขึ้น Supabase DB (พร้อม Fallback ป้องกันคอลัมน์เกิน/ขาด)
     try {
         if (typeof _supabase !== 'undefined') {
-            const { data: existingVisit } = await _supabase.from('visits').select('visit_id, symptom').eq('visit_id', visitId).maybeSingle();
+            const { data: existingVisit } = await _supabase.from('visits').select('visit_id, symptom, doctor_name').eq('visit_id', visitId).maybeSingle();
             if (existingVisit) {
+                if (isValidDocName(existingVisit.doctor_name)) {
+                    doctorName = String(existingVisit.doctor_name).trim();
+                }
                 const updatePayload = {
                     meds: medsStr,
                     status: 'รอจ่ายยา'
@@ -14071,7 +14120,9 @@ async function submitPrescription() {
                 } else if (originalSymptom) {
                     updatePayload.symptom = originalSymptom;
                 }
-                if (doctorName) updatePayload.doctor_name = doctorName;
+                if (doctorName && !isValidDocName(existingVisit.doctor_name)) {
+                    updatePayload.doctor_name = doctorName;
+                }
                 if (rxIcdCode) updatePayload.icd10_code = rxIcdCode;
                 if (rxIcdName) updatePayload.icd10_name = rxIcdName;
                 if (rxIcdNote) updatePayload.icd10_diag_note = rxIcdNote;
@@ -14192,6 +14243,7 @@ async function submitPrescription() {
     }
 
     window.currentRefillContext = null;
+    window._currentRxDoctorName = '';
 
     Swal.fire('สำเร็จ', 'ส่งข้อมูลไปห้องจ่ายยาเรียบร้อย แพทย์พร้อมรับเคสถัดไปครับ', 'success');
     bootstrap.Modal.getOrCreateInstance(document.getElementById('prescribeModal')).hide();
@@ -14252,21 +14304,28 @@ async function rejectPrescriptionMedicine() {
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const refillContext = window.currentRefillContext;
-    let doctorName = (refillContext && refillContext.doctorName) ? refillContext.doctorName : '';
+    const isValidRejDoc = (name) => {
+        const s = String(name || '').trim();
+        return s !== '' && s !== '-' && s !== 'null' && s !== 'undefined';
+    };
+    let doctorName = (refillContext && refillContext.isRefill && isValidRejDoc(refillContext.doctorName)) ? String(refillContext.doctorName).trim() : '';
+    if (!doctorName && isValidRejDoc(window._currentRxDoctorName)) {
+        doctorName = String(window._currentRxDoctorName).trim();
+    }
     if (!doctorName && visitId) {
-        const vMatch = (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
+        const vMatch = (window._lastPrescriptionVisits || []).find(x => x.visit_id === visitId) ||
+            (window.clinicVisits || []).find(x => x.visit_id === visitId) ||
             (window.allQueueData || []).find(x => x.visit_id === visitId) ||
             (window.allHistoryVisits || []).find(x => x.visit_id === visitId);
-        if (vMatch && (vMatch.doctor_name || vMatch.doctor) && vMatch.doctor_name !== '-') {
-            doctorName = vMatch.doctor_name || vMatch.doctor;
+        if (vMatch && isValidRejDoc(vMatch.doctor_name || vMatch.doctor)) {
+            doctorName = String(vMatch.doctor_name || vMatch.doctor).trim();
         }
     }
-    if (!doctorName && window.allPatients && hn) {
-        const p = window.allPatients.find(pat => pat.hn === hn);
-        if (p && (p.doctor || p.doctor_name)) doctorName = p.doctor || p.doctor_name;
+    if (!doctorName && window.currentUser && typeof isDoctorUser === 'function' && isDoctorUser(window.currentUser)) {
+        doctorName = window.currentUser.full_name || window.currentUser.name || '';
     }
     if (!doctorName) {
-        doctorName = (window.currentUser && window.currentUser.name) || 'แพทย์ผู้ตรวจ';
+        doctorName = 'แพทย์ผู้ตรวจ';
     }
 
     const nowIso = new Date().toISOString();
@@ -14368,6 +14427,7 @@ async function rejectPrescriptionMedicine() {
     }
 
     window.currentRefillContext = null;
+    window._currentRxDoctorName = '';
 
     Swal.fire({
         icon: 'success',
@@ -14475,18 +14535,25 @@ async function saveNutrientOrderToDatabase(salePayload) {
             .trim();
     }
 
-    // 🌟 ดึงข้อมูล แพทย์ผู้ตรวจ (closer_dr) จาก Payload, visits table หรือ currentUser
-    let closerDr = salePayload.closer_dr || salePayload.doctor_name || null;
-    if ((!closerDr || closerDr === '-' || closerDr === 'null') && salePayload.visit_id && typeof _supabase !== 'undefined') {
+    // 🌟 ดึงข้อมูล แพทย์ผู้ตรวจ (closer_dr) จาก Payload หรือ visits table (ใช้ currentUser เฉพาะกรณีเป็นแพทย์เท่านั้น)
+    const isValidCloserDr = (v) => {
+        const s = String(v || '').trim();
+        return s !== '' && s !== '-' && s !== 'null' && s !== 'undefined';
+    };
+    let closerDr = isValidCloserDr(salePayload.closer_dr)
+        ? String(salePayload.closer_dr).trim()
+        : (isValidCloserDr(salePayload.doctor_name) ? String(salePayload.doctor_name).trim() : null);
+    if (!closerDr && salePayload.visit_id && typeof _supabase !== 'undefined') {
         try {
             const { data: vDb } = await _supabase.from('visits').select('doctor_name').eq('visit_id', salePayload.visit_id).maybeSingle();
-            if (vDb && vDb.doctor_name && vDb.doctor_name !== 'null' && vDb.doctor_name !== '-') {
-                closerDr = vDb.doctor_name;
+            if (vDb && isValidCloserDr(vDb.doctor_name)) {
+                closerDr = String(vDb.doctor_name).trim();
             }
         } catch (e) { }
     }
-    if ((!closerDr || closerDr === '-' || closerDr === 'null') && window.currentUser) {
-        closerDr = window.currentUser.name || window.currentUser.full_name || null;
+    if (!closerDr && window.currentUser && typeof isDoctorUser === 'function' && isDoctorUser(window.currentUser)) {
+        const docU = window.currentUser.full_name || window.currentUser.name || '';
+        if (isValidCloserDr(docU)) closerDr = String(docU).trim();
     }
 
     const cleanPayload = {
@@ -14625,10 +14692,23 @@ async function submitPrescriptionToMlm() {
         }
     }
 
-    const vMatchForMlmDoc = visitId ? ((window.clinicVisits || []).find(x => x.visit_id === visitId) || (window.allQueueData || []).find(x => x.visit_id === visitId) || (window.allHistoryVisits || []).find(x => x.visit_id === visitId)) : null;
-    const doctorName = (vMatchForMlmDoc && (vMatchForMlmDoc.doctor_name || vMatchForMlmDoc.doctor) && vMatchForMlmDoc.doctor_name !== '-')
-        ? (vMatchForMlmDoc.doctor_name || vMatchForMlmDoc.doctor)
-        : (document.getElementById('rxDoctorNameDisplay')?.innerText || (typeof window.currentUser !== 'undefined' && window.currentUser ? window.currentUser.name : 'แพทย์ผู้ตรวจ'));
+    const vMatchForMlmDoc = visitId ? ((window._lastPrescriptionVisits || []).find(x => x.visit_id === visitId) || (window.clinicVisits || []).find(x => x.visit_id === visitId) || (window.allQueueData || []).find(x => x.visit_id === visitId) || (window.allHistoryVisits || []).find(x => x.visit_id === visitId)) : null;
+    let doctorName = (window._currentRxDoctorName && window._currentRxDoctorName !== '-' && window._currentRxDoctorName !== 'null')
+        ? window._currentRxDoctorName
+        : ((vMatchForMlmDoc && (vMatchForMlmDoc.doctor_name || vMatchForMlmDoc.doctor) && vMatchForMlmDoc.doctor_name !== '-')
+            ? (vMatchForMlmDoc.doctor_name || vMatchForMlmDoc.doctor)
+            : '');
+    if (!doctorName && visitId && typeof _supabase !== 'undefined') {
+        try {
+            const { data: vDbDoc } = await _supabase.from('visits').select('doctor_name').eq('visit_id', visitId).maybeSingle();
+            if (vDbDoc && vDbDoc.doctor_name && vDbDoc.doctor_name !== '-' && vDbDoc.doctor_name !== 'null') {
+                doctorName = String(vDbDoc.doctor_name).trim();
+            }
+        } catch (e) { }
+    }
+    if (!doctorName && typeof window.currentUser !== 'undefined' && window.currentUser && typeof isDoctorUser === 'function' && isDoctorUser(window.currentUser)) {
+        doctorName = window.currentUser.full_name || window.currentUser.name || '';
+    }
     const symptomText = document.getElementById('rxPatientSymptomDisplay')?.innerText || '-';
 
     // Payload ที่ตรงตาม Schema ของตาราง public.stk_nutrient_orders
@@ -15508,27 +15588,27 @@ window.sendPharmacyNutrientOrder = async function (visitId) {
         }
     }
 
-    // 🌟 ดึงข้อมูล แพทย์ผู้ตรวจ และ อาการเบื้องต้น
-    let closerDr = visit.doctor_name || null;
+    // 🌟 ดึงข้อมูล แพทย์ผู้ตรวจ และ อาการเบื้องต้น (ยึดข้อมูลจาก visits ของเคสนี้เป็นหลัก ไม่เอาชื่อเภสัช/แอดมินมาใส่)
+    const isValidPharmDoc = (v) => {
+        const s = String(v || '').trim();
+        return s !== '' && s !== '-' && s !== 'null' && s !== 'undefined';
+    };
+    let closerDr = isValidPharmDoc(visit.doctor_name) ? String(visit.doctor_name).trim() : null;
     let patientSymptom = visit.symptom || null;
 
-    if (!closerDr || closerDr === '-' || closerDr === 'null') {
-        const docEl = document.getElementById('rxDoctorNameDisplay');
-        if (docEl && docEl.innerText && docEl.innerText !== '-') closerDr = docEl.innerText;
-    }
-
-    if ((!closerDr || !patientSymptom || closerDr === '-') && typeof _supabase !== 'undefined') {
+    if ((!closerDr || !patientSymptom) && typeof _supabase !== 'undefined') {
         try {
             const { data: vDb } = await _supabase.from('visits').select('doctor_name, symptom').eq('visit_id', visitId).maybeSingle();
             if (vDb) {
-                if ((!closerDr || closerDr === '-') && vDb.doctor_name && vDb.doctor_name !== 'null') closerDr = vDb.doctor_name;
+                if (!closerDr && isValidPharmDoc(vDb.doctor_name)) closerDr = String(vDb.doctor_name).trim();
                 if (!patientSymptom && vDb.symptom && vDb.symptom !== 'สั่งจ่ายยา') patientSymptom = vDb.symptom;
             }
         } catch (e) { }
     }
 
-    if ((!closerDr || closerDr === '-') && window.currentUser) {
-        closerDr = window.currentUser.name || window.currentUser.full_name || null;
+    if (!closerDr && window.currentUser && typeof isDoctorUser === 'function' && isDoctorUser(window.currentUser)) {
+        const docU = window.currentUser.full_name || window.currentUser.name || '';
+        if (isValidPharmDoc(docU)) closerDr = String(docU).trim();
     }
 
     // สร้าง Payload สำหรับส่งไปยังตาราง stk_nutrient_orders
