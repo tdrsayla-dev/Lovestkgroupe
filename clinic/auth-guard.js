@@ -25,7 +25,8 @@
                 }
             } catch (crossErr) {
                 // หากเบราว์เซอร์บล็อกการอ่าน window.top.location แสดงว่าเป็น Cross-Origin (เว็บภายนอก)
-                isAuthorizedFrame = false;
+                // ยกเว้นกรณีเปิดทดสอบแบบออฟไลน์ผ่าน file://
+                isAuthorizedFrame = (window.location.protocol === 'file:');
             }
 
             if (!isAuthorizedFrame) {

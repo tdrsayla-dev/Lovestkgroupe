@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <script src="auth-guard.js?v=3.0"></script>
+    <script src="auth-guard.js?v=3.1"></script>
     <script src="deleted-sync.js?v=2.2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -33,16 +33,16 @@
 
 
     <!-- เชื่อมโยงไฟล์ CSS -->
-    <link rel="stylesheet" href="style.css?v=2.7.8">
+    <link rel="stylesheet" href="style.css?v=2.7.9">
     <link rel="stylesheet" href="dashboard.css?v=1.2">
     <!-- Phosphor Icons -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script defer src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- html2canvas and html2pdf for Exporting Cards/PDF -->
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script defer src="qrcode.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- Tesseract.js for OCR Lab Results -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <!-- i18n Internationalization Engine -->
     <script src="i18n.js?v=2.5.3"></script>
 
@@ -272,23 +272,38 @@
             }
         }
 
+        .dashboard-iframe {
+            width: 100%;
+            height: calc(100vh - 25px);
+            border: none;
+            min-height: 850px;
+            display: block;
+            border-radius: 16px;
+        }
+
         @media (max-width: 991.98px) {
-            body.page-is-booking {
+            body.page-is-booking,
+            body.page-is-dashboard {
                 overflow: hidden !important;
             }
 
             body.page-is-booking .content-area,
+            body.page-is-dashboard .content-area,
             .content-area.is-booking-active,
-            .content-area:has(#booking.active) {
+            .content-area.is-dashboard-active,
+            .content-area:has(#booking.active),
+            .content-area:has(#dashboard.active) {
                 padding: 0 !important;
                 margin: 0 !important;
                 margin-top: 56px !important;
                 height: calc(100dvh - 56px) !important;
                 max-height: calc(100dvh - 56px) !important;
                 overflow: hidden !important;
+                border-radius: 0 !important;
             }
 
-            #booking.active {
+            #booking.active,
+            #dashboard.active {
                 position: fixed !important;
                 top: 56px !important;
                 left: 0 !important;
@@ -302,9 +317,12 @@
                 overflow: hidden !important;
                 z-index: 1020 !important;
                 display: block !important;
+                border-radius: 0 !important;
             }
 
-            #booking #marketingFrame {
+            #booking #marketingFrame,
+            #dashboard #dashboardFrame,
+            .dashboard-iframe {
                 width: 100% !important;
                 height: 100% !important;
                 min-height: 100% !important;
@@ -449,7 +467,7 @@
     </style>
 </head>
 
-<body class="d-flex">
+<body class="d-flex page-is-dashboard">
 
     <!-- MOBILE OVERLAY BACKDROP -->
     <div id="sidebarOverlay" class="sidebar-overlay" onclick="closeMobileSidebar()"></div>
@@ -555,8 +573,8 @@
         <!-- 1. ภาพรวมระบบ (Dashboard) -->
         <div id="dashboard" class="page-section active"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="dashboardFrame" src="dashboard.html?v=2.6"
-                style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
+            <iframe id="dashboardFrame" src="dashboard.html?v=3.9"
+                class="dashboard-iframe"
                 title="Clinic Dashboard"></iframe>
         </div>
 
@@ -633,7 +651,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=4.0.2" title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=4.0.1" loading="lazy" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -3225,7 +3243,7 @@
         <!-- 15. Clinic Settings Page -->
         <div id="clinic-settings" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="settingFrame" src="setting.html"
+            <iframe id="settingFrame" src="setting.html" loading="lazy"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Clinic Settings"></iframe>
         </div>
@@ -3233,7 +3251,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" data-src="report.html?v=6.6" src=""
+            <iframe id="doctorReportFrame" data-src="report.html?v=6.8" src="report.html?v=6.8" loading="lazy"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -6155,7 +6173,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="function.js?v=12.2"></script>
+    <script src="function.js?v=12.6"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=7.9"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->

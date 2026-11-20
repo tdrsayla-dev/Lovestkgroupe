@@ -27,12 +27,18 @@
     box-sizing: border-box;
 }
 
+html, body {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+}
+
 body {
     font-family: 'Noto Sans Lao', 'Kanit', 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: #f8fafc;
     color: var(--text-main);
-    margin: 0;
-    padding: 0;
     -webkit-font-smoothing: antialiased;
 }
 
@@ -1093,4 +1099,1300 @@ body.standalone-mode {
     background: #cbd5e1;
     border-radius: 4px;
 }
+
+/* =========================================================================
+   🌟 Row 4: ICD-10 Disease Diagnosis Ranking & Percentage (%) Report
+   ========================================================================= */
+.db-icd10-section-v2 {
+    background: #ffffff;
+    border: 1px solid var(--border-light);
+    border-radius: var(--card-radius);
+    padding: 20px 22px;
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.db-icd10-header-v2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.db-icd10-title-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.db-icd10-period-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #fff1f2;
+    color: #e11d48;
+    border: 1px solid #ffe4e6;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 50px;
+}
+
+.db-icd10-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+
+.db-icd10-summary-strip.db-icd10-summary-5 {
+    grid-template-columns: 1fr 1fr 1.35fr 1fr 1fr;
+    gap: 12px;
+}
+
+.db-icd10-sum-icon.teal {
+    background: #f0fdfa;
+    color: #0d9488;
+    border: 1px solid #ccfbf1;
+}
+
+.db-icd10-sum-icon.blue {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #dbeafe;
+}
+
+.db-icd10-sum-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+}
+
+.db-icd10-sum-box.highlight {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border-color: #bbf7d0;
+}
+
+.db-icd10-sum-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.db-icd10-sum-icon.rose {
+    background: #fff1f2;
+    color: #e11d48;
+    border: 1px solid #ffe4e6;
+}
+
+.db-icd10-sum-icon.indigo {
+    background: #eef2ff;
+    color: #4f46e5;
+    border: 1px solid #e0e7ff;
+}
+
+.db-icd10-sum-icon.emerald {
+    background: #ffffff;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+
+.db-icd10-sum-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex-grow: 1;
+}
+
+.db-icd10-sum-label {
+    font-size: 0.76rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.db-icd10-sum-val-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+}
+
+.db-icd10-sum-num {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #0f172a;
+    font-family: 'Outfit', 'Kanit', sans-serif;
+    line-height: 1.15;
+}
+
+.db-icd10-sum-unit {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.db-icd10-top-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #065f46;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 240px;
+}
+
+.db-icd10-top-pct-badge {
+    background: #059669;
+    color: #ffffff;
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 50px;
+    font-family: 'Outfit', sans-serif;
+}
+
+.db-icd10-content-grid {
+    display: grid;
+    grid-template-columns: 4.5fr 5.5fr;
+    gap: 18px;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.db-icd10-visual-card,
+.db-icd10-table-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.db-icd10-table-card {
+    overflow: hidden;
+}
+
+.db-icd10-subhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.db-icd10-bars-list {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+}
+
+.db-icd10-bar-item {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 11px;
+    padding: 10px 13px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+}
+
+.db-icd10-bar-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    border-color: #cbd5e1;
+}
+
+.db-icd10-bar-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.db-icd10-bar-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    flex-grow: 1;
+}
+
+.db-icd10-rank-pill {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-family: 'Outfit', sans-serif;
+}
+
+.db-icd10-rank-pill.rank-1 { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.db-icd10-rank-pill.rank-2 { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
+.db-icd10-rank-pill.rank-3 { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+.db-icd10-rank-pill.rank-other { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+.db-icd10-code-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    font-size: 0.71rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 5px;
+    font-family: 'Outfit', monospace;
+    flex-shrink: 0;
+}
+
+.db-icd10-name-text {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.db-icd10-bar-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.db-icd10-count-text {
+    font-size: 0.76rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.db-icd10-pct-pill {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #0f172a;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: 'Outfit', sans-serif;
+    min-width: 54px;
+    text-align: right;
+}
+
+.db-icd10-progress-track {
+    width: 100%;
+    height: 8px;
+    background: #f1f5f9;
+    border-radius: 50px;
+    overflow: hidden;
+}
+
+.db-icd10-progress-fill {
+    height: 100%;
+    border-radius: 50px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.db-icd10-table-scroll {
+    max-height: 315px;
+    overflow-y: auto;
+    overflow-x: auto;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.db-icd10-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.db-icd10-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.75rem;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    z-index: 2;
+}
+
+.db-icd10-table tbody td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    color: #1e293b;
+}
+
+.db-icd10-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+@media (max-width: 992px) {
+    .db-icd10-summary-strip {
+        grid-template-columns: 1fr;
+    }
+    .db-icd10-content-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================================================
+   Row 5: Multi-Tab Executive Analytics Suite Styles
+   ========================================================================= */
+.db-exec-report-section {
+    margin-top: 20px;
+}
+
+.db-exec-tabs-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding: 6px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.db-exec-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #475569;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.db-exec-tab-btn i {
+    font-size: 1rem;
+    color: #64748b;
+    transition: color 0.18s ease;
+}
+
+.db-exec-tab-btn:hover {
+    background: #ffffff;
+    color: #0f172a;
+    border-color: #e2e8f0;
+}
+
+.db-exec-tab-btn.active {
+    background: #0d9488;
+    color: #ffffff;
+    border-color: #0f766e;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+}
+
+.db-exec-tab-btn.active i {
+    color: #ffffff;
+}
+
+/* Sleek Single-Line Action Button for "ເບິ່ງ (N)" in ICD-10 & Executive Tables */
+.db-icd10-view-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    white-space: nowrap;
+    padding: 5px 11px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    color: #0f766e;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.db-icd10-view-btn i {
+    font-size: 0.88rem;
+    color: #0d9488;
+    transition: transform 0.18s ease, color 0.18s ease;
+}
+
+.db-icd10-view-btn .view-count-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #f0fdfa;
+    color: #0f766e;
+    border: 1px solid #99f6e4;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    line-height: 1.2;
+}
+
+.db-icd10-view-btn:hover {
+    background: #0d9488;
+    color: #ffffff;
+    border-color: #0f766e;
+    box-shadow: 0 3px 8px rgba(13, 148, 136, 0.22);
+    transform: translateY(-1px);
+}
+
+.db-icd10-view-btn:hover i {
+    color: #ffffff;
+}
+
+.db-icd10-view-btn:hover .view-count-pill {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* =========================================================================
+   Modern Chart Type Switcher + Donut Chart & Vertical Column Chart Styles
+   ========================================================================= */
+.db-chart-mode-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 9px;
+    border: 1px solid #e2e8f0;
+}
+
+.db-chart-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.16s ease;
+    white-space: nowrap;
+}
+
+.db-chart-mode-btn i {
+    font-size: 0.85rem;
+}
+
+.db-chart-mode-btn:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.db-chart-mode-btn.active {
+    background: #ffffff;
+    color: #0f766e;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+/* 1. Modern Interactive Donut Chart Layout */
+.db-modern-donut-wrap {
+    display: grid;
+    grid-template-columns: 195px 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 6px;
+    min-height: 280px;
+}
+
+.db-modern-donut-svg-box {
+    position: relative;
+    width: 190px;
+    height: 190px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.db-modern-donut-svg {
+    width: 190px;
+    height: 190px;
+    transform: rotate(-90deg);
+    overflow: visible;
+}
+
+.db-donut-seg {
+    fill: none;
+    stroke-width: 25;
+    cursor: pointer;
+    transition: stroke-width 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
+}
+
+.db-donut-seg:hover {
+    stroke-width: 29;
+    filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.16));
+}
+
+.db-modern-donut-center {
+    position: absolute;
+    inset: 34px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffffff 65%, #f8fafc 100%);
+    box-shadow: inset 0 2px 6px rgba(15, 23, 42, 0.04);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 6px;
+    pointer-events: none;
+}
+
+.db-donut-center-pct {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.38rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+}
+
+.db-donut-center-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #475569;
+    max-width: 108px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.db-donut-center-sub {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #0d9488;
+    margin-top: 1px;
+}
+
+.db-modern-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+}
+
+.db-donut-legend-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.16s ease;
+}
+
+.db-donut-legend-row:hover {
+    transform: translateX(3px);
+    border-color: #94a3b8;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
+}
+
+.db-donut-legend-left {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    flex: 1;
+}
+
+.db-donut-color-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.db-donut-legend-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.db-donut-legend-right {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+}
+
+/* 2. Modern Vertical Column Bar Chart Layout */
+.db-modern-vbar-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 292px;
+    padding: 14px 10px 6px 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.db-vbar-grid-lines {
+    position: absolute;
+    inset: 18px 14px 58px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.db-vbar-grid-line {
+    width: 100%;
+    border-bottom: 1px dashed #e2e8f0;
+}
+
+.db-vbar-columns-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    align-items: end;
+    height: 215px;
+    padding: 0 4px;
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.db-vbar-col-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    width: 100%;
+    min-width: 0;
+    cursor: pointer;
+    box-sizing: border-box;
+    overflow: hidden;
+    group: vbar;
+}
+
+.db-vbar-top-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 6px;
+    transition: transform 0.18s ease;
+    width: 100%;
+    min-width: 0;
+}
+
+.db-vbar-pct-badge {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #0f172a;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 1px 7px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05);
+}
+
+.db-vbar-count-sub {
+    font-size: 0.69rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.db-vbar-pillar-track {
+    width: 100%;
+    max-width: 46px;
+    height: 145px;
+    background: rgba(241, 245, 249, 0.75);
+    border-radius: 10px 10px 6px 6px;
+    display: flex;
+    align-items: flex-end;
+    overflow: hidden;
+    padding: 0;
+}
+
+.db-vbar-pillar-fill {
+    width: 100%;
+    border-radius: 10px 10px 4px 4px;
+    transition: height 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.18s ease;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+    position: relative;
+}
+
+.db-vbar-pillar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 25%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 100%);
+    border-radius: 10px 10px 0 0;
+}
+
+.db-vbar-col-item:hover .db-vbar-pillar-fill {
+    filter: brightness(1.08) drop-shadow(0 4px 10px rgba(13, 148, 136, 0.25));
+}
+
+.db-vbar-col-item:hover .db-vbar-top-stats {
+    transform: translateY(-3px);
+}
+
+.db-vbar-labels-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+    z-index: 1;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.db-vbar-label-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    min-width: 0;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.db-vbar-label-name {
+    font-size: 0.73rem;
+    font-weight: 600;
+    color: #1e293b;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 3px;
+    display: block;
+}
+
+@media (max-width: 640px) {
+    .db-modern-donut-wrap {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================================================
+   📱 Comprehensive Smartphone & Mobile Responsive Optimization (<= 768px)
+   ========================================================================= */
+@media (max-width: 768px) {
+    body.standalone-mode {
+        padding: 10px 10px 24px 10px;
+    }
+
+    .db-container-v2 {
+        gap: 14px;
+        padding: 4px 2px 24px 2px;
+    }
+
+    /* 1. Header Compact Layout */
+    .db-header-v2 {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 2px 2px;
+    }
+
+    .db-header-left h2 {
+        font-size: 1.22rem;
+    }
+
+    .db-header-left p {
+        font-size: 0.78rem;
+    }
+
+    .db-header-right {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* 2. Row 1: Top 7 Stat Cards — 2 Columns Grid on Smartphones */
+    .db-grid-6-v2,
+    .db-grid-7-v2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .db-grid-7-v2 > .db-stat-card-v2:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+
+    .db-stat-card-v2 {
+        padding: 11px 11px;
+        gap: 9px;
+        min-height: 78px;
+        border-radius: 14px;
+    }
+
+    .db-stat-icon-wrapper {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        font-size: 1.1rem;
+    }
+
+    .db-stat-title-v2 {
+        font-size: 0.72rem;
+        margin-bottom: 2px;
+    }
+
+    .db-stat-num-v2 {
+        font-size: 1.08rem;
+    }
+
+    .db-stat-unit-v2 {
+        font-size: 0.68rem;
+    }
+
+    .db-stat-trend-v2 {
+        font-size: 0.66rem;
+        white-space: normal;
+        line-height: 1.25;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* 3. Row 2: Pending Triage Table & Calendar */
+    .db-card-white,
+    .db-cal-card-v2,
+    .db-chart-card-v2,
+    .db-icd10-section-v2 {
+        padding: 14px 13px;
+        border-radius: 14px;
+    }
+
+    .db-card-head {
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .db-card-title-v2 {
+        font-size: 0.88rem;
+        line-height: 1.3;
+    }
+
+    .db-appt-table th,
+    .db-appt-table td {
+        padding: 8px 7px;
+        font-size: 0.76rem;
+    }
+
+    .db-appt-name-col {
+        max-width: 140px;
+    }
+
+    .db-appt-service-col {
+        max-width: 130px;
+    }
+
+    .db-appt-footer-v2 {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .db-calendar-day {
+        width: 30px;
+        height: 30px;
+        font-size: 0.76rem;
+    }
+
+    /* 4. Row 3: Service Statistics Area Chart & 2 Stacked KPI Cards */
+    .db-chart-header-v2 {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .db-chart-controls {
+        width: 100%;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .db-chart-legend-row {
+        gap: 10px;
+        font-size: 0.71rem;
+    }
+
+    .db-area-chart-wrapper {
+        height: 185px;
+    }
+
+    .chart-tooltip-card {
+        min-width: 132px;
+        padding: 7px 10px;
+        border-radius: 10px;
+    }
+
+    .chart-tooltip-card .tooltip-header {
+        font-size: 0.73rem;
+        margin-bottom: 4px;
+    }
+
+    .chart-tooltip-card .tooltip-row {
+        font-size: 0.69rem;
+        gap: 8px;
+    }
+
+    .chart-tooltip-card .tooltip-val {
+        font-size: 0.76rem;
+    }
+
+    .db-area-chart-months {
+        padding: 0 4px 0 22px;
+        font-size: 0.6rem;
+        gap: 2px;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .db-kpi-card-v2 {
+        padding: 14px 14px;
+        border-radius: 14px;
+        gap: 10px;
+    }
+
+    .db-kpi-number {
+        font-size: 1.38rem;
+    }
+
+    .db-kpi-card-v2 .db-stat-trend-v2 {
+        white-space: normal;
+        -webkit-line-clamp: 2;
+        font-size: 0.71rem;
+    }
+
+    .db-kpi-sparkline {
+        width: 72px;
+        height: 40px;
+    }
+
+    /* 5. Row 4 & Row 5: ICD-10 & Executive Analytics Reports */
+    .db-icd10-card {
+        padding: 12px 8px !important;
+        border-radius: 14px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    .db-icd10-content-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 14px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .db-icd10-header-v2 {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .db-icd10-controls {
+        width: 100%;
+        display: flex;
+        justify-content: flex-start;
+    }
+
+    .db-icd10-controls .db-chart-filter-pills {
+        width: 100%;
+        display: flex;
+    }
+
+    .db-icd10-controls .db-chart-pill-btn {
+        flex: 1;
+        text-align: center;
+        padding: 6px 8px;
+        font-size: 0.74rem;
+    }
+
+    /* Swipeable Horizontal Tab Bar for 5 Executive Reports */
+    .db-exec-tabs-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding: 5px;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+
+    .db-exec-tabs-bar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .db-exec-tab-btn {
+        flex-shrink: 0;
+        padding: 7px 12px;
+        font-size: 0.78rem;
+        white-space: nowrap;
+    }
+
+    .db-icd10-summary-strip {
+        grid-template-columns: 1fr;
+        gap: 9px;
+    }
+
+    .db-icd10-sum-box {
+        padding: 11px 13px;
+        border-radius: 12px;
+    }
+
+    .db-icd10-sum-icon {
+        width: 38px;
+        height: 38px;
+        font-size: 1.15rem;
+    }
+
+    .db-icd10-sum-num {
+        font-size: 1.2rem;
+    }
+
+    .db-icd10-top-name {
+        max-width: 100%;
+        white-space: normal;
+        font-size: 0.85rem;
+        line-height: 1.3;
+    }
+
+    .db-icd10-visual-card,
+    .db-icd10-table-card {
+        padding: 12px 8px !important;
+        border-radius: 12px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    .db-icd10-subhead {
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 0.8rem;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+    }
+
+    .db-chart-mode-switcher {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .db-chart-mode-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 5px 6px;
+        font-size: 0.71rem;
+    }
+
+    /* Donut Chart on Mobile */
+    .db-modern-donut-wrap {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 6px 2px;
+        min-height: auto;
+    }
+
+    .db-modern-donut-svg-box {
+        width: 168px;
+        height: 168px;
+    }
+
+    .db-modern-donut-svg {
+        width: 168px;
+        height: 168px;
+    }
+
+    .db-modern-donut-center {
+        inset: 30px;
+    }
+
+    .db-donut-center-pct {
+        font-size: 1.2rem;
+    }
+
+    /* Vertical Bar Chart on Mobile */
+    .db-modern-vbar-wrap {
+        height: 250px;
+        padding: 10px 4px 6px 4px;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    .db-vbar-columns-row {
+        gap: 2px;
+        height: 180px;
+        padding: 0 2px;
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    .db-vbar-col-item {
+        width: 100% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .db-vbar-pillar-track {
+        max-width: 26px;
+        height: 120px;
+        width: 100%;
+    }
+
+    .db-vbar-pct-badge {
+        font-size: 0.60rem;
+        padding: 1px 2px;
+        white-space: nowrap;
+    }
+
+    .db-vbar-count-sub {
+        font-size: 0.56rem;
+        white-space: nowrap;
+    }
+
+    .db-vbar-labels-row {
+        gap: 2px;
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    .db-vbar-label-box {
+        width: 100% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .db-vbar-label-name {
+        font-size: 0.58rem;
+        line-height: 1.1;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .db-vbar-rank-badge {
+        font-size: 0.60rem !important;
+        padding: 0 3px !important;
+    }
+
+    /* Ranked Tables on Mobile */
+    .db-icd10-table-scroll {
+        max-height: 380px;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 8px;
+        box-sizing: border-box !important;
+    }
+
+    .db-icd10-table {
+        font-size: 0.72rem !important;
+        min-width: 420px;
+        width: 100%;
+    }
+
+    .db-icd10-table thead th,
+    .db-icd10-table tbody td {
+        padding: 6px 4px !important;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 380px) {
+    .db-grid-6-v2,
+    .db-grid-7-v2 {
+        grid-template-columns: 1fr;
+    }
+    .db-kpi-sparkline {
+        display: none;
+    }
+}
+
+
+
+
+
 

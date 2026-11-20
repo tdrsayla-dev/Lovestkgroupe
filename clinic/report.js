@@ -731,40 +731,46 @@ function matchDoctorFromStaff(candidate) {
   const docs = state.staffDoctors || [];
   if (docs.length === 0) return null;
 
-  const lower = raw.toLowerCase();
+  const lower = raw.toLowerCase().trim();
 
-  // 1. Direct match on displayName, full_name, or emp_code
+  // 1. Direct match on emp_code with exact word boundary (e.g. DMC005, DMC0020, DMC004...)
   for (const d of docs) {
-    const dName = (d.displayName || d.full_name || '').toLowerCase().replace(/\s+/g, ' ');
-    const dCode = (d.emp_code || '').toLowerCase();
-    if (lower === dName || (dCode && lower === dCode)) {
+    const dCode = (d.emp_code || '').toLowerCase().trim();
+    if (dCode && dCode.length >= 3) {
+      if (lower === dCode) return d.displayName;
+      const escCode = dCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const codeRegex = new RegExp('(?:^|[^a-z0-9_])' + escCode + '(?:$|[^a-z0-9_])', 'i');
+      if (codeRegex.test(lower)) return d.displayName;
+    }
+  }
+
+  // 2. Exact match on displayName or full_name
+  for (const d of docs) {
+    const dName = (d.displayName || d.full_name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    if (lower === dName) {
       return d.displayName;
     }
   }
 
-  // 2. Contains emp_code (e.g. "DMC004 - Nuna SYTATHEP")
+  // 3. Whole-word / boundary matching (Prevents substring false positives like "SYSOMPHENG" matching doctor "SOMPHENG")
   for (const d of docs) {
-    const dCode = (d.emp_code || '').toLowerCase();
-    if (dCode && dCode.length >= 3 && lower.includes(dCode)) {
+    const dName = (d.displayName || d.full_name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    if (!dName || dName.length < 3) continue;
+    const escaped = dName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp('(?:^|[^a-z0-9_])' + escaped + '(?:$|[^a-z0-9_])', 'i');
+    if (wordRegex.test(lower)) {
       return d.displayName;
     }
   }
 
-  // 3. Exact full name match when doctor title prefix or full name is inside string
-  for (const d of docs) {
-    const dName = (d.displayName || d.full_name || '').toLowerCase().replace(/\s+/g, ' ');
-    if (lower.includes(dName)) {
-      return d.displayName;
-    }
-  }
-
-  // 4. Known doctor nicknames or Lao names mapping to official staff_users
+  // 4. Known doctor nicknames, Lao names, or English variants strictly mapping to official staff_users
   const aliasMap = [
-    { keys: ['ແພງພັນ', 'แพงพัน', 'phengphan'], name: 'Phengphan SOUVANNAPHOUME' },
-    { keys: ['ສຸກສາຄອນ', 'สุกสาคร', 'สุกสาคอน'], name: 'Souksakhone DOUNGVIENGXAY' },
-    { keys: ['ໜູໜາ', 'หนูนา', 'nuna'], name: 'Nuna SYTATHEP' },
-    { keys: ['ຂະນິດຖາ', 'ขนิษฐา', 'khanittha'], name: 'Khanittha PHOUTTHAAMAT' },
-    { keys: ['ລາວາ', 'ลาวา', 'lava'], name: 'Lava CHIATONG' },
+    { keys: ['ສຸກສາຄອນ', 'สุกสาคร', 'สุกสาคอน', 'souksakhone', 'soulsakhone', 'doungviengxay', 'dmc005'], name: 'Souksakhone DOUNGVIENGXAY' },
+    { keys: ['ແພງພັນ', 'แพงพัน', 'phengphan', 'souvannaphoume', 'dmc002'], name: 'Phengphan SOUVANNAPHOUME' },
+    { keys: ['ໜູໜາ', 'หนูนา', 'nuna', 'sytathep', 'dmc004'], name: 'Nuna SYTATHEP' },
+    { keys: ['ຂະນິດຖາ', 'ขนิษฐา', 'khanittha', 'phoutthaamat', 'dmc001'], name: 'Khanittha PHOUTTHAAMAT' },
+    { keys: ['ລາວາ', 'ลาวา', 'lava', 'chiatong', 'dmc006'], name: 'Lava CHIATONG' },
+    { keys: ['sompheng', 'ສົມແພງ', 'สมแพง', 'dmc0020'], name: 'SOMPHENG', wordBoundary: true },
     { keys: ['ດາວເພັດ', 'ดาวเพชร', 'daophet'], name: 'DAOPHET' },
     { keys: ['ຫັດເກ້ວ', 'หัดแก้ว', 'hatkeo'], name: 'Hatkeo XOUMKHAMBAN' },
     { keys: ['ມະນີວອນ', 'มณีวรรณ', 'manivone'], name: 'MANIVONE' },
@@ -773,7 +779,17 @@ function matchDoctorFromStaff(candidate) {
 
   for (const item of aliasMap) {
     for (const k of item.keys) {
-      if (lower.includes(k.toLowerCase())) {
+      const kLower = k.toLowerCase().trim();
+      let isMatch = false;
+      // For ASCII codes/names, always enforce word boundary so dmc002 never matches dmc0020
+      if (/^[a-z0-9_]+$/i.test(kLower)) {
+        const esc = kLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp('(?:^|[^a-z0-9_])' + esc + '(?:$|[^a-z0-9_])', 'i');
+        isMatch = re.test(lower);
+      } else {
+        isMatch = lower.includes(kLower);
+      }
+      if (isMatch) {
         const found = docs.find(d => (d.displayName || '').toLowerCase().includes(item.name.toLowerCase()));
         if (found) return found.displayName;
       }
@@ -930,7 +946,7 @@ function resolveDoctorForRecord(record, visitsList, ordersList, billsList) {
     }
   }
 
-  // 4. Cross-reference with bills (by visit_id or order_id)
+  // 4. Cross-reference with bills (by visit_id or order_id) - only doctor/doctor_name, NEVER created_by (cashier/nurse)
   if (recVid || recOid) {
     const bMatch = currentBills.find(b => {
       if (!b) return false;
@@ -940,7 +956,7 @@ function resolveDoctorForRecord(record, visitsList, ordersList, billsList) {
              (recOid && (bVid === recOid || bOid === recOid));
     });
     if (bMatch) {
-      doc = matchDoctorFromStaff(bMatch.doctor || bMatch.doctor_name || bMatch.created_by);
+      doc = matchDoctorFromStaff(bMatch.doctor || bMatch.doctor_name);
       if (doc) return doc;
     }
   }

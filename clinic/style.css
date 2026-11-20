@@ -3280,22 +3280,28 @@ body.login-page {
 }
 
 @media (max-width: 991.98px) {
-    body.page-is-booking {
+    body.page-is-booking,
+    body.page-is-dashboard {
         overflow: hidden !important;
     }
 
     body.page-is-booking .content-area,
+    body.page-is-dashboard .content-area,
     .content-area.is-booking-active,
-    .content-area:has(#booking.active) {
+    .content-area.is-dashboard-active,
+    .content-area:has(#booking.active),
+    .content-area:has(#dashboard.active) {
         padding: 0 !important;
         margin: 0 !important;
         margin-top: 56px !important;
         height: calc(100dvh - 56px) !important;
         max-height: calc(100dvh - 56px) !important;
         overflow: hidden !important;
+        border-radius: 0 !important;
     }
 
-    #booking.active {
+    #booking.active,
+    #dashboard.active {
         position: fixed !important;
         top: 56px !important;
         left: 0 !important;
@@ -3308,9 +3314,13 @@ body.login-page {
         margin: 0 !important;
         overflow: hidden !important;
         z-index: 1020 !important;
+        display: block !important;
+        border-radius: 0 !important;
     }
 
-    #booking #marketingFrame {
+    #booking #marketingFrame,
+    #dashboard #dashboardFrame,
+    .dashboard-iframe {
         width: 100% !important;
         height: 100% !important;
         min-height: 100% !important;

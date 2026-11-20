@@ -485,14 +485,16 @@ function showPage(pageId, element) {
         }
     }
 
-    // 5.1 ควบคุมการล็อกหน้าจอสำหรับหน้า Booking บนมือถือ (ป้องกัน Double Scroll)
+    // 5.1 ควบคุมการล็อกหน้าจอสำหรับหน้า Booking และ Dashboard บนมือถือ (ป้องกัน Double Scroll และแสดงผลเต็มจอ)
     if (document.body) {
         document.body.classList.toggle('page-is-booking', pageId === 'booking');
+        document.body.classList.toggle('page-is-dashboard', pageId === 'dashboard');
     }
     const contentAreaEl = document.querySelector('.content-area');
     if (contentAreaEl) {
         contentAreaEl.classList.toggle('is-booking-active', pageId === 'booking');
-        if (pageId === 'booking') {
+        contentAreaEl.classList.toggle('is-dashboard-active', pageId === 'dashboard');
+        if (pageId === 'booking' || pageId === 'dashboard') {
             contentAreaEl.scrollTop = 0;
         }
     }
@@ -519,14 +521,21 @@ function showPage(pageId, element) {
         } else if (pageId === 'booking') {
             try {
                 const frame = document.getElementById('marketingFrame');
-                if (frame && frame.contentWindow) {
-                    if (typeof frame.contentWindow.setDateFilterMode === 'function') {
-                        frame.contentWindow.setDateFilterMode('today');
+                if (frame) {
+                    const targetSrc = frame.getAttribute('data-src') || 'marketing.html?v=4.0.1';
+                    const curSrc = frame.getAttribute('src') || '';
+                    if (!curSrc || curSrc === 'about:blank' || !curSrc.includes('marketing.html')) {
+                        frame.src = targetSrc;
+                        frame.setAttribute('data-loaded', 'true');
+                    } else if (frame.contentWindow) {
+                        if (typeof frame.contentWindow.setDateFilterMode === 'function') {
+                            frame.contentWindow.setDateFilterMode('today');
+                        }
+                        if (typeof frame.contentWindow.loadLivePatientData === 'function') {
+                            frame.contentWindow.loadLivePatientData();
+                        }
+                        frame.contentWindow.postMessage({ type: 'FETCH_PATIENTS' }, '*');
                     }
-                    if (typeof frame.contentWindow.loadLivePatientData === 'function') {
-                        frame.contentWindow.loadLivePatientData();
-                    }
-                    frame.contentWindow.postMessage({ type: 'FETCH_PATIENTS' }, '*');
                 }
             } catch (fErr) { }
         } else if (pageId === 'stock-drugs') {
@@ -556,8 +565,15 @@ function showPage(pageId, element) {
         } else if (pageId === 'clinic-settings') {
             try {
                 const frame = document.getElementById('settingFrame');
-                if (frame && frame.contentWindow && typeof frame.contentWindow.loadSettings === 'function') {
-                    frame.contentWindow.loadSettings();
+                if (frame) {
+                    const targetSrc = frame.getAttribute('data-src') || 'setting.html';
+                    const curSrc = frame.getAttribute('src') || '';
+                    if (!curSrc || curSrc === 'about:blank' || !curSrc.includes('setting.html')) {
+                        frame.src = targetSrc;
+                        frame.setAttribute('data-loaded', 'true');
+                    } else if (frame.contentWindow && typeof frame.contentWindow.loadSettings === 'function') {
+                        frame.contentWindow.loadSettings();
+                    }
                 }
             } catch (sErr) { }
         } else if (pageId === 'doctor-reports') {
@@ -31769,7 +31785,7 @@ async function openVascularCheckModal(targetVisitId) {
         hn: 'HN-552239',
         patient_name: 'TERR',
         referred_by: '-',
-        doctor_name: 'Soulsakhone DOUNGVIENGXAY',
+        doctor_name: 'Souksakhone DOUNGVIENGXAY',
         temp: '39',
         bp: '120/85',
         pulse: '90',
@@ -31866,7 +31882,7 @@ async function openVascularCheckModal(targetVisitId) {
             if (docList.length === 0 && window.clinicDoctors && Array.isArray(window.clinicDoctors)) {
                 docList = window.clinicDoctors.map(d => d.name || d.full_name).filter(Boolean);
             }
-            if (!docList.includes('Soulsakhone DOUNGVIENGXAY')) docList.push('Soulsakhone DOUNGVIENGXAY');
+            if (!docList.includes('Souksakhone DOUNGVIENGXAY')) docList.push('Souksakhone DOUNGVIENGXAY');
             docList.forEach(name => {
                 const opt = document.createElement('option');
                 opt.value = name;

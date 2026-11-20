@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html lang="la">
 <head>
-    <meta charset="UTF-8"><script src="auth-guard.js?v=2.7"></script><script src="deleted-sync.js?v=2.2"></script>
+    <meta charset="UTF-8"><script src="auth-guard.js?v=2.9"></script><script src="deleted-sync.js?v=2.2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>ພາບລວມລະບົບ - Clinic Dashboard</title>
     <link rel="icon" type="image/png" href="favicon.png?v=1.0">
 
@@ -33,7 +36,7 @@
     <script src="i18n.js?v=2.5.2"></script>
 
     <!-- Dedicated Dashboard Stylesheet -->
-    <link rel="stylesheet" href="dashboard.css?v=2.1">
+    <link rel="stylesheet" href="dashboard.css?v=3.2">
 </head>
 <body>
 
@@ -308,14 +311,14 @@
             </div>
         </div>
 
-        <!-- Row 3: Bottom 2 Sections -->
+        <!-- Row 3: Bottom 2 Sections (Service Statistics Area Chart + Stacked KPI Cards) -->
         <div class="db-bottom-grid-v2">
-            <!-- Left: Service Statistics Area Chart -->
+            <!-- Left: Service Statistics Area Chart (Real Database Data) -->
             <div class="db-chart-card-v2">
                 <div class="db-chart-header-v2">
                     <div class="db-chart-title-box">
                         <h5 class="db-card-title-v2" data-i18n="db_stats_service_title">ສະຖິຕິການຮັບບໍລິການ</h5>
-                        <span class="db-chart-subtitle-v2">ສະຖິຕິການກວດ & ການນັດໝາຍລາຍເດືອນ</span>
+                        <span class="db-chart-subtitle-v2" id="db-service-chart-subtitle">ສະຖິຕິການກວດ & ການນັດໝາຍລາຍເດືອນ (ຂໍ້ມູນຕົວຈິງ)</span>
                     </div>
                     <div class="db-chart-controls">
                         <!-- Pill Toggle: 6 ເດືອນ / 1 ປີ -->
@@ -331,7 +334,7 @@
                             </div>
                             <div class="db-chart-legend-item-v2">
                                 <span class="legend-dot-blue"></span>
-                                <span data-i18n="db_legend_appointments">ນັດໝາຍ</span>
+                                <span data-i18n="db_legend_appointments">ນັດໝາຍ / ລົງທະບຽນ</span>
                             </div>
                         </div>
                     </div>
@@ -339,16 +342,16 @@
 
                 <!-- SVG Dual Spline Area Chart -->
                 <div class="db-area-chart-wrapper">
-                    <!-- Tooltip Card matching reference image -->
+                    <!-- Tooltip Card -->
                     <div id="chartTooltipCard" class="chart-tooltip-card" style="left: 72%; top: 22%;">
-                        <div class="tooltip-header" id="tooltipMonthYear">ກັນຍາ 2026</div>
+                        <div class="tooltip-header" id="tooltipMonthYear">ພະຈິກ 2026</div>
                         <div class="tooltip-row">
                             <div class="tooltip-label"><span class="dot teal"></span> ຄົນເຈັບເຂົ້າກວດ</div>
-                            <div class="tooltip-val" id="tooltipVisitsVal">340</div>
+                            <div class="tooltip-val" id="tooltipVisitsVal">0</div>
                         </div>
                         <div class="tooltip-row">
-                            <div class="tooltip-label"><span class="dot blue"></span> ນັດໝາຍ</div>
-                            <div class="tooltip-val" id="tooltipApptsVal">230</div>
+                            <div class="tooltip-label"><span class="dot blue"></span> ນັດໝາຍ / ລົງທະບຽນ</div>
+                            <div class="tooltip-val" id="tooltipApptsVal">0</div>
                         </div>
                     </div>
 
@@ -364,162 +367,42 @@
                             </linearGradient>
                         </defs>
 
-                        <!-- Horizontal Grid Lines -->
-                        <text x="15" y="25" fill="#94a3b8" font-size="12" font-weight="500">400</text>
+                        <!-- Horizontal Grid Lines (Dynamic Y-Axis Scale) -->
+                        <text id="chartYLabel4" x="15" y="25" fill="#94a3b8" font-size="12" font-weight="500">400</text>
                         <line x1="50" y1="20" x2="980" y2="20" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="4 4" />
-                        <text x="15" y="65" fill="#94a3b8" font-size="12" font-weight="500">300</text>
+                        <text id="chartYLabel3" x="15" y="65" fill="#94a3b8" font-size="12" font-weight="500">300</text>
                         <line x1="50" y1="60" x2="980" y2="60" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="4 4" />
-                        <text x="15" y="105" fill="#94a3b8" font-size="12" font-weight="500">200</text>
+                        <text id="chartYLabel2" x="15" y="105" fill="#94a3b8" font-size="12" font-weight="500">200</text>
                         <line x1="50" y1="100" x2="980" y2="100" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="4 4" />
-                        <text x="15" y="145" fill="#94a3b8" font-size="12" font-weight="500">100</text>
+                        <text id="chartYLabel1" x="15" y="145" fill="#94a3b8" font-size="12" font-weight="500">100</text>
                         <line x1="50" y1="140" x2="980" y2="140" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="4 4" />
                         <text x="25" y="180" fill="#94a3b8" font-size="12" font-weight="500">0</text>
                         <line x1="50" y1="175" x2="980" y2="175" stroke="#e2e8f0" stroke-width="1" />
 
-                        <!-- Vertical Guideline (September default, moves with active month) -->
-                        <line id="chartVerticalGuide" x1="720" y1="20" x2="720" y2="175" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3 3" />
+                        <!-- Vertical Guideline -->
+                        <line id="chartVerticalGuide" x1="885" y1="20" x2="885" y2="175" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3 3" />
 
-                        <!-- Dual Area Gradients up to Month 9 (Sep) -->
-                        <path d="M 60 160 C 100 155, 120 152, 142 150 C 170 149, 200 148, 225 148 C 255 148, 280 145, 308 138 C 345 130, 365 118, 390 106 C 420 92, 445 82, 472 80 C 500 78, 530 80, 555 78 C 585 75, 615 65, 638 56 C 665 46, 695 44, 720 44 L 720 175 L 60 175 Z" fill="url(#tealGradient)" />
-                        <path d="M 60 172 C 100 169, 120 168, 142 166 C 170 165, 200 164, 225 164 C 255 164, 280 162, 308 160 C 345 156, 365 152, 390 146 C 420 138, 445 132, 472 128 C 500 123, 530 122, 555 118 C 585 114, 615 108, 638 102 C 665 96, 695 88, 720 88 L 720 175 L 60 175 Z" fill="url(#blueGradient)" />
+                        <!-- Dynamic Dual Area Gradients -->
+                        <path id="chartTealAreaPath" d="M 60 175 L 968 175 Z" fill="url(#tealGradient)" />
+                        <path id="chartBlueAreaPath" d="M 60 175 L 968 175 Z" fill="url(#blueGradient)" />
 
-                        <!-- Solid Lines up to Month 9 (Sep) -->
-                        <path d="M 60 160 C 100 155, 120 152, 142 150 C 170 149, 200 148, 225 148 C 255 148, 280 145, 308 138 C 345 130, 365 118, 390 106 C 420 92, 445 82, 472 80 C 500 78, 530 80, 555 78 C 585 75, 615 65, 638 56 C 665 46, 695 44, 720 44" fill="none" stroke="#0d9488" stroke-width="2.5" stroke-linecap="round" />
-                        <path d="M 60 172 C 100 169, 120 168, 142 166 C 170 165, 200 164, 225 164 C 255 164, 280 162, 308 160 C 345 156, 365 152, 390 146 C 420 138, 445 132, 472 128 C 500 123, 530 122, 555 118 C 585 114, 615 108, 638 102 C 665 96, 695 88, 720 88" fill="none" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round" />
+                        <!-- Dynamic Solid Lines -->
+                        <path id="chartTealLinePath" d="M 60 175 L 968 175" fill="none" stroke="#0d9488" stroke-width="2.5" stroke-linecap="round" />
+                        <path id="chartBlueLinePath" d="M 60 175 L 968 175" fill="none" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round" />
 
-                        <!-- Dashed Forecast Lines from Month 9 to 12 -->
-                        <path d="M 720 44 C 750 44, 775 56, 802 66 C 830 76, 860 80, 885 86 C 915 94, 945 115, 968 128" fill="none" stroke="#0d9488" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" />
-                        <path d="M 720 88 C 750 88, 775 98, 802 106 C 830 115, 860 120, 885 128 C 915 138, 945 148, 968 156" fill="none" stroke="#0284c7" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" />
+                        <!-- Dynamic Dashed Forecast Lines -->
+                        <path id="chartTealDashPath" d="" fill="none" stroke="#0d9488" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" />
+                        <path id="chartBlueDashPath" d="" fill="none" stroke="#0284c7" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" />
 
-                        <!-- Clean, Simple Dots for All 12 Months (No Heavy Effects) -->
-                        <!-- M1: ມັງກອນ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(0)">
-                            <circle cx="60" cy="160" r="14" fill="transparent" />
-                            <circle cx="60" cy="160" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(0)">
-                            <circle cx="60" cy="172" r="14" fill="transparent" />
-                            <circle cx="60" cy="172" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
+                        <!-- Dynamic Dots Group for All 12 Months -->
+                        <g id="chartDynamicDotsGroup"></g>
 
-                        <!-- M2: ກຸມພາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(1)">
-                            <circle cx="142" cy="150" r="14" fill="transparent" />
-                            <circle cx="142" cy="150" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(1)">
-                            <circle cx="142" cy="166" r="14" fill="transparent" />
-                            <circle cx="142" cy="166" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M3: ມີນາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(2)">
-                            <circle cx="225" cy="148" r="14" fill="transparent" />
-                            <circle cx="225" cy="148" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(2)">
-                            <circle cx="225" cy="164" r="14" fill="transparent" />
-                            <circle cx="225" cy="164" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M4: ເມສາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(3)">
-                            <circle cx="308" cy="138" r="14" fill="transparent" />
-                            <circle cx="308" cy="138" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(3)">
-                            <circle cx="308" cy="160" r="14" fill="transparent" />
-                            <circle cx="308" cy="160" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M5: ພຶດສະພາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(4)">
-                            <circle cx="390" cy="106" r="14" fill="transparent" />
-                            <circle cx="390" cy="106" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(4)">
-                            <circle cx="390" cy="146" r="14" fill="transparent" />
-                            <circle cx="390" cy="146" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M6: ມິຖຸນາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(5)">
-                            <circle cx="472" cy="80" r="14" fill="transparent" />
-                            <circle cx="472" cy="80" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(5)">
-                            <circle cx="472" cy="128" r="14" fill="transparent" />
-                            <circle cx="472" cy="128" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M7: ກໍລະກົດ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(6)">
-                            <circle cx="555" cy="78" r="14" fill="transparent" />
-                            <circle cx="555" cy="78" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(6)">
-                            <circle cx="555" cy="118" r="14" fill="transparent" />
-                            <circle cx="555" cy="118" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M8: ສິງຫາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(7)">
-                            <circle cx="638" cy="56" r="14" fill="transparent" />
-                            <circle cx="638" cy="56" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(7)">
-                            <circle cx="638" cy="102" r="14" fill="transparent" />
-                            <circle cx="638" cy="102" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M9: ກັນຍາ (Default Active) -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(8)">
-                            <circle cx="720" cy="44" r="16" fill="transparent" />
-                            <circle cx="720" cy="44" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(8)">
-                            <circle cx="720" cy="88" r="16" fill="transparent" />
-                            <circle cx="720" cy="88" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M10: ຕຸລາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(9)">
-                            <circle cx="802" cy="66" r="14" fill="transparent" />
-                            <circle cx="802" cy="66" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(9)">
-                            <circle cx="802" cy="106" r="14" fill="transparent" />
-                            <circle cx="802" cy="106" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M11: ພະຈິກ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(10)">
-                            <circle cx="885" cy="86" r="14" fill="transparent" />
-                            <circle cx="885" cy="86" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(10)">
-                            <circle cx="885" cy="128" r="14" fill="transparent" />
-                            <circle cx="885" cy="128" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- M12: ທັນວາ -->
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(11)">
-                            <circle cx="968" cy="128" r="14" fill="transparent" />
-                            <circle cx="968" cy="128" r="3.5" fill="#0d9488" class="chart-dot-circle" />
-                        </g>
-                        <g class="chart-dot-btn" onclick="handleMonthDotClick(11)">
-                            <circle cx="968" cy="156" r="14" fill="transparent" />
-                            <circle cx="968" cy="156" r="3.5" fill="#0284c7" class="chart-dot-circle" />
-                        </g>
-
-                        <!-- Highlighted Active Rings Group (Default at Month 9) -->
+                        <!-- Highlighted Active Rings Group -->
                         <g id="chartActiveRings" pointer-events="none">
-                            <!-- Teal Active Ring -->
-                            <circle id="activeTealHalo" cx="720" cy="44" r="9" fill="#0d9488" fill-opacity="0.18" stroke="#0d9488" stroke-width="1.5" />
-                            <circle id="activeTealDot" cx="720" cy="44" r="5" fill="#0d9488" stroke="#ffffff" stroke-width="2" />
-                            <!-- Blue Active Ring -->
-                            <circle id="activeBlueHalo" cx="720" cy="88" r="9" fill="#0284c7" fill-opacity="0.18" stroke="#0284c7" stroke-width="1.5" />
-                            <circle id="activeBlueDot" cx="720" cy="88" r="5" fill="#0284c7" stroke="#ffffff" stroke-width="2" />
+                            <circle id="activeTealHalo" cx="885" cy="175" r="9" fill="#0d9488" fill-opacity="0.18" stroke="#0d9488" stroke-width="1.5" />
+                            <circle id="activeTealDot" cx="885" cy="175" r="5" fill="#0d9488" stroke="#ffffff" stroke-width="2" />
+                            <circle id="activeBlueHalo" cx="885" cy="175" r="9" fill="#0284c7" fill-opacity="0.18" stroke="#0284c7" stroke-width="1.5" />
+                            <circle id="activeBlueDot" cx="885" cy="175" r="5" fill="#0284c7" stroke="#ffffff" stroke-width="2" />
                         </g>
                     </svg>
                 </div>
@@ -534,30 +417,30 @@
                     <span onclick="handleMonthDotClick(5)">ມິຖຸນາ</span>
                     <span onclick="handleMonthDotClick(6)">ກໍລະກົດ</span>
                     <span onclick="handleMonthDotClick(7)">ສິງຫາ</span>
-                    <span class="active" onclick="handleMonthDotClick(8)">ກັນຍາ</span>
+                    <span onclick="handleMonthDotClick(8)">ກັນຍາ</span>
                     <span onclick="handleMonthDotClick(9)">ຕຸລາ</span>
-                    <span onclick="handleMonthDotClick(10)">ພະຈິກ</span>
+                    <span class="active" onclick="handleMonthDotClick(10)">ພະຈິກ</span>
                     <span onclick="handleMonthDotClick(11)">ທັນວາ</span>
                 </div>
             </div>
 
-            <!-- Right: Stacked KPI Cards with Sparklines -->
+            <!-- Right: Stacked KPI Cards with Sparklines (Option 1: Monthly vs Yearly Cumulative Clinic Visits) -->
             <div class="db-kpi-stack">
-                <!-- KPI 1: Monthly Visits -->
+                <!-- KPI 1: Clinic Visits in Selected/Current Month -->
                 <div class="db-kpi-card-v2">
                     <div class="db-kpi-left">
                         <div class="db-kpi-icon-row">
                             <div class="db-kpi-icon-circle teal">
-                                <i class="ph ph-user-check"></i>
+                                <i class="ph-fill ph-stethoscope"></i>
                             </div>
-                            <span class="db-kpi-title" data-i18n="db_kpi_visits_month">ຜູ້ປ່ວຍລົງທະບຽນສຳເລັດ</span>
+                            <span class="db-kpi-title" id="db-kpi-month-title">ຄົນເຈັບເຂົ້າກວດເດືອນນີ້ (ພະຈິກ 2026)</span>
                         </div>
                         <div class="db-kpi-val-row">
                             <span class="db-kpi-number" id="db-panel-visits-count">0</span>
-                            <span class="db-kpi-unit" data-i18n="unit_people">ຄົນ</span>
+                            <span class="db-kpi-unit" id="db-panel-visits-unit">ເຄສ</span>
                         </div>
-                        <span class="db-stat-trend-v2 trend-up">
-                            <i class="ph ph-arrow-up"></i> 12.5% ຈາກເດືອນກ່ອນ
+                        <span class="db-stat-trend-v2 trend-up" id="db-kpi-visits-trend">
+                            <i class="ph ph-calendar-check"></i> ກຳລັງໂຫຼດຂໍ້ມູນລາຍເດືອນ...
                         </span>
                     </div>
                     <div class="db-kpi-sparkline">
@@ -568,30 +451,27 @@
                                     <stop offset="100%" stop-color="#0d9488" stop-opacity="0.0" />
                                 </linearGradient>
                             </defs>
-                            <path
-                                d="M 0 35 C 15 30, 25 38, 40 25 C 55 12, 65 24, 75 18 C 85 16, 90 8, 100 5 L 100 45 L 0 45 Z"
-                                fill="url(#sparkTeal)" />
-                            <path d="M 0 35 C 15 30, 25 38, 40 25 C 55 12, 65 24, 75 18 C 85 16, 90 8, 100 5"
-                                fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" />
+                            <path d="M 0 35 C 15 30, 25 38, 40 25 C 55 12, 65 24, 75 18 C 85 16, 90 8, 100 5 L 100 45 L 0 45 Z" fill="url(#sparkTeal)" />
+                            <path d="M 0 35 C 15 30, 25 38, 40 25 C 55 12, 65 24, 75 18 C 85 16, 90 8, 100 5" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" />
                         </svg>
                     </div>
                 </div>
 
-                <!-- KPI 2: Registered but Not Examined -->
+                <!-- KPI 2: Cumulative Clinic Visits for the Entire Year -->
                 <div class="db-kpi-card-v2">
                     <div class="db-kpi-left">
                         <div class="db-kpi-icon-row">
                             <div class="db-kpi-icon-circle blue">
-                                <i class="ph ph-user-minus"></i>
+                                <i class="ph-fill ph-chart-line-up"></i>
                             </div>
-                            <span class="db-kpi-title" data-i18n="db_kpi_appts_month">ລົງທະບຽນແຕ່ບໍ່ມາກວດ (ເດືອນນີ້)</span>
+                            <span class="db-kpi-title" id="db-kpi-year-title">ຄົນເຈັບເຂົ້າກວດສະສົມທັງປີ (2026)</span>
                         </div>
                         <div class="db-kpi-val-row">
                             <span class="db-kpi-number" id="db-panel-appts-count">0</span>
-                            <span class="db-kpi-unit" data-i18n="unit_people">ຄົນ</span>
+                            <span class="db-kpi-unit" id="db-panel-appts-unit">ເຄສ</span>
                         </div>
-                        <span class="db-stat-trend-v2 trend-blue">
-                            <i class="ph ph-arrow-up"></i> 8.3% ຈາກເດືອນກ່ອນ
+                        <span class="db-stat-trend-v2 trend-blue" id="db-kpi-appts-trend">
+                            <i class="ph ph-trend-up"></i> ກຳລັງໂຫຼດຂໍ້ມູນສະສົມທັງປີ...
                         </span>
                     </div>
                     <div class="db-kpi-sparkline">
@@ -602,12 +482,266 @@
                                     <stop offset="100%" stop-color="#2563eb" stop-opacity="0.0" />
                                 </linearGradient>
                             </defs>
-                            <path
-                                d="M 0 40 C 15 38, 25 42, 40 32 C 55 22, 65 28, 75 22 C 85 20, 90 12, 100 8 L 100 45 L 0 45 Z"
-                                fill="url(#sparkBlue)" />
-                            <path d="M 0 40 C 15 38, 25 42, 40 32 C 55 22, 65 28, 75 22 C 85 20, 90 12, 100 8"
-                                fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+                            <path d="M 0 40 C 15 38, 25 42, 40 32 C 55 22, 65 28, 75 22 C 85 20, 90 12, 100 8 L 100 45 L 0 45 Z" fill="url(#sparkBlue)" />
+                            <path d="M 0 40 C 15 38, 25 42, 40 32 C 55 22, 65 28, 75 22 C 85 20, 90 12, 100 8" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
                         </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 4: ICD-10 Disease Diagnosis Ranking & Percentage (%) Report -->
+        <div class="db-icd10-section-v2">
+            <div class="db-icd10-header-v2">
+                <div class="db-icd10-title-box">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h5 class="db-card-title-v2 mb-0">
+                            <i class="ph-fill ph-heartbeat" style="color: #e11d48; font-size: 1.25rem;"></i>
+                            <span>ສະຫຼຸບການວິນິດໄສພະຍາດ (ICD-10) & ອັດຕາສ່ວນ (%)</span>
+                        </h5>
+                        <span class="db-icd10-period-badge" id="db-icd10-period-label">ຂໍ້ມູນທັງໝົດ</span>
+                    </div>
+                    <span class="db-chart-subtitle-v2">ຈັດອັນດັບພະຍາດທີ່ຄົນເຈັບມາກວດຫຼາຍທີ່ສຸດ ພ້ອມຄິດໄລ່ເປີເຊັນ (%) ຂອງແຕ່ລະພະຍາດ (ຕັດຄຳວ່າ "ບໍ່ມີ" ແລະ ຈັບຄູ່ລະຫັດ ICD-10 ອັດຕະໂນມັດ)</span>
+                </div>
+
+                <div class="db-icd10-controls">
+                    <div class="db-chart-filter-pills">
+                        <button type="button" class="db-chart-pill-btn active" id="icd10-btn-all" onclick="setIcd10ReportRange('all', this)">ທັງໝົດ</button>
+                        <button type="button" class="db-chart-pill-btn" id="icd10-btn-month" onclick="setIcd10ReportRange('month', this)">ເດືອນນີ້</button>
+                        <button type="button" class="db-chart-pill-btn" id="icd10-btn-calendar" onclick="setIcd10ReportRange('calendar', this)">ຕາມວັນທີເລືອກ</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary KPI Strip (3 Boxes) -->
+            <div class="db-icd10-summary-strip">
+                <div class="db-icd10-sum-box">
+                    <div class="db-icd10-sum-icon rose">
+                        <i class="ph-fill ph-stethoscope"></i>
+                    </div>
+                    <div class="db-icd10-sum-info">
+                        <span class="db-icd10-sum-label">ເຄສທີ່ວິນິດໄສພະຍາດຈິງ</span>
+                        <div class="db-icd10-sum-val-row">
+                            <span class="db-icd10-sum-num" id="db-icd10-total-cases">0</span>
+                            <span class="db-icd10-sum-unit">ເຄສ (100%)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="db-icd10-sum-box">
+                    <div class="db-icd10-sum-icon indigo">
+                        <i class="ph-fill ph-folders"></i>
+                    </div>
+                    <div class="db-icd10-sum-info">
+                        <span class="db-icd10-sum-label">ຈຳນວນກຸ່ມພະຍາດທີ່ພົບ</span>
+                        <div class="db-icd10-sum-val-row">
+                            <span class="db-icd10-sum-num" id="db-icd10-unique-count">0</span>
+                            <span class="db-icd10-sum-unit">ພະຍາດ</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="db-icd10-sum-box highlight">
+                    <div class="db-icd10-sum-icon emerald">
+                        <i class="ph-fill ph-trophy"></i>
+                    </div>
+                    <div class="db-icd10-sum-info">
+                        <span class="db-icd10-sum-label">ພະຍາດທີ່ມາກວດຫຼາຍອັນດັບ 1</span>
+                        <div class="db-icd10-sum-val-row">
+                            <span class="db-icd10-top-name" id="db-icd10-top-disease">-</span>
+                            <span class="db-icd10-top-pct-badge" id="db-icd10-top-pct">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2-Column Content: Top 5 Visual Bar Ranking + Full Disease % Table -->
+            <div class="db-icd10-content-grid">
+                <!-- Left: Top 5 Diseases Visual Percentage Chart -->
+                <div class="db-icd10-visual-card">
+                    <div class="db-icd10-subhead">
+                        <span><i class="ph-fill ph-chart-donut me-1 text-danger"></i> 5 ອັນດັບພະຍາດທີ່ມາກວດຫຼາຍທີ່ສຸດ (%)</span>
+                        <div class="db-chart-mode-switcher" id="icd10-visual-switcher">
+                            <button type="button" class="db-chart-mode-btn active" data-mode="donut" onclick="setIcd10VisualMode('donut', this)" title="ກຣາຟໂດນັດ">
+                                <i class="ph-fill ph-chart-donut"></i> ໂດນັດ
+                            </button>
+                            <button type="button" class="db-chart-mode-btn" data-mode="vbar" onclick="setIcd10VisualMode('vbar', this)" title="ກຣາຟແທ່ງແນວຕັ້ງ">
+                                <i class="ph-fill ph-chart-bar"></i> ກຣາຟແທ່ງ
+                            </button>
+                            <button type="button" class="db-chart-mode-btn" data-mode="hbar" onclick="setIcd10VisualMode('hbar', this)" title="ແຖບແນວນອນ">
+                                <i class="ph-fill ph-chart-bar-horizontal"></i> ແຖບນອນ
+                            </button>
+                        </div>
+                    </div>
+                    <div id="db-icd10-top5-bars" class="db-icd10-bars-list">
+                        <div class="text-center text-muted py-4">ກຳລັງໂຫຼດຂໍ້ມູນການວິນິດໄສ...</div>
+                    </div>
+                </div>
+
+                <!-- Right: Complete Ranked Table with % and Drill-down -->
+                <div class="db-icd10-table-card">
+                    <div class="db-icd10-subhead">
+                        <span><i class="ph-fill ph-list-numbers me-1 text-success"></i> ຕາຕະລາງຈັດອັນດັບພະຍາດທັງໝົດ & ອັດຕາສ່ວນ (%)</span>
+                        <small class="text-muted">ລວມຄຳພ້ອງ & ລະຫັດ ICD-10</small>
+                    </div>
+                    <div class="db-icd10-table-scroll">
+                        <table class="db-icd10-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 58px; text-align: center;">ອັນດັບ</th>
+                                    <th>ລະຫັດ ICD-10 / ຊື່ພະຍາດ</th>
+                                    <th style="width: 95px; text-align: center;">ຈຳນວນ</th>
+                                    <th style="width: 175px;">ອັດຕາສ່ວນ (%)</th>
+                                    <th style="width: 115px; text-align: right;">ລາຍຊື່</th>
+                                </tr>
+                            </thead>
+                            <tbody id="db-icd10-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">ກຳລັງໂຫຼດຂໍ້ມູນ...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 5: Multi-Tab Executive Analytics Suite (Medications, Referrers, Lab Tests, Demographics, Doctors) -->
+        <div class="db-icd10-section-v2 db-exec-report-section">
+            <div class="db-icd10-header-v2">
+                <div class="db-icd10-title-box">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h5 class="db-card-title-v2 mb-0">
+                            <i class="ph-fill ph-chart-pie-slice" style="color: #0d9488; font-size: 1.25rem;"></i>
+                            <span>ລາຍງານວິເຄາະຂໍ້ມູນຜູ້ບໍລິຫານຄົບວົງຈອນ (Executive Analytics & %)</span>
+                        </h5>
+                        <span class="db-icd10-period-badge" id="db-exec-period-label" style="background: #f0fdf4; color: #0d9488; border-color: #99f6e4;">ຂໍ້ມູນທັງໝົດ</span>
+                    </div>
+                    <span class="db-chart-subtitle-v2">ວິເຄາະອັດຕາສ່ວນ (%) ຢາ/ອາຫານເສີມຂາຍດີ, ຜົນງານຜູ້ແນະນຳ, ລາຍການກວດ Lab, ແຂວງ/ກຸ່ມອາຍຸຄົນເຈັບ ແລະ ຜົນງານທ່ານໝໍ</span>
+                </div>
+
+                <div class="db-icd10-controls">
+                    <div class="db-chart-filter-pills">
+                        <button type="button" class="db-chart-pill-btn active" id="exec-btn-all" onclick="setExecReportRange('all', this)">ທັງໝົດ</button>
+                        <button type="button" class="db-chart-pill-btn" id="exec-btn-month" onclick="setExecReportRange('month', this)">ເດືອນນີ້</button>
+                        <button type="button" class="db-chart-pill-btn" id="exec-btn-calendar" onclick="setExecReportRange('calendar', this)">ຕາມວັນທີເລືອກ</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5 Interactive Report Category Tabs -->
+            <div class="db-exec-tabs-bar">
+                <button type="button" class="db-exec-tab-btn active" data-tab="meds" onclick="switchExecReportTab('meds', this)">
+                    <i class="ph-fill ph-pill"></i>
+                    <span>1. ຢາ & ອາຫານເສີມຂາຍດີ</span>
+                </button>
+                <button type="button" class="db-exec-tab-btn" data-tab="referrers" onclick="switchExecReportTab('referrers', this)">
+                    <i class="ph-fill ph-users-three"></i>
+                    <span>2. ຜົນງານຜູ້ແນະນຳ (%)</span>
+                </button>
+                <button type="button" class="db-exec-tab-btn" data-tab="labs" onclick="switchExecReportTab('labs', this)">
+                    <i class="ph-fill ph-flask"></i>
+                    <span>3. ລາຍການກວດ Lab ຍອດນິຍົມ</span>
+                </button>
+                <button type="button" class="db-exec-tab-btn" data-tab="demographics" onclick="switchExecReportTab('demographics', this)">
+                    <i class="ph-fill ph-map-pin-area"></i>
+                    <span>4. ແຂວງ/ເມືອງ & ກຸ່ມອາຍຸ</span>
+                </button>
+                <button type="button" class="db-exec-tab-btn" data-tab="doctors" onclick="switchExecReportTab('doctors', this)">
+                    <i class="ph-fill ph-user-Sound"></i>
+                    <span>5. ຜົນງານທ່ານໝໍຜູ້ກວດ</span>
+                </button>
+            </div>
+
+            <!-- Dynamic Summary KPI Strip (3 Boxes) -->
+            <div class="db-icd10-summary-strip">
+                <div class="db-icd10-sum-box">
+                    <div class="db-icd10-sum-icon indigo" id="db-exec-kpi1-icon">
+                        <i class="ph-fill ph-package"></i>
+                    </div>
+                    <div class="db-icd10-sum-info">
+                        <span class="db-icd10-sum-label" id="db-exec-kpi1-label">ຈຳນວນລວມທັງໝົດ</span>
+                        <div class="db-icd10-sum-val-row">
+                            <span class="db-icd10-sum-num" id="db-exec-kpi1-val">0</span>
+                            <span class="db-icd10-sum-unit" id="db-exec-kpi1-unit">ລາຍການ</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="db-icd10-sum-box">
+                    <div class="db-icd10-sum-icon rose" id="db-exec-kpi2-icon">
+                        <i class="ph-fill ph-chart-line-up"></i>
+                    </div>
+                    <div class="db-icd10-sum-info">
+                        <span class="db-icd10-sum-label" id="db-exec-kpi2-label">ອັດຕາສ່ວນ / ມູນຄ່າລວມ</span>
+                        <div class="db-icd10-sum-val-row">
+                            <span class="db-icd10-sum-num" id="db-exec-kpi2-val">0</span>
+                            <span class="db-icd10-sum-unit" id="db-exec-kpi2-unit">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="db-icd10-sum-box highlight">
+                    <div class="db-icd10-sum-icon emerald">
+                        <i class="ph-fill ph-crown"></i>
+                    </div>
+                    <div class="db-icd10-sum-info">
+                        <span class="db-icd10-sum-label" id="db-exec-kpi3-label">ອັນດັບ 1 ສູງສຸດ</span>
+                        <div class="db-icd10-sum-val-row">
+                            <span class="db-icd10-top-name" id="db-exec-kpi3-val">-</span>
+                            <span class="db-icd10-top-pct-badge" id="db-exec-kpi3-pct">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2-Column Content: Top 5 Visual Bar Ranking + Full Ranked Table -->
+            <div class="db-icd10-content-grid">
+                <!-- Left: Top 5 Visual Percentage Chart -->
+                <div class="db-icd10-visual-card">
+                    <div class="db-icd10-subhead">
+                        <span id="db-exec-left-title"><i class="ph-fill ph-chart-bar me-1 text-primary"></i> 5 ອັນດັບສູງສຸດ (%)</span>
+                        <div class="db-chart-mode-switcher" id="exec-visual-switcher">
+                            <button type="button" class="db-chart-mode-btn active" data-mode="vbar" onclick="setExecVisualMode('vbar', this)" title="ກຣາຟແທ່ງແນວຕັ້ງ">
+                                <i class="ph-fill ph-chart-bar"></i> ກຣາຟແທ່ງ
+                            </button>
+                            <button type="button" class="db-chart-mode-btn" data-mode="donut" onclick="setExecVisualMode('donut', this)" title="ກຣາຟໂດນັດ">
+                                <i class="ph-fill ph-chart-donut"></i> ໂດນັດ
+                            </button>
+                            <button type="button" class="db-chart-mode-btn" data-mode="hbar" onclick="setExecVisualMode('hbar', this)" title="ແຖບແນວນອນ">
+                                <i class="ph-fill ph-chart-bar-horizontal"></i> ແຖບນອນ
+                            </button>
+                        </div>
+                    </div>
+                    <div id="db-exec-top5-bars" class="db-icd10-bars-list">
+                        <div class="text-center text-muted py-4">ກຳລັງໂຫຼດຂໍ້ມູນ...</div>
+                    </div>
+                </div>
+
+                <!-- Right: Complete Ranked Table with % and Drill-down -->
+                <div class="db-icd10-table-card">
+                    <div class="db-icd10-subhead">
+                        <span id="db-exec-right-title"><i class="ph-fill ph-table me-1 text-success"></i> ຕາຕະລາງຈັດອັນດັບທັງໝົດ & ອັດຕາສ່ວນ (%)</span>
+                        <small class="text-muted" id="db-exec-right-sub">ຂໍ້ມູນຈິງຈາກຖານຂໍ້ມູນ</small>
+                    </div>
+                    <div class="db-icd10-table-scroll">
+                        <table class="db-icd10-table">
+                            <thead>
+                                <tr id="db-exec-table-head-row">
+                                    <th style="width: 55px; text-align: center;">ອັນດັບ</th>
+                                    <th>ລາຍການ</th>
+                                    <th style="width: 110px; text-align: center;">ຈຳນວນ</th>
+                                    <th style="width: 130px; text-align: right;">ຍອດລວມ / ລາຍລະອຽດ</th>
+                                    <th style="width: 165px;">ອັດຕາສ່ວນ (%)</th>
+                                    <th style="width: 85px; text-align: right;">ລາຍຊື່</th>
+                                </tr>
+                            </thead>
+                            <tbody id="db-exec-table-body">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">ກຳລັງໂຫຼດຂໍ້ມູນ...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -616,6 +750,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="dashboard.js?v=2.0"></script>
+    <script src="dashboard.js?v=3.1"></script>
 </body>
 </html>
