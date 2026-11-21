@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ================================================================
  * 📊 mlmLogic.js — STK MLM & Dashboard Business Logic Engine
  * LOVE STK GROUPE - Dashboard Calculation & Data Processing Engine
@@ -663,7 +663,7 @@
     }));
   };
 
-const calcTopPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate }) => {
+const calcTopPerformanceData = ({ sales, customers, members, dashStartDate, dashEndDate, products }) => {
     let mStats = {};
     (members || []).forEach(m => {
       if (m && (m.id || m.user_id) && isMarketingStaff(m)) {
@@ -671,6 +671,16 @@ const calcTopPerformanceData = ({ sales, customers, members, dashStartDate, dash
         mStats[key] = { id: m.id || m.user_id, name: m.name || m.id, profileUrl: m.profileUrl, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
       }
     });
+
+    const prodMap = {};
+    const hasProdMap = Array.isArray(products) && products.length > 0;
+    if (hasProdMap) {
+      products.forEach(p => {
+        if (p.id) prodMap[safeUpper(p.id)] = p;
+        if (p.product_id) prodMap[safeUpper(p.product_id)] = p;
+        if (p.name) prodMap[safeUpper(p.name)] = p;
+      });
+    }
 
     const filteredSales = (sales || []).filter(s => {
       if (!s) return false;
@@ -690,7 +700,32 @@ const calcTopPerformanceData = ({ sales, customers, members, dashStartDate, dash
       if (!mStats[key]) {
         mStats[key] = { id: memberId, name: mem ? mem.name : (s.memberName || s.member_name || memberId), profileUrl: mem?.profileUrl, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
       }
-      const fullBoxes = parseSaleBoxes(s);
+
+      let fullBoxes = 0;
+      let itemsList = [];
+      if (s.items_json) {
+        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+      }
+
+      if (Array.isArray(itemsList) && itemsList.length > 0 && hasProdMap) {
+        itemsList.forEach(it => {
+          const typeStr = classifyOrderItem(it, prodMap);
+          const qtyNum = Number(it.qty || it.quantity || 1);
+          const pName = String(it.prod || it.productName || it.name || '').trim();
+          const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+          const pId = safeUpper(it.productId || it.product_id || it.id || '');
+          const pObj = (pId && prodMap[pId]) || prodMap[safeUpper(pName)] || prodMap[safeUpper(cleanPName)] || {};
+          const eligibleForRef = hasReferralFee(pObj);
+
+          // นับเฉพาะสินค้าที่มีสิทธิ์คิดค่าแนะนำจริง (ราคาเต็ม หรือ ราคาสมาชิก ที่มีสิทธิ์คิดค่าแนะนำ)
+          if ((typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก') && eligibleForRef) {
+            fullBoxes += qtyNum;
+          }
+        });
+      } else {
+        fullBoxes = parseSaleBoxes(s);
+      }
+
       if (fullBoxes <= 0) return;
 
       const cust = findSaleCustomer(s, customers);
@@ -837,7 +872,17 @@ const calcTopCheckupPerformanceData = ({ sales, customers, members, dashStartDat
     return { maxFull, maxOld, maxNew };
   };
 
-  const calcDailyTopSales = ({ sales, members, dailyTopSalesStartDate, dailyTopSalesEndDate }) => {
+  const calcDailyTopSales = ({ sales, members, dailyTopSalesStartDate, dailyTopSalesEndDate, products }) => {
+    const prodMap = {};
+    const hasProdMap = Array.isArray(products) && products.length > 0;
+    if (hasProdMap) {
+      products.forEach(p => {
+        if (p.id) prodMap[safeUpper(p.id)] = p;
+        if (p.product_id) prodMap[safeUpper(p.product_id)] = p;
+        if (p.name) prodMap[safeUpper(p.name)] = p;
+      });
+    }
+
     const periodSales = (sales || []).filter(s => {
       if (!s) return false;
       const dStr = parseSaleDate(s);
@@ -852,7 +897,32 @@ const calcTopCheckupPerformanceData = ({ sales, customers, members, dashStartDat
         const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
         aggregated[key] = { memberId: mId, memberName: mem ? mem.name : (s.memberName || s.member_name || mId), totalFullBoxes: 0 };
       }
-      aggregated[key].totalFullBoxes += parseSaleBoxes(s);
+
+      let fullBoxes = 0;
+      let itemsList = [];
+      if (s.items_json) {
+        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+      }
+
+      if (Array.isArray(itemsList) && itemsList.length > 0 && hasProdMap) {
+        itemsList.forEach(it => {
+          const typeStr = classifyOrderItem(it, prodMap);
+          const qtyNum = Number(it.qty || it.quantity || 1);
+          const pName = String(it.prod || it.productName || it.name || '').trim();
+          const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+          const pId = safeUpper(it.productId || it.product_id || it.id || '');
+          const pObj = (pId && prodMap[pId]) || prodMap[safeUpper(pName)] || prodMap[safeUpper(cleanPName)] || {};
+          const eligibleForRef = hasReferralFee(pObj);
+
+          if ((typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก') && eligibleForRef) {
+            fullBoxes += qtyNum;
+          }
+        });
+      } else {
+        fullBoxes = parseSaleBoxes(s);
+      }
+
+      aggregated[key].totalFullBoxes += fullBoxes;
     });
     return Object.values(aggregated).filter(m => m.totalFullBoxes > 0).sort((a, b) => b.totalFullBoxes - a.totalFullBoxes).slice(0, 10);
   };

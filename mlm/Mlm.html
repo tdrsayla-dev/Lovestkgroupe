@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -203,9 +203,12 @@
                             if (finalStart && finalEnd) {
                                 const logs = await window.CampaignEngine.fetchClinicLogs(finalStart, finalEnd, forceLive);
                                 setClinicLogs(Array.isArray(logs) ? logs : []);
-                                if (typeof window.supabaseSelect === 'function') {
-                                    const cSales = await window.supabaseSelect('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${finalStart}&date=lte.${finalEnd}&limit=5000`).catch(() => []);
-                                    if (Array.isArray(cSales) && cSales.length > 0) setCampaignSales(cSales);
+                                if (typeof window.supabaseSelect === 'function' && activeList.length > 0) {
+                                    // โหลดเฉพาะเมื่อมีแคมเปญ active และช่วงวันแคมเปญต่างจากแดชบอร์ดหลัก เพื่อประหยัด Data Egress
+                                    if (campStart && campEnd && (campStart < dashStartDate || campEnd > dashEndDate)) {
+                                        const cSales = await window.supabaseSelect('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${finalStart}&date=lte.${finalEnd}&limit=5000`).catch(() => []);
+                                        if (Array.isArray(cSales) && cSales.length > 0) setCampaignSales(cSales);
+                                    }
                                 }
                             }
                         }
@@ -422,9 +425,9 @@
             const topPerformanceData = useMemo(() => {
                 if (!window.MlmLogic) return [];
                 return window.MlmLogic.calcTopPerformanceData({
-                    sales, customers, members, dashStartDate, dashEndDate
+                    sales, customers, members, dashStartDate, dashEndDate, products
                 });
-            }, [sales, customers, members, dashStartDate, dashEndDate]);
+            }, [sales, customers, members, dashStartDate, dashEndDate, products]);
 
             const podiumData = useMemo(() => {
                 return window.MlmLogic ? window.MlmLogic.calcPodiumData(topPerformanceData) : [];
@@ -476,9 +479,9 @@
             const dailyTopSales = useMemo(() => {
                 if (!window.MlmLogic) return [];
                 return window.MlmLogic.calcDailyTopSales({
-                    sales, members, dailyTopSalesStartDate, dailyTopSalesEndDate
+                    sales, members, dailyTopSalesStartDate, dailyTopSalesEndDate, products
                 });
-            }, [sales, members, dailyTopSalesStartDate, dailyTopSalesEndDate]);
+            }, [sales, members, dailyTopSalesStartDate, dailyTopSalesEndDate, products]);
 
             const [zeroSalesStartDate, setZeroSalesStartDate] = useState(firstDayOfMonthStr);
             const [zeroSalesEndDate, setZeroSalesEndDate] = useState(todayStr);
@@ -621,9 +624,11 @@
                                 <div className="flex flex-col mb-4 gap-0.5 shrink-0 relative z-10 text-center">
                                     <h3 className="text-lg sm:text-xl font-black text-white flex items-center justify-center gap-2"><Trophy size={20} className="text-yellow-400 drop-shadow-md" /> ยอดขายสินค้าสูงสุด (Top Sales)</h3>
                                     <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">จัดอันดับ 1-3 ตามจำนวนกล่องที่ขายได้</p>
+                                    {isSyncing && <div className="flex items-center justify-center gap-1 mt-1"><div className="w-3 h-3 border-2 border-yellow-400/40 border-t-yellow-400 rounded-full animate-spin"></div><span className="text-[9px] text-yellow-400 font-medium">กำลังอัปเดต...</span></div>}
                                 </div>
                                 <div className="flex justify-center items-end gap-1 sm:gap-2 w-full pt-1 pb-1 px-1 relative z-10 min-h-[14rem]">
-                                    {podiumData.map((m) => {
+                                    {podiumData && podiumData.length > 0 ? (
+                                        podiumData.map((m) => {
                                         const currentMember = (members || []).find(mem => mem.id === m.id);
                                         const avatarUrl = cleanAvatarUrl(podiumAvatars[m.id] || currentMember?.profileUrl || m.profileUrl, m.name);
                                         const isRank1 = m.rank === 1; const isRank2 = m.rank === 2;
@@ -664,7 +669,13 @@
                                                 </div>
                                             </div>
                                         );
-                                    })}
+                                    })) : (
+                                        <div className="flex flex-col items-center justify-center w-full h-[12.5rem] sm:h-[15rem] text-slate-400 font-bold bg-white/5 rounded-2xl border border-white/10 p-4 text-center">
+                                            <Trophy size={36} className="text-yellow-400/40 mb-2" />
+                                            <span className="text-xs sm:text-sm text-slate-300">ไม่มีข้อมูลยอดขายในช่วงเวลาที่เลือก</span>
+                                            <span className="text-[10px] text-slate-500 mt-1">({dashStartDate} ถึง {dashEndDate})</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -675,7 +686,8 @@
                                     {isSyncing && <div className="flex items-center justify-center gap-1 mt-1"><div className="w-3 h-3 border-2 border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin"></div><span className="text-[9px] text-emerald-400 font-medium">กำลังอัปเดต...</span></div>}
                                 </div>
                                 <div className="flex justify-center items-end gap-1 w-full pt-1 pb-1 relative z-10 min-h-[14rem]">
-                                    {checkupPodiumData.map((m) => {
+                                    {checkupPodiumData && checkupPodiumData.length > 0 ? (
+                                        checkupPodiumData.map((m) => {
                                         const currentMember = (members || []).find(mem => mem.id === m.id);
                                         const avatarUrl = cleanAvatarUrl(podiumAvatars[m.id] || currentMember?.profileUrl || m.profileUrl, m.name);
                                         const isRank1 = m.rank === 1; const isRank2 = m.rank === 2;
@@ -716,7 +728,13 @@
                                                 </div>
                                             </div>
                                         );
-                                    })}
+                                    })) : (
+                                        <div className="flex flex-col items-center justify-center w-full h-[12.5rem] sm:h-[15rem] text-slate-400 font-bold bg-white/5 rounded-2xl border border-white/10 p-4 text-center">
+                                            <Users size={36} className="text-emerald-400/40 mb-2" />
+                                            <span className="text-xs sm:text-sm text-slate-300">ไม่มีข้อมูลคนมาตรวจในช่วงเวลาที่เลือก</span>
+                                            <span className="text-[10px] text-slate-500 mt-1">({dashStartDate} ถึง {dashEndDate})</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1718,6 +1736,8 @@
                 }
             });
             const [isSyncing, setIsSyncing] = useState(false);
+            const defaultInitialRange = window.MlmLogic ? window.MlmLogic.getDefaultMonthRange() : { start: `${new Date().getFullYear()}-01-01`, end: `${new Date().getFullYear()}-12-31` };
+            const activeSalesRangeRef = useRef({ start: defaultInitialRange.start, end: defaultInitialRange.end });
             const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
                 try {
                     return localStorage.getItem('stk_sidebar_collapsed') === 'true';
@@ -1733,7 +1753,8 @@
             };
 
             const [activePage, setActivePage] = useState('dashboard');
-            const [iframeSrc, setIframeSrc] = useState('');
+            const [activeTabKey, setActiveTabKey] = useState('dashboard');
+            const [loadedPages, setLoadedPages] = useState({});
             const [iframeOpacity, setIframeOpacity] = useState(1);
 
             // Parse initial URL query page parameter
@@ -1742,9 +1763,14 @@
                     const currentUrl = window.location.href;
                     const urlObj = new URL(currentUrl, window.location.origin);
                     const pageParam = urlObj.searchParams.get('page') || 'dashboard';
+                    const groupParam = urlObj.searchParams.get('group') || '';
+                    const tabKey = (pageParam === 'reports' && groupParam) ? `reports_${groupParam}` : pageParam;
+
                     setActivePage(pageParam);
+                    setActiveTabKey(tabKey);
                     if (pageParam !== 'dashboard') {
-                        setIframeSrc(mapPageToHtml(currentUrl));
+                        const resolvedFile = mapPageToHtml(currentUrl);
+                        setLoadedPages(prev => ({ ...prev, [tabKey]: resolvedFile }));
                     }
                 };
 
@@ -1766,17 +1792,22 @@
                             e.preventDefault();
                             e.stopPropagation();
 
-                            setIframeOpacity(0.3);
+                            const groupParam = url.searchParams.get('group') || '';
+                            const tabKey = (pageParam === 'reports' && groupParam) ? `reports_${groupParam}` : pageParam;
 
-                            const targetPage = pageParam;
-                            setActivePage(targetPage);
-                            if (targetPage !== 'dashboard') {
+                            setActivePage(pageParam);
+                            setActiveTabKey(tabKey);
+                            if (pageParam !== 'dashboard') {
                                 const resolvedFile = mapPageToHtml(anchor.href);
-                                setIframeSrc(resolvedFile);
+                                setLoadedPages(prev => {
+                                    if (!prev[tabKey] || prev[tabKey] !== resolvedFile) {
+                                        return { ...prev, [tabKey]: resolvedFile };
+                                    }
+                                    return prev;
+                                });
                             }
 
                             window.history.pushState(null, '', anchor.search || '?page=dashboard');
-                            setTimeout(() => setIframeOpacity(1), 150);
                         }
                     }
                 };
@@ -1910,9 +1941,15 @@
                     console.warn('[Realtime] Subscription skipped:', rtErr);
                 }
 
+                let lastFocusSync = 0;
                 const handleTabFocus = () => {
-                    if (typeof window.refreshAppDashboardData === 'function') {
-                        window.refreshAppDashboardData();
+                    const now = Date.now();
+                    // Throttle 60 วินาที ป้องกันข้อมูลกระพริบหรือถูกล้างเวลาสลับหน้าต่างแคปหน้าจอ
+                    if (now - lastFocusSync > 60000) {
+                        lastFocusSync = now;
+                        if (typeof window.refreshAppDashboardData === 'function') {
+                            window.refreshAppDashboardData();
+                        }
                     }
                 };
                 window.addEventListener('focus', handleTabFocus);
@@ -1959,13 +1996,16 @@
                         const y = now.getFullYear();
                         const m = String(now.getMonth() + 1).padStart(2, '0');
                         const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-                        const s = `${y}-${m}-01`;
-                        const e = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
-                        const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : supabaseSelect;
+                        const s = (activeSalesRangeRef.current && activeSalesRangeRef.current.start) ? activeSalesRangeRef.current.start : `${y}-${m}-01`;
+                        const e = (activeSalesRangeRef.current && activeSalesRangeRef.current.end) ? activeSalesRangeRef.current.end : `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+                        const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : (typeof window.supabaseSelect === 'function' ? window.supabaseSelect : null);
                         if (window.supabaseRpc) {
                             try { return await window.supabaseRpc('get_stk_sales_by_date', { p_start_date: s, p_end_date: e }); } catch (err) { }
                         }
-                        return selectFn('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${s}&date=lte.${e}`).catch(() => []);
+                        if (selectFn) {
+                            return selectFn('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${s}&date=lte.${e}`).catch(() => []);
+                        }
+                        return [];
                     })(),
                     supabaseSelect('stk_business_teams').catch(() => []),
                     supabaseSelect('stk_target_history').catch(() => [])
@@ -2001,14 +2041,19 @@
             };
 
             const fetchSalesForPeriod = async (start, end) => {
-                setIsAppLoading(true);
+                if (activeSalesRangeRef.current) {
+                    activeSalesRangeRef.current = { start, end };
+                }
+                setIsSyncing(true);
                 try {
                     let salesData = [];
-                    const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : supabaseSelect;
+                    const selectFn = typeof window.supabaseSelectAll === 'function' ? window.supabaseSelectAll : (typeof window.supabaseSelect === 'function' ? window.supabaseSelect : null);
                     if (window.supabaseRpc) {
                         try { salesData = await window.supabaseRpc('get_stk_sales_by_date', { p_start_date: start, p_end_date: end }); }
-                        catch (e) { salesData = await selectFn('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${start}&date=lte.${end}`).catch(() => []); }
-                    } else {
+                        catch (e) {
+                            if (selectFn) salesData = await selectFn('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${start}&date=lte.${end}`).catch(() => []);
+                        }
+                    } else if (selectFn) {
                         salesData = await selectFn('stk_sales', `select=order_id,date,seller_id,customer_id,sale_type,total_amount,total_bottles,status,items_json&date=gte.${start}&date=lte.${end}`).catch(() => []);
                     }
                     const processed = processSalesRows(salesData || [], products); // 👈 ส่ง products เข้าไปคำนวณด้วย
@@ -2019,7 +2064,7 @@
                 } catch (e) {
                     console.error(e);
                 } finally {
-                    setIsAppLoading(false);
+                    setIsSyncing(false);
                 }
             };
 
@@ -2214,41 +2259,42 @@
                             </div>
                             , document.body)}
 
-                        {activePage === 'dashboard' ? (
-                            <React.Fragment>
-                                <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
-                                    <div className="w-full relative z-10">
-
-                                        <DashboardView
-                                            sales={sales}
-                                            products={products}
-                                            fetchFreshData={fetchFreshData}
-                                            fetchSalesForPeriod={fetchSalesForPeriod}
-                                            members={members}
-                                            customers={customers}
-                                            isAdmin={isAdmin}
-                                            activeCustomerTypes={activeCustomerTypes}
-                                            businessTeams={businessTeams}
-                                            initialTargetHistory={targetHistory}
-                                            isSyncing={isSyncing}
-                                        />
-
-                                    </div>
+                        {/* 1. Dashboard View (Keep Alive - ซ่อนด้วย display: none เมื่อไม่อยู่หน้า Dashboard) */}
+                        <div style={{ display: activeTabKey === 'dashboard' ? 'flex' : 'none' }} className="flex-1 w-full flex-col min-h-0">
+                            <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
+                                <div className="w-full relative z-10">
+                                    <DashboardView
+                                        sales={sales}
+                                        products={products}
+                                        fetchFreshData={fetchFreshData}
+                                        fetchSalesForPeriod={fetchSalesForPeriod}
+                                        members={members}
+                                        customers={customers}
+                                        isAdmin={isAdmin}
+                                        activeCustomerTypes={activeCustomerTypes}
+                                        businessTeams={businessTeams}
+                                        initialTargetHistory={targetHistory}
+                                        isSyncing={isSyncing}
+                                    />
                                 </div>
+                            </div>
 
-                                <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
-                                    <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
-                                        &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
-                                    </p>
-                                </footer>
-                            </React.Fragment>
-                        ) : (
+                            <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
+                                <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
+                                    &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
+                                </p>
+                            </footer>
+                        </div>
+
+                        {/* 2. Sub-page Iframes (Keep Alive - ไม่ทำลายหน้าจอเดิม ท่องเว็บได้ลื่นไหล ไม่ต้องโหลดซ้ำ 0ms) */}
+                        {Object.entries(loadedPages).map(([pKey, pSrc]) => (
                             <iframe
-                                src={iframeSrc}
-                                style={{ opacity: iframeOpacity }}
+                                key={pKey}
+                                src={pSrc}
+                                style={{ display: activeTabKey === pKey ? 'block' : 'none' }}
                                 className="w-full h-full flex-1 border-none bg-slate-50 transition-opacity duration-150"
                             />
-                        )}
+                        ))}
 
                     </main>
 
